@@ -63,6 +63,7 @@ const (
 	fsmOpenMsgNegotiated
 	fsmHardReset
 	fsmDeConfigured
+	fsmBadPeerAS
 )
 
 type fsmStateReason struct {
@@ -113,6 +114,8 @@ func (r fsmStateReason) String() string {
 		return "open-msg-negotiated"
 	case fsmHardReset:
 		return "hard-reset"
+	case fsmBadPeerAS:
+		return "bad-peer-as"
 	default:
 		return "unknown"
 	}
@@ -1293,6 +1296,9 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 						err := err.(*bgp.MessageError)
 						m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
 						_ = fsm.sendNotification(m)
+						if err.TypeCode == bgp.BGP_ERROR_OPEN_MESSAGE_ERROR && err.SubTypeCode == bgp.BGP_ERROR_SUB_BAD_PEER_AS {
+							return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmBadPeerAS, m, nil)
+						}
 						return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
 					}
 

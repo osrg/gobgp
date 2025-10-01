@@ -4329,6 +4329,47 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 	}, false)
 }
 
+// convertFSMStateReasonToAPI converts FSM state reason to API disconnect reason and message
+func convertFSMStateReasonToAPI(stateReason *fsmStateReason) (api.PeerState_DisconnectReason, string) {
+	if stateReason == nil {
+		return api.PeerState_DISCONNECT_REASON_UNSPECIFIED, ""
+	}
+
+	var disconnectReason api.PeerState_DisconnectReason
+	switch stateReason.Type {
+	case fsmAdminDown:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_ADMIN_DOWN
+	case fsmHoldTimerExpired:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_HOLD_TIMER_EXPIRED
+	case fsmNotificationSent:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_NOTIFICATION_SENT
+	case fsmNotificationRecv:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_NOTIFICATION_RECEIVED
+	case fsmReadFailed:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_READ_FAILED
+	case fsmWriteFailed:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_WRITE_FAILED
+	case fsmIdleTimerExpired:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_IDLE_TIMER_EXPIRED
+	case fsmRestartTimerExpired:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_RESTART_TIMER_EXPIRED
+	case fsmGracefulRestart:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART
+	case fsmInvalidMsg:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_INVALID_MSG
+	case fsmHardReset:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_HARD_RESET
+	case fsmDeConfigured:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_DECONFIGURED
+	case fsmBadPeerAS:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_BAD_PEER_AS
+	default:
+		disconnectReason = api.PeerState_DISCONNECT_REASON_UNSPECIFIED
+	}
+
+	return disconnectReason, stateReason.String()
+}
+
 func toPathApiUtil(path *table.Path) *apiutil.Path {
 	// Best and SendMaxFiltered are set in ListPath API
 	p := &apiutil.Path{
@@ -4428,6 +4469,9 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 						case adminStatePfxCt:
 							admin_state = api.PeerState_ADMIN_STATE_PFX_CT
 						}
+
+						disconnectReason, disconnectMessage := convertFSMStateReasonToAPI(msg.StateReason)
+
 						callbacks.OnPeerUpdate(&apiutil.WatchEventMessage_PeerEvent{
 							Type: msg.Type,
 							Peer: apiutil.Peer{
@@ -4438,13 +4482,15 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 									NeighborInterface: msg.PeerInterface,
 								},
 								State: apiutil.PeerState{
-									PeerASN:         msg.PeerAS,
-									LocalASN:        msg.LocalAS,
-									NeighborAddress: msg.PeerAddress,
-									SessionState:    msg.State,
-									AdminState:      admin_state,
-									RouterID:        msg.PeerID,
-									RemoteCap:       msg.RemoteCap,
+									PeerASN:           msg.PeerAS,
+									LocalASN:          msg.LocalAS,
+									NeighborAddress:   msg.PeerAddress,
+									SessionState:      msg.State,
+									AdminState:        admin_state,
+									RouterID:          msg.PeerID,
+									RemoteCap:         msg.RemoteCap,
+									DisconnectReason:  disconnectReason,
+									DisconnectMessage: disconnectMessage,
 								},
 								Transport: apiutil.Transport{
 									LocalAddress: msg.LocalAddress,

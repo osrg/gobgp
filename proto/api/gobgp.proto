@@ -845,6 +845,25 @@ message PeerState {
   repeated Capability remote_cap = 18;
   repeated Capability local_cap = 19;
   string router_id = 20;
+  // State change reason information
+  enum DisconnectReason {
+    DISCONNECT_REASON_UNSPECIFIED = 0;
+    DISCONNECT_REASON_ADMIN_DOWN = 1;
+    DISCONNECT_REASON_HOLD_TIMER_EXPIRED = 2;
+    DISCONNECT_REASON_NOTIFICATION_SENT = 3;
+    DISCONNECT_REASON_NOTIFICATION_RECEIVED = 4;
+    DISCONNECT_REASON_READ_FAILED = 5;
+    DISCONNECT_REASON_WRITE_FAILED = 6;
+    DISCONNECT_REASON_IDLE_TIMER_EXPIRED = 7;
+    DISCONNECT_REASON_RESTART_TIMER_EXPIRED = 8;
+    DISCONNECT_REASON_GRACEFUL_RESTART = 9;
+    DISCONNECT_REASON_INVALID_MSG = 10;
+    DISCONNECT_REASON_HARD_RESET = 11;
+    DISCONNECT_REASON_DECONFIGURED = 12;
+    DISCONNECT_REASON_BAD_PEER_AS = 13;
+  }
+  DisconnectReason disconnect_reason = 21;
+  string disconnect_message = 22;
 }
 
 message Messages {

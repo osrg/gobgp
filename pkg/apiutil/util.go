@@ -116,13 +116,15 @@ type PeerConf struct {
 	NeighborInterface string
 }
 type PeerState struct {
-	PeerASN         uint32
-	LocalASN        uint32
-	NeighborAddress netip.Addr
-	SessionState    bgp.FSMState
-	AdminState      api.PeerState_AdminState
-	RouterID        netip.Addr
-	RemoteCap       []bgp.ParameterCapabilityInterface
+	PeerASN           uint32
+	LocalASN          uint32
+	NeighborAddress   netip.Addr
+	SessionState      bgp.FSMState
+	AdminState        api.PeerState_AdminState
+	RouterID          netip.Addr
+	RemoteCap         []bgp.ParameterCapabilityInterface
+	DisconnectReason  api.PeerState_DisconnectReason
+	DisconnectMessage string
 }
 type Transport struct {
 	LocalAddress netip.Addr
