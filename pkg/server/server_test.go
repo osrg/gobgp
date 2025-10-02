@@ -1481,7 +1481,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
-	neighbor1 := s1.neighborMap[p1.Conf.NeighborAddress]
+	neighbor1 := s1.neighborMap[netip.MustParseAddr(p1.Conf.NeighborAddress)]
 	// incoming := neighbor1.fsm.h.msgCh
 	// err = s1.mgmtOperation(func() error {
 	// 	s1.delIncoming(incoming)
@@ -1797,7 +1797,7 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		panh2,
 	}, time.Now(), false)
 
-	s1Peer := s2.neighborMap["127.0.0.1"]
+	s1Peer := s2.neighborMap[netip.MustParseAddr("127.0.0.1")]
 	s2.propagateUpdate(s1Peer, []*table.Path{rtcPath})
 
 	t2 := time.NewTimer(2 * time.Second)

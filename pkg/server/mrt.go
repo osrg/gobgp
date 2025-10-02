@@ -121,7 +121,7 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 	as := uint32(0)
 	id := table.GLOBAL_RIB_NAME
 	if m.c.TableName.IsValid() {
-		peer, ok := m.s.neighborMap[m.c.TableName.String()]
+		peer, ok := m.s.neighborMap[m.c.TableName]
 		if !ok {
 			return []*mrt.MRTMessage{}
 		}
@@ -142,7 +142,7 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 					isAddPath := false
 					if path.IsLocal() {
 						isAddPath = true
-					} else if neighbor, ok := m.s.neighborMap[path.GetSource().Address.String()]; ok {
+					} else if neighbor, ok := m.s.neighborMap[path.GetSource().Address]; ok {
 						isAddPath = neighbor.isAddPathReceiveEnabled(family)
 					}
 					if !isAddPath {

@@ -119,7 +119,7 @@ type BgpServer struct {
 	mgmtCh       chan *mgmtOp
 	policy       *table.RoutingPolicy
 	listeners    []*netutils.TCPListener
-	neighborMap  map[string]*peer
+	neighborMap  map[netip.Addr]*peer
 	peerGroupMap map[string]*peerGroup
 	globalRib    *table.TableManager
 	rsRib        *table.TableManager
@@ -159,7 +159,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 
 	s := &BgpServer{
 		shared:       shared,
-		neighborMap:  make(map[string]*peer),
+		neighborMap:  make(map[netip.Addr]*peer),
 		peerGroupMap: make(map[string]*peerGroup),
 		policy:       table.NewRoutingPolicy(logger),
 		mgmtCh:       make(chan *mgmtOp, 1),
@@ -256,10 +256,20 @@ func (s *BgpServer) startFsmHandler(peer *peer) {
 }
 
 func (s *BgpServer) passConnToPeer(conn net.Conn) {
-	host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-	ipaddr, _ := net.ResolveIPAddr("ip", host)
-	remoteAddr := ipaddr.String()
-	peer, found := s.neighborMap[remoteAddr]
+	remoteAddr := conn.RemoteAddr()
+	tcpAddr, ok := remoteAddr.(*net.TCPAddr)
+	if !ok {
+		s.logger.Warn("Failed to get TCPAddr from RemoteAddr",
+			slog.String("Topic", "Peer"),
+			slog.String("Remote Addr", remoteAddr.String()),
+		)
+		conn.Close()
+		return
+	}
+	addr, _ := netip.AddrFromSlice(tcpAddr.IP)
+	addr = addr.WithZone(tcpAddr.Zone)
+
+	peer, found := s.neighborMap[addr]
 	if found {
 		peer.fsm.lock.RLock()
 		adminStateNotUp := peer.fsm.adminState != adminStateUp
@@ -268,7 +278,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 			peer.fsm.lock.RLock()
 			s.logger.Debug("New connection for non admin-state-up peer",
 				slog.String("Topic", "Peer"),
-				slog.String("Remote Addr", remoteAddr),
+				slog.String("Remote Addr", addr.String()),
 				slog.Any("Admin State", peer.fsm.adminState),
 			)
 			peer.fsm.lock.RUnlock()
@@ -293,7 +303,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 			if host != laddr && bindInterface == "" {
 				s.logger.Info("Mismatched local address",
 					slog.String("Topic", "Peer"),
-					slog.String("Key", remoteAddr),
+					slog.String("Key", addr.String()),
 					slog.String("Configured addr", laddr),
 					slog.String("Addr", host),
 					slog.String("BindInterface", bindInterface),
@@ -310,23 +320,23 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 
 		s.logger.Debug("Accepted a new passive connection",
 			slog.String("Topic", "Peer"),
-			slog.String("Key", remoteAddr),
+			slog.String("Key", addr.String()),
 		)
 		peer.PassConn(conn)
-	} else if pg := s.matchLongestDynamicNeighborPrefix(remoteAddr); pg != nil {
+	} else if pg := s.matchLongestDynamicNeighborPrefix(addr.WithZone("").String()); pg != nil {
 		s.logger.Debug("Accepted a new dynamic neighbor",
 			slog.String("Topic", "Peer"),
-			slog.String("Key", remoteAddr),
+			slog.String("Key", addr.String()),
 		)
 		rib := s.globalRib
 		if pg.Conf.RouteServer.Config.RouteServerClient {
 			rib = s.rsRib
 		}
-		peer := newDynamicPeer(&s.bgpConfig.Global, remoteAddr, pg.Conf, rib, s.policy, s.logger)
+		peer := newDynamicPeer(&s.bgpConfig.Global, addr.String(), pg.Conf, rib, s.policy, s.logger)
 		if peer == nil {
 			s.logger.Info("Can't create new Dynamic Peer",
 				slog.String("Topic", "Peer"),
-				slog.String("Key", remoteAddr),
+				slog.String("Key", addr.String()),
 			)
 			conn.Close()
 			return
@@ -337,21 +347,21 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		if err := s.policy.SetPeerPolicy(peer.ID(), policy); err != nil {
 			s.logger.Error("Failed to set peer policy for dynamic peer",
 				slog.String("Topic", "Peer"),
-				slog.String("Key", remoteAddr),
+				slog.String("Key", addr.String()),
 				slog.Any("Error", err),
 			)
 			conn.Close()
 			return
 		}
 
-		s.neighborMap[remoteAddr] = peer
+		s.neighborMap[addr] = peer
 		s.startFsmHandler(peer)
 		s.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE, nil)
 		peer.PassConn(conn)
 	} else {
 		s.logger.Info("Can't find configuration for a new passive connection",
 			slog.String("Topic", "Peer"),
-			slog.String("Key", remoteAddr),
+			slog.String("Key", addr.String()),
 		)
 		conn.Close()
 	}
@@ -1422,7 +1432,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 
 func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	peer.stopPeerRestarting()
-	delete(s.neighborMap, peer.ID())
+	delete(s.neighborMap, netip.MustParseAddr(peer.ID()))
 	peer.stopFSMHandler()
 	s.broadcastPeerState(peer, oldState, e)
 }
@@ -1987,7 +1997,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 
 		for address, neighbor := range s.neighborMap {
 			c := &oc.Neighbor{Config: oc.NeighborConfig{
-				NeighborAddress: netip.MustParseAddr(address),
+				NeighborAddress: address,
 			}}
 			neighbor.fsm.lock.RLock()
 			sendNotification := !r.AllowGracefulRestart || !neighbor.fsm.pConf.GracefulRestart.Config.Enabled
@@ -2720,7 +2730,11 @@ func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*apiutil.L
 		id := table.GLOBAL_RIB_NAME
 		as := uint32(0)
 		if len(addr) > 0 {
-			peer, ok := s.neighborMap[addr]
+			remoteAddr, err := netip.ParseAddr(addr)
+			if err != nil {
+				return fmt.Errorf("failed to parse address: %v", err)
+			}
+			peer, ok := s.neighborMap[remoteAddr]
 			if !ok {
 				return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 			}
@@ -2778,7 +2792,11 @@ func (s *BgpServer) getVrfRib(name string, family bgp.Family, prefixes []*apiuti
 
 func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFiltered bool, prefixes []*apiutil.LookupPrefix) (rib *table.Table, filtered map[table.PathLocalKey]table.FilteredType, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
-		peer, ok := s.neighborMap[addr]
+		remoteAddr, err := netip.ParseAddr(addr)
+		if err != nil {
+			return fmt.Errorf("failed to parse address: %v", err)
+		}
+		peer, ok := s.neighborMap[remoteAddr]
 		if !ok {
 			return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 		}
@@ -2916,12 +2934,16 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.Family) (info *table.Tabl
 		id := table.GLOBAL_RIB_NAME
 		as := uint32(0)
 		if len(addr) > 0 {
-			peer, ok := s.neighborMap[addr]
+			remoteAddr, err := netip.ParseAddr(addr)
+			if err != nil {
+				return fmt.Errorf("failed to parse address: %v", err)
+			}
+			peer, ok := s.neighborMap[remoteAddr]
 			if !ok {
-				return fmt.Errorf("neighbor that has %v doesn't exist", addr)
+				return fmt.Errorf("neighbor that has %v doesn't exist", remoteAddr)
 			}
 			if !peer.isRouteServerClient() {
-				return fmt.Errorf("neighbor %v doesn't have local rib", addr)
+				return fmt.Errorf("neighbor %v doesn't have local rib", remoteAddr)
 			}
 			id = peer.ID()
 			as = peer.AS()
@@ -2943,9 +2965,13 @@ func (s *BgpServer) getRibInfo(addr string, family bgp.Family) (info *table.Tabl
 
 func (s *BgpServer) getAdjRibInfo(addr string, family bgp.Family, in bool) (info *table.TableInfo, err error) {
 	err = s.mgmtOperation(func() error {
-		peer, ok := s.neighborMap[addr]
+		remoteAddr, err := netip.ParseAddr(addr)
+		if err != nil {
+			return fmt.Errorf("failed to parse address: %v", err)
+		}
+		peer, ok := s.neighborMap[remoteAddr]
 		if !ok {
-			return fmt.Errorf("neighbor that has %v doesn't exist", addr)
+			return fmt.Errorf("neighbor that has %v doesn't exist", remoteAddr)
 		}
 
 		var adjRib *table.AdjRib
@@ -3139,7 +3165,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 			peer.fsm.lock.RLock()
 			neighborIface := peer.fsm.pConf.Config.NeighborInterface
 			peer.fsm.lock.RUnlock()
-			if address != "" && address != k && address != neighborIface {
+			if address != "" && address != k.String() && address != neighborIface {
 				continue
 			}
 			// FIXME: should remove toConfig() conversion
@@ -3215,7 +3241,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		return err
 	}
 
-	if _, y := s.neighborMap[addr]; y {
+	if _, y := s.neighborMap[netip.MustParseAddr(addr)]; y {
 		return fmt.Errorf("can't overwrite the existing peer: %s", addr)
 	}
 
@@ -3276,7 +3302,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy); err != nil {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}
-	s.neighborMap[addr] = peer
+	s.neighborMap[netip.MustParseAddr(addr)] = peer
 	if name := c.Config.PeerGroup; name != "" {
 		s.peerGroupMap[name].AddMember(*c)
 	}
@@ -3384,7 +3410,7 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 			return err
 		}
 	}
-	n, y := s.neighborMap[addr]
+	n, y := s.neighborMap[netip.MustParseAddr(addr)]
 	if !y {
 		return fmt.Errorf("can't delete a peer configuration for %s", addr)
 	}
@@ -3529,7 +3555,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		return needsSoftResetIn, err
 	}
 
-	peer, ok := s.neighborMap[addr]
+	peer, ok := s.neighborMap[netip.MustParseAddr(addr)]
 	if !ok {
 		return needsSoftResetIn, fmt.Errorf("neighbor that has %v doesn't exist", addr)
 	}
@@ -3661,7 +3687,11 @@ func (s *BgpServer) addrToPeers(addr string) (l []*peer, err error) {
 		}
 		return l, nil
 	}
-	p, found := s.neighborMap[addr]
+	remoteAddr, err := netip.ParseAddr(addr)
+	if err != nil {
+		return l, fmt.Errorf("failed to parse address: %v", err)
+	}
+	p, found := s.neighborMap[remoteAddr]
 	if !found {
 		return l, fmt.Errorf("neighbor that has %v doesn't exist", addr)
 	}
@@ -4048,7 +4078,11 @@ func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, 
 	if name == table.GLOBAL_RIB_NAME {
 		name = table.GLOBAL_RIB_NAME
 	} else {
-		peer, ok := s.neighborMap[name]
+		remoteAddr, err := netip.ParseAddr(name)
+		if err != nil {
+			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("failed to parse address: %v", err)
+		}
+		peer, ok := s.neighborMap[remoteAddr]
 		if !ok {
 			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", name)
 		}
@@ -4077,7 +4111,7 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 			names = append(names, table.GLOBAL_RIB_NAME)
 			for name, peer := range s.neighborMap {
 				if peer.isRouteServerClient() {
-					names = append(names, name)
+					names = append(names, name.String())
 				}
 			}
 		} else {
@@ -4935,7 +4969,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 				for peerInfo, paths := range pathsByPeer {
 					// create copy which can be access to without mutex
 					var configNeighbor *oc.Neighbor
-					peerAddress := peerInfo.Address.String()
+					peerAddress := peerInfo.Address
 					if peer, ok := s.neighborMap[peerAddress]; ok {
 						configNeighbor = w.s.toConfig(peer, false)
 					}
