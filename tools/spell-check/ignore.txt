@@ -39,4 +39,7 @@ stmt
 SRCPFX
 IFINDEX
 BLACKHOLE
-
+sids
+pseudonode
+prefixv4
+prefixv6
