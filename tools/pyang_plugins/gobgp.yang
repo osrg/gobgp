@@ -1230,7 +1230,7 @@ module gobgp {
           "Configures a file name to be written";
       }
       leaf table-name {
-        type string;
+        type inet:ip-address;
         description
           "specify the table name with route server setup";
       }

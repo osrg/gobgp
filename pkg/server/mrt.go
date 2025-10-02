@@ -120,8 +120,8 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 	rib := m.s.globalRib
 	as := uint32(0)
 	id := table.GLOBAL_RIB_NAME
-	if len(m.c.TableName) > 0 {
-		peer, ok := m.s.neighborMap[m.c.TableName]
+	if m.c.TableName.IsValid() {
+		peer, ok := m.s.neighborMap[m.c.TableName.String()]
 		if !ok {
 			return []*mrt.MRTMessage{}
 		}
@@ -403,7 +403,7 @@ func (m *mrtManager) enable(c *oc.MrtConfig) error {
 	case oc.MRT_TYPE_UPDATES:
 		// ignore the dump interval
 		dInterval = 0
-		if len(c.TableName) > 0 {
+		if c.TableName.IsValid() {
 			return fmt.Errorf("can't specify the table name with the update dump type")
 		}
 		setRotationMin()

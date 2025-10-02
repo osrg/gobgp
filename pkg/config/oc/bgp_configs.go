@@ -1244,8 +1244,9 @@ type MrtConfig struct {
 	// Configures a file name to be written.
 	FileName string `mapstructure:"file-name" json:"file-name,omitempty"`
 	// original -> gobgp:table-name
+	// gobgp:table-name's original type is inet:ip-address.
 	// specify the table name with route server setup.
-	TableName string `mapstructure:"table-name" json:"table-name,omitempty"`
+	TableName netip.Addr `mapstructure:"table-name" json:"table-name,omitempty"`
 	// original -> gobgp:dump-interval
 	DumpInterval uint64 `mapstructure:"dump-interval" json:"dump-interval,omitempty"`
 	// original -> gobgp:rotation-interval
