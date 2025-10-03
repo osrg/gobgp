@@ -117,7 +117,7 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *t
 	peer := &peer{
 		localRib:            loc,
 		policy:              policy,
-		fsm:                 newFSM(g, conf, logger),
+		fsm:                 newFSM(g, conf, logger.With(slog.String("Topic", "Peer"), slog.String("Key", conf.State.NeighborAddress.String()))),
 		prefixLimitWarned:   make(map[bgp.Family]bool),
 		sentPaths:           make(map[table.PathDestLocalKey]map[uint32]struct{}),
 		sendMaxPathFiltered: make(map[table.PathLocalKey]struct{}),
@@ -296,10 +296,7 @@ func (peer *peer) isDynamicNeighbor() bool {
 func (peer *peer) getRtcEORWait() bool {
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
-	peer.fsm.logger.Debug("Get rtcEORWait",
-		slog.String("Topic", "Peer"),
-		slog.String("Key", peer.fsm.pConf.State.NeighborAddress.String()),
-		slog.Bool("Data", peer.fsm.rtcEORWait))
+	peer.fsm.logger.Debug("Get rtcEORWait", slog.Bool("Data", peer.fsm.rtcEORWait))
 
 	return peer.fsm.rtcEORWait
 }
@@ -308,10 +305,7 @@ func (peer *peer) setRtcEORWait(waiting bool) {
 	peer.fsm.lock.Lock()
 	defer peer.fsm.lock.Unlock()
 	peer.fsm.rtcEORWait = waiting
-	peer.fsm.logger.Debug("Set rtcEORWait",
-		slog.String("Topic", "Peer"),
-		slog.String("Key", peer.fsm.pConf.State.NeighborAddress.String()),
-		slog.Bool("Data", peer.fsm.rtcEORWait))
+	peer.fsm.logger.Debug("Set rtcEORWait", slog.Bool("Data", peer.fsm.rtcEORWait))
 }
 
 func (peer *peer) recvedAllEOR() bool {
@@ -343,7 +337,6 @@ func (peer *peer) negotiatedRFList() []bgp.Family {
 }
 
 func (peer *peer) toGlobalFamilies(families []bgp.Family) []bgp.Family {
-	id := peer.ID()
 	peer.fsm.lock.RLock()
 	defer peer.fsm.lock.RUnlock()
 	if peer.fsm.pConf.Config.Vrf != "" {
@@ -360,8 +353,6 @@ func (peer *peer) toGlobalFamilies(families []bgp.Family) []bgp.Family {
 				fs = append(fs, bgp.RF_FS_IPv6_VPN)
 			default:
 				peer.fsm.logger.Warn("invalid family configured for neighbor with vrf",
-					slog.String("Topic", "Peer"),
-					slog.String("Key", id),
 					slog.String("Family", f.String()),
 					slog.String("VRF", peer.fsm.pConf.Config.Vrf))
 			}
@@ -559,16 +550,11 @@ func (peer *peer) isPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) bool {
 		if pct > 0 && !peer.prefixLimitWarned[k] && count > maxPrefixes*pct/100 {
 			peer.prefixLimitWarned[k] = true
 			peer.fsm.logger.Warn("prefix limit reached",
-				slog.String("Topic", "Peer"),
-				slog.String("Key", peer.ID()),
 				slog.String("Family", k.String()),
 				slog.Int("Pct", pct))
 		}
 		if count > maxPrefixes {
-			peer.fsm.logger.Warn("prefix limit reached",
-				slog.String("Topic", "Peer"),
-				slog.String("Key", peer.ID()),
-				slog.String("Family", k.String()))
+			peer.fsm.logger.Warn("prefix limit reached", slog.String("Family", k.String()))
 			return true
 		}
 	}
@@ -593,8 +579,6 @@ func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) (bool, error) {
 			return false, fmt.Errorf("changing supported afi-safi is not allowed")
 		} else if !p.Equal(&e.PrefixLimit.Config) {
 			peer.fsm.logger.Warn("update prefix limit configuration",
-				slog.String("Topic", "Peer"),
-				slog.String("Key", peer.ID()),
 				slog.String("AddressFamily", string(e.Config.AfiSafiName)),
 				slog.Uint64("OldMaxPrefixes", uint64(p.MaxPrefixes)),
 				slog.Uint64("NewMaxPrefixes", uint64(e.PrefixLimit.Config.MaxPrefixes)),
@@ -620,9 +604,6 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 	treatAsWithdraw := e.handling == bgp.ERROR_HANDLING_TREAT_AS_WITHDRAW
 
 	peer.fsm.logger.Debug("received update",
-		slog.String("Topic", "Peer"),
-		slog.String("Key", peer.ID()),
-		slog.String("NeighborAddress", peer.fsm.pConf.State.NeighborAddress.String()),
 		slog.Any("nlri", update.NLRI),
 		slog.Any("withdrawals", update.WithdrawnRoutes),
 		slog.Any("path_attributes", update.PathAttributes))
@@ -638,10 +619,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 		for _, path := range pathList {
 			if path.IsEOR() {
 				family := path.GetFamily()
-				peer.fsm.logger.Debug("EOR received",
-					slog.String("Topic", "Peer"),
-					slog.String("Key", peer.ID()),
-					slog.String("AddressFamily", family.String()))
+				peer.fsm.logger.Debug("EOR received", slog.String("AddressFamily", family.String()))
 				eor = append(eor, family)
 				continue
 			}
@@ -669,8 +647,6 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 			if isIBGPPeer {
 				if path.GetOriginatorID() == routerId {
 					peer.fsm.logger.Debug("Originator ID is mine, ignore",
-						slog.String("Topic", "Peer"),
-						slog.String("Key", peer.ID()),
 						slog.String("OriginatorID", path.GetOriginatorID().String()),
 						slog.String("Data", path.String()))
 
@@ -716,9 +692,7 @@ func (peer *peer) PassConn(conn net.Conn) {
 	case peer.fsm.connCh <- conn:
 	default:
 		conn.Close()
-		peer.fsm.logger.Warn("accepted conn is closed to avoid be blocked",
-			slog.String("Topic", "Peer"),
-			slog.String("Key", peer.ID()))
+		peer.fsm.logger.Warn("accepted conn is closed to avoid be blocked")
 	}
 }
 
