@@ -667,17 +667,12 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 	return nil, nil, false
 }
 
-func (peer *peer) startFSMHandler(wg *sync.WaitGroup, callback fsmCallback) {
-	handler := newFSMHandler(peer.fsm, peer.fsm.outgoingCh, wg, callback)
-	peer.fsm.lock.Lock()
-	peer.fsm.h = handler
-	peer.fsm.lock.Unlock()
+func (peer *peer) startFSM(wg *sync.WaitGroup, callback fsmCallback) {
+	peer.fsm.start(wg, callback)
 }
 
-func (peer *peer) stopFSMHandler() {
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-	peer.fsm.h.ctxCancel()
+func (peer *peer) stopFSM() {
+	peer.fsm.stop()
 }
 
 func (peer *peer) StaleAll(rfList []bgp.Family) []*table.Path {

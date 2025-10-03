@@ -252,7 +252,7 @@ func (s *BgpServer) startFsmHandler(peer *peer) {
 	callback := func(e *fsmMsg) {
 		s.handleFSMMessage(peer, e)
 	}
-	peer.startFSMHandler(s.shutdownWG, callback)
+	peer.startFSM(s.shutdownWG, callback)
 }
 
 func (s *BgpServer) passConnToPeer(conn net.Conn) {
@@ -1366,7 +1366,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	peer.stopPeerRestarting()
 	delete(s.neighborMap, netip.MustParseAddr(peer.ID()))
-	peer.stopFSMHandler()
+	peer.stopFSM()
 	s.broadcastPeerState(peer, oldState, e)
 }
 
