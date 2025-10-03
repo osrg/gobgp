@@ -295,18 +295,14 @@ func (peer *peer) isDynamicNeighbor() bool {
 }
 
 func (peer *peer) getRtcEORWait() bool {
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-	peer.fsm.logger.Debug("Get rtcEORWait", slog.Bool("Data", peer.fsm.rtcEORWait))
-
-	return peer.fsm.rtcEORWait
+	v := peer.fsm.rtcEORWait.Load()
+	peer.fsm.logger.Debug("Get rtcEORWait", slog.Bool("Data", v))
+	return v
 }
 
 func (peer *peer) setRtcEORWait(waiting bool) {
-	peer.fsm.lock.Lock()
-	defer peer.fsm.lock.Unlock()
-	peer.fsm.rtcEORWait = waiting
-	peer.fsm.logger.Debug("Set rtcEORWait", slog.Bool("Data", peer.fsm.rtcEORWait))
+	peer.fsm.rtcEORWait.Store(waiting)
+	peer.fsm.logger.Debug("Set rtcEORWait", slog.Bool("Data", waiting))
 }
 
 func (peer *peer) recvedAllEOR() bool {

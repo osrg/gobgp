@@ -205,7 +205,7 @@ type fsm struct {
 	adminStateCh             chan adminStateOperation
 	h                        *fsmHandler
 	rfMap                    map[bgp.Family]bgp.BGPAddPathMode
-	rtcEORWait               bool
+	rtcEORWait               atomic.Bool
 	capMap                   map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen                 *bgp.BGPMessage
 	gracefulRestartTimer     *time.Timer
