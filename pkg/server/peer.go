@@ -91,11 +91,8 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 			slog.String("Error", err.Error()))
 		return nil
 	}
-	peer := newPeer(g, &conf, loc, policy, logger)
-	peer.fsm.lock.Lock()
-	peer.fsm.state = bgp.BGP_FSM_ACTIVE
-	peer.fsm.lock.Unlock()
-	return peer
+
+	return newPeer(g, &conf, bgp.BGP_FSM_ACTIVE, loc, policy, logger)
 }
 
 type peer struct {
@@ -113,11 +110,11 @@ type peer struct {
 	longLivedRunning    bool
 }
 
-func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger *slog.Logger) *peer {
+func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.TableManager, policy *table.RoutingPolicy, logger *slog.Logger) *peer {
 	peer := &peer{
 		localRib:            loc,
 		policy:              policy,
-		fsm:                 newFSM(g, conf, logger.With(slog.String("Topic", "Peer"), slog.String("Key", conf.State.NeighborAddress.String()))),
+		fsm:                 newFSM(g, conf, state, logger.With(slog.String("Topic", "Peer"), slog.String("Key", conf.State.NeighborAddress.String()))),
 		prefixLimitWarned:   make(map[bgp.Family]bool),
 		sentPaths:           make(map[table.PathDestLocalKey]map[uint32]struct{}),
 		sendMaxPathFiltered: make(map[table.PathLocalKey]struct{}),
@@ -130,6 +127,10 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *t
 	rfs, _ := oc.AfiSafis(conf.AfiSafis).ToRfList()
 	peer.adjRibIn = table.NewAdjRib(peer.fsm.logger, rfs)
 	return peer
+}
+
+func (peer *peer) State() bgp.FSMState {
+	return peer.fsm.state.Load()
 }
 
 func (peer *peer) AS() uint32 {

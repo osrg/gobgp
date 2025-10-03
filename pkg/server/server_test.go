@@ -978,6 +978,7 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 	p := newPeer(
 		&oc.Global{Config: oc.GlobalConfig{As: myAs}},
 		nConf,
+		bgp.BGP_FSM_IDLE,
 		rib,
 		policy,
 		logger)

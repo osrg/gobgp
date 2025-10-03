@@ -769,11 +769,12 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
 	peer.fsm.lock.Unlock()
 
+	state := peer.State()
+
 	peer.fsm.lock.RLock()
-	conf.State.SessionState = oc.IntToSessionStateMap[int(peer.fsm.state)]
+	conf.State.SessionState = oc.IntToSessionStateMap[int(state)]
 	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.fsm.adminState)]
 	conf.State.Flops = peer.fsm.pConf.State.Flops
-	state := peer.fsm.state
 	peer.fsm.lock.RUnlock()
 
 	if state == bgp.BGP_FSM_ESTABLISHED {
@@ -850,9 +851,11 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
 	peer.fsm.lock.Unlock()
 
+	state := peer.State()
+
 	peer.fsm.lock.RLock()
 	capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
-	if peer.fsm.state >= bgp.BGP_FSM_OPENCONFIRM {
+	if state >= bgp.BGP_FSM_OPENCONFIRM {
 		// Adding peer remote capabilities to the event
 		for code, caps := range peer.fsm.capMap {
 			if code == bgp.BGP_CAP_FQDN {
@@ -875,7 +878,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 		PeerID:        peer.fsm.pConf.State.RemoteRouterId,
 		SentOpen:      sentOpen,
 		RecvOpen:      recvOpen,
-		State:         peer.fsm.state,
+		State:         state,
 		OldState:      oldState,
 		AdminState:    peer.fsm.adminState,
 		Timestamp:     time.Now(),
@@ -977,8 +980,9 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.Family) ([]*table.
 }
 
 func needToAdvertise(peer *peer) bool {
+	state := peer.State()
 	peer.fsm.lock.RLock()
-	notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
+	notEstablished := state != bgp.BGP_FSM_ESTABLISHED
 	localRestarting := peer.fsm.pConf.GracefulRestart.State.LocalRestarting
 	peer.fsm.lock.RUnlock()
 	if notEstablished {
@@ -1628,8 +1632,8 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		}
 		s.broadcastPeerState(peer, oldState, e)
 	case fsmMsgRouteRefresh:
+		notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
 		peer.fsm.lock.RLock()
-		notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
 		beforeUptime := e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime
 		peer.fsm.lock.RUnlock()
 		if notEstablished || beforeUptime {
@@ -1646,8 +1650,8 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			return
 		case *bgp.BGPMessage:
 			s.notifyRecvMessageWatcher(peer, e.timestamp, m)
+			notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
 			peer.fsm.lock.RLock()
-			notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
 			beforeUptime := e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime
 			peer.fsm.lock.RUnlock()
 			if notEstablished || beforeUptime {
@@ -2515,9 +2519,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 		return err
 	}
 	for _, peer := range peers {
-		peer.fsm.lock.RLock()
-		notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
-		peer.fsm.lock.RUnlock()
+		notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
 		if notEstablished {
 			continue
 		}
@@ -3055,9 +3057,8 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 					c := afisafi.Config
 					if c.Family != nil && c.Family.Afi == api.Family_Afi(family.Afi()) && c.Family.Safi == api.Family_Safi(family.Safi()) {
 						flist := []bgp.Family{family}
-						peer.fsm.lock.RLock()
-						sesstionState := peer.fsm.state
-						peer.fsm.lock.RUnlock()
+						sesstionState := peer.State()
+
 						received := uint64(0)
 						accepted := uint64(0)
 						advertised := uint64(0)
@@ -3175,7 +3176,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if c.RouteServer.Config.RouteServerClient {
 		rib = s.rsRib
 	}
-	peer := newPeer(&s.bgpConfig.Global, c, rib, s.policy, s.logger)
+	peer := newPeer(&s.bgpConfig.Global, c, bgp.BGP_FSM_IDLE, rib, s.policy, s.logger)
 	if err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy); err != nil {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}
@@ -4703,9 +4704,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 		}
 		if w.opts.peerState {
 			for _, p := range s.neighborMap {
-				p.fsm.lock.RLock()
-				state := p.fsm.state
-				p.fsm.lock.RUnlock()
+				state := p.State()
 				w.notify(newWatchEventPeer(p, nil, state, apiutil.PEER_EVENT_INIT))
 			}
 			w.notify(&watchEventPeer{Type: apiutil.PEER_EVENT_END_OF_INIT})
@@ -4742,10 +4741,8 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 		}
 		if w.opts.initUpdate {
 			for _, peer := range s.neighborMap {
-				peer.fsm.lock.RLock()
-				notEstablished := peer.fsm.state != bgp.BGP_FSM_ESTABLISHED
-				peer.fsm.lock.RUnlock()
-				if notEstablished {
+				state := peer.State()
+				if state != bgp.BGP_FSM_ESTABLISHED {
 					continue
 				}
 				configNeighbor := w.s.toConfig(peer, false)
