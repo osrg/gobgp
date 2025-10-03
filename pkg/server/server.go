@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -150,9 +151,8 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	logger := opts.logger
 	lvl := opts.logLevelVar
 	if logger == nil {
-		logger = slog.Default()
-		lvl = &slog.LevelVar{}
-		lvl.Set(slog.LevelInfo)
+		logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
+		lvl = nil
 	}
 	roaTable := table.NewROATable(logger)
 	shared := newSharedData()
