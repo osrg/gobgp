@@ -330,26 +330,6 @@ func (fsm *fsm) StateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 	}
 }
 
-func hostport(addr net.Addr) (string, uint16) {
-	if addr != nil {
-		host, port, err := net.SplitHostPort(addr.String())
-		if err != nil {
-			return "", 0
-		}
-		p, _ := strconv.ParseUint(port, 10, 16)
-		return host, uint16(p)
-	}
-	return "", 0
-}
-
-func (fsm *fsm) RemoteHostPort() (string, uint16) {
-	return hostport(fsm.conn.RemoteAddr())
-}
-
-func (fsm *fsm) LocalHostPort() (string, uint16) {
-	return hostport(fsm.conn.LocalAddr())
-}
-
 func (fsm *fsm) sendNotification(msg *bgp.BGPMessage) error {
 	b, _ := msg.Serialize()
 	fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
@@ -590,8 +570,22 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			if !ok {
 				break
 			}
+
+			remoteTCP := conn.RemoteAddr().(*net.TCPAddr)
+			remoteAddr, _ := netip.AddrFromSlice(remoteTCP.IP)
+			remoteAddr = remoteAddr.WithZone("")
+
+			localTCP := conn.LocalAddr().(*net.TCPAddr)
+			localAddr, _ := netip.AddrFromSlice(localTCP.IP)
+			localAddr = localAddr.WithZone("")
+
 			fsm.lock.Lock()
 			fsm.conn = conn
+
+			h.fsm.pConf.Transport.State.RemoteAddress = remoteAddr
+			h.fsm.pConf.Transport.State.RemotePort = uint16(remoteTCP.Port)
+			h.fsm.pConf.Transport.State.LocalAddress = localAddr
+			h.fsm.pConf.Transport.State.LocalPort = uint16(localTCP.Port)
 			fsm.lock.Unlock()
 
 			fsm.lock.RLock()
@@ -650,6 +644,10 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 }
 
 func setPeerConnTTL(fsm *fsm) error {
+	if fsm.conn == nil {
+		return errors.New("not connected")
+	}
+
 	ttl := 0
 	ttlMin := 0
 

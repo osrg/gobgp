@@ -811,13 +811,6 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 
 	if state == bgp.BGP_FSM_ESTABLISHED {
 		peer.fsm.lock.RLock()
-		addr, port := peer.fsm.LocalHostPort()
-		conf.Transport.State.LocalAddress = netip.MustParseAddr(addr)
-		conf.Transport.State.LocalPort = port
-		if conf.Transport.Config.LocalAddress != netip.IPv4Unspecified() && conf.Transport.Config.LocalAddress != netip.IPv6Unspecified() {
-			conf.Transport.State.LocalAddress = conf.Transport.Config.LocalAddress
-		}
-		_, conf.Transport.State.RemotePort = peer.fsm.RemoteHostPort()
 		buf, _ := peer.fsm.recvOpen.Serialize()
 		// need to copy all values here
 		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
@@ -839,13 +832,12 @@ func (s *BgpServer) notifyPrePolicyUpdateWatcher(peer *peer, pathList []*table.P
 	n := s.toConfig(peer, false)
 	peer.fsm.lock.RLock()
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-	l, _ := peer.fsm.LocalHostPort()
 	ev := &watchEventUpdate{
 		Message:      msg,
 		PeerAS:       peer.fsm.pConf.State.PeerAs,
 		LocalAS:      peer.fsm.pConf.Config.LocalAs,
 		PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-		LocalAddress: net.ParseIP(l),
+		LocalAddress: net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String()),
 		PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
 		FourBytesAs:  y,
 		Timestamp:    timestamp,
@@ -870,12 +862,11 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 	n := s.toConfig(peer, false)
 	peer.fsm.lock.RLock()
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-	l, _ := peer.fsm.LocalHostPort()
 	ev := &watchEventUpdate{
 		PeerAS:       peer.fsm.pConf.State.PeerAs,
 		LocalAS:      peer.fsm.pConf.Config.LocalAs,
 		PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-		LocalAddress: net.ParseIP(l),
+		LocalAddress: net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String()),
 		PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
 		FourBytesAs:  y,
 		Timestamp:    cloned[0].GetTimestamp(),
@@ -888,19 +879,11 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 }
 
 func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.PeerEventType) *watchEventPeer {
-	var laddr string
-	var rport, lport uint16
-
 	peer.fsm.lock.Lock()
 	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
 	peer.fsm.lock.Unlock()
 
 	peer.fsm.lock.RLock()
-	if peer.fsm.conn != nil {
-		_, rport = peer.fsm.RemoteHostPort()
-		laddr, lport = peer.fsm.LocalHostPort()
-	}
-
 	capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
 	if peer.fsm.state >= bgp.BGP_FSM_OPENCONFIRM {
 		// Adding peer remote capabilities to the event
@@ -912,10 +895,6 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 			capList = append(capList, caps...)
 		}
 	}
-	localAddr, err := netip.ParseAddr(laddr)
-	if err != nil {
-		localAddr = netip.IPv4Unspecified()
-	}
 
 	recvOpen := peer.fsm.recvOpen
 	e := &watchEventPeer{
@@ -923,9 +902,9 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 		PeerAS:        peer.fsm.pConf.State.PeerAs,
 		LocalAS:       peer.fsm.pConf.Config.LocalAs,
 		PeerAddress:   peer.fsm.pConf.State.NeighborAddress,
-		LocalAddress:  localAddr,
-		PeerPort:      rport,
-		LocalPort:     lport,
+		LocalAddress:  peer.fsm.pConf.Transport.Config.LocalAddress,
+		PeerPort:      peer.fsm.pConf.Transport.State.RemotePort,
+		LocalPort:     peer.fsm.pConf.Transport.State.LocalPort,
 		PeerID:        peer.fsm.pConf.State.RemoteRouterId,
 		SentOpen:      sentOpen,
 		RecvOpen:      recvOpen,
@@ -948,17 +927,18 @@ func (s *BgpServer) broadcastPeerState(peer *peer, oldState bgp.FSMState, e *fsm
 	s.notifyWatcher(watchEventTypePeerState, newWatchEventPeer(peer, e, oldState, apiutil.PEER_EVENT_STATE))
 }
 
+// notifyMessageWatcher notifies recv message to watchers.
+// The peer is guaranteed to be in ESTABLISHED state.
 func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage, isSent bool) {
 	// validation should be done in the caller of this function
 	peer.fsm.lock.RLock()
 	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-	l, _ := peer.fsm.LocalHostPort()
 	ev := &watchEventMessage{
 		Message:      msg,
 		PeerAS:       peer.fsm.pConf.State.PeerAs,
 		LocalAS:      peer.fsm.pConf.Config.LocalAs,
 		PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-		LocalAddress: net.ParseIP(l),
+		LocalAddress: net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String()),
 		PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
 		FourBytesAs:  y,
 		Timestamp:    timestamp,
@@ -1604,19 +1584,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			peer.fsm.lock.Lock()
 
-			remoteTCP := peer.fsm.conn.RemoteAddr().(*net.TCPAddr)
-			remoteAddr, _ := netip.AddrFromSlice(remoteTCP.IP)
-			remoteAddr = remoteAddr.WithZone("")
-
-			localTCP := peer.fsm.conn.LocalAddr().(*net.TCPAddr)
-			localAddr, _ := netip.AddrFromSlice(localTCP.IP)
-			localAddr = localAddr.WithZone("")
-
-			peer.fsm.pConf.Transport.State.LocalAddress = localAddr
 			peer.peerInfo = table.NewPeerInfo(peer.fsm.gConf, peer.fsm.pConf,
 				peer.fsm.pConf.State.PeerAs, peer.fsm.pConf.Config.LocalAs,
 				peer.fsm.pConf.State.RemoteRouterId,
-				peer.fsm.gConf.Config.RouterId, remoteAddr, localAddr)
+				peer.fsm.gConf.Config.RouterId, peer.fsm.pConf.Transport.State.RemoteAddress, peer.fsm.pConf.Transport.State.LocalAddress)
 
 			neighborAddress := peer.fsm.pConf.State.NeighborAddress
 
@@ -3643,7 +3614,8 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		peer.fsm.pConf.TtlSecurity.Config = c.TtlSecurity.Config
 		setTTL = true
 	}
-	if setTTL && peer.fsm.conn != nil {
+
+	if setTTL {
 		if err := setPeerConnTTL(peer.fsm); err != nil {
 			s.logger.Error("failed to set peer connection TTL",
 				slog.String("Topic", "Peer"),
@@ -4919,12 +4891,12 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 				for _, rf := range peer.configuredRFlist() {
 					peer.fsm.lock.RLock()
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-					l, _ := peer.fsm.LocalHostPort()
+					l := net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String())
 					update := &watchEventUpdate{
 						PeerAS:       peer.fsm.pConf.State.PeerAs,
 						LocalAS:      peer.fsm.pConf.Config.LocalAs,
 						PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-						LocalAddress: net.ParseIP(l),
+						LocalAddress: l,
 						PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
 						FourBytesAs:  y,
 						Init:         true,
@@ -4943,7 +4915,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 						PeerAS:       peer.fsm.pConf.State.PeerAs,
 						LocalAS:      peer.fsm.pConf.Config.LocalAs,
 						PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-						LocalAddress: net.ParseIP(l),
+						LocalAddress: l,
 						PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
 						FourBytesAs:  y,
 						Timestamp:    time.Now(),
