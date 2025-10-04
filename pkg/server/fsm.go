@@ -346,6 +346,22 @@ func (fsm *fsm) StateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 }
 
 func (fsm *fsm) sendNotification(msg *bgp.BGPMessage) error {
+	body := msg.Body.(*bgp.BGPNotification)
+	if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
+		communication, rest := decodeAdministrativeCommunication(body.Data)
+		fsm.logger.Warn("sent notification",
+			slog.String("State", fsm.state.String()),
+			slog.Int("Code", int(body.ErrorCode)),
+			slog.Int("Subcode", int(body.ErrorSubcode)),
+			slog.String("Communicated-Reason", communication),
+			slog.Any("Data", rest))
+	} else {
+		fsm.logger.Warn("sent notification",
+			slog.String("State", fsm.state.String()),
+			slog.Int("Code", int(body.ErrorCode)),
+			slog.Int("Subcode", int(body.ErrorSubcode)),
+			slog.Any("Data", body.Data))
+	}
 	b, _ := msg.Serialize()
 	fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
 	_, err := fsm.conn.Write(b)
@@ -1518,21 +1534,6 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 			table.UpdatePathAggregator2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
 
-		// RFC8538 defines a Hard Reset notification subcode which
-		// indicates that the BGP speaker wants to reset the session
-		// without triggering graceful restart procedures. Here we map
-		// notification subcodes to the Hard Reset subcode following
-		// the RFC8538 suggestion.
-		//
-		// We check Status instead of Config because RFC8538 states
-		// that A BGP speaker SHOULD NOT send a Hard Reset to a peer
-		// from which it has not received the "N" bit.
-		if fsm.pConf.GracefulRestart.State.NotificationEnabled && m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
-			if body := m.Body.(*bgp.BGPNotification); body.ErrorCode == bgp.BGP_ERROR_CEASE && bgp.ShouldHardReset(body.ErrorSubcode, false) {
-				body.ErrorSubcode = bgp.BGP_ERROR_SUB_HARD_RESET
-			}
-		}
-
 		b, err := m.Serialize(h.fsm.marshallingOptions)
 		fsm.lock.RUnlock()
 		if err != nil {
@@ -1555,26 +1556,6 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 		fsm.bgpMessageStateUpdate(m.Header.Type, false)
 
 		switch m.Header.Type {
-		case bgp.BGP_MSG_NOTIFICATION:
-			body := m.Body.(*bgp.BGPNotification)
-			if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
-				communication, rest := decodeAdministrativeCommunication(body.Data)
-				fsm.logger.Warn("sent notification",
-					slog.String("State", fsm.state.String()),
-					slog.Int("Code", int(body.ErrorCode)),
-					slog.Int("Subcode", int(body.ErrorSubcode)),
-					slog.String("Communicated-Reason", communication),
-					slog.Any("Data", rest))
-			} else {
-				fsm.logger.Warn("sent notification",
-					slog.String("State", fsm.state.String()),
-					slog.Int("Code", int(body.ErrorCode)),
-					slog.Int("Subcode", int(body.ErrorSubcode)),
-					slog.Any("Data", body.Data))
-			}
-			sendToStateReasonCh(fsmNotificationSent, m)
-			conn.Close()
-			return fmt.Errorf("closed")
 		case bgp.BGP_MSG_UPDATE:
 			update := m.Body.(*bgp.BGPUpdate)
 			fsm.logger.Debug("sent update",
@@ -1582,9 +1563,12 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 				slog.Any("nlri", update.NLRI),
 				slog.Any("withdrawals", update.WithdrawnRoutes),
 				slog.Any("attributes", update.PathAttributes))
+		case bgp.BGP_MSG_KEEPALIVE:
+			// nothing to do
 		default:
-			fsm.logger.Debug("sent",
+			fsm.logger.Error("unexpected message sent",
 				slog.String("State", fsm.state.String()),
+				slog.Int("Type", int(m.Header.Type)),
 				slog.Any("data", m))
 		}
 		return nil
