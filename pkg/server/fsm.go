@@ -216,6 +216,8 @@ type fsm struct {
 	idleHoldTime     float64
 	opensentHoldTime float64 // imutable
 	twoByteAsTrans   bool
+	isEBGP           bool
+	isConfed         bool
 
 	// multiple fsm goroutines access. no lock required due to how they are used.
 	conn net.Conn
@@ -328,6 +330,9 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 	case bgp.BGP_FSM_ESTABLISHED:
 		fsm.pConf.Timers.State.Uptime = time.Now().Unix()
 		fsm.pConf.State.EstablishedCount++
+
+		fsm.isEBGP = fsm.pConf.IsEBGPPeer(fsm.gConf)
+		fsm.isConfed = fsm.pConf.IsConfederationMember(fsm.gConf)
 		// reset the state set by the previous session
 		fsm.twoByteAsTrans = false
 		if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
@@ -999,10 +1004,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				default:
 				}
 				body := m.Body.(*bgp.BGPUpdate)
-				h.fsm.lock.Lock()
-				isEBGP := h.fsm.pConf.IsEBGPPeer(h.fsm.gConf)
-				isConfed := h.fsm.pConf.IsConfederationMember(h.fsm.gConf)
-				h.fsm.lock.Unlock()
 
 				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
 				copy(fmsg.payload, headerBuf)
@@ -1010,7 +1011,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 
 				rfMap := h.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
 
-				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, h.allowLoopback)
+				ok, err := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)
 				if !ok {
 					handling = h.handlingError(m, err, useRevisedError)
 					fmsg.handling = handling
