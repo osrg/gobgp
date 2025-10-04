@@ -192,27 +192,34 @@ func (s *fsmState) Store(state bgp.FSMState) {
 }
 
 type fsm struct {
-	gConf                    *oc.Global
-	pConf                    *oc.Neighbor
-	lock                     sync.RWMutex
+	// protected by mutex
+	lock       sync.RWMutex
+	gConf      *oc.Global
+	pConf      *oc.Neighbor
+	capMap     map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+	recvOpen   *bgp.BGPMessage
+	adminState adminState
+
+	// safe for concurrent access
 	state                    fsmState
-	outgoingCh               *channels.InfiniteChannel
-	conn                     net.Conn
-	connCh                   chan net.Conn
-	idleHoldTime             float64
-	opensentHoldTime         float64
-	adminState               adminState
-	adminStateCh             chan adminStateOperation
-	h                        *fsmHandler
 	familyMap                atomic.Value // map[bgp.Family]bgp.BGPAddPathMode
 	rtcEORWait               atomic.Bool
-	capMap                   map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
-	recvOpen                 *bgp.BGPMessage
+	logger                   *slog.Logger
 	gracefulRestartTimer     *time.Timer
-	twoByteAsTrans           bool
+	outgoingCh               *channels.InfiniteChannel
 	notification             chan *bgp.BGPMessage
 	deconfiguredNotification chan *bgp.BGPMessage
-	logger                   *slog.Logger
+	connCh                   chan net.Conn
+	adminStateCh             chan adminStateOperation
+
+	// only loop goroutine accesses; no lock required
+	idleHoldTime     float64
+	opensentHoldTime float64 // imutable
+	twoByteAsTrans   bool
+
+	// multiple fsm goroutines access
+	conn net.Conn
+	h    *fsmHandler
 }
 
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
