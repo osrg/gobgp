@@ -210,7 +210,6 @@ type fsm struct {
 	recvOpen                 *bgp.BGPMessage
 	gracefulRestartTimer     *time.Timer
 	twoByteAsTrans           bool
-	marshallingOptions       *bgp.MarshallingOption
 	notification             chan *bgp.BGPMessage
 	deconfiguredNotification chan *bgp.BGPMessage
 	logger                   *slog.Logger
@@ -957,10 +956,9 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 
 	h.fsm.lock.RLock()
 	useRevisedError := h.fsm.pConf.ErrorHandling.Config.TreatAsWithdraw
-	options := h.fsm.marshallingOptions
 	h.fsm.lock.RUnlock()
 
-	m, err := bgp.ParseBGPBody(hd, bodyBuf, options)
+	m, err := bgp.ParseBGPBody(hd, bodyBuf, &bgp.MarshallingOption{AddPath: h.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)})
 	if err != nil {
 		handling = h.handlingError(m, err, useRevisedError)
 		h.fsm.bgpMessageStateUpdate(0, true)
@@ -1274,14 +1272,6 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsm.capMap = capmap
 					fsm.familyMap.Store(rfmap)
 
-					if _, y := fsm.capMap[bgp.BGP_CAP_ADD_PATH]; y {
-						fsm.marshallingOptions = &bgp.MarshallingOption{
-							AddPath: rfmap,
-						}
-					} else {
-						fsm.marshallingOptions = nil
-					}
-
 					// calculate HoldTime
 					// RFC 4271 P.13
 					// a BGP speaker MUST calculate the value of the Hold Timer
@@ -1540,9 +1530,9 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
 			table.UpdatePathAggregator2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
-
-		b, err := m.Serialize(h.fsm.marshallingOptions)
 		fsm.lock.RUnlock()
+
+		b, err := m.Serialize(&bgp.MarshallingOption{AddPath: fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)})
 		if err != nil {
 			fsm.logger.Warn("failed to serialize",
 				slog.String("State", fsm.state.String()),
@@ -1588,9 +1578,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, wg *sync.WaitGroup) er
 		case o := <-h.outgoing.Out():
 			switch m := o.(type) {
 			case *fsmOutgoingMsg:
-				h.fsm.lock.RLock()
-				options := h.fsm.marshallingOptions
-				h.fsm.lock.RUnlock()
+				options := &bgp.MarshallingOption{AddPath: fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)}
 				for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options) {
 					if err := send(msg); err != nil {
 						return nil
