@@ -194,21 +194,26 @@ func (peer *peer) isGracefulRestartEnabled() bool {
 	return peer.fsm.pConf.GracefulRestart.State.Enabled
 }
 
-func (peer *peer) getAddPathMode(family bgp.Family) bgp.BGPAddPathMode {
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-	if mode, y := peer.fsm.rfMap[family]; y {
-		return mode
+func (peer *peer) getAddPathMode(family bgp.Family) (bool, bgp.BGPAddPathMode) {
+	if mode, y := peer.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)[family]; y {
+		return true, mode
 	}
-	return bgp.BGP_ADD_PATH_NONE
+	return false, 0
 }
 
 func (peer *peer) isAddPathReceiveEnabled(family bgp.Family) bool {
-	return peer.getAddPathMode(family)&bgp.BGP_ADD_PATH_RECEIVE > 0
+	enabled, mode := peer.getAddPathMode(family)
+	return enabled && mode&bgp.BGP_ADD_PATH_RECEIVE > 0
 }
 
 func (peer *peer) isAddPathSendEnabled(family bgp.Family) bool {
-	return peer.getAddPathMode(family)&bgp.BGP_ADD_PATH_SEND > 0
+	enabled, mode := peer.getAddPathMode(family)
+	return enabled && mode&bgp.BGP_ADD_PATH_SEND > 0
+}
+
+func (peer *peer) IsFamilyEnabled(family bgp.Family) bool {
+	y, _ := peer.getAddPathMode(family)
+	return y
 }
 
 func (peer *peer) getAddPathSendMax(family bgp.Family) uint8 {
@@ -324,10 +329,10 @@ func (peer *peer) configuredRFlist() []bgp.Family {
 }
 
 func (peer *peer) negotiatedRFList() []bgp.Family {
-	peer.fsm.lock.RLock()
-	defer peer.fsm.lock.RUnlock()
-	l := make([]bgp.Family, 0, len(peer.fsm.rfMap))
-	for family := range peer.fsm.rfMap {
+	rfmap := peer.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
+
+	l := make([]bgp.Family, 0, len(rfmap))
+	for family := range rfmap {
 		l = append(l, family)
 	}
 	return l

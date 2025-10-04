@@ -204,7 +204,7 @@ type fsm struct {
 	adminState               adminState
 	adminStateCh             chan adminStateOperation
 	h                        *fsmHandler
-	rfMap                    map[bgp.Family]bgp.BGPAddPathMode
+	familyMap                atomic.Value // map[bgp.Family]bgp.BGPAddPathMode
 	rtcEORWait               atomic.Bool
 	capMap                   map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
 	recvOpen                 *bgp.BGPMessage
@@ -297,13 +297,13 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 		opensentHoldTime:         float64(holdtimeOpensent),
 		adminState:               adminState,
 		adminStateCh:             make(chan adminStateOperation, 1),
-		rfMap:                    make(map[bgp.Family]bgp.BGPAddPathMode),
 		capMap:                   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		gracefulRestartTimer:     time.NewTimer(time.Hour),
 		notification:             make(chan *bgp.BGPMessage, 1),
 		deconfiguredNotification: make(chan *bgp.BGPMessage, 1),
 		logger:                   logger,
 	}
+	fsm.familyMap.Store(make(map[bgp.Family]bgp.BGPAddPathMode))
 	fsm.gracefulRestartTimer.Stop()
 	return fsm
 }
@@ -1015,9 +1015,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 				copy(fmsg.payload, headerBuf)
 				copy(fmsg.payload[len(headerBuf):], bodyBuf)
 
-				h.fsm.lock.RLock()
-				rfMap := h.fsm.rfMap
-				h.fsm.lock.RUnlock()
+				rfMap := h.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
 
 				ok, err := bgp.ValidateUpdateMsg(body, rfMap, isEBGP, isConfed, h.allowLoopback)
 				if !ok {
@@ -1271,11 +1269,14 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsm.lock.Lock()
 					fsm.pConf.State.PeerAs = peerAs
 					fsm.pConf.State.RemoteRouterId = body.ID
-					fsm.capMap, fsm.rfMap = open2Cap(body, fsm.pConf)
+					capmap, rfmap := open2Cap(body, fsm.pConf)
+
+					fsm.capMap = capmap
+					fsm.familyMap.Store(rfmap)
 
 					if _, y := fsm.capMap[bgp.BGP_CAP_ADD_PATH]; y {
 						fsm.marshallingOptions = &bgp.MarshallingOption{
-							AddPath: fsm.rfMap,
+							AddPath: rfmap,
 						}
 					} else {
 						fsm.marshallingOptions = nil

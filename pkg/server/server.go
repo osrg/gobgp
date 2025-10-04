@@ -436,18 +436,12 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 		return nil
 	}
 
-	peer.fsm.lock.RLock()
-	_, ok := peer.fsm.rfMap[path.GetFamily()]
-	peer.fsm.lock.RUnlock()
-	if !ok {
+	if y := peer.IsFamilyEnabled(path.GetFamily()); !y {
 		return nil
 	}
 
 	// RFC4684 Constrained Route Distribution
-	peer.fsm.lock.RLock()
-	_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
-	peer.fsm.lock.RUnlock()
-	if y && path.GetFamily() != bgp.RF_RTC_UC {
+	if y := peer.IsFamilyEnabled(bgp.RF_RTC_UC); y && path.GetFamily() != bgp.RF_RTC_UC {
 		if !peer.interestedIn(path) {
 			peer.fsm.logger.Debug("Filtered by Route Target Constraint, ignore", slog.Any("Path", path))
 			if old == nil {
@@ -1067,16 +1061,13 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 	rr := m.Body.(*bgp.BGPRouteRefresh)
 	rf := bgp.NewFamily(rr.AFI, rr.SAFI)
 
-	peer.fsm.lock.RLock()
-	_, ok := peer.fsm.rfMap[rf]
-	peer.fsm.lock.RUnlock()
-	if !ok {
+	if y := peer.IsFamilyEnabled(rf); !y {
 		peer.fsm.logger.Warn("Route family isn't supported", slog.String("Family", rf.String()))
 		return nil
 	}
 
 	peer.fsm.lock.RLock()
-	_, ok = peer.fsm.capMap[bgp.BGP_CAP_ROUTE_REFRESH]
+	_, ok := peer.fsm.capMap[bgp.BGP_CAP_ROUTE_REFRESH]
 	peer.fsm.lock.RUnlock()
 	if !ok {
 		peer.fsm.logger.Warn("ROUTE_REFRESH received but the capability wasn't advertised")
@@ -1550,11 +1541,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				// any routes (and EORs) before we send ours (or deferral-timer expires).
 				var pathList []*table.Path
 				peer.fsm.lock.RLock()
-				_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
 				c := peer.fsm.pConf.GetAfiSafi(bgp.RF_RTC_UC)
 				notPeerRestarting := !peer.fsm.pConf.GracefulRestart.State.PeerRestarting
 				peer.fsm.lock.RUnlock()
-				if y && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
+				if y := peer.IsFamilyEnabled(bgp.RF_RTC_UC); y && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
 					peer.setRtcEORWait(true)
 					pathList, _ = s.getBestFromLocal(peer, []bgp.Family{bgp.RF_RTC_UC})
 					t := c.RouteTargetMembership.Config.DeferralTime
@@ -2528,7 +2518,6 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 				families = peer.configuredRFlist()
 			}
 			peer.fsm.lock.RLock()
-			_, y := peer.fsm.rfMap[bgp.RF_RTC_UC]
 			c := peer.fsm.pConf.GetAfiSafi(bgp.RF_RTC_UC)
 			restarting := peer.fsm.pConf.GracefulRestart.State.LocalRestarting
 			peer.fsm.lock.RUnlock()
@@ -2537,7 +2526,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 				peer.fsm.lock.Unlock()
 				peer.fsm.logger.Debug("deferral timer expired", slog.Any("Families", families))
-			} else if y && !c.MpGracefulRestart.State.EndOfRibReceived {
+			} else if peer.IsFamilyEnabled(bgp.RF_RTC_UC) && !c.MpGracefulRestart.State.EndOfRibReceived {
 				peer.setRtcEORWait(false)
 				peer.fsm.logger.Debug("route-target deferral timer expired", slog.Any("Families", families))
 			} else {

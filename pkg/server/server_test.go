@@ -982,9 +982,11 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 		rib,
 		policy,
 		logger)
+	rfmap := make(map[bgp.Family]bgp.BGPAddPathMode)
 	for _, f := range rib.GetRFlist() {
-		p.fsm.rfMap[f] = bgp.BGP_ADD_PATH_NONE
+		rfmap[f] = bgp.BGP_ADD_PATH_NONE
 	}
+	p.fsm.familyMap.Store(rfmap)
 	remoteAddr := netip.MustParseAddr(address)
 	localAddr := netip.MustParseAddr("1.1.1.1")
 	info := table.NewPeerInfo(gConf, nConf, as, myAs, remoteAddr, localAddr, remoteAddr, localAddr)
