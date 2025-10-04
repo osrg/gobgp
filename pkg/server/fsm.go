@@ -355,6 +355,10 @@ func (fsm *fsm) sendNotification(msg *bgp.BGPMessage) error {
 			slog.Int("Subcode", int(body.ErrorSubcode)),
 			slog.String("Communicated-Reason", communication),
 			slog.Any("Data", rest))
+
+		if body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET {
+			fsm.idleHoldTime = fsm.pConf.Timers.Config.IdleHoldTimeAfterReset
+		}
 	} else {
 		fsm.logger.Warn("sent notification",
 			slog.String("State", fsm.state.String()),
