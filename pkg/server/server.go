@@ -272,12 +272,10 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 	peer, found := s.neighborMap[addr]
 	if found {
 		peer.fsm.lock.Lock()
-		adminStateNotUp := peer.fsm.adminState != adminStateUp
+		adminStateNotUp := peer.AdminState() != adminStateUp
 		peer.fsm.lock.Unlock()
 		if adminStateNotUp {
-			peer.fsm.lock.Lock()
-			peer.fsm.logger.Debug("New connection for non admin-state-up peer", slog.Any("Admin State", peer.fsm.adminState))
-			peer.fsm.lock.Unlock()
+			peer.fsm.logger.Debug("New connection for non admin-state-up peer", slog.String("Admin State", peer.AdminState().String()))
 			conn.Close()
 			return
 		}
@@ -765,7 +763,7 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 
 	peer.fsm.lock.Lock()
 	conf.State.SessionState = oc.IntToSessionStateMap[int(state)]
-	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.fsm.adminState)]
+	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.AdminState())]
 	conf.State.Flops = peer.fsm.pConf.State.Flops
 	peer.fsm.lock.Unlock()
 
@@ -872,7 +870,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 		RecvOpen:      recvOpen,
 		State:         state,
 		OldState:      oldState,
-		AdminState:    peer.fsm.adminState,
+		AdminState:    peer.AdminState(),
 		Timestamp:     time.Now(),
 		PeerInterface: peer.fsm.pConf.Config.NeighborInterface,
 		RemoteCap:     capList,
@@ -1603,10 +1601,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.lock.Unlock()
 		}
 		// clear counter
-		peer.fsm.lock.Lock()
-		adminStateDown := peer.fsm.adminState == adminStateDown
-		peer.fsm.lock.Unlock()
-		if adminStateDown {
+		if peer.AdminState() == adminStateDown {
 			peer.fsm.lock.Lock()
 			peer.fsm.pConf.State = oc.NeighborState{}
 			peer.fsm.pConf.State.NeighborAddress = peer.fsm.pConf.Config.NeighborAddress

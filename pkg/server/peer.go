@@ -129,6 +129,10 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.Tab
 	return peer
 }
 
+func (peer *peer) AdminState() adminState {
+	return peer.fsm.adminState.Load()
+}
+
 func (peer *peer) State() bgp.FSMState {
 	return peer.fsm.state.Load()
 }
