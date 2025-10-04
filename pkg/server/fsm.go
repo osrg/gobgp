@@ -308,7 +308,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 	return fsm
 }
 
-func (fsm *fsm) StateChange(nextState bgp.FSMState, reason *fsmStateReason) {
+func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 	fsm.lock.Lock()
 	defer fsm.lock.Unlock()
 
@@ -1805,6 +1805,8 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 		if ctx.Err() != nil {
 			break
 		}
+
+		h.fsm.stateChange(nextState, reason)
 
 		msg := &fsmMsg{
 			MsgType:     fsmMsgStateChange,
