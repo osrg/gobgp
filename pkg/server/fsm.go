@@ -176,7 +176,7 @@ type adminStateOperation struct {
 }
 
 type fsmState struct {
-	val int32
+	val atomic.Int32
 }
 
 func (s *fsmState) String() string {
@@ -184,11 +184,11 @@ func (s *fsmState) String() string {
 }
 
 func (s *fsmState) Load() bgp.FSMState {
-	return bgp.FSMState(atomic.LoadInt32(&s.val))
+	return bgp.FSMState(s.val.Load())
 }
 
 func (s *fsmState) Store(state bgp.FSMState) {
-	atomic.StoreInt32(&s.val, int32(state))
+	s.val.Store(int32(state))
 }
 
 type adminStateRaw struct {
@@ -311,7 +311,6 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 	fsm := &fsm{
 		gConf:                    gConf,
 		pConf:                    pConf,
-		state:                    fsmState{val: int32(state)},
 		outgoingCh:               channels.NewInfiniteChannel(),
 		connCh:                   make(chan net.Conn, 1),
 		opensentHoldTime:         float64(holdtimeOpensent),
@@ -323,6 +322,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 		logger:                   logger,
 	}
 	fsm.familyMap.Store(make(map[bgp.Family]bgp.BGPAddPathMode))
+	fsm.state.Store(state)
 	adminState := adminStateUp
 	if pConf.Config.AdminDown {
 		adminState = adminStateDown
