@@ -627,7 +627,19 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			fsm.lock.Unlock()
 			// we don't implement delayed open timer so move to opensent right
 			// away.
-			return bgp.BGP_FSM_OPENSENT, newfsmStateReason(fsmNewConnection, nil, nil)
+			fsm.lock.Lock()
+			m := buildopen(fsm.gConf, fsm.pConf)
+			fsm.lock.Unlock()
+
+			b, _ := m.Serialize()
+			conn.SetWriteDeadline(time.Now().Add(time.Second))
+			_, err := conn.Write(b)
+			conn.SetWriteDeadline(time.Time{})
+			if err == nil {
+				fsm.bgpMessageStateUpdate(m.Header.Type, false)
+				return bgp.BGP_FSM_OPENSENT, newfsmStateReason(fsmNewConnection, nil, nil)
+			}
+			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, []byte(err.Error()))
 		case <-fsm.gracefulRestartTimer.C:
 			fsm.lock.Lock()
 			restarting := fsm.pConf.GracefulRestart.State.PeerRestarting
@@ -1167,14 +1179,6 @@ func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bg
 func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 
-	fsm.lock.Lock()
-	m := buildopen(fsm.gConf, fsm.pConf)
-	fsm.lock.Unlock()
-
-	b, _ := m.Serialize()
-	fsm.conn.Write(b)
-	fsm.bgpMessageStateUpdate(m.Header.Type, false)
-
 	h.conn = fsm.conn
 
 	wg := &sync.WaitGroup{}
@@ -1384,7 +1388,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				switch stateOp.State {
 				case adminStateDown:
 					h.conn.Close()
-					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminDown, m, nil)
+					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminDown, nil, nil)
 				case adminStateUp:
 					h.fsm.logger.Error("code logic bug",
 						slog.String("State", fsm.state.String()),
