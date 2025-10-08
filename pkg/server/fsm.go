@@ -229,11 +229,12 @@ type fsm struct {
 	adminStateCh             chan adminStateOperation
 
 	// only loop goroutine accesses; no lock required
-	idleHoldTime     float64
-	opensentHoldTime float64 // imutable
-	twoByteAsTrans   bool
-	isEBGP           bool
-	isConfed         bool
+	idleHoldTime      float64
+	opensentHoldTime  float64 // imutable
+	twoByteAsTrans    bool
+	isEBGP            bool
+	isConfed          bool
+	isTreatAsWithdraw bool
 
 	// multiple fsm goroutines access. no lock required due to how they are used.
 	conn net.Conn
@@ -349,6 +350,7 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 
 		fsm.isEBGP = fsm.pConf.IsEBGPPeer(fsm.gConf)
 		fsm.isConfed = fsm.pConf.IsConfederationMember(fsm.gConf)
+		fsm.isTreatAsWithdraw = fsm.pConf.ErrorHandling.Config.TreatAsWithdraw
 		// reset the state set by the previous session
 		fsm.twoByteAsTrans = false
 		if _, y := fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]; !y {
@@ -982,9 +984,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	now := time.Now()
 	handling := bgp.ERROR_HANDLING_NONE
 
-	h.fsm.lock.Lock()
-	useRevisedError := h.fsm.pConf.ErrorHandling.Config.TreatAsWithdraw
-	h.fsm.lock.Unlock()
+	useRevisedError := h.fsm.isTreatAsWithdraw
 
 	m, err := bgp.ParseBGPBody(hd, bodyBuf, &bgp.MarshallingOption{AddPath: h.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)})
 	if err != nil {
