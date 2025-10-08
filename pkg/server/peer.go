@@ -482,12 +482,12 @@ func (peer *peer) stopPeerRestarting() {
 // (i.e., has advertised the relevant RT).
 func (peer *peer) interestedIn(path *table.Path) bool {
 	for _, ext := range path.GetExtCommunities() {
-		for _, p := range peer.adjRibIn.PathList([]bgp.Family{bgp.RF_RTC_UC}, true) {
-			rt := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-			// Note: nil RT means the default route target
-			if rt == nil || ext.String() == rt.String() {
-				return true
-			}
+		key, err := table.ExtCommRouteTargetKey(ext)
+		if err != nil {
+			continue
+		}
+		if peer.adjRibIn.HasRTinRtcTable(key) {
+			return true
 		}
 	}
 	return false

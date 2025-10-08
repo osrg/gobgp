@@ -31,13 +31,18 @@ type AdjRib struct {
 func NewAdjRib(logger *slog.Logger, rfList []bgp.Family) *AdjRib {
 	m := make(map[bgp.Family]*Table)
 	for _, f := range rfList {
-		m[f] = NewTable(logger, f)
+		m[f] = NewAdjTable(logger, f)
 	}
 	return &AdjRib{
 		table:    m,
 		accepted: make(map[bgp.Family]int),
 		logger:   logger,
 	}
+}
+
+func (adj *AdjRib) HasRTinRtcTable(key uint64) bool {
+	table, found := adj.table[bgp.RF_RTC_UC]
+	return found && table.rtc != nil && table.HasRT(key)
 }
 
 func (adj *AdjRib) Update(pathList []*Path) {
@@ -68,6 +73,9 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				}
 				if !old.IsRejected() {
 					adj.accepted[rf]--
+					if t.rtc != nil {
+						t.rtc.unregister(path, true)
+					}
 				}
 			}
 			path.SetDropped(true)
@@ -75,8 +83,14 @@ func (adj *AdjRib) Update(pathList []*Path) {
 			if idx != -1 {
 				if old.IsRejected() && !path.IsRejected() {
 					adj.accepted[rf]++
+					if t.rtc != nil {
+						t.rtc.register(path)
+					}
 				} else if !old.IsRejected() && path.IsRejected() {
 					adj.accepted[rf]--
+					if t.rtc != nil {
+						t.rtc.unregister(path, true)
+					}
 				}
 				if old.Equal(path) {
 					path.setTimestamp(old.GetTimestamp())
@@ -86,6 +100,9 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				d.knownPathList = append(d.knownPathList, path)
 				if !path.IsRejected() {
 					adj.accepted[rf]++
+					if t.rtc != nil {
+						t.rtc.register(path)
+					}
 				}
 			}
 		}
@@ -107,6 +124,9 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 		t := adj.table[path.GetFamily()]
 		d := t.getOrCreateDest(path.GetNlri(), 0)
 		d.knownPathList = append(d.knownPathList, path)
+		if !path.IsRejected() && t.rtc != nil {
+			t.rtc.register(path)
+		}
 	}
 }
 
@@ -166,7 +186,7 @@ func (adj *AdjRib) Drop(rfList []bgp.Family) []*Path {
 		return false
 	})
 	for _, rf := range rfList {
-		adj.table[rf] = NewTable(adj.logger, rf)
+		adj.table[rf] = NewAdjTable(adj.logger, rf)
 		adj.accepted[rf] = 0
 	}
 	return l
@@ -233,7 +253,7 @@ func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.Family) []*Path {
 func (adj *AdjRib) Select(family bgp.Family, accepted bool, option ...TableSelectOption) (*Table, error) {
 	t, ok := adj.table[family]
 	if !ok {
-		t = NewTable(adj.logger, family)
+		t = NewAdjTable(adj.logger, family)
 	}
 	option = append(option, TableSelectOption{adj: true})
 	return t.Select(option...)
