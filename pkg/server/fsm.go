@@ -960,6 +960,10 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 
 	hd := &bgp.BGPHeader{}
 	err = hd.DecodeFromBytes(headerBuf)
+	// TODO: RFC 8654
+	if err == nil && hd.Len > bgp.BGP_MAX_MESSAGE_LENGTH {
+		err = fmt.Errorf("too large BGP message length: %d", hd.Len)
+	}
 	if err != nil {
 		h.fsm.bgpMessageStateUpdate(0, true)
 		h.fsm.logger.Warn("Session will be reset due to malformed BGP Header",
@@ -992,7 +996,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		h.fsm.bgpMessageStateUpdate(0, true)
 	} else {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
-		err = bgp.ValidateBGPMessage(m)
 	}
 	fmsg := &fsmMsg{
 		MsgType:   fsmMsgBGPMessage,
