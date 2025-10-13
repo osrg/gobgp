@@ -860,50 +860,6 @@ func hasOwnASLoop(ownAS uint32, limit int, asPath *bgp.PathAttributeAsPath) bool
 	return false
 }
 
-func extractFamily(p *bgp.PathAttributeInterface) *bgp.Family {
-	attr := *p
-
-	var afi uint16
-	var safi uint8
-
-	switch a := attr.(type) {
-	case *bgp.PathAttributeMpReachNLRI:
-		afi = a.AFI
-		safi = a.SAFI
-	case *bgp.PathAttributeMpUnreachNLRI:
-		afi = a.AFI
-		safi = a.SAFI
-	default:
-		return nil
-	}
-
-	rf := bgp.NewFamily(afi, safi)
-	return &rf
-}
-
-func (h *fsmHandler) afiSafiDisable(rf bgp.Family) string {
-	h.fsm.lock.Lock()
-	defer h.fsm.lock.Unlock()
-
-	n := bgp.AddressFamilyNameMap[rf]
-
-	for i, a := range h.fsm.pConf.AfiSafis {
-		if string(a.Config.AfiSafiName) == n {
-			h.fsm.pConf.AfiSafis[i].State.Enabled = false
-			break
-		}
-	}
-	newList := make([]bgp.ParameterCapabilityInterface, 0)
-	for _, c := range h.fsm.capMap[bgp.BGP_CAP_MULTIPROTOCOL] {
-		if c.(*bgp.CapMultiProtocol).CapValue == rf {
-			continue
-		}
-		newList = append(newList, c)
-	}
-	h.fsm.capMap[bgp.BGP_CAP_MULTIPROTOCOL] = newList
-	return n
-}
-
 func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError bool) bgp.ErrorHandling {
 	// ineffectual assignment to handling (ineffassign)
 	var handling bgp.ErrorHandling
@@ -920,16 +876,7 @@ func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 				slog.String("State", h.fsm.state.String()),
 				slog.String("Error", e.Error()))
 		case bgp.ERROR_HANDLING_AFISAFI_DISABLE:
-			rf := extractFamily(factor.ErrorAttribute)
-			if rf == nil {
-				h.fsm.logger.Warn("Error occurred during AFI/SAFI disabling", slog.String("State", h.fsm.state.String()))
-			} else {
-				n := h.afiSafiDisable(*rf)
-				h.fsm.logger.Warn("Capability was disabled",
-					slog.String("State", h.fsm.state.String()),
-					slog.String("Error", e.Error()),
-					slog.String("Cap", n))
-			}
+			handling = bgp.ERROR_HANDLING_SESSION_RESET
 		}
 	} else {
 		handling = bgp.ERROR_HANDLING_SESSION_RESET
@@ -1005,8 +952,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 
 	switch handling {
 	case bgp.ERROR_HANDLING_AFISAFI_DISABLE:
-		fmsg.MsgData = m
-		return fmsg, nil
+		panic("logic bug; AFI/SAFI disable handling should have been converted to session reset")
 	case bgp.ERROR_HANDLING_SESSION_RESET:
 		h.fsm.logger.Warn("Session will be reset due to malformed BGP message",
 			slog.String("State", h.fsm.state.String()),
