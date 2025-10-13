@@ -909,7 +909,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 	err = hd.DecodeFromBytes(headerBuf)
 	// TODO: RFC 8654
 	if err == nil && hd.Len > bgp.BGP_MAX_MESSAGE_LENGTH {
-		err = fmt.Errorf("too large BGP message length: %d", hd.Len)
+		err = bgp.NewMessageError(bgp.BGP_ERROR_MESSAGE_HEADER_ERROR, bgp.BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "too large BGP message length")
 	}
 	if err != nil {
 		h.fsm.bgpMessageStateUpdate(0, true)
