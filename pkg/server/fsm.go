@@ -128,7 +128,6 @@ const (
 	_ fsmMsgType = iota
 	fsmMsgStateChange
 	fsmMsgBGPMessage
-	fsmMsgRouteRefresh
 )
 
 type fsmMsg struct {
@@ -967,7 +966,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		if establishedState {
 			switch m.Header.Type {
 			case bgp.BGP_MSG_ROUTE_REFRESH:
-				fmsg.MsgType = fsmMsgRouteRefresh
+				// nothing to do here
 			case bgp.BGP_MSG_UPDATE:
 				// if the length of h.holdTimerResetCh
 				// isn't zero, the timer will be reset
