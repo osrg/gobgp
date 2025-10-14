@@ -1552,7 +1552,12 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) {
 	for ctx.Err() == nil {
 		fmsg, err := h.recvMessageWithError()
 		if fmsg != nil && ctx.Err() == nil {
-			h.callback(fmsg)
+			if m, ok := fmsg.MsgData.(*bgp.MessageError); ok {
+				h.fsm.notification <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+				return
+			} else {
+				h.callback(fmsg)
+			}
 		}
 		if err != nil {
 			return

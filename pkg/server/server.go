@@ -1611,143 +1611,135 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		}
 		s.broadcastPeerState(peer, oldState, e)
 	case fsmMsgBGPMessage:
-		switch m := e.MsgData.(type) {
-		case *bgp.MessageError:
-			peer.sendNotification(bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
+		m := e.MsgData.(*bgp.BGPMessage)
+		if m.Header.Type == bgp.BGP_MSG_UPDATE {
+			s.notifyRecvMessageWatcher(peer, e.timestamp, m)
+		}
+		notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
+		peer.fsm.lock.Lock()
+		beforeUptime := e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime
+		peer.fsm.lock.Unlock()
+		if notEstablished || beforeUptime {
 			return
-		case *bgp.BGPMessage:
-			if m.Header.Type == bgp.BGP_MSG_UPDATE {
-				s.notifyRecvMessageWatcher(peer, e.timestamp, m)
+		}
+		switch m.Header.Type {
+		case bgp.BGP_MSG_ROUTE_REFRESH:
+			if paths := s.handleRouteRefresh(peer, e); len(paths) > 0 {
+				sendfsmOutgoingMsg(peer, paths)
 			}
-			notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
-			peer.fsm.lock.Lock()
-			beforeUptime := e.timestamp.Unix() < peer.fsm.pConf.Timers.State.Uptime
-			peer.fsm.lock.Unlock()
-			if notEstablished || beforeUptime {
+		case bgp.BGP_MSG_UPDATE:
+			pathList, eor, isLimit := peer.handleUpdate(e)
+			if isLimit {
+				_ = s.setAdminState(peer.ID(), "", adminStatePfxCt)
 				return
 			}
-			switch m.Header.Type {
-			case bgp.BGP_MSG_ROUTE_REFRESH:
-				if paths := s.handleRouteRefresh(peer, e); len(paths) > 0 {
-					sendfsmOutgoingMsg(peer, paths)
-					return
-				}
-			case bgp.BGP_MSG_UPDATE:
-				pathList, eor, isLimit := peer.handleUpdate(e)
-				if isLimit {
-					_ = s.setAdminState(peer.ID(), "", adminStatePfxCt)
-					return
-				}
-				if m.Header.Type == bgp.BGP_MSG_UPDATE {
-					s.notifyPrePolicyUpdateWatcher(peer, pathList, m, e.timestamp, e.payload)
+			if m.Header.Type == bgp.BGP_MSG_UPDATE {
+				s.notifyPrePolicyUpdateWatcher(peer, pathList, m, e.timestamp, e.payload)
+			}
+
+			if len(pathList) > 0 {
+				s.propagateUpdate(peer, pathList)
+			}
+
+			peer.fsm.lock.Lock()
+			peerAfiSafis := peer.fsm.pConf.AfiSafis
+			peer.fsm.lock.Unlock()
+			if len(eor) > 0 {
+				rtc := false
+				for _, f := range eor {
+					if f == bgp.RF_RTC_UC {
+						rtc = true
+					}
+					peerInfo := *peer.peerInfo
+					ev := &watchEventEor{
+						Family:   f,
+						PeerInfo: &peerInfo,
+					}
+					s.notifyWatcher(watchEventTypeEor, ev)
+					for i, a := range peerAfiSafis {
+						if a.State.Family == f {
+							peer.fsm.lock.Lock()
+							peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
+							peer.fsm.lock.Unlock()
+						}
+					}
 				}
 
-				if len(pathList) > 0 {
-					s.propagateUpdate(peer, pathList)
-				}
+				// RFC 4724 4.1
+				// Once the session between the Restarting Speaker and the Receiving
+				// Speaker is re-established, ...snip... it MUST defer route
+				// selection for an address family until it either (a) receives the
+				// End-of-RIB marker from all its peers (excluding the ones with the
+				// "Restart State" bit set in the received capability and excluding the
+				// ones that do not advertise the graceful restart capability) or ...snip...
 
 				peer.fsm.lock.Lock()
-				peerAfiSafis := peer.fsm.pConf.AfiSafis
+				localRestarting := peer.fsm.pConf.GracefulRestart.State.LocalRestarting
 				peer.fsm.lock.Unlock()
-				if len(eor) > 0 {
-					rtc := false
-					for _, f := range eor {
-						if f == bgp.RF_RTC_UC {
-							rtc = true
-						}
-						peerInfo := *peer.peerInfo
-						ev := &watchEventEor{
-							Family:   f,
-							PeerInfo: &peerInfo,
-						}
-						s.notifyWatcher(watchEventTypeEor, ev)
-						for i, a := range peerAfiSafis {
-							if a.State.Family == f {
-								peer.fsm.lock.Lock()
-								peer.fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
-								peer.fsm.lock.Unlock()
+				if localRestarting {
+					allEnd := func() bool {
+						for _, p := range s.neighborMap {
+							if !p.recvedAllEOR() {
+								return false
 							}
 						}
+						return true
+					}()
+					if allEnd {
+						for _, p := range s.neighborMap {
+							p.fsm.lock.Lock()
+							peerLocalRestarting := p.fsm.pConf.GracefulRestart.State.LocalRestarting
+							p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
+							p.fsm.lock.Unlock()
+							if !p.isGracefulRestartEnabled() && !peerLocalRestarting {
+								continue
+							}
+							paths, _ := s.getBestFromLocal(p, p.negotiatedRFList())
+							if len(paths) > 0 {
+								sendfsmOutgoingMsg(p, paths)
+							}
+						}
+						s.logger.Info("sync finished",
+							slog.String("Topic", "Server"),
+						)
 					}
 
-					// RFC 4724 4.1
-					// Once the session between the Restarting Speaker and the Receiving
-					// Speaker is re-established, ...snip... it MUST defer route
-					// selection for an address family until it either (a) receives the
-					// End-of-RIB marker from all its peers (excluding the ones with the
-					// "Restart State" bit set in the received capability and excluding the
-					// ones that do not advertise the graceful restart capability) or ...snip...
+					// we don't delay non-route-target NLRIs when local-restarting
+					peer.setRtcEORWait(false)
+				}
+				peer.fsm.lock.Lock()
+				peerRestarting := peer.fsm.pConf.GracefulRestart.State.PeerRestarting
+				peer.fsm.lock.Unlock()
+				if peerRestarting {
+					if peer.recvedAllEOR() {
+						peer.stopPeerRestarting()
+						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
 
-					peer.fsm.lock.Lock()
-					localRestarting := peer.fsm.pConf.GracefulRestart.State.LocalRestarting
-					peer.fsm.lock.Unlock()
-					if localRestarting {
-						allEnd := func() bool {
-							for _, p := range s.neighborMap {
-								if !p.recvedAllEOR() {
-									return false
-								}
-							}
-							return true
-						}()
-						if allEnd {
-							for _, p := range s.neighborMap {
-								p.fsm.lock.Lock()
-								peerLocalRestarting := p.fsm.pConf.GracefulRestart.State.LocalRestarting
-								p.fsm.pConf.GracefulRestart.State.LocalRestarting = false
-								p.fsm.lock.Unlock()
-								if !p.isGracefulRestartEnabled() && !peerLocalRestarting {
-									continue
-								}
-								paths, _ := s.getBestFromLocal(p, p.negotiatedRFList())
-								if len(paths) > 0 {
-									sendfsmOutgoingMsg(p, paths)
-								}
-							}
-							s.logger.Info("sync finished",
-								slog.String("Topic", "Server"),
-							)
-						}
+						peer.fsm.logger.Debug("withdraw stale routes", slog.Int("Numbers", len(pathList)))
 
-						// we don't delay non-route-target NLRIs when local-restarting
-						peer.setRtcEORWait(false)
+						s.propagateUpdate(peer, pathList)
 					}
-					peer.fsm.lock.Lock()
-					peerRestarting := peer.fsm.pConf.GracefulRestart.State.PeerRestarting
-					peer.fsm.lock.Unlock()
-					if peerRestarting {
-						if peer.recvedAllEOR() {
-							peer.stopPeerRestarting()
-							pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
+					// we don't delay non-route-target NLRIs when peer is restarting
+					peer.setRtcEORWait(false)
+				}
 
-							peer.fsm.logger.Debug("withdraw stale routes", slog.Int("Numbers", len(pathList)))
+				// received EOR of route-target address family
+				// outbound filter is now ready, let's flash non-route-target NLRIs
+				if rtc && peer.getRtcEORWait() {
+					peer.setRtcEORWait(false)
+					peer.fsm.logger.Debug("received route-target eor. flash non-route-target NLRIs")
 
-							s.propagateUpdate(peer, pathList)
+					families := make([]bgp.Family, 0, len(peer.negotiatedRFList()))
+					for _, f := range peer.negotiatedRFList() {
+						if f != bgp.RF_RTC_UC {
+							families = append(families, f)
 						}
-						// we don't delay non-route-target NLRIs when peer is restarting
-						peer.setRtcEORWait(false)
 					}
-
-					// received EOR of route-target address family
-					// outbound filter is now ready, let's flash non-route-target NLRIs
-					if rtc && peer.getRtcEORWait() {
-						peer.setRtcEORWait(false)
-						peer.fsm.logger.Debug("received route-target eor. flash non-route-target NLRIs")
-
-						families := make([]bgp.Family, 0, len(peer.negotiatedRFList()))
-						for _, f := range peer.negotiatedRFList() {
-							if f != bgp.RF_RTC_UC {
-								families = append(families, f)
-							}
-						}
-						if paths, _ := s.getBestFromLocal(peer, families); len(paths) > 0 {
-							sendfsmOutgoingMsg(peer, paths)
-						}
+					if paths, _ := s.getBestFromLocal(peer, families); len(paths) > 0 {
+						sendfsmOutgoingMsg(peer, paths)
 					}
 				}
 			}
-		default:
-			peer.fsm.logger.Error("unknown msg type", slog.Any("Data", e.MsgData))
 		}
 	}
 }
