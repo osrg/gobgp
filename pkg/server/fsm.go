@@ -947,6 +947,7 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		MsgType:   fsmMsgBGPMessage,
 		handling:  handling,
 		timestamp: now,
+		payload:   append(headerBuf, bodyBuf...),
 	}
 
 	switch handling {
@@ -960,100 +961,6 @@ func (h *fsmHandler) recvMessageWithError() (*fsmMsg, error) {
 		return fmsg, err
 	default:
 		fmsg.MsgData = m
-
-		establishedState := h.fsm.state.Load() == bgp.BGP_FSM_ESTABLISHED
-
-		if establishedState {
-			switch m.Header.Type {
-			case bgp.BGP_MSG_ROUTE_REFRESH:
-				// nothing to do here
-			case bgp.BGP_MSG_UPDATE:
-				// if the length of h.holdTimerResetCh
-				// isn't zero, the timer will be reset
-				// soon anyway.
-				select {
-				case h.holdTimerResetCh <- true:
-				default:
-				}
-				body := m.Body.(*bgp.BGPUpdate)
-
-				fmsg.payload = make([]byte, len(headerBuf)+len(bodyBuf))
-				copy(fmsg.payload, headerBuf)
-				copy(fmsg.payload[len(headerBuf):], bodyBuf)
-
-				rfMap := h.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
-
-				ok, err := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)
-				if !ok {
-					handling = h.handlingError(m, err, useRevisedError)
-					fmsg.handling = handling
-				}
-				if handling == bgp.ERROR_HANDLING_SESSION_RESET {
-					h.fsm.logger.Warn("Session will be reset due to malformed BGP update message",
-						slog.String("State", h.fsm.state.String()),
-						slog.String("Error", err.Error()))
-					fmsg.MsgData = err
-					return fmsg, err
-				}
-
-				if routes := len(body.WithdrawnRoutes); routes > 0 {
-					h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
-					h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
-				} else if attr := getPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
-					mpUnreach := attr.(*bgp.PathAttributeMpUnreachNLRI)
-					if routes = len(mpUnreach.Value); routes > 0 {
-						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
-						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
-					}
-				}
-
-				table.UpdatePathAttrs4ByteAs(h.fsm.logger, body)
-
-				if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
-					fmsg.MsgData = err
-					return fmsg, err
-				}
-				fallthrough
-			case bgp.BGP_MSG_KEEPALIVE:
-				// if the length of h.holdTimerResetCh
-				// isn't zero, the timer will be reset
-				// soon anyway.
-				select {
-				case h.holdTimerResetCh <- true:
-				default:
-				}
-				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
-					return nil, nil
-				}
-			case bgp.BGP_MSG_NOTIFICATION:
-				body := m.Body.(*bgp.BGPNotification)
-				if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
-					communication, rest := decodeAdministrativeCommunication(body.Data)
-					h.fsm.logger.Warn("received notification",
-						slog.Int("Code", int(body.ErrorCode)),
-						slog.Int("Subcode", int(body.ErrorSubcode)),
-						slog.String("Communicated-Reason", communication),
-						slog.Any("Data", rest),
-					)
-				} else {
-					h.fsm.logger.Warn("received notification",
-						slog.Int("Code", int(body.ErrorCode)),
-						slog.Int("Subcode", int(body.ErrorSubcode)),
-						slog.Any("Data", body.Data))
-				}
-
-				h.fsm.lock.Lock()
-				s := h.fsm.pConf.GracefulRestart.State
-				hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
-				h.fsm.lock.Unlock()
-				if hardReset {
-					sendToStateReasonCh(fsmHardReset, m)
-				} else {
-					sendToStateReasonCh(fsmNotificationRecv, m)
-				}
-				return nil, nil
-			}
-		}
 	}
 	return fmsg, nil
 }
@@ -1554,9 +1461,105 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) {
 		if fmsg != nil && ctx.Err() == nil {
 			if m, ok := fmsg.MsgData.(*bgp.MessageError); ok {
 				h.fsm.notification <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+				// finish the loop
 				return
 			} else {
-				h.callback(fmsg)
+				doCallback := true
+				m := fmsg.MsgData.(*bgp.BGPMessage)
+				switch m.Header.Type {
+				case bgp.BGP_MSG_ROUTE_REFRESH:
+					// nothing to do here
+				case bgp.BGP_MSG_UPDATE:
+					// if the length of h.holdTimerResetCh
+					// isn't zero, the timer will be reset
+					// soon anyway.
+					select {
+					case h.holdTimerResetCh <- true:
+					default:
+					}
+					body := m.Body.(*bgp.BGPUpdate)
+
+					rfMap := h.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
+					handling := fmsg.handling
+					useRevisedError := h.fsm.isTreatAsWithdraw
+
+					ok, err := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)
+					if !ok {
+						handling = h.handlingError(m, err, useRevisedError)
+						fmsg.handling = handling
+					}
+					if handling == bgp.ERROR_HANDLING_SESSION_RESET {
+						h.fsm.logger.Warn("Session will be reset due to malformed BGP update message",
+							slog.String("State", h.fsm.state.String()),
+							slog.String("Error", err.Error()))
+						fmsg.MsgData = err
+						m := err.(*bgp.MessageError)
+						h.fsm.notification <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+						return
+					}
+
+					if routes := len(body.WithdrawnRoutes); routes > 0 {
+						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
+						h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
+					} else if attr := getPathAttrFromBGPUpdate(body, bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI); attr != nil {
+						mpUnreach := attr.(*bgp.PathAttributeMpUnreachNLRI)
+						if routes = len(mpUnreach.Value); routes > 0 {
+							h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 1)
+							h.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, routes)
+						}
+					}
+
+					table.UpdatePathAttrs4ByteAs(h.fsm.logger, body)
+
+					if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
+						m := err.(*bgp.MessageError)
+						h.fsm.notification <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+						return
+					}
+					fallthrough
+				case bgp.BGP_MSG_KEEPALIVE:
+					// if the length of h.holdTimerResetCh
+					// isn't zero, the timer will be reset
+					// soon anyway.
+					select {
+					case h.holdTimerResetCh <- true:
+					default:
+					}
+					if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
+						doCallback = false
+					}
+				case bgp.BGP_MSG_NOTIFICATION:
+					doCallback = false
+					body := m.Body.(*bgp.BGPNotification)
+					if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
+						communication, rest := decodeAdministrativeCommunication(body.Data)
+						h.fsm.logger.Warn("received notification",
+							slog.Int("Code", int(body.ErrorCode)),
+							slog.Int("Subcode", int(body.ErrorSubcode)),
+							slog.String("Communicated-Reason", communication),
+							slog.Any("Data", rest),
+						)
+					} else {
+						h.fsm.logger.Warn("received notification",
+							slog.Int("Code", int(body.ErrorCode)),
+							slog.Int("Subcode", int(body.ErrorSubcode)),
+							slog.Any("Data", body.Data))
+					}
+
+					h.fsm.lock.Lock()
+					s := h.fsm.pConf.GracefulRestart.State
+					hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
+					h.fsm.lock.Unlock()
+					if hardReset {
+						h.stateReasonCh <- *newfsmStateReason(fsmHardReset, m, nil)
+					} else {
+						h.stateReasonCh <- *newfsmStateReason(fsmNotificationRecv, m, nil)
+					}
+				}
+
+				if doCallback {
+					h.callback(fmsg)
+				}
 			}
 		}
 		if err != nil {
