@@ -794,9 +794,9 @@ func (s *BgpServer) notifyPrePolicyUpdateWatcher(peer *peer, pathList []*table.P
 		Message:      msg,
 		PeerAS:       peer.fsm.pConf.State.PeerAs,
 		LocalAS:      peer.fsm.pConf.Config.LocalAs,
-		PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-		LocalAddress: net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String()),
-		PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
+		PeerAddress:  peer.fsm.pConf.State.NeighborAddress,
+		LocalAddress: peer.fsm.pConf.Transport.State.LocalAddress,
+		PeerID:       peer.fsm.pConf.State.RemoteRouterId,
 		FourBytesAs:  y,
 		Timestamp:    timestamp,
 		Payload:      payload,
@@ -823,9 +823,9 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 	ev := &watchEventUpdate{
 		PeerAS:       peer.fsm.pConf.State.PeerAs,
 		LocalAS:      peer.fsm.pConf.Config.LocalAs,
-		PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-		LocalAddress: net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String()),
-		PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
+		PeerAddress:  peer.fsm.pConf.State.NeighborAddress,
+		LocalAddress: peer.fsm.pConf.Transport.State.LocalAddress,
+		PeerID:       peer.fsm.pConf.State.RemoteRouterId,
 		FourBytesAs:  y,
 		Timestamp:    cloned[0].GetTimestamp(),
 		PostPolicy:   true,
@@ -4376,9 +4376,9 @@ type watchEventUpdate struct {
 	Message      *bgp.BGPMessage
 	PeerAS       uint32
 	LocalAS      uint32
-	PeerAddress  net.IP
-	LocalAddress net.IP
-	PeerID       net.IP
+	PeerAddress  netip.Addr
+	LocalAddress netip.Addr
+	PeerID       netip.Addr
 	FourBytesAs  bool
 	Timestamp    time.Time
 	Payload      []byte
@@ -4693,13 +4693,12 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 				for _, rf := range peer.configuredRFlist() {
 					peer.fsm.lock.Lock()
 					_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-					l := net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String())
 					update := &watchEventUpdate{
 						PeerAS:       peer.fsm.pConf.State.PeerAs,
 						LocalAS:      peer.fsm.pConf.Config.LocalAs,
-						PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-						LocalAddress: l,
-						PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
+						PeerAddress:  peer.fsm.pConf.State.NeighborAddress,
+						LocalAddress: peer.fsm.pConf.Transport.State.LocalAddress,
+						PeerID:       peer.fsm.pConf.State.RemoteRouterId,
 						FourBytesAs:  y,
 						Init:         true,
 						PostPolicy:   false,
@@ -4716,9 +4715,9 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 						Message:      eor,
 						PeerAS:       peer.fsm.pConf.State.PeerAs,
 						LocalAS:      peer.fsm.pConf.Config.LocalAs,
-						PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-						LocalAddress: l,
-						PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
+						PeerAddress:  peer.fsm.pConf.State.NeighborAddress,
+						LocalAddress: peer.fsm.pConf.Transport.State.LocalAddress,
+						PeerID:       peer.fsm.pConf.State.RemoteRouterId,
 						FourBytesAs:  y,
 						Timestamp:    time.Now(),
 						Init:         true,
@@ -4749,8 +4748,8 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 					}
 					ev := &watchEventUpdate{
 						PeerAS:      peerInfo.AS,
-						PeerAddress: net.IP(peerInfo.Address.AsSlice()),
-						PeerID:      net.IP(peerInfo.ID.AsSlice()),
+						PeerAddress: peerInfo.Address,
+						PeerID:      peerInfo.ID,
 						PostPolicy:  true,
 						Neighbor:    configNeighbor,
 						PathList:    paths,
@@ -4767,8 +4766,8 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 					w.notify(&watchEventUpdate{
 						Message:     eor,
 						PeerAS:      peerInfo.AS,
-						PeerAddress: net.IP(peerInfo.Address.AsSlice()),
-						PeerID:      net.IP(peerInfo.ID.AsSlice()),
+						PeerAddress: peerInfo.Address,
+						PeerID:      peerInfo.ID,
 						Timestamp:   time.Now(),
 						Payload:     eorBuf,
 						PostPolicy:  true,
