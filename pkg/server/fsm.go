@@ -410,7 +410,6 @@ func (fsm *fsm) start(wg *sync.WaitGroup, callback func(*fsmMsg)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	fsm.h = &fsmHandler{
 		fsm:              fsm,
-		stateReasonCh:    make(chan fsmStateReason, 2),
 		outgoing:         fsm.outgoingCh,
 		holdTimerResetCh: make(chan bool, 2),
 		ctx:              ctx,
@@ -430,7 +429,6 @@ type fsmCallback func(*fsmMsg)
 type fsmHandler struct {
 	fsm              *fsm
 	allowLoopback    bool
-	stateReasonCh    chan fsmStateReason
 	outgoing         *channels.InfiniteChannel
 	holdTimerResetCh chan bool
 	ctx              context.Context
@@ -648,8 +646,6 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				fsm.logger.Warn("graceful restart timer expired", slog.String("State", fsm.state.String()))
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
 			}
-		case err := <-h.stateReasonCh:
-			return bgp.BGP_FSM_IDLE, &err
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
 			if err == nil {
@@ -882,11 +878,11 @@ func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 	return handling
 }
 
-func (h *fsmHandler) recvMessageWithError(conn net.Conn) (*fsmMsg, error) {
+func (h *fsmHandler) recvMessageWithError(conn net.Conn, stateReasonCh chan<- fsmStateReason) (*fsmMsg, error) {
 	sendToStateReasonCh := func(typ fsmStateReasonType, notif *bgp.BGPMessage) {
 		// probably doesn't happen but be cautious
 		select {
-		case h.stateReasonCh <- *newfsmStateReason(typ, notif, nil):
+		case stateReasonCh <- *newfsmStateReason(typ, notif, nil):
 		default:
 		}
 	}
@@ -964,10 +960,10 @@ func (h *fsmHandler) recvMessageWithError(conn net.Conn) (*fsmMsg, error) {
 	return fmsg, nil
 }
 
-func (h *fsmHandler) recvMessage(ctx context.Context, conn net.Conn, recvChan chan<- *fsmMsg, wg *sync.WaitGroup) {
+func (h *fsmHandler) recvMessage(ctx context.Context, conn net.Conn, recvChan chan<- *fsmMsg, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	fmsg, _ := h.recvMessageWithError(conn)
+	fmsg, _ := h.recvMessageWithError(conn, stateReasonCh)
 	if fmsg != nil && ctx.Err() == nil {
 		recvChan <- fmsg
 	}
@@ -1035,8 +1031,9 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
+	reasonCh := make(chan fsmStateReason, 1)
 	recvChan := make(chan *fsmMsg, 1)
-	go h.recvMessage(ctx, fsm.conn, recvChan, wg)
+	go h.recvMessage(ctx, fsm.conn, recvChan, reasonCh, wg)
 
 	defer func() {
 		// for to stop the recv goroutine
@@ -1227,7 +1224,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					slog.String("State", fsm.state.String()),
 					slog.Any("Data", e.MsgData))
 			}
-		case err := <-h.stateReasonCh:
+		case err := <-reasonCh:
 			fsm.conn.Close()
 			return bgp.BGP_FSM_IDLE, &err
 		case <-holdTimer.C:
@@ -1272,8 +1269,9 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
+	reasonCh := make(chan fsmStateReason, 1)
 	recvChan := make(chan *fsmMsg, 1)
-	go h.recvMessage(ctx, fsm.conn, recvChan, wg)
+	go h.recvMessage(ctx, fsm.conn, recvChan, reasonCh, wg)
 
 	defer func() {
 		// for to stop the recv goroutine
@@ -1339,7 +1337,7 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 					slog.String("State", fsm.state.String()),
 					slog.Any("Data", e.MsgData))
 			}
-		case err := <-h.stateReasonCh:
+		case err := <-reasonCh:
 			fsm.conn.Close()
 			return bgp.BGP_FSM_IDLE, &err
 		case <-holdTimer.C:
@@ -1363,11 +1361,11 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	}
 }
 
-func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) error {
+func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) error {
 	sendToStateReasonCh := func(typ fsmStateReasonType, notif *bgp.BGPMessage) {
 		// probably doesn't happen but be cautious
 		select {
-		case h.stateReasonCh <- *newfsmStateReason(typ, notif, nil):
+		case stateReasonCh <- *newfsmStateReason(typ, notif, nil):
 		default:
 		}
 	}
@@ -1447,11 +1445,11 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, wg *syn
 	}
 }
 
-func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, wg *sync.WaitGroup) {
+func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for ctx.Err() == nil {
-		fmsg, err := h.recvMessageWithError(conn)
+		fmsg, err := h.recvMessageWithError(conn, stateReasonCh)
 		if fmsg != nil && ctx.Err() == nil {
 			if m, ok := fmsg.MsgData.(*bgp.MessageError); ok {
 				h.fsm.notification <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
@@ -1545,9 +1543,9 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, wg *syn
 					hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
 					h.fsm.lock.Unlock()
 					if hardReset {
-						h.stateReasonCh <- *newfsmStateReason(fsmHardReset, m, nil)
+						stateReasonCh <- *newfsmStateReason(fsmHardReset, m, nil)
 					} else {
-						h.stateReasonCh <- *newfsmStateReason(fsmNotificationRecv, m, nil)
+						stateReasonCh <- *newfsmStateReason(fsmNotificationRecv, m, nil)
 					}
 				}
 
@@ -1572,8 +1570,12 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 
-	go h.sendMessageloop(ioCtx, fsm.conn, wg)
-	go h.recvMessageloop(ioCtx, fsm.conn, wg)
+	// send and recv goroutine send errors to reasonCh, and the loop goroutine also sends
+	// to reasonCh with hold timer expiration. So three buffer is enough.
+	reasonCh := make(chan fsmStateReason, 3)
+
+	go h.sendMessageloop(ioCtx, fsm.conn, reasonCh, wg)
+	go h.recvMessageloop(ioCtx, fsm.conn, reasonCh, wg)
 
 	defer func() {
 		// for to stop the recv goroutine
@@ -1634,7 +1636,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			}
 			conn.Close()
 			fsm.logger.Warn("Closed an accepted connection", slog.String("State", fsm.state.String()))
-		case err := <-h.stateReasonCh:
+		case err := <-reasonCh:
 			fsm.conn.Close()
 			// if recv goroutine hit an error and sent to
 			// stateReasonCh, then tx goroutine might take
@@ -1673,7 +1675,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			} else if err != nil {
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
 			}
-			h.stateReasonCh <- *newfsmStateReason(fsmNotificationSent, m, nil)
+			reasonCh <- *newfsmStateReason(fsmNotificationSent, m, nil)
 		case <-h.holdTimerResetCh:
 			fsm.lock.Lock()
 			if fsm.pConf.Timers.State.NegotiatedHoldTime != 0 {
@@ -1729,10 +1731,6 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 
 			nextState, reason = h.established(ctx)
 		}
-
-		// drain the state reason channel
-		// to avoid having stale transition.
-		drainChannel(h.stateReasonCh)
 
 		if nextState == bgp.BGP_FSM_ESTABLISHED && oldState == bgp.BGP_FSM_OPENCONFIRM {
 			fsm.logger.Info("Peer Up")
