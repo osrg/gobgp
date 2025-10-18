@@ -269,6 +269,9 @@ class GoBGPTestBase(unittest.TestCase):
         g3.local("ip route del blackhole {}/32".format(g1.ip_addrs[0][1].split("/")[0]))
 
         # wait for a reconnect attempt of g1 to g3
+        # g1 likely to be in active state before above blackhole is removed.
+        # once blackhole is removed, g1 tries to connect to g3 again then goes to idle state.
+        # because g3 has disabled. So g1's outgoing connection fails and goes to idle state.
         g1.wait_for(expected_state=BGP_FSM_IDLE, peer=g3)
         g1.wait_for(expected_state=BGP_FSM_ACTIVE, peer=g3)
 
