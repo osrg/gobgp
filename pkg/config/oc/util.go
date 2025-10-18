@@ -222,7 +222,9 @@ func (n *Neighbor) NeedsResendOpenMessage(new *Neighbor) bool {
 		!n.AddPaths.Config.Equal(&new.AddPaths.Config) ||
 		!n.AsPathOptions.Config.Equal(&new.AsPathOptions.Config) ||
 		!n.GracefulRestart.Config.Equal(&new.GracefulRestart.Config) ||
-		isAfiSafiChanged(n.AfiSafis, new.AfiSafis)
+		isAfiSafiChanged(n.AfiSafis, new.AfiSafis) ||
+		!n.EbgpMultihop.Config.Equal(&new.EbgpMultihop.Config) ||
+		!n.TtlSecurity.Config.Equal(&new.TtlSecurity.Config)
 }
 
 // TODO: these regexp are duplicated in api
