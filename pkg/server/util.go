@@ -21,6 +21,17 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
+func nonblockSendChannel[T any](ch chan<- T, item T) bool {
+	select {
+	case ch <- item:
+		// sent
+		return true
+	default:
+		// drop the item
+		return false
+	}
+}
+
 func drainChannel[T any](ch <-chan T) {
 	for {
 		select {

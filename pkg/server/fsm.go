@@ -551,10 +551,9 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 			}
 
 			if err == nil {
-				select {
-				case fsm.connCh <- conn:
+				if nonblockSendChannel(fsm.connCh, conn) {
 					return
-				default:
+				} else {
 					conn.Close()
 					fsm.logger.Warn("active conn is closed to avoid being blocked")
 				}
@@ -877,14 +876,6 @@ func (h *fsmHandler) handlingError(m *bgp.BGPMessage, e error, useRevisedError b
 }
 
 func (h *fsmHandler) recvMessageWithError(conn net.Conn, stateReasonCh chan<- fsmStateReason) (*fsmMsg, error) {
-	sendToStateReasonCh := func(typ fsmStateReasonType, notif *bgp.BGPMessage) {
-		// probably doesn't happen but be cautious
-		select {
-		case stateReasonCh <- *newfsmStateReason(typ, notif, nil):
-		default:
-		}
-	}
-
 	headerBuf, err := readAll(conn, bgp.BGP_HEADER_LENGTH)
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		// we set a read deadline when we cancel the FSM handler context,
@@ -893,7 +884,7 @@ func (h *fsmHandler) recvMessageWithError(conn net.Conn, stateReasonCh chan<- fs
 		// shutting down.
 		return nil, nil
 	} else if err != nil {
-		sendToStateReasonCh(fsmReadFailed, nil)
+		nonblockSendChannel(stateReasonCh, *newfsmStateReason(fsmReadFailed, nil, nil))
 		return nil, err
 	}
 
@@ -920,7 +911,7 @@ func (h *fsmHandler) recvMessageWithError(conn net.Conn, stateReasonCh chan<- fs
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		return nil, nil
 	} else if err != nil {
-		sendToStateReasonCh(fsmReadFailed, nil)
+		nonblockSendChannel(stateReasonCh, *newfsmStateReason(fsmReadFailed, nil, nil))
 		return nil, err
 	}
 
@@ -1360,14 +1351,6 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 }
 
 func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) error {
-	sendToStateReasonCh := func(typ fsmStateReasonType, notif *bgp.BGPMessage) {
-		// probably doesn't happen but be cautious
-		select {
-		case stateReasonCh <- *newfsmStateReason(typ, notif, nil):
-		default:
-		}
-	}
-
 	defer wg.Done()
 	fsm := h.fsm
 	ticker := keepaliveTicker(fsm)
@@ -1394,7 +1377,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 				slog.String("State", fsm.state.String()),
 				slog.Any("Data", err))
 
-			sendToStateReasonCh(fsmWriteFailed, nil)
+			nonblockSendChannel(stateReasonCh, *newfsmStateReason(fsmWriteFailed, nil, nil))
 			conn.Close()
 			return fmt.Errorf("closed")
 		}
@@ -1463,10 +1446,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 					// if the length of holdtimerResetCh
 					// isn't zero, the timer will be reset
 					// soon anyway.
-					select {
-					case holdtimerResetCh <- struct{}{}:
-					default:
-					}
+					nonblockSendChannel(holdtimerResetCh, struct{}{})
 					body := m.Body.(*bgp.BGPUpdate)
 
 					rfMap := h.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
@@ -1511,10 +1491,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 					// if the length of holdtimerResetCh
 					// isn't zero, the timer will be reset
 					// soon anyway.
-					select {
-					case holdtimerResetCh <- struct{}{}:
-					default:
-					}
+					nonblockSendChannel(holdtimerResetCh, struct{}{})
 					if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
 						doCallback = false
 					}
@@ -1541,9 +1518,9 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 					hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
 					h.fsm.lock.Unlock()
 					if hardReset {
-						stateReasonCh <- *newfsmStateReason(fsmHardReset, m, nil)
+						nonblockSendChannel(stateReasonCh, *newfsmStateReason(fsmHardReset, m, nil))
 					} else {
-						stateReasonCh <- *newfsmStateReason(fsmNotificationRecv, m, nil)
+						nonblockSendChannel(stateReasonCh, *newfsmStateReason(fsmNotificationRecv, m, nil))
 					}
 				}
 
