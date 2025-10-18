@@ -608,6 +608,8 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			localAddr = localAddr.WithZone("")
 
 			fsm.conn = conn
+			// set a deadline for sending OPEN and KEEPALIVE messages before established state.
+			conn.SetWriteDeadline(time.Now().Add(time.Second))
 
 			fsm.lock.Lock()
 			h.fsm.pConf.Transport.State.RemoteAddress = remoteAddr
@@ -633,9 +635,7 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			fsm.lock.Unlock()
 
 			b, _ := m.Serialize()
-			conn.SetWriteDeadline(time.Now().Add(time.Second))
 			_, err := conn.Write(b)
-			conn.SetWriteDeadline(time.Time{})
 			if err == nil {
 				fsm.bgpMessageStateUpdate(m.Header.Type, false)
 				return bgp.BGP_FSM_OPENSENT, newfsmStateReason(fsmNewConnection, nil, nil)
@@ -1571,6 +1571,9 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, wg *sync.WaitGroup) {
 func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 	h.conn = fsm.conn
+
+	// reset the write deadline that was set in the connection establishment.
+	fsm.conn.SetWriteDeadline(time.Time{})
 
 	ioCtx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
