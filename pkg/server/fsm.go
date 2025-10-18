@@ -409,12 +409,11 @@ func (fsm *fsm) sendNotification(msg *bgp.BGPMessage) error {
 func (fsm *fsm) start(wg *sync.WaitGroup, callback func(*fsmMsg)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	fsm.h = &fsmHandler{
-		fsm:              fsm,
-		outgoing:         fsm.outgoingCh,
-		holdTimerResetCh: make(chan bool, 2),
-		ctx:              ctx,
-		ctxCancel:        cancel,
-		callback:         callback,
+		fsm:       fsm,
+		outgoing:  fsm.outgoingCh,
+		ctx:       ctx,
+		ctxCancel: cancel,
+		callback:  callback,
 	}
 	wg.Add(1)
 	go fsm.h.loop(ctx, wg)
@@ -427,13 +426,12 @@ func (fsm *fsm) stop() {
 type fsmCallback func(*fsmMsg)
 
 type fsmHandler struct {
-	fsm              *fsm
-	allowLoopback    bool
-	outgoing         *channels.InfiniteChannel
-	holdTimerResetCh chan bool
-	ctx              context.Context
-	ctxCancel        context.CancelFunc
-	callback         fsmCallback
+	fsm           *fsm
+	allowLoopback bool
+	outgoing      *channels.InfiniteChannel
+	ctx           context.Context
+	ctxCancel     context.CancelFunc
+	callback      fsmCallback
 }
 
 func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
@@ -1445,7 +1443,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 	}
 }
 
-func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) {
+func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtimerResetCh chan<- struct{}, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for ctx.Err() == nil {
@@ -1462,11 +1460,11 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, stateRe
 				case bgp.BGP_MSG_ROUTE_REFRESH:
 					// nothing to do here
 				case bgp.BGP_MSG_UPDATE:
-					// if the length of h.holdTimerResetCh
+					// if the length of holdtimerResetCh
 					// isn't zero, the timer will be reset
 					// soon anyway.
 					select {
-					case h.holdTimerResetCh <- true:
+					case holdtimerResetCh <- struct{}{}:
 					default:
 					}
 					body := m.Body.(*bgp.BGPUpdate)
@@ -1510,11 +1508,11 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, stateRe
 					}
 					fallthrough
 				case bgp.BGP_MSG_KEEPALIVE:
-					// if the length of h.holdTimerResetCh
+					// if the length of holdtimerResetCh
 					// isn't zero, the timer will be reset
 					// soon anyway.
 					select {
-					case h.holdTimerResetCh <- true:
+					case holdtimerResetCh <- struct{}{}:
 					default:
 					}
 					if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
@@ -1574,8 +1572,10 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	// to reasonCh with hold timer expiration. So three buffer is enough.
 	reasonCh := make(chan fsmStateReason, 3)
 
+	holdtimerResetCh := make(chan struct{}, 2)
+
 	go h.sendMessageloop(ioCtx, fsm.conn, reasonCh, wg)
-	go h.recvMessageloop(ioCtx, fsm.conn, reasonCh, wg)
+	go h.recvMessageloop(ioCtx, fsm.conn, holdtimerResetCh, reasonCh, wg)
 
 	defer func() {
 		// for to stop the recv goroutine
@@ -1676,7 +1676,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
 			}
 			reasonCh <- *newfsmStateReason(fsmNotificationSent, m, nil)
-		case <-h.holdTimerResetCh:
+		case <-holdtimerResetCh:
 			fsm.lock.Lock()
 			if fsm.pConf.Timers.State.NegotiatedHoldTime != 0 {
 				holdTimer.Reset(time.Second * time.Duration(fsm.pConf.Timers.State.NegotiatedHoldTime))
