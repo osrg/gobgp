@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -206,6 +207,150 @@ func (s *adminStateRaw) Store(state adminState) {
 	s.val.Store(int32(state))
 }
 
+func initializeConn(fsm *fsm, conn net.Conn) {
+	conn.SetWriteDeadline(time.Now().Add(time.Second))
+
+	fsm.lock.Lock()
+	if err := setPeerConnTTL(fsm, conn); err != nil {
+		fsm.logger.Warn("cannot set TTL",
+			slog.String("State", fsm.state.String()),
+			slog.String("Error", err.Error()))
+	}
+	if err := setPeerConnMSS(fsm, conn); err != nil {
+		fsm.logger.Warn("cannot set MSS",
+			slog.String("State", fsm.state.String()),
+			slog.String("Error", err.Error()))
+	}
+	fsm.lock.Unlock()
+}
+
+type outgoingConn struct {
+	conn net.Conn
+	open *bgp.BGPMessage
+}
+
+type outgoingConnManager struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+	fsm    *fsm
+}
+
+func newOutGoingConnManager(ctx context.Context, fsm *fsm) *outgoingConnManager {
+	cctx, cancel := context.WithCancel(ctx)
+	ocm := &outgoingConnManager{
+		ctx:    cctx,
+		cancel: cancel,
+		fsm:    fsm,
+	}
+	ocm.wg.Add(1)
+	go ocm.run(fsm.outgoingConnCh)
+
+	return ocm
+}
+
+func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
+	defer func() {
+		ocm.wg.Done()
+		ocm.cancel()
+	}()
+
+	fsm := ocm.fsm
+	fsm.lock.Lock()
+	isPassive := fsm.pConf.Transport.Config.PassiveMode
+	fsm.lock.Unlock()
+
+	if isPassive {
+		return
+	}
+
+	state := bgp.BGP_FSM_CONNECT
+	var conn net.Conn
+	for {
+		switch state {
+		case bgp.BGP_FSM_CONNECT:
+			connCh := make(chan net.Conn, 1)
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go ocm.fsm.h.connectLoop(ocm.ctx, connCh, &wg)
+			select {
+			case <-ocm.ctx.Done():
+				wg.Wait()
+				return
+			case conn = <-connCh:
+				wg.Wait()
+				initializeConn(fsm, conn)
+
+				fsm.lock.Lock()
+				open := buildopen(fsm.gConf, fsm.pConf)
+				fsm.lock.Unlock()
+				b, _ := open.Serialize()
+
+				if _, err := conn.Write(b); err != nil {
+					conn.Close()
+					continue
+				}
+				fsm.bgpMessageStateUpdate(bgp.BGP_MSG_OPEN, false)
+				fsm.logger.Debug("outgoing connection established")
+				state = bgp.BGP_FSM_OPENSENT
+			}
+		case bgp.BGP_FSM_OPENSENT:
+			recvCh := make(chan *fsmMsg, 1)
+			reasonCh := make(chan fsmStateReason, 1)
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go ocm.fsm.h.recvMessage(ocm.ctx, conn, recvCh, reasonCh, &wg)
+			select {
+			case <-ocm.ctx.Done():
+				conn.SetReadDeadline(time.Now())
+				conn.Close()
+				wg.Wait()
+				return
+			case reason := <-reasonCh:
+				fsm.logger.Debug("outgoing connection IO error", slog.String("reason", reason.String()))
+				conn.Close()
+				wg.Wait()
+				state = bgp.BGP_FSM_CONNECT
+				continue
+			case fmsg := <-recvCh:
+				wg.Wait()
+				nextState, _, notif := ocm.fsm.handleOpen(fmsg)
+				if nextState != bgp.BGP_FSM_OPENCONFIRM {
+					if notif != nil {
+						_ = fsm.sendNotification(conn, notif)
+					} else {
+						conn.Close()
+					}
+					state = bgp.BGP_FSM_CONNECT
+					continue
+				}
+				fsm.logger.Debug("open message received on outgoing connection", slog.String("remote", conn.RemoteAddr().String()))
+				ch <- outgoingConn{
+					conn: conn,
+					open: fmsg.MsgData.(*bgp.BGPMessage),
+				}
+				return
+			}
+		default:
+			panic("outgoing connection manager got invalid fsm state")
+		}
+	}
+}
+
+func (ocm *outgoingConnManager) stop() {
+	ocm.cancel()
+	ocm.wg.Wait()
+	// drain
+	for {
+		select {
+		case c := <-ocm.fsm.outgoingConnCh:
+			c.conn.Close()
+		default:
+			return
+		}
+	}
+}
+
 type fsm struct {
 	// protected by mutex
 	lock     sync.Mutex
@@ -226,8 +371,10 @@ type fsm struct {
 	connCh                   chan net.Conn
 	adminState               adminStateRaw
 	adminStateCh             chan adminStateOperation
+	outgoingConnCh           chan outgoingConn
 
 	// only loop goroutine accesses; no lock required
+	outgoingConnMgr   *outgoingConnManager
 	idleHoldTime      float64
 	opensentHoldTime  float64 // imutable
 	twoByteAsTrans    bool
@@ -238,6 +385,41 @@ type fsm struct {
 	// multiple fsm goroutines access. no lock required due to how they are used.
 	conn net.Conn
 	h    *fsmHandler
+}
+
+func (fsm *fsm) tryReceiveOutgoingConn() (outgoingConn, bool) {
+	select {
+	case item := <-fsm.outgoingConnCh:
+		return item, true
+	default:
+		var zero outgoingConn
+		return zero, false
+	}
+}
+
+// resolveCollision resolves connection collision according to RFC 4271 Section 6.8
+// and RFC 6286 Section 2.3.
+// Returns true if active connection should be used, false if passive connection should be used.
+func (fsm *fsm) isDominant(open *bgp.BGPOpen) bool {
+	fsm.lock.Lock()
+	myID := fsm.gConf.Config.RouterId
+	myAS := fsm.pConf.Config.LocalAs
+	fsm.lock.Unlock()
+
+	localIDbin := myID.As4()
+	localID := binary.BigEndian.Uint32(localIDbin[:])
+	remoteIDbin := open.ID.As4()
+	remoteID := binary.BigEndian.Uint32(remoteIDbin[:])
+
+	if localID > remoteID {
+		return true
+	}
+
+	if localID == remoteID && myAS > getASN(open) {
+		return true
+	}
+
+	return false
 }
 
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -319,6 +501,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 		gracefulRestartTimer:     time.NewTimer(time.Hour),
 		notification:             make(chan *bgp.BGPMessage, 1),
 		deconfiguredNotification: make(chan *bgp.BGPMessage, 1),
+		outgoingConnCh:           make(chan outgoingConn, 1),
 		logger:                   logger,
 	}
 	fsm.familyMap.Store(make(map[bgp.Family]bgp.BGPAddPathMode))
@@ -621,7 +804,7 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	}
 }
 
-func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
+func (h *fsmHandler) connectLoop(ctx context.Context, connCh chan<- net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
 	fsm := h.fsm
 
@@ -688,7 +871,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 			}
 
 			if err == nil {
-				if nonblockSendChannel(fsm.connCh, conn) {
+				if nonblockSendChannel(connCh, conn) {
 					return
 				} else {
 					conn.Close()
@@ -703,23 +886,12 @@ func (h *fsmHandler) connectLoop(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
-	c, cancel := context.WithCancel(ctx)
-
 	fsm := h.fsm
-	var wg sync.WaitGroup
 
-	fsm.lock.Lock()
-	tryConnect := !fsm.pConf.Transport.Config.PassiveMode
-	fsm.lock.Unlock()
-	if tryConnect {
-		wg.Add(1)
-		go h.connectLoop(c, &wg)
+	if fsm.outgoingConnMgr == nil || fsm.outgoingConnMgr.ctx.Err() != nil {
+		fsm.logger.Info("starting outgoing connection manager")
+		fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm)
 	}
-
-	defer func() {
-		cancel()
-		wg.Wait()
-	}()
 
 	for {
 		select {
@@ -731,23 +903,11 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			}
 
 			fsm.conn = conn
-			// set a deadline for sending OPEN and KEEPALIVE messages before established state.
-			conn.SetWriteDeadline(time.Now().Add(time.Second))
-
-			fsm.lock.Lock()
-			if err := setPeerConnTTL(fsm); err != nil {
-				fsm.logger.Warn("cannot set TTL",
-					slog.String("State", fsm.state.String()),
-					slog.String("Error", err.Error()))
-			}
-			if err := setPeerConnMSS(fsm); err != nil {
-				fsm.logger.Warn("cannot set MSS",
-					slog.String("State", fsm.state.String()),
-					slog.String("Error", err.Error()))
-			}
+			initializeConn(fsm, conn)
 
 			// we don't implement delayed open timer so move to opensent right
 			// away.
+			fsm.lock.Lock()
 			m := buildopen(fsm.gConf, fsm.pConf)
 			fsm.lock.Unlock()
 
@@ -758,6 +918,22 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				return bgp.BGP_FSM_OPENSENT, newfsmStateReason(fsmNewConnection, nil, nil)
 			}
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, []byte(err.Error()))
+		case result := <-fsm.outgoingConnCh:
+			b, _ := bgp.NewBGPKeepAliveMessage().Serialize()
+			if _, err := result.conn.Write(b); err != nil {
+				result.conn.Close()
+				fsm.logger.Warn("failed to send keepalive on outgoing connection", slog.String("Error", err.Error()))
+				// the manager was stopped, restart it
+				fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm)
+			} else {
+				fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
+				fsm.conn = result.conn
+				fsm.lock.Lock()
+				fsm.recvOpen = result.open
+				fsm.lock.Unlock()
+
+				return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, result.open, nil)
+			}
 		case <-fsm.gracefulRestartTimer.C:
 			fsm.lock.Lock()
 			restarting := fsm.pConf.GracefulRestart.State.PeerRestarting
@@ -782,11 +958,7 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 	}
 }
 
-func setPeerConnTTL(fsm *fsm) error {
-	if fsm.conn == nil {
-		return errors.New("not connected")
-	}
-
+func setPeerConnTTL(fsm *fsm, conn net.Conn) error {
 	ttl := 0
 	ttlMin := 0
 
@@ -806,24 +978,24 @@ func setPeerConnTTL(fsm *fsm) error {
 	}
 
 	if ttl != 0 {
-		if err := netutils.SetTCPTTLSockopt(fsm.conn, ttl); err != nil {
+		if err := netutils.SetTCPTTLSockopt(conn, ttl); err != nil {
 			return fmt.Errorf("failed to set TTL %d: %w", ttl, err)
 		}
 	}
 	if ttlMin != 0 {
-		if err := netutils.SetTCPMinTTLSockopt(fsm.conn, ttlMin); err != nil {
+		if err := netutils.SetTCPMinTTLSockopt(conn, ttlMin); err != nil {
 			return fmt.Errorf("failed to set minimal TTL %d: %w", ttlMin, err)
 		}
 	}
 	return nil
 }
 
-func setPeerConnMSS(fsm *fsm) error {
+func setPeerConnMSS(fsm *fsm, conn net.Conn) error {
 	mss := fsm.pConf.Transport.Config.TcpMss
 	if mss == 0 {
 		return nil
 	}
-	if err := netutils.SetTCPMSSSockopt(fsm.conn, mss); err != nil {
+	if err := netutils.SetTCPMSSSockopt(conn, mss); err != nil {
 		return fmt.Errorf("failed to set MSS %d: %w", mss, err)
 	}
 	return nil
@@ -1138,6 +1310,36 @@ func open2Cap(open *bgp.BGPOpen, n *oc.Neighbor) (map[bgp.BGPCapabilityCode][]bg
 	return capMap, negotiated
 }
 
+func (fsm *fsm) handleOpen(fmsg *fsmMsg) (bgp.FSMState, *fsmStateReason, *bgp.BGPMessage) {
+	switch m := fmsg.MsgData.(type) {
+	case *bgp.BGPMessage:
+		if m.Header.Type == bgp.BGP_MSG_OPEN {
+			body := m.Body.(*bgp.BGPOpen)
+
+			fsm.lock.Lock()
+			fsmPeerAS := fsm.pConf.Config.PeerAs
+			localID := fsm.gConf.Config.RouterId
+			localAS := fsm.pConf.Config.LocalAs
+			fsm.lock.Unlock()
+
+			if _, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, localID); err != nil {
+				err := err.(*bgp.MessageError)
+				notif := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
+				_ = fsm.sendNotification(fsm.conn, m)
+				if err.TypeCode == bgp.BGP_ERROR_OPEN_MESSAGE_ERROR && err.SubTypeCode == bgp.BGP_ERROR_SUB_BAD_PEER_AS {
+					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmBadPeerAS, m, nil), notif
+				}
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil), notif
+			}
+			return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil), nil
+		}
+		return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil), bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_FSM_ERROR, 1, nil)
+	case *bgp.MessageError:
+		return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, nil, nil), bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+	}
+	panic("handleOpen was called with invalid fsmMsg")
+}
+
 func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 
@@ -1183,50 +1385,88 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
 			}
 		case e := <-recvChan:
-			switch m := e.MsgData.(type) {
-			case *bgp.BGPMessage:
-				if m.Header.Type == bgp.BGP_MSG_OPEN {
-					fsm.lock.Lock()
-					fsm.recvOpen = m
-					fsm.lock.Unlock()
-
-					body := m.Body.(*bgp.BGPOpen)
-
-					fsm.lock.Lock()
-					fsmPeerAS := fsm.pConf.Config.PeerAs
-					localAS := fsm.pConf.Config.LocalAs
-					fsm.lock.Unlock()
-
-					_, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, fsm.gConf.Config.RouterId)
-					if err != nil {
-						err := err.(*bgp.MessageError)
-						m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
-						_ = fsm.sendNotification(fsm.conn, m)
-						if err.TypeCode == bgp.BGP_ERROR_OPEN_MESSAGE_ERROR && err.SubTypeCode == bgp.BGP_ERROR_SUB_BAD_PEER_AS {
-							return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmBadPeerAS, m, nil)
-						}
-						return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
-					}
-
-					msg := bgp.NewBGPKeepAliveMessage()
-					b, _ := msg.Serialize()
-					fsm.conn.Write(b)
-					fsm.bgpMessageStateUpdate(msg.Header.Type, false)
-					return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil)
+			nextState, reason, notif := fsm.handleOpen(e)
+			if nextState != bgp.BGP_FSM_OPENCONFIRM {
+				if notif != nil {
+					_ = fsm.sendNotification(fsm.conn, notif)
 				} else {
-					// send notification?
 					fsm.conn.Close()
-					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, nil, nil)
 				}
-			case *bgp.MessageError:
-				n := bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
-				_ = fsm.sendNotification(fsm.conn, n)
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, n, nil)
-			default:
-				h.fsm.logger.Error("unknown msg type",
-					slog.String("State", fsm.state.String()),
-					slog.Any("Data", e.MsgData))
+				return nextState, reason
 			}
+			m := e.MsgData.(*bgp.BGPMessage)
+
+			fsm.lock.Lock()
+			fsm.recvOpen = m
+			fsm.lock.Unlock()
+
+			if outConn, ok := fsm.tryReceiveOutgoingConn(); ok {
+				// collision detected
+				isDominant := fsm.isDominant(m.Body.(*bgp.BGPOpen))
+				if isDominant {
+					// close the incoming connection
+					fsm.logger.Debug("collision detected: dominant on active side, close the incoming connection")
+					fsm.conn.Close()
+					fsm.conn = outConn.conn
+					fsm.lock.Lock()
+					fsm.recvOpen = outConn.open
+					fsm.lock.Unlock()
+				} else {
+					// close the outgoing connection
+					fsm.logger.Debug("collision detected: dominant on passive side, close the outgoing connection")
+					outConn.conn.Close()
+				}
+			}
+
+			b, _ := bgp.NewBGPKeepAliveMessage().Serialize()
+			if _, err := fsm.conn.Write(b); err != nil {
+				fsm.conn.Close()
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
+			}
+			fsm.outgoingConnMgr.stop()
+
+			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
+			return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil)
+		case result := <-fsm.outgoingConnCh:
+			incomingConn := fsm.conn
+			fsm.conn = result.conn
+			fsm.lock.Lock()
+			fsm.recvOpen = result.open
+			fsm.lock.Unlock()
+
+			var e *fsmMsg
+			select {
+			case e = <-recvChan:
+			default:
+			}
+			if e != nil {
+				nextState, _, _ := fsm.handleOpen(e)
+				if nextState == bgp.BGP_FSM_OPENCONFIRM {
+					// collision detected
+					isDominant := fsm.isDominant(result.open.Body.(*bgp.BGPOpen))
+					if isDominant {
+						// close the incoming connection
+						fsm.logger.Debug("collision detected: dominant on active side, close the incoming connection")
+						incomingConn.Close()
+					} else {
+						// close the outgoing connection
+						fsm.logger.Debug("collision detected: dominant on passive side, close the outgoing connection")
+						result.conn.Close()
+						fsm.conn = incomingConn
+						fsm.lock.Lock()
+						fsm.recvOpen = e.MsgData.(*bgp.BGPMessage)
+						fsm.lock.Unlock()
+					}
+				}
+			}
+			b, _ := bgp.NewBGPKeepAliveMessage().Serialize()
+			if _, err := fsm.conn.Write(b); err != nil {
+				fsm.conn.Close()
+				fsm.logger.Warn("failed to send keepalive on outgoing connection", slog.String("Error", err.Error()))
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
+			}
+			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
+			return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, result.open, nil)
 		case err := <-reasonCh:
 			fsm.conn.Close()
 			return bgp.BGP_FSM_IDLE, &err
@@ -1731,6 +1971,13 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 			fsm.logger.Info("Peer Down",
 				slog.String("State", oldState.String()),
 				slog.String("Reason", reason.String()))
+		}
+
+		switch reason.Type {
+		case fsmAdminDown, fsmGracefulRestart:
+			if fsm.outgoingConnMgr != nil {
+				fsm.outgoingConnMgr.stop()
+			}
 		}
 
 		if ctx.Err() != nil {
