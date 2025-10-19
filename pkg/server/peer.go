@@ -543,10 +543,7 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 }
 
 func (peer *peer) sendNotification(msg *bgp.BGPMessage) {
-	select {
-	case peer.fsm.notification <- msg:
-	default:
-	}
+	nonblockSendChannel(peer.fsm.notification, msg)
 }
 
 func (peer *peer) isPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) bool {

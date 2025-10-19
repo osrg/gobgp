@@ -1447,7 +1447,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 		fmsg, err := h.recvMessageWithError(conn, stateReasonCh)
 		if fmsg != nil && ctx.Err() == nil {
 			if m, ok := fmsg.MsgData.(*bgp.MessageError); ok {
-				h.fsm.notification <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+				nonblockSendChannel(h.fsm.notification, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
 				// finish the loop
 				return
 			} else {
@@ -1478,7 +1478,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 							slog.String("Error", err.Error()))
 						fmsg.MsgData = err
 						m := err.(*bgp.MessageError)
-						h.fsm.notification <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+						nonblockSendChannel(h.fsm.notification, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
 						return
 					}
 
@@ -1497,7 +1497,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 
 					if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
 						m := err.(*bgp.MessageError)
-						h.fsm.notification <- bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+						nonblockSendChannel(h.fsm.notification, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
 						return
 					}
 					fallthrough
