@@ -344,6 +344,19 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 	fsm.state.Store(nextState)
 	switch nextState {
 	case bgp.BGP_FSM_ESTABLISHED:
+		remoteTCP := fsm.conn.RemoteAddr().(*net.TCPAddr)
+		remoteAddr, _ := netip.AddrFromSlice(remoteTCP.IP)
+		remoteAddr = remoteAddr.WithZone("")
+
+		localTCP := fsm.conn.LocalAddr().(*net.TCPAddr)
+		localAddr, _ := netip.AddrFromSlice(localTCP.IP)
+		localAddr = localAddr.WithZone("")
+
+		fsm.pConf.Transport.State.RemoteAddress = remoteAddr
+		fsm.pConf.Transport.State.RemotePort = uint16(remoteTCP.Port)
+		fsm.pConf.Transport.State.LocalAddress = localAddr
+		fsm.pConf.Transport.State.LocalPort = uint16(localTCP.Port)
+
 		fsm.pConf.Timers.State.Uptime = time.Now().Unix()
 		fsm.pConf.State.EstablishedCount++
 
@@ -593,23 +606,11 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				break
 			}
 
-			remoteTCP := conn.RemoteAddr().(*net.TCPAddr)
-			remoteAddr, _ := netip.AddrFromSlice(remoteTCP.IP)
-			remoteAddr = remoteAddr.WithZone("")
-
-			localTCP := conn.LocalAddr().(*net.TCPAddr)
-			localAddr, _ := netip.AddrFromSlice(localTCP.IP)
-			localAddr = localAddr.WithZone("")
-
 			fsm.conn = conn
 			// set a deadline for sending OPEN and KEEPALIVE messages before established state.
 			conn.SetWriteDeadline(time.Now().Add(time.Second))
 
 			fsm.lock.Lock()
-			h.fsm.pConf.Transport.State.RemoteAddress = remoteAddr
-			h.fsm.pConf.Transport.State.RemotePort = uint16(remoteTCP.Port)
-			h.fsm.pConf.Transport.State.LocalAddress = localAddr
-			h.fsm.pConf.Transport.State.LocalPort = uint16(localTCP.Port)
 
 			if err := setPeerConnTTL(fsm); err != nil {
 				fsm.logger.Warn("cannot set TTL",
