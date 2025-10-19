@@ -332,6 +332,23 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 	return fsm
 }
 
+func getASN(m *bgp.BGPOpen) uint32 {
+	asn := uint32(m.MyAS)
+	for _, p := range m.OptParams {
+		paramCap, y := p.(*bgp.OptionParameterCapability)
+		if !y {
+			continue
+		}
+		for _, c := range paramCap.Capability {
+			if c.Code() == bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER {
+				cap := c.(*bgp.CapFourOctetASNumber)
+				asn = cap.CapValue
+			}
+		}
+	}
+	return asn
+}
+
 func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 	fsm.lock.Lock()
 	defer fsm.lock.Unlock()
@@ -359,6 +376,113 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 
 		fsm.pConf.Timers.State.Uptime = time.Now().Unix()
 		fsm.pConf.State.EstablishedCount++
+
+		body := fsm.recvOpen.Body.(*bgp.BGPOpen)
+		localAS := fsm.pConf.Config.LocalAs
+		remoteAS := getASN(body)
+
+		// ASN negotiation was skipped
+		asnNegotiationSkipped := fsm.pConf.Config.PeerAs == 0
+		if asnNegotiationSkipped {
+			typ := oc.PEER_TYPE_EXTERNAL
+			if localAS == remoteAS {
+				typ = oc.PEER_TYPE_INTERNAL
+			}
+			fsm.pConf.State.PeerType = typ
+
+			fsm.logger.Info("skipped asn negotiation",
+				slog.String("State", fsm.state.String()),
+				slog.Uint64("Asn", uint64(remoteAS)),
+				slog.Any("PeerType", typ))
+		} else {
+			fsm.pConf.State.PeerType = fsm.pConf.Config.PeerType
+		}
+
+		fsm.pConf.State.PeerAs = remoteAS
+		fsm.pConf.State.RemoteRouterId = body.ID
+		capmap, rfmap := open2Cap(body, fsm.pConf)
+
+		fsm.capMap = capmap
+		fsm.familyMap.Store(rfmap)
+
+		// calculate HoldTime
+		// RFC 4271 P.13
+		// a BGP speaker MUST calculate the value of the Hold Timer
+		// by using the smaller of its configured Hold Time and the Hold Time
+		// received in the OPEN message.
+		holdTime := float64(body.HoldTime)
+		myHoldTime := fsm.pConf.Timers.Config.HoldTime
+		if holdTime > myHoldTime {
+			fsm.pConf.Timers.State.NegotiatedHoldTime = myHoldTime
+		} else {
+			fsm.pConf.Timers.State.NegotiatedHoldTime = holdTime
+		}
+
+		keepalive := fsm.pConf.Timers.Config.KeepaliveInterval
+		if n := fsm.pConf.Timers.State.NegotiatedHoldTime; n < myHoldTime {
+			keepalive = n / 3
+		}
+		fsm.pConf.Timers.State.KeepaliveInterval = keepalive
+
+		gr, ok := fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
+		if fsm.pConf.GracefulRestart.Config.Enabled && ok {
+			state := &fsm.pConf.GracefulRestart.State
+			state.Enabled = true
+			cap := gr[len(gr)-1].(*bgp.CapGracefulRestart)
+			state.PeerRestartTime = cap.Time
+
+			for _, t := range cap.Tuples {
+				n := bgp.AddressFamilyNameMap[bgp.NewFamily(t.AFI, t.SAFI)]
+				for i, a := range fsm.pConf.AfiSafis {
+					if string(a.Config.AfiSafiName) == n {
+						fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
+						fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Received = true
+						break
+					}
+				}
+			}
+
+			// RFC 4724 4.1
+			// To re-establish the session with its peer, the Restarting Speaker
+			// MUST set the "Restart State" bit in the Graceful Restart Capability
+			// of the OPEN message.
+			if fsm.pConf.GracefulRestart.State.PeerRestarting && cap.Flags&0x08 == 0 {
+				fsm.logger.Warn("restart flag is not set", slog.String("State", fsm.state.String()))
+				// just ignore
+			}
+
+			// RFC 4724 3
+			// The most significant bit is defined as the Restart State (R)
+			// bit, ...(snip)... When set (value 1), this bit
+			// indicates that the BGP speaker has restarted, and its peer MUST
+			// NOT wait for the End-of-RIB marker from the speaker before
+			// advertising routing information to the speaker.
+			if fsm.pConf.GracefulRestart.State.LocalRestarting && cap.Flags&0x08 != 0 {
+				fsm.logger.Debug("peer has restarted, skipping wait for EOR", slog.String("State", fsm.state.String()))
+				for i := range fsm.pConf.AfiSafis {
+					fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
+				}
+			}
+			if fsm.pConf.GracefulRestart.Config.NotificationEnabled && cap.Flags&0x04 > 0 {
+				fsm.pConf.GracefulRestart.State.NotificationEnabled = true
+			}
+		}
+		llgr, ok2 := fsm.capMap[bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART]
+		if fsm.pConf.GracefulRestart.Config.LongLivedEnabled && ok && ok2 {
+			fsm.pConf.GracefulRestart.State.LongLivedEnabled = true
+			cap := llgr[len(llgr)-1].(*bgp.CapLongLivedGracefulRestart)
+			for _, t := range cap.Tuples {
+				n := bgp.AddressFamilyNameMap[bgp.NewFamily(t.AFI, t.SAFI)]
+				for i, a := range fsm.pConf.AfiSafis {
+					if string(a.Config.AfiSafiName) == n {
+						fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Enabled = true
+						fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Received = true
+						fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTime = t.RestartTime
+						break
+					}
+				}
+			}
+		}
 
 		fsm.isEBGP = fsm.pConf.IsEBGPPeer(fsm.gConf)
 		fsm.isConfed = fsm.pConf.IsConfederationMember(fsm.gConf)
@@ -611,7 +735,6 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			conn.SetWriteDeadline(time.Now().Add(time.Second))
 
 			fsm.lock.Lock()
-
 			if err := setPeerConnTTL(fsm); err != nil {
 				fsm.logger.Warn("cannot set TTL",
 					slog.String("State", fsm.state.String()),
@@ -622,10 +745,9 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 					slog.String("State", fsm.state.String()),
 					slog.String("Error", err.Error()))
 			}
-			fsm.lock.Unlock()
+
 			// we don't implement delayed open timer so move to opensent right
 			// away.
-			fsm.lock.Lock()
 			m := buildopen(fsm.gConf, fsm.pConf)
 			fsm.lock.Unlock()
 
@@ -1074,7 +1196,8 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 					fsmPeerAS := fsm.pConf.Config.PeerAs
 					localAS := fsm.pConf.Config.LocalAs
 					fsm.lock.Unlock()
-					peerAs, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, fsm.gConf.Config.RouterId)
+
+					_, err := bgp.ValidateOpenMsg(body, fsmPeerAS, localAS, fsm.gConf.Config.RouterId)
 					if err != nil {
 						err := err.(*bgp.MessageError)
 						m := bgp.NewBGPNotificationMessage(err.TypeCode, err.SubTypeCode, err.Data)
@@ -1085,116 +1208,6 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 						return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil)
 					}
 
-					// ASN negotiation was skipped
-					fsm.lock.Lock()
-					asnNegotiationSkipped := fsm.pConf.Config.PeerAs == 0
-					fsm.lock.Unlock()
-					if asnNegotiationSkipped {
-						fsm.lock.Lock()
-						typ := oc.PEER_TYPE_EXTERNAL
-						if localAS == peerAs {
-							typ = oc.PEER_TYPE_INTERNAL
-						}
-						fsm.pConf.State.PeerType = typ
-						fsm.lock.Unlock()
-
-						fsm.logger.Info("skipped asn negotiation",
-							slog.String("State", fsm.state.String()),
-							slog.Uint64("Asn", uint64(peerAs)),
-							slog.Any("PeerType", typ))
-					} else {
-						fsm.lock.Lock()
-						fsm.pConf.State.PeerType = fsm.pConf.Config.PeerType
-						fsm.lock.Unlock()
-					}
-					fsm.lock.Lock()
-					fsm.pConf.State.PeerAs = peerAs
-					fsm.pConf.State.RemoteRouterId = body.ID
-					capmap, rfmap := open2Cap(body, fsm.pConf)
-
-					fsm.capMap = capmap
-					fsm.familyMap.Store(rfmap)
-
-					// calculate HoldTime
-					// RFC 4271 P.13
-					// a BGP speaker MUST calculate the value of the Hold Timer
-					// by using the smaller of its configured Hold Time and the Hold Time
-					// received in the OPEN message.
-					holdTime := float64(body.HoldTime)
-					myHoldTime := fsm.pConf.Timers.Config.HoldTime
-					if holdTime > myHoldTime {
-						fsm.pConf.Timers.State.NegotiatedHoldTime = myHoldTime
-					} else {
-						fsm.pConf.Timers.State.NegotiatedHoldTime = holdTime
-					}
-
-					keepalive := fsm.pConf.Timers.Config.KeepaliveInterval
-					if n := fsm.pConf.Timers.State.NegotiatedHoldTime; n < myHoldTime {
-						keepalive = n / 3
-					}
-					fsm.pConf.Timers.State.KeepaliveInterval = keepalive
-
-					gr, ok := fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
-					if fsm.pConf.GracefulRestart.Config.Enabled && ok {
-						state := &fsm.pConf.GracefulRestart.State
-						state.Enabled = true
-						cap := gr[len(gr)-1].(*bgp.CapGracefulRestart)
-						state.PeerRestartTime = cap.Time
-
-						for _, t := range cap.Tuples {
-							n := bgp.AddressFamilyNameMap[bgp.NewFamily(t.AFI, t.SAFI)]
-							for i, a := range fsm.pConf.AfiSafis {
-								if string(a.Config.AfiSafiName) == n {
-									fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
-									fsm.pConf.AfiSafis[i].MpGracefulRestart.State.Received = true
-									break
-								}
-							}
-						}
-
-						// RFC 4724 4.1
-						// To re-establish the session with its peer, the Restarting Speaker
-						// MUST set the "Restart State" bit in the Graceful Restart Capability
-						// of the OPEN message.
-						if fsm.pConf.GracefulRestart.State.PeerRestarting && cap.Flags&0x08 == 0 {
-							fsm.logger.Warn("restart flag is not set", slog.String("State", fsm.state.String()))
-							// just ignore
-						}
-
-						// RFC 4724 3
-						// The most significant bit is defined as the Restart State (R)
-						// bit, ...(snip)... When set (value 1), this bit
-						// indicates that the BGP speaker has restarted, and its peer MUST
-						// NOT wait for the End-of-RIB marker from the speaker before
-						// advertising routing information to the speaker.
-						if fsm.pConf.GracefulRestart.State.LocalRestarting && cap.Flags&0x08 != 0 {
-							fsm.logger.Debug("peer has restarted, skipping wait for EOR", slog.String("State", fsm.state.String()))
-							for i := range fsm.pConf.AfiSafis {
-								fsm.pConf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
-							}
-						}
-						if fsm.pConf.GracefulRestart.Config.NotificationEnabled && cap.Flags&0x04 > 0 {
-							fsm.pConf.GracefulRestart.State.NotificationEnabled = true
-						}
-					}
-					llgr, ok2 := fsm.capMap[bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART]
-					if fsm.pConf.GracefulRestart.Config.LongLivedEnabled && ok && ok2 {
-						fsm.pConf.GracefulRestart.State.LongLivedEnabled = true
-						cap := llgr[len(llgr)-1].(*bgp.CapLongLivedGracefulRestart)
-						for _, t := range cap.Tuples {
-							n := bgp.AddressFamilyNameMap[bgp.NewFamily(t.AFI, t.SAFI)]
-							for i, a := range fsm.pConf.AfiSafis {
-								if string(a.Config.AfiSafiName) == n {
-									fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Enabled = true
-									fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.Received = true
-									fsm.pConf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTime = t.RestartTime
-									break
-								}
-							}
-						}
-					}
-
-					fsm.lock.Unlock()
 					msg := bgp.NewBGPKeepAliveMessage()
 					b, _ := msg.Serialize()
 					fsm.conn.Write(b)
