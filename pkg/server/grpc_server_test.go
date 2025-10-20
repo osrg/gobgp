@@ -12,6 +12,7 @@ import (
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -446,4 +447,70 @@ func TestGRPCWatchEvent(t *testing.T) {
 	<-tableCh
 
 	assert.Equal(2, count)
+}
+
+func TestToOcAttributeComparison(t *testing.T) {
+	tests := []struct {
+		in   api.Comparison
+		want oc.AttributeComparison
+	}{
+		{api.Comparison_COMPARISON_EQ, oc.ATTRIBUTE_COMPARISON_EQ},
+		{api.Comparison_COMPARISON_GE, oc.ATTRIBUTE_COMPARISON_GE},
+		{api.Comparison_COMPARISON_LE, oc.ATTRIBUTE_COMPARISON_LE},
+	}
+	for _, tt := range tests {
+		if got := toOcAttributeComparison(tt.in); got != tt.want {
+			t.Fatalf("toOcAttributeComparison(%v) = %v, want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestNewAsPathLengthConditionFromApiStruct(t *testing.T) {
+	tests := []struct {
+		inType api.Comparison
+		inVal  uint32
+		wantOp string
+	}{
+		{api.Comparison_COMPARISON_EQ, 1, "="},
+		{api.Comparison_COMPARISON_GE, 2, ">="},
+		{api.Comparison_COMPARISON_LE, 3, "<="},
+	}
+	for _, tt := range tests {
+		cond, err := newAsPathLengthConditionFromApiStruct(&api.AsPathLength{Type: tt.inType, Length: tt.inVal})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cond == nil {
+			t.Fatalf("condition is nil")
+		}
+		got := cond.String()
+		if got[:len(tt.wantOp)] != tt.wantOp {
+			t.Fatalf("operator mismatch: got %q want prefix %q", got, tt.wantOp)
+		}
+	}
+}
+
+func TestNewCommunityCountConditionFromApiStruct(t *testing.T) {
+	tests := []struct {
+		inType api.Comparison
+		inVal  uint32
+		wantOp string
+	}{
+		{api.Comparison_COMPARISON_EQ, 10, "="},
+		{api.Comparison_COMPARISON_GE, 20, ">="},
+		{api.Comparison_COMPARISON_LE, 30, "<="},
+	}
+	for _, tt := range tests {
+		cond, err := newCommunityCountConditionFromApiStruct(&api.CommunityCount{Type: tt.inType, Count: tt.inVal})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cond == nil {
+			t.Fatalf("condition is nil")
+		}
+		got := cond.String()
+		if got[:len(tt.wantOp)] != tt.wantOp {
+			t.Fatalf("operator mismatch: got %q want prefix %q", got, tt.wantOp)
+		}
+	}
 }

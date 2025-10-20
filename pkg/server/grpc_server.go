@@ -1420,6 +1420,19 @@ func (s *server) DeleteDefinedSet(ctx context.Context, r *api.DeleteDefinedSetRe
 
 var _regexpMedActionType = regexp.MustCompile(`([+-]?)(\d+)`)
 
+func toOcAttributeComparison(a api.Comparison) oc.AttributeComparison {
+	switch a {
+	case api.Comparison_COMPARISON_EQ:
+		return oc.ATTRIBUTE_COMPARISON_EQ
+	case api.Comparison_COMPARISON_GE:
+		return oc.ATTRIBUTE_COMPARISON_GE
+	case api.Comparison_COMPARISON_LE:
+		return oc.ATTRIBUTE_COMPARISON_LE
+	default:
+		return oc.ATTRIBUTE_COMPARISON_EQ
+	}
+}
+
 func matchSetOptionsRestrictedTypeToAPI(t oc.MatchSetOptionsRestrictedType) api.MatchSet_Type {
 	t = t.DefaultAsNeeded()
 	switch t {
@@ -1726,7 +1739,7 @@ func newCommunityCountConditionFromApiStruct(a *api.CommunityCount) (*table.Comm
 		return nil, nil
 	}
 	return table.NewCommunityCountCondition(oc.CommunityCount{
-		Operator: oc.IntToAttributeComparisonMap[int(a.Type)],
+		Operator: toOcAttributeComparison(a.Type),
 		Value:    a.Count,
 	})
 }
@@ -1736,7 +1749,7 @@ func newAsPathLengthConditionFromApiStruct(a *api.AsPathLength) (*table.AsPathLe
 		return nil, nil
 	}
 	return table.NewAsPathLengthCondition(oc.AsPathLength{
-		Operator: oc.IntToAttributeComparisonMap[int(a.Type)],
+		Operator: toOcAttributeComparison(a.Type),
 		Value:    a.Length,
 	})
 }
