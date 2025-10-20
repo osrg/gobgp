@@ -382,7 +382,7 @@ func (z *zebraClient) loop() {
 			switch body := msg.Body.(type) {
 			case *zebra.IPRouteBody:
 				if path := newPathFromIPRouteMessage(z.server.logger, msg, z.client.Version, z.client.Software); path != nil {
-					if err := z.server.addPathList("", []*table.Path{path}); err != nil {
+					if err := z.server.addPathStream("", []*table.Path{path}); err != nil {
 						z.server.logger.Error("failed to add path from zebra",
 							slog.String("Topic", "Zebra"),
 							slog.Any("Path", path),
