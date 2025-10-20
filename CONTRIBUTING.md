@@ -41,6 +41,12 @@ If you add an 8-byte member to the Peer struture, since the number of Peer struc
 
 Please be cautious about changes that increase memory usage proportionally to the number of routes (and be even more cautious about changes that are proportional to both the number of routes and the number of peers). The benefits must justify such increases (for example, huge performance improvement).
 
+### Locking
+
+GoBGP uses a two-level mutex design to manage concurrent access to shared state. The server-level mutex (`sharedData.mu`) protects global state such as the RIB tables and peer map. All management operations (API calls) and FSM event processing which access to those data are serialized through this mutex. The per-peer mutex (`peer.fsm.lock`) protects individual peer state including configuration and capability negotiation, using a read-write lock to allow concurrent reads while maintaining exclusive writes.
+
+To prevent deadlocks, always follow this lock ordering rule: **acquire the server-level mutex first, then acquire peer-level locks if needed**. Never acquire the server-level mutex while holding a peer-level lock. When modifying code that involves locking, ensure critical sections are kept as short as possible, and consider copying data before releasing locks to minimize contention. The server-level mutex is the primary scalability bottleneck, so any changes affecting lock duration or frequency should be carefully evaluated for performance impact, especially in environments with many peers or large routing tables.
+
 ## Getting your code into GoBGP
 
 ### Creating a commit
