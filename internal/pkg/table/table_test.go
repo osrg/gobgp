@@ -33,6 +33,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCreateTable(t *testing.T) {
+	table := NewTable(logger, bgp.RF_FS_IPv4_VPN)
+	assert.NotNil(t, table.rtc)
+	_, checkType := table.rtc.(*vpnFamilyRTCMap)
+	assert.True(t, checkType)
+
+	table = NewTable(logger, bgp.RF_RTC_UC)
+	assert.Nil(t, table.rtc)
+
+	table = NewTable(logger, bgp.RF_IPv4_MPLS)
+	assert.NotNil(t, table.rtc)
+
+	_, checkType = table.rtc.(*vpnFamilyRTCMap)
+	assert.True(t, checkType)
+}
+
 func TestLookupLonger(t *testing.T) {
 	tbl := NewTable(logger, bgp.RF_IPv4_UC)
 
@@ -734,7 +750,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[9:], 0x15161718)
 	r, err := bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err := extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
+	key, err := NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x0002131415161718), key)
 
@@ -749,7 +765,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint16(buf[11:], 0x1314)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
+	key, err = NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x01020a0102031314), key)
 
@@ -763,7 +779,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint16(buf[11:], 0x1314)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
+	key, err = NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x0202151617181314), key)
 
@@ -775,8 +791,175 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	_, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
+	_, err = NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NotNil(err)
+
+	r = &bgp.RouteTargetMembershipNLRI{}
+	key, err = NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
+	assert.NoError(err)
+	assert.Equal(DefaultRT, key)
+
+	_, err = ExtCommRouteTargetKey(nil)
+	assert.Equal(ErrNilCommunity, err)
+}
+
+type testPathWithRTs struct {
+	rd     string
+	prefix string
+	rts    []bgp.ExtendedCommunityInterface
+}
+
+func TestTableRTC(t *testing.T) {
+	rtStrings := []string{"100:100", "100:200", "100:300"}
+	rts := make([]bgp.ExtendedCommunityInterface, 0)
+	for _, strRT := range rtStrings {
+		rt, err := bgp.ParseRouteTarget(strRT)
+		assert.NoError(t, err)
+		rts = append(rts, rt)
+	}
+	assert.Equal(t, 3, len(rts))
+
+	declarations := []testPathWithRTs{
+		{
+			rd:     "100:100",
+			prefix: "10.10.10.10/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[0]},
+		},
+		{
+			rd:     "101:100",
+			prefix: "10.10.10.11/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[0], rts[1]},
+		},
+		{
+			rd:     "100:200",
+			prefix: "10.10.10.12/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[1]},
+		},
+		{
+			rd:     "100:300",
+			prefix: "10.10.10.13/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[2]},
+		},
+	}
+	table, paths := makeTableWithRT(t, nil, declarations, bgp.RF_IPv4_VPN)
+	assert.Equal(t, 4, len(table.GetDestinations()))
+
+	hash0, err := ExtCommRouteTargetKey(rts[0])
+	assert.NoError(t, err)
+	pathsRT := table.getBestsForNewlyAttachedRTtoPeer(hash0, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1]}))
+
+	hash1, err := ExtCommRouteTargetKey(rts[1])
+	assert.NoError(t, err)
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1], paths[2]}))
+
+	hash2, err := ExtCommRouteTargetKey(rts[2])
+	assert.NoError(t, err)
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash2, "127.0.0.1:1", "global", 0, pathsRT)
+	assert.Equal(t, 3, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1], paths[2], paths[3]}))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash2, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash0, "127.0.0.1:2", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1]}))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:2", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1], paths[2]}))
+
+	update := table.update(paths[2].Clone(true))
+	assert.Equal(t, 0, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths[2]))
+
+	update = table.update(paths[1].Clone(false))
+	assert.Equal(t, 1, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.KnownPathList[0].Equal(paths[1]))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths[1]))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash0, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash2, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForDetachedRTFromPeer(hash0, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1]}))
+
+	pathsRT = table.getBestsForDetachedRTFromPeer(hash2, "127.0.0.1:1", "global", 0, pathsRT)
+	assert.Equal(t, 3, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1], paths[3]}))
+
+	pathsRT = table.getBestsForDetachedRTFromPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 1, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1]}))
+
+	pathsRT = table.getBestsForDetachedRTFromPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 0, len(pathsRT))
+
+	pathsRT = table.getBestsForNewlyAttachedRTtoPeer(hash1, "127.0.0.1:1", "global", 0, nil)
+	assert.Equal(t, 1, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1]}))
+}
+
+func equalPaths(paths1, paths2 []*Path) bool {
+	if len(paths1) != len(paths2) {
+		return false
+	}
+	cp2 := paths2[:]
+	for _, p1 := range paths1 {
+		found := false
+		for i2, p2 := range cp2 {
+			if p1.Equal(p2) {
+				found = true
+				cp2 = append(cp2[:i2], cp2[i2+1:]...)
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return len(cp2) == 0
+}
+
+func makeTableWithRT(t *testing.T, table *Table, declarations []testPathWithRTs, rf bgp.Family) (*Table, []*Path) {
+	if table == nil {
+		table = NewTable(logger, rf)
+	}
+	paths := make([]*Path, 0)
+	for _, item := range declarations {
+		rd, _ := bgp.ParseRouteDistinguisher(item.rd)
+		nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(item.prefix), *bgp.NewMPLSLabelStack(), rd)
+		var pattr *bgp.PathAttributeExtendedCommunities
+		if len(item.rts) > 0 {
+			pattr = bgp.NewPathAttributeExtendedCommunities(item.rts)
+		}
+		path := NewPath(rf, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{pattr}, time.Now(), false)
+
+		update := table.update(path)
+		assert.Equal(t, 1, len(update.KnownPathList))
+		assert.Equal(t, 0, len(update.OldKnownPathList))
+		assert.True(t, update.KnownPathList[0].Equal(path))
+		paths = append(paths, path)
+	}
+	return table, paths
 }
 
 func TestContainsCIDR(t *testing.T) {

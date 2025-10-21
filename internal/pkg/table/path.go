@@ -1042,6 +1042,9 @@ func (lhs *Path) Equal(rhs *Path) bool {
 	if rhs == nil {
 		return false
 	}
+	if lhs == rhs {
+		return true
+	}
 
 	lhsPathAttrs := lhs.GetPathAttrs()
 	rhsPathAttrs := rhs.GetPathAttrs()
@@ -1373,4 +1376,79 @@ func nlriToIPNet(nlri bgp.NLRI) *net.IPNet {
 		}
 	}
 	return nil
+}
+
+func bestPathListForRT(id string, as uint32, withdraw bool, inPaths map[*Path]struct{}, outPaths []*Path) []*Path {
+	for p := range inPaths {
+		if p.IsNexthopInvalid || rsFilter(id, as, p) {
+			continue
+		}
+		if !p.IsWithdraw && withdraw {
+			p = p.Clone(true)
+		}
+		outPaths = append(outPaths, p)
+	}
+	return outPaths
+}
+
+func (t *Table) HasRT(key uint64) bool {
+	if t.rtc == nil {
+		return false
+	}
+	if rtPaths, ok := t.rtc.(*routeFamilyRTCMap); ok {
+		num, found := rtPaths.rts[key]
+		return found && num > 0
+	}
+	return false
+}
+
+func (t *Table) bestPathListForRTMaxLen(rt uint64) int {
+	if t.rtc == nil {
+		return 0
+	}
+	if vpnPaths, ok := t.rtc.(*vpnFamilyRTCMap); ok {
+		if rtTable, found := vpnPaths.rts[rt]; found {
+			return len(rtTable.paths)
+		}
+	}
+	return 0
+}
+
+func (t *Table) getBestsForDetachedRTFromPeer(rt uint64, peerId string, tableId string, as uint32, paths []*Path) []*Path {
+	if t.rtc == nil {
+		// Note: "return paths" means "no new paths are returned".
+		return paths
+	}
+	if vpnPaths, ok := t.rtc.(*vpnFamilyRTCMap); ok {
+		if rtTable, found := vpnPaths.rts[rt]; found {
+			if _, foundId := rtTable.peers[peerId]; foundId {
+				delete(rtTable.peers, peerId)
+				if !rtTable.empty() {
+					return bestPathListForRT(tableId, as, true, rtTable.paths, paths)
+				}
+				delete(vpnPaths.rts, rt)
+			}
+		}
+	}
+	return paths
+}
+
+func (t *Table) getBestsForNewlyAttachedRTtoPeer(rt uint64, peerId string, tableId string, as uint32, paths []*Path) []*Path {
+	if t.rtc == nil {
+		// Note: "return paths" means "no new paths are returned".
+		return paths
+	}
+	if vpnPaths, ok := t.rtc.(*vpnFamilyRTCMap); ok {
+		if rtTable, found := vpnPaths.rts[rt]; !found {
+			rtTable = newVpnFamilyRT()
+			vpnPaths.rts[rt] = rtTable
+			rtTable.peers[peerId] = struct{}{}
+		} else {
+			if _, foundId := rtTable.peers[peerId]; !foundId {
+				rtTable.peers[peerId] = struct{}{}
+				return bestPathListForRT(tableId, as, false, rtTable.paths, paths)
+			}
+		}
+	}
+	return paths
 }

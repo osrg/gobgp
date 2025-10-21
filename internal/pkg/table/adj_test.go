@@ -26,6 +26,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCreateAdjTable(t *testing.T) {
+	table := NewAdjTable(logger, bgp.RF_RTC_UC)
+	assert.NotNil(t, table.rtc)
+	_, checkType := table.rtc.(*routeFamilyRTCMap)
+	assert.True(t, checkType)
+
+	table = NewAdjTable(logger, bgp.RF_FS_IPv4_VPN)
+	assert.Nil(t, table.rtc)
+}
+
 func TestAddPath(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
@@ -164,4 +174,54 @@ func TestLLGRStale(t *testing.T) {
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
 	assert.Equal(t, adj.Accepted([]bgp.Family{family}), 1)
 	assert.Equal(t, 2, len(adj.table[family].GetDestinations()))
+}
+
+func TestAdjRTC(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+
+	rt1, _ := bgp.ParseRouteTarget("65520:1000000")
+	hash1, err := ExtCommRouteTargetKey(rt1)
+	assert.NoError(t, err)
+	nlri1 := bgp.NewRouteTargetMembershipNLRI(65000, rt1)
+	p1 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
+	p1.remoteID = 1
+
+	rt2, _ := bgp.ParseRouteTarget("65520:1000001")
+	hash2, err := ExtCommRouteTargetKey(rt2)
+	assert.NoError(t, err)
+	nlri2 := bgp.NewRouteTargetMembershipNLRI(65000, rt2)
+	p2 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri2}, false, attrs, time.Now(), false)
+	p2.remoteID = 2
+
+	nlri3 := bgp.NewRouteTargetMembershipNLRI(0, nil)
+	p3 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri3}, false, attrs, time.Now(), false)
+	p3.remoteID = 3
+
+	family := p1.GetFamily()
+	assert.Equal(t, family, bgp.RF_RTC_UC)
+	families := []bgp.Family{family}
+	adj := NewAdjRib(logger, families)
+
+	adj.Update([]*Path{p1, p2, p3})
+	assert.Equal(t, adj.Count([]bgp.Family{family}), 3)
+
+	assert.True(t, adj.HasRTinRtcTable(DefaultRT))
+	assert.True(t, adj.HasRTinRtcTable(hash1))
+	assert.True(t, adj.HasRTinRtcTable(hash2))
+
+	adj.Update([]*Path{p1.Clone(true)})
+	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
+	assert.True(t, adj.HasRTinRtcTable(DefaultRT))
+	assert.True(t, !adj.HasRTinRtcTable(hash1))
+	assert.True(t, adj.HasRTinRtcTable(hash2))
+
+	adj.Update([]*Path{p3.Clone(true)})
+	assert.Equal(t, adj.Count([]bgp.Family{family}), 1)
+	assert.True(t, !adj.HasRTinRtcTable(DefaultRT))
+	assert.True(t, adj.HasRTinRtcTable(hash2))
+
+	adj.Update([]*Path{p2.Clone(true)})
+	assert.Equal(t, adj.Count([]bgp.Family{family}), 0)
+	assert.True(t, !adj.HasRTinRtcTable(hash2))
 }

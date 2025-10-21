@@ -969,6 +969,18 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.Family) ([]*table.
 	return pathList, filtered
 }
 
+func (s *BgpServer) filterPathListForWithdrawnRT(rt uint64, peer *peer, rfList []bgp.Family) []*table.Path {
+	maxLen := s.globalRib.BestPathListForRTMaxLen(rt, rfList)
+
+	filtered := make([]*table.Path, 0, maxLen)
+	for _, path := range s.globalRib.GetBestPathListForWithdrawnRT(maxLen, rt, peer.ID(), peer.TableID(), 0, rfList) {
+		if p := s.filterpath(peer, path, nil); p == nil {
+			filtered = append(filtered, path)
+		}
+	}
+	return filtered
+}
+
 func needToAdvertise(peer *peer) bool {
 	state := peer.State()
 	peer.fsm.lock.Lock()
@@ -1128,61 +1140,57 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			// between the previous and current state of the route distribution
 			// graph that is derived from Route Target membership information.
 			if peer != nil && path != nil && path.GetFamily() == bgp.RF_RTC_UC {
-				rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
+				nlri, ok := path.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+				if !ok {
+					s.logger.Debug("Route Target Constraint wrong format, ignore",
+						slog.String("Topic", "Peer"),
+						slog.String("Key", peer.ID()),
+						slog.Any("Data", path.String()))
+					continue
+				}
+				rtHash, err := table.NlriRouteTargetKey(nlri)
+				if err != nil {
+					s.logger.Warn("Route Target Constraint wrong format, ignore",
+						slog.String("Topic", "Peer"),
+						slog.String("Key", peer.ID()),
+						slog.Any("Data", path.String()))
+					continue
+				}
 				fs := make([]bgp.Family, 0, len(peer.negotiatedRFList()))
 				for _, f := range peer.negotiatedRFList() {
 					if f != bgp.RF_RTC_UC {
 						fs = append(fs, f)
 					}
 				}
-				var candidates []*table.Path
+				var paths []*table.Path
 				if path.IsWithdraw {
-					// Note: The paths to be withdrawn are filtered because the
-					// given RT on RTM NLRI is already removed from adj-RIB-in.
-					_, candidates = s.getBestFromLocal(peer, fs)
-				} else {
-					// https://github.com/osrg/gobgp/issues/1777
-					// Ignore duplicate Membership announcements
-					membershipsForSource := s.globalRib.GetPathListWithSource(table.GLOBAL_RIB_NAME, []bgp.Family{bgp.RF_RTC_UC}, path.GetSource())
-					found := false
-					equalRT := func(a, b bgp.ExtendedCommunityInterface) bool {
-						if a == nil && b == nil {
-							return true
+					if rtHash == table.DefaultRT {
+						// Note: The paths to be withdrawn are filtered because the
+						// given RT on RTM NLRI is already removed from adj-RIB-in.
+						_, paths = s.getBestFromLocal(peer, fs)
+						withdrawnPaths := make([]*table.Path, 0, len(paths))
+						for _, p := range paths {
+							withdrawnPaths = append(withdrawnPaths, p.Clone(true))
 						}
-						return a != nil && b != nil && a.String() == b.String()
+						paths = withdrawnPaths
+					} else {
+						paths = s.filterPathListForWithdrawnRT(rtHash, peer, fs)
 					}
-					for _, membership := range membershipsForSource {
-						mrt := membership.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-						if equalRT(mrt, rt) {
-							found = true
-							break
-						}
-					}
-					if !found {
-						candidates = s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
-					}
-				}
-				paths := make([]*table.Path, 0, len(candidates))
-				for _, p := range candidates {
-					for _, ext := range p.GetExtCommunities() {
-						if rt == nil || ext.String() == rt.String() {
-							if path.IsWithdraw {
-								p = p.Clone(true)
-							}
-							paths = append(paths, p)
-							break
-						}
-					}
-				}
-				if path.IsWithdraw {
 					// Skips filtering because the paths are already filtered
 					// and the withdrawal does not need the path attributes.
 					sendfsmOutgoingMsg(peer, paths)
-				} else if !peer.getRtcEORWait() {
-					paths = s.processOutgoingPaths(peer, paths, nil)
-					sendfsmOutgoingMsg(peer, paths)
 				} else {
-					peer.fsm.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.", slog.Any("Path", path))
+					if rtHash == table.DefaultRT {
+						paths = s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
+					} else {
+						paths = s.globalRib.GetBestPathListForAddedRT(rtHash, peer.ID(), peer.TableID(), 0, fs)
+					}
+					if !peer.getRtcEORWait() {
+						paths = s.processOutgoingPaths(peer, paths, nil)
+						sendfsmOutgoingMsg(peer, paths)
+					} else {
+						peer.fsm.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.", slog.Any("Path", path))
+					}
 				}
 			}
 		}
