@@ -373,21 +373,6 @@ func NewRTRErrorReport(errCode uint16, errPDU []byte, errMsg []byte) *RTRErrorRe
 	return pdu
 }
 
-func SplitRTR(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if atEOF && len(data) == 0 || len(data) < RTR_MIN_LEN {
-		return 0, nil, nil
-	}
-
-	totalLen := binary.BigEndian.Uint32(data[4:8])
-	if totalLen < RTR_MIN_LEN {
-		return 0, nil, fmt.Errorf("invalid length: %d", totalLen)
-	}
-	if len(data) < int(totalLen) {
-		return 0, nil, nil
-	}
-	return int(totalLen), data[:totalLen], nil
-}
-
 func ParseRTR(data []byte) (RTRMessage, error) {
 	if len(data) < RTR_MIN_LEN {
 		return nil, fmt.Errorf("not all bytes are available for RTR message")
