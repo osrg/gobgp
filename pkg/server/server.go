@@ -897,9 +897,9 @@ func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *b
 		Message:      msg,
 		PeerAS:       peer.fsm.pConf.State.PeerAs,
 		LocalAS:      peer.fsm.pConf.Config.LocalAs,
-		PeerAddress:  net.ParseIP(peer.fsm.pConf.State.NeighborAddress.String()),
-		LocalAddress: net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String()),
-		PeerID:       net.ParseIP(peer.fsm.pConf.State.RemoteRouterId.String()).To4(),
+		PeerAddress:  peer.fsm.pConf.State.NeighborAddress,
+		LocalAddress: peer.fsm.pConf.Transport.State.LocalAddress,
+		PeerID:       peer.fsm.pConf.State.RemoteRouterId,
 		FourBytesAs:  y,
 		Timestamp:    timestamp,
 		IsSent:       isSent,
@@ -4419,9 +4419,9 @@ type watchEventMessage struct {
 	Message      *bgp.BGPMessage
 	PeerAS       uint32
 	LocalAS      uint32
-	PeerAddress  net.IP
-	LocalAddress net.IP
-	PeerID       net.IP
+	PeerAddress  netip.Addr
+	LocalAddress netip.Addr
+	PeerID       netip.Addr
 	FourBytesAs  bool
 	Timestamp    time.Time
 	IsSent       bool

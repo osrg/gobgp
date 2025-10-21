@@ -234,12 +234,10 @@ func (b *bmpClient) loop() {
 							}
 						}
 					case *watchEventMessage:
-						addr, _ := netip.AddrFromSlice(msg.PeerAddress)
-						id, _ := netip.AddrFromSlice(msg.PeerID)
 						info := &table.PeerInfo{
-							Address: addr,
+							Address: msg.PeerAddress,
 							AS:      msg.PeerAS,
-							ID:      id,
+							ID:      msg.PeerID,
 						}
 						if err := write(bmpPeerRouteMirroring(bmp.BMP_PEER_TYPE_GLOBAL, 0, info, msg.Timestamp.Unix(), msg.Message)); err != nil {
 							return false
