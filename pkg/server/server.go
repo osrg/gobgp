@@ -2753,7 +2753,7 @@ func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.NLRI,
 						case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
 							p.Best = true
 						}
-					} else if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled && path.Equal(knownPathList[i-1]) {
+					} else if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled && path.Compare(knownPathList[i-1]) == 0 {
 						p.Best = true
 					}
 				}

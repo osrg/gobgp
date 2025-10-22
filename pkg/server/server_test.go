@@ -716,6 +716,110 @@ func TestListPathEnableFiltered(test *testing.T) {
 	assert.Equal(1, filtered)
 }
 
+func TestListPathEnableMultipath(t *testing.T) {
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	require.NoError(t, err)
+
+	nh0, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.0.1"))
+	require.NoError(t, err)
+
+	nh1, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.0.2"))
+	require.NoError(t, err)
+
+	path0 := &apiutil.Path{
+		Family:  bgp.RF_IPv4_UC,
+		Nlri:    nlri,
+		PeerASN: 65001,
+		Attrs: []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+				bgp.NewAsPathParam(2, []uint16{65001}),
+			}),
+			nh0,
+		},
+	}
+	require.NoError(t, err)
+
+	path1 := &apiutil.Path{
+		Family:  bgp.RF_IPv4_UC,
+		Nlri:    nlri,
+		PeerASN: 65002,
+		Attrs: []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+				bgp.NewAsPathParam(2, []uint16{65002}),
+			}),
+			nh1,
+		},
+	}
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		useMultiPath bool
+		expectedBest int
+	}{
+		{
+			name:         "without multipath",
+			useMultiPath: false,
+			expectedBest: 1,
+		},
+		{
+			name:         "with multipath",
+			useMultiPath: true,
+			expectedBest: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := NewBgpServer()
+			go server.Serve()
+			err = server.StartBgp(context.Background(), &api.StartBgpRequest{
+				Global: &api.Global{
+					Asn:              1,
+					RouterId:         "1.1.1.1",
+					UseMultiplePaths: tt.useMultiPath,
+					ListenPort:       -1,
+				},
+			})
+			require.NoError(t, err)
+			defer server.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+			_, err = server.AddPath(apiutil.AddPathRequest{
+				Paths: []*apiutil.Path{path0, path1},
+			})
+			require.NoError(t, err)
+
+			err = server.ListPath(
+				apiutil.ListPathRequest{
+					TableType: api.TableType_TABLE_TYPE_LOCAL,
+					Family:    bgp.RF_IPv4_UC,
+				},
+				func(prefix bgp.NLRI, paths []*apiutil.Path) {
+					// We should only see 10.0.0.0/24
+					p, ok := prefix.(*bgp.IPAddrPrefix)
+					require.True(t, ok)
+					require.Equal(t, netip.MustParsePrefix("10.0.0.0/24"), p.Prefix)
+
+					// We should have two paths
+					require.Len(t, paths, 2)
+
+					// Only one path should be marked as best
+					bestCount := 0
+					for _, path := range paths {
+						if path.Best {
+							bestCount++
+						}
+					}
+					require.Equal(t, tt.expectedBest, bestCount, "%d best path(s) expected", tt.expectedBest)
+				},
+			)
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestMonitor(test *testing.T) {
 	assert := assert.New(test)
 	s := NewBgpServer()
