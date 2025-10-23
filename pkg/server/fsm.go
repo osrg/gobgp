@@ -269,31 +269,28 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 	for {
 		switch state {
 		case bgp.BGP_FSM_CONNECT:
-			connCh := make(chan net.Conn, 1)
-			var wg sync.WaitGroup
-			wg.Add(1)
-			go ocm.fsm.h.connectLoop(ocm.ctx, connCh, &wg)
-			select {
-			case <-ocm.ctx.Done():
-				wg.Wait()
-				return
-			case conn = <-connCh:
-				wg.Wait()
-				initializeConn(fsm, conn)
-
-				fsm.lock.Lock()
-				open := buildopen(fsm.gConf, fsm.pConf)
-				fsm.lock.Unlock()
-				b, _ := open.Serialize()
-
-				if _, err := conn.Write(b); err != nil {
+			conn = ocm.fsm.h.connectLoop(ocm.ctx)
+			if ocm.ctx.Err() != nil {
+				// right after connectLoop() returns a connection, the context may be canceled.
+				if conn != nil {
 					conn.Close()
-					continue
 				}
-				fsm.bgpMessageStateUpdate(bgp.BGP_MSG_OPEN, false)
-				fsm.logger.Debug("outgoing connection established")
-				state = bgp.BGP_FSM_OPENSENT
+				return
 			}
+			initializeConn(fsm, conn)
+
+			fsm.lock.Lock()
+			open := buildopen(fsm.gConf, fsm.pConf)
+			fsm.lock.Unlock()
+			b, _ := open.Serialize()
+
+			if _, err := conn.Write(b); err != nil {
+				conn.Close()
+				continue
+			}
+			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_OPEN, false)
+			fsm.logger.Debug("outgoing connection established")
+			state = bgp.BGP_FSM_OPENSENT
 		case bgp.BGP_FSM_OPENSENT:
 			recvCh := make(chan *fsmMsg, 1)
 			reasonCh := make(chan fsmStateReason, 1)
@@ -804,8 +801,7 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	}
 }
 
-func (h *fsmHandler) connectLoop(ctx context.Context, connCh chan<- net.Conn, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 	fsm := h.fsm
 
 	retryInterval, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, bindInterface := func() (int, string, int, string, uint8, uint8, uint16, string, int, string) {
@@ -842,7 +838,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context, connCh chan<- net.Conn, wg
 		case <-ctx.Done():
 			fsm.logger.Debug("stop connect loop")
 			timer.Stop()
-			return
+			return nil
 		case <-timer.C:
 			fsm.logger.Debug("try to connect")
 		}
@@ -866,17 +862,12 @@ func (h *fsmHandler) connectLoop(ctx context.Context, connCh chan<- net.Conn, wg
 			select {
 			case <-ctx.Done():
 				fsm.logger.Debug("stop connect loop")
-				return
+				return nil
 			default:
 			}
 
 			if err == nil {
-				if nonblockSendChannel(connCh, conn) {
-					return
-				} else {
-					conn.Close()
-					fsm.logger.Warn("active conn is closed to avoid being blocked")
-				}
+				return conn
 			} else {
 				fsm.logger.Debug("failed to connect", slog.String("Error", err.Error()))
 			}
