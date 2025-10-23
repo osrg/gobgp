@@ -234,6 +234,7 @@ type outgoingConnManager struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 	fsm    *fsm
+	state  fsmState
 }
 
 func newOutGoingConnManager(ctx context.Context, fsm *fsm) *outgoingConnManager {
@@ -243,6 +244,7 @@ func newOutGoingConnManager(ctx context.Context, fsm *fsm) *outgoingConnManager 
 		cancel: cancel,
 		fsm:    fsm,
 	}
+	ocm.state.Store(bgp.BGP_FSM_CONNECT)
 	ocm.wg.Add(1)
 	go ocm.run(fsm.outgoingConnCh)
 
@@ -264,10 +266,9 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 		return
 	}
 
-	state := bgp.BGP_FSM_CONNECT
 	var conn net.Conn
 	for {
-		switch state {
+		switch ocm.state.Load() {
 		case bgp.BGP_FSM_CONNECT:
 			conn = ocm.fsm.h.connectLoop(ocm.ctx)
 			if ocm.ctx.Err() != nil {
@@ -290,7 +291,7 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 			}
 			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_OPEN, false)
 			fsm.logger.Debug("outgoing connection established")
-			state = bgp.BGP_FSM_OPENSENT
+			ocm.state.Store(bgp.BGP_FSM_OPENSENT)
 		case bgp.BGP_FSM_OPENSENT:
 			recvCh := make(chan *fsmMsg, 1)
 			reasonCh := make(chan fsmStateReason, 1)
@@ -307,7 +308,7 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 				fsm.logger.Debug("outgoing connection IO error", slog.String("reason", reason.String()))
 				conn.Close()
 				wg.Wait()
-				state = bgp.BGP_FSM_CONNECT
+				ocm.state.Store(bgp.BGP_FSM_CONNECT)
 				continue
 			case fmsg := <-recvCh:
 				wg.Wait()
@@ -318,7 +319,7 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 					} else {
 						conn.Close()
 					}
-					state = bgp.BGP_FSM_CONNECT
+					ocm.state.Store(bgp.BGP_FSM_CONNECT)
 					continue
 				}
 				fsm.logger.Debug("open message received on outgoing connection", slog.String("remote", conn.RemoteAddr().String()))
@@ -1414,7 +1415,10 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				fsm.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
 			}
-			fsm.outgoingConnMgr.stop()
+			// stop to try to connect.
+			if fsm.outgoingConnMgr.state.Load() == bgp.BGP_FSM_CONNECT {
+				fsm.outgoingConnMgr.stop()
+			}
 
 			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
 			return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil)
