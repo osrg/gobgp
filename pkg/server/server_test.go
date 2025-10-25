@@ -3165,6 +3165,7 @@ func TestEBGPRouteStuck(test *testing.T) {
 			},
 		})
 		require.NoError(test, err)
+		defer peer.StopBgp(context.Background(), &api.StopBgpRequest{})
 	}
 
 	wg := waitEstablished(peers[0])

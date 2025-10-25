@@ -340,7 +340,6 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 
 		s.neighborMap[addr] = peer
 		s.startFsmHandler(peer)
-		s.broadcastPeerState(peer, bgp.BGP_FSM_ACTIVE, nil)
 		peer.PassConn(conn)
 	} else {
 		s.logger.Info("Can't find configuration for a new passive connection",
@@ -836,16 +835,14 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 	s.notifyWatcher(watchEventTypePostUpdate, ev)
 }
 
-func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.PeerEventType) *watchEventPeer {
+func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t apiutil.PeerEventType) *watchEventPeer {
 	peer.fsm.lock.Lock()
 	sentOpen := buildopen(peer.fsm.gConf, peer.fsm.pConf)
 	peer.fsm.lock.Unlock()
 
-	state := peer.State()
-
 	peer.fsm.lock.Lock()
 	capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
-	if state >= bgp.BGP_FSM_OPENCONFIRM {
+	if newState >= bgp.BGP_FSM_OPENCONFIRM {
 		// Adding peer remote capabilities to the event
 		for code, caps := range peer.fsm.capMap {
 			if code == bgp.BGP_CAP_FQDN {
@@ -868,7 +865,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 		PeerID:        peer.fsm.pConf.State.RemoteRouterId,
 		SentOpen:      sentOpen,
 		RecvOpen:      recvOpen,
-		State:         state,
+		State:         newState,
 		OldState:      oldState,
 		AdminState:    peer.AdminState(),
 		Timestamp:     time.Now(),
@@ -883,8 +880,8 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, oldState bgp.FSMState, t apiutil.P
 	return e
 }
 
-func (s *BgpServer) broadcastPeerState(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
-	s.notifyWatcher(watchEventTypePeerState, newWatchEventPeer(peer, e, oldState, apiutil.PEER_EVENT_STATE))
+func (s *BgpServer) broadcastPeerState(peer *peer, newState, oldState bgp.FSMState, e *fsmMsg) {
+	s.notifyWatcher(watchEventTypePeerState, newWatchEventPeer(peer, e, newState, oldState, apiutil.PEER_EVENT_STATE))
 }
 
 // notifyMessageWatcher notifies recv message to watchers.
@@ -1352,7 +1349,7 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	peer.stopPeerRestarting()
 	delete(s.neighborMap, netip.MustParseAddr(peer.ID()))
 	peer.stopFSM()
-	s.broadcastPeerState(peer, oldState, e)
+	s.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, oldState, e)
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
@@ -1609,7 +1606,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.pConf.Timers.State = oc.TimersState{}
 			peer.fsm.lock.Unlock()
 		}
-		s.broadcastPeerState(peer, oldState, e)
+		s.broadcastPeerState(peer, nextState, oldState, e)
 	case fsmMsgBGPMessage:
 		m := e.MsgData.(*bgp.BGPMessage)
 		if m.Header.Type == bgp.BGP_MSG_UPDATE {
@@ -3153,7 +3150,6 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		s.peerGroupMap[name].AddMember(*c)
 	}
 	s.startFsmHandler(peer)
-	s.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, nil)
 	return nil
 }
 
@@ -4641,7 +4637,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 		if w.opts.peerState {
 			for _, p := range s.neighborMap {
 				state := p.State()
-				w.notify(newWatchEventPeer(p, nil, state, apiutil.PEER_EVENT_INIT))
+				w.notify(newWatchEventPeer(p, nil, state, state, apiutil.PEER_EVENT_INIT))
 			}
 			w.notify(&watchEventPeer{Type: apiutil.PEER_EVENT_END_OF_INIT})
 
