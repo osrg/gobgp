@@ -539,7 +539,6 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 		slog.String("new", nextState.String()),
 		slog.String("reason", reason.String()))
 
-	fsm.state.Store(nextState)
 	switch nextState {
 	case bgp.BGP_FSM_ESTABLISHED:
 		remoteTCP := fsm.conn.RemoteAddr().(*net.TCPAddr)
@@ -1988,6 +1987,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 		}
 
 		h.callback(msg)
+		fsm.state.Store(nextState)
 		oldState = nextState
 	}
 
