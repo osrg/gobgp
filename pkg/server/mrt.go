@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -48,6 +49,14 @@ func (m *mrtWriter) Stop() {
 	m.cancel()
 }
 
+type dumpPeer struct {
+	index uint16
+
+	id   netip.Addr
+	addr netip.Addr
+	as   uint32
+}
+
 func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 	m.s.shared.mu.Lock()
 	defer m.s.shared.mu.Unlock()
@@ -56,32 +65,29 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 
 	t := time.Now()
 
-	peers := make([]*mrt.Peer, 0)
-	// Adding dummy Peer record for locally generated routes
-	peers = append(peers, mrt.NewPeer(netip.MustParseAddr("0.0.0.0"), netip.MustParseAddr("0.0.0.0"), 0, true))
-	for _, peer := range m.s.neighborMap {
-		ocpeer := m.s.toConfig(peer, false)
-		peers = append(peers, mrt.NewPeer(ocpeer.State.RemoteRouterId, ocpeer.State.NeighborAddress, ocpeer.Config.PeerAs, true))
-	}
-
-	if bm, err := mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.s.bgpConfig.Global.Config.RouterId, "", peers)); err != nil {
-		m.s.logger.Warn("Failed to create MRT TABLE_DUMPv2 message",
-			slog.String("Topic", "mrt"),
-			slog.String("Error", err.Error()),
-			slog.Any("Subtype", mrt.PEER_INDEX_TABLE),
-		)
-		return []*mrt.MRTMessage{}
-	} else {
-		msgs = append(msgs, bm)
-	}
+	peermap := make(map[netip.Addr]dumpPeer)
 
 	idx := func(p *table.Path) uint16 {
-		for i, peer := range peers {
-			if peer.IpAddress.String() == p.GetSource().Address.String() {
-				return uint16(i)
+		if p, ok := peermap[p.GetSource().Address]; ok {
+			return p.index
+		}
+		newIdx := uint16(len(peermap))
+		if p.GetSource().Address == netip.IPv4Unspecified() {
+			// Adding dummy Peer record for locally generated routes
+			peermap[netip.IPv4Unspecified()] = dumpPeer{
+				index: newIdx,
+				addr:  netip.IPv4Unspecified(),
+				id:    netip.IPv4Unspecified(),
+				as:    0,
+			}
+		} else {
+			peermap[p.GetSource().Address] = dumpPeer{
+				index: newIdx,
+				addr:  p.GetSource().Address,
+				id:    p.GetSource().ID,
 			}
 		}
-		return uint16(len(peers))
+		return newIdx
 	}
 
 	subtype := func(p *table.Path, isAddPath bool) mrt.MRTSubTypeTableDumpv2 {
@@ -160,7 +166,28 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 			}
 		}
 	}
-	return msgs
+
+	bm, err := func() (*mrt.MRTMessage, error) {
+		dpeers := make([]dumpPeer, 0)
+		for _, p := range peermap {
+			dpeers = append(dpeers, p)
+		}
+		sort.Slice(dpeers, func(i, j int) bool {
+			return dpeers[i].index < dpeers[j].index
+		})
+
+		peers := make([]*mrt.Peer, 0, len(dpeers))
+		for _, p := range dpeers {
+			peers = append(peers, mrt.NewPeer(p.id, p.addr, p.as, true))
+		}
+
+		return mrt.NewMRTMessage(t, mrt.TABLE_DUMPv2, mrt.PEER_INDEX_TABLE, mrt.NewPeerIndexTable(m.s.bgpConfig.Global.Config.RouterId, "", peers))
+	}()
+	if err != nil {
+		return []*mrt.MRTMessage{}
+	}
+
+	return append([]*mrt.MRTMessage{bm}, msgs...)
 }
 
 func (m *mrtWriter) loop(ctx context.Context) error {
