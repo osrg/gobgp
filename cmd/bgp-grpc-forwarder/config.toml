@@ -1,0 +1,10 @@
+# BGP-GRPC-Forwarder Configuration
+
+[grpc]
+endpoint = "localhost:50051"  # Python gRPC server
+
+[bgp]
+as_number = 65000
+peer_ip = "192.168.0.33"
+passive-mode = false
+

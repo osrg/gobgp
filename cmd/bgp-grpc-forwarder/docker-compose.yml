@@ -1,0 +1,18 @@
+services:
+  bgp-grpc-forwarder:
+    build:
+      context: ../..
+      dockerfile: cmd/bgp-grpc-forwarder/Dockerfile
+    container_name: bgp-grpc-forwarder
+    environment:
+      - BGP_PEER_IP=${BGP_PEER_IP:-192.168.0.33}
+      - BGP_AS_NUMBER=${BGP_AS_NUMBER:-65000}
+      - GRPC_ENDPOINT=${GRPC_ENDPOINT:-localhost:50051}
+    command: ["-peer", "${BGP_PEER_IP:-192.168.0.33}", "-as", "${BGP_AS_NUMBER:-65000}", "-grpc", "${GRPC_ENDPOINT:-localhost:50051}"]
+    # Privileged mode needed for BGP
+    privileged: true
+    # Host networking needed for BGP
+    network_mode: host
+    volumes:
+      - ./config.toml:/app/config.toml:ro # it's ignored by main.go if env variables are provided
+    restart: unless-stopped
