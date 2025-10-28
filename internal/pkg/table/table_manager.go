@@ -326,6 +326,43 @@ func (manager *TableManager) getDestinationCount(rfList []bgp.Family) int {
 	return count
 }
 
+func (manager *TableManager) BestPathListForRTMaxLen(rt uint64, rfList []bgp.Family) int {
+	if rt == 0 {
+		return 0
+	}
+	maxLen := 0
+	for _, t := range manager.tables(rfList...) {
+		maxLen += t.bestPathListForRTMaxLen(rt)
+	}
+	return maxLen
+}
+
+func (manager *TableManager) GetBestPathListForWithdrawnRT(len int, rt uint64, peerId string, tableId string, as uint32, rfList []bgp.Family) []*Path {
+	if rt == 0 {
+		return nil
+	}
+	paths := make([]*Path, 0, len)
+	for _, t := range manager.tables(rfList...) {
+		paths = t.getBestsForDetachedRTFromPeer(rt, peerId, tableId, as, paths)
+	}
+	return paths
+}
+
+func (manager *TableManager) GetBestPathListForAddedRT(rt uint64, peerId string, tableId string, as uint32, rfList []bgp.Family) []*Path {
+	if rt == 0 {
+		return nil
+	}
+	maxLen := 0
+	for _, t := range manager.tables(rfList...) {
+		maxLen += t.bestPathListForRTMaxLen(rt)
+	}
+	paths := make([]*Path, 0, maxLen)
+	for _, t := range manager.tables(rfList...) {
+		paths = t.getBestsForNewlyAttachedRTtoPeer(rt, peerId, tableId, as, paths)
+	}
+	return paths
+}
+
 func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.Family) []*Path {
 	if SelectionOptions.DisableBestPathSelection {
 		// Note: If best path selection disabled, there is no best path.
