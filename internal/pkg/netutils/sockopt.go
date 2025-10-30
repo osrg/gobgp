@@ -14,7 +14,6 @@
 // limitations under the License.
 
 //go:build !linux && !openbsd && !windows
-// +build !linux,!openbsd,!windows
 
 package netutils
 

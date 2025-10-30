@@ -14,7 +14,6 @@
 // limitations under the License.
 
 //go:build !linux && !dragonfly && !freebsd && !netbsd && !openbsd && !darwin && !windows
-// +build !linux,!dragonfly,!freebsd,!netbsd,!openbsd,!darwin,!windows
 
 package netutils
 

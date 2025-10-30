@@ -14,7 +14,6 @@
 // limitations under the License.
 
 //go:build dragonfly || freebsd || netbsd
-// +build dragonfly freebsd netbsd
 
 package netutils
 

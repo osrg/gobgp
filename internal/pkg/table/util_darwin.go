@@ -1,5 +1,4 @@
 //go:build darwin
-// +build darwin
 
 package table
 
@@ -44,5 +43,5 @@ func SystemMemoryAvailableMiB() uint64 {
 	}
 
 	// Compute total and usage breakdown
-	return (uint64(vmstat.free_count) * uint64(pageSize)) >> 20 // Convert to MiB
+	return uint64(vmstat.free_count) * uint64(pageSize) >> 20 // Convert to MiB
 }

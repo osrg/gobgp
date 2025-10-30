@@ -77,6 +77,8 @@ jobs:
           go-version: "stable"
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
+        with:
+          skip-cache: true
 
   embedded:
     name: embedded

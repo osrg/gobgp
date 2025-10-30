@@ -14,7 +14,6 @@
 // limitations under the License.
 
 //go:build freebsd || netbsd || openbsd
-// +build freebsd netbsd openbsd
 
 package zebra
 
