@@ -35,7 +35,10 @@ func nonblockSendChannel[T any](ch chan<- T, item T) bool {
 func drainChannel[T any](ch <-chan T) {
 	for {
 		select {
-		case <-ch:
+		case _, ok := <-ch:
+			if !ok {
+				return
+			}
 			// drain the channel
 		default:
 			return
