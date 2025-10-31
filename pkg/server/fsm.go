@@ -862,6 +862,9 @@ func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 			select {
 			case <-ctx.Done():
 				fsm.logger.Debug("stop connect loop")
+				if conn != nil {
+					conn.Close()
+				}
 				return nil
 			default:
 			}
