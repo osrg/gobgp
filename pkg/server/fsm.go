@@ -1997,10 +1997,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 	default:
 	}
 	if fsm.conn != nil {
-		err := fsm.conn.Close()
-		if err != nil {
-			fsm.logger.Error("failed to close existing tcp connection", slog.String("State", oldState.String()))
-		}
+		fsm.conn.Close()
 	}
 	close(fsm.connCh)
 	cleanInfiniteChannel(fsm.outgoingCh)
