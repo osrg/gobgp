@@ -38,7 +38,6 @@ type MarshallingOption struct {
 	MRT     bool
 
 	attributes map[BGPAttrType]bool
-	isIPv6     bool
 }
 
 func IsMRTSerialization(options []*MarshallingOption) bool {
@@ -77,18 +76,6 @@ func isAttributePresent(attr BGPAttrType, options []*MarshallingOption) bool {
 		if o := opt.attributes; o != nil {
 			_, ok := o[attr]
 			return ok
-		}
-	}
-	return false
-}
-
-func isIPv6(options []*MarshallingOption) bool {
-	for _, opt := range options {
-		if opt == nil {
-			continue
-		}
-		if opt.isIPv6 {
-			return true
 		}
 	}
 	return false
@@ -1455,11 +1442,7 @@ type IPAddrPrefix struct {
 	IPAddrPrefixDefault
 }
 
-func (r *IPAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	addrlen := 4
-	if isIPv6(options) {
-		addrlen = 16
-	}
+func (r *IPAddrPrefix) decodeFromBytes(data []byte, addrlen int, options ...*MarshallingOption) error {
 	if len(data) < 1 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
@@ -1946,11 +1929,7 @@ type LabeledVPNIPAddrPrefix struct {
 	RD     RouteDistinguisherInterface
 }
 
-func (l *LabeledVPNIPAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	addrlen := 4
-	if isIPv6(options) {
-		addrlen = 16
-	}
+func (l *LabeledVPNIPAddrPrefix) decodeFromBytes(data []byte, addrlen int, options ...*MarshallingOption) error {
 	if len(data) < 1 {
 		return NewMessageError(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, "LabeledVPNIPAddrPrefix not enough data")
 	}
@@ -2048,11 +2027,7 @@ func (l *LabeledIPAddrPrefix) Len(options ...*MarshallingOption) int {
 	return 1 + l.Labels.Len() + int((l.IPPrefixLen()+7)/8)
 }
 
-func (l *LabeledIPAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	addrlen := 4
-	if isIPv6(options) {
-		addrlen = 16
-	}
+func (l *LabeledIPAddrPrefix) decodeFromBytes(data []byte, addrlen int, options ...*MarshallingOption) error {
 	if len(data) < 1 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "LabeledIPAddrPrefix not enough data")
 	}
@@ -4017,7 +3992,7 @@ func (p *flowSpecPrefix) DecodeFromBytes(data []byte, options ...*MarshallingOpt
 	if p.Prefix == nil {
 		return malformedAttrListErr("flowSpecPrefix: Prefix is nil")
 	}
-	return p.Prefix.decodeFromBytes(data[1:], options...)
+	return p.Prefix.decodeFromBytes(data[1:], net.IPv4len, options...)
 }
 
 func (p *flowSpecPrefix) Serialize(options ...*MarshallingOption) ([]byte, error) {
@@ -4075,8 +4050,7 @@ func (p *flowSpecPrefix6) DecodeFromBytes(data []byte, options ...*MarshallingOp
 	if p.Prefix == nil {
 		return malformedAttrListErr("flowSpecPrefix6: Prefix is nil")
 	}
-	options = append(options, &MarshallingOption{isIPv6: true})
-	return p.Prefix.decodeFromBytes(prefix, options...)
+	return p.Prefix.decodeFromBytes(prefix, net.IPv6len, options...)
 }
 
 func (p *flowSpecPrefix6) Serialize(options ...*MarshallingOption) ([]byte, error) {
@@ -10396,31 +10370,34 @@ func GetFamily(name string) (Family, error) {
 func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nlri NLRI, err error) {
 	switch family {
 	case RF_IPv4_UC, RF_IPv4_MC, RF_IPv6_UC, RF_IPv6_MC:
+		addrlen := net.IPv4len
 		if family.Afi() == AFI_IP6 {
-			options = append(options, &MarshallingOption{isIPv6: true})
+			addrlen = net.IPv6len
 		}
 		nlri := &IPAddrPrefix{}
-		err := nlri.decodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, addrlen, options...)
 		if err != nil {
 			return nil, err
 		}
 		return nlri, nil
 	case RF_IPv4_VPN, RF_IPv6_VPN, RF_IPv4_VPN_MC, RF_IPv6_VPN_MC:
+		addrlen := net.IPv4len
 		if family.Afi() == AFI_IP6 {
-			options = append(options, &MarshallingOption{isIPv6: true})
+			addrlen = net.IPv6len
 		}
 		nlri := &LabeledVPNIPAddrPrefix{}
-		err := nlri.decodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, addrlen, options...)
 		if err != nil {
 			return nil, err
 		}
 		return nlri, nil
 	case RF_IPv4_MPLS, RF_IPv6_MPLS:
+		addrlen := net.IPv4len
 		if family.Afi() == AFI_IP6 {
-			options = append(options, &MarshallingOption{isIPv6: true})
+			addrlen = net.IPv6len
 		}
 		nlri := &LabeledIPAddrPrefix{}
-		err := nlri.decodeFromBytes(buf, options...)
+		err := nlri.decodeFromBytes(buf, addrlen, options...)
 		if err != nil {
 			return nil, err
 		}
@@ -10457,9 +10434,6 @@ func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nl
 		}
 		return nlri, nil
 	case RF_IPv4_ENCAP, RF_IPv6_ENCAP:
-		if family.Afi() == AFI_IP6 {
-			options = append(options, &MarshallingOption{isIPv6: true})
-		}
 		nlri := &EncapNLRI{}
 		err := nlri.decodeFromBytes(buf, options...)
 		if err != nil {
@@ -15389,7 +15363,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 			data = data[4:]
 		}
 		w := &IPAddrPrefix{}
-		err := w.decodeFromBytes(data, options...)
+		err := w.decodeFromBytes(data, net.IPv4len, options...)
 		if err != nil {
 			return err
 		}
@@ -15474,7 +15448,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 			data = data[4:]
 		}
 		n := &IPAddrPrefix{}
-		err := n.decodeFromBytes(data, options...)
+		err := n.decodeFromBytes(data, net.IPv4len, options...)
 		if err != nil {
 			return err
 		}
