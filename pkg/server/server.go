@@ -1836,17 +1836,16 @@ func (s *BgpServer) ListBmp(ctx context.Context, req *api.ListBmpRequest, fn fun
 		}
 		return nil
 	}, false)
-	if err == nil {
-		for _, rsp := range stations {
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-				fn(rsp)
-			}
-		}
+	if err != nil {
+		return err
 	}
-	return err
+	for _, rsp := range stations {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		fn(rsp)
+	}
+	return nil
 }
 
 func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
@@ -2957,12 +2956,10 @@ func (s *BgpServer) ListDynamicNeighbor(ctx context.Context, r *api.ListDynamicN
 		return err
 	}
 	for _, dn := range l {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			fn(dn)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+		fn(dn)
 	}
 	return nil
 }
@@ -2988,12 +2985,10 @@ func (s *BgpServer) ListPeerGroup(ctx context.Context, r *api.ListPeerGroupReque
 		return err
 	}
 	for _, pg := range l {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			fn(pg)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+		fn(pg)
 	}
 	return nil
 }
@@ -3055,12 +3050,10 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 		return err
 	}
 	for _, p := range l {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			fn(p)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+		fn(p)
 	}
 	return nil
 }
@@ -3624,14 +3617,12 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 	if err != nil {
 		return err
 	}
-	exec := func(d *api.DefinedSet) bool {
-		select {
-		case <-ctx.Done():
-			return true
-		default:
-			fn(d)
+	exec := func(d *api.DefinedSet) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-		return false
+		fn(d)
+		return nil
 	}
 
 	for _, cs := range cd.PrefixSets {
@@ -3650,8 +3641,8 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 				return l
 			}(),
 		}
-		if exec(ad) {
-			return nil
+		if err := exec(ad); err != nil {
+			return err
 		}
 	}
 	for _, cs := range cd.NeighborSets {
@@ -3660,8 +3651,8 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 			Name:        cs.NeighborSetName,
 			List:        cs.NeighborInfoList,
 		}
-		if exec(ad) {
-			return nil
+		if err := exec(ad); err != nil {
+			return err
 		}
 	}
 	for _, cs := range cd.BgpDefinedSets.CommunitySets {
@@ -3670,8 +3661,8 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 			Name:        cs.CommunitySetName,
 			List:        cs.CommunityList,
 		}
-		if exec(ad) {
-			return nil
+		if err := exec(ad); err != nil {
+			return err
 		}
 	}
 	for _, cs := range cd.BgpDefinedSets.ExtCommunitySets {
@@ -3680,8 +3671,8 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 			Name:        cs.ExtCommunitySetName,
 			List:        cs.ExtCommunityList,
 		}
-		if exec(ad) {
-			return nil
+		if err := exec(ad); err != nil {
+			return err
 		}
 	}
 	for _, cs := range cd.BgpDefinedSets.LargeCommunitySets {
@@ -3690,8 +3681,8 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 			Name:        cs.LargeCommunitySetName,
 			List:        cs.LargeCommunityList,
 		}
-		if exec(ad) {
-			return nil
+		if err := exec(ad); err != nil {
+			return err
 		}
 	}
 	for _, cs := range cd.BgpDefinedSets.AsPathSets {
@@ -3700,8 +3691,8 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 			Name:        cs.AsPathSetName,
 			List:        cs.AsPathList,
 		}
-		if exec(ad) {
-			return nil
+		if err := exec(ad); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -3750,12 +3741,10 @@ func (s *BgpServer) ListStatement(ctx context.Context, r *api.ListStatementReque
 		return err
 	}
 	for _, s := range l {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			fn(s)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+		fn(s)
 	}
 	return nil
 }
@@ -3803,12 +3792,10 @@ func (s *BgpServer) ListPolicy(ctx context.Context, r *api.ListPolicyRequest, fn
 		return err
 	}
 	for _, p := range l {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			fn(p)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+		fn(p)
 	}
 	return nil
 }
@@ -3922,17 +3909,16 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 		}
 		return nil
 	}, false)
-	if err == nil {
-		for _, p := range a {
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-				fn(p)
-			}
-		}
+	if err != nil {
+		return err
 	}
-	return err
+	for _, p := range a {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		fn(p)
+	}
+	return nil
 }
 
 func (s *BgpServer) AddPolicyAssignment(ctx context.Context, r *api.AddPolicyAssignmentRequest) error {
@@ -4050,12 +4036,10 @@ func (s *BgpServer) ListRpki(ctx context.Context, r *api.ListRpkiRequest, fn fun
 		return err
 	}
 	for _, r := range l {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			fn(r)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+		fn(r)
 	}
 	return nil
 }
@@ -4081,12 +4065,10 @@ func (s *BgpServer) ListRpkiTable(ctx context.Context, r *api.ListRpkiTableReque
 		return err
 	}
 	for _, roa := range l {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			fn(roa)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+		fn(roa)
 	}
 	return nil
 }
