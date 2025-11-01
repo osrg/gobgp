@@ -114,7 +114,7 @@ func (s *server) serve() error {
 }
 
 func (s *server) ListDynamicNeighbor(r *api.ListDynamicNeighborRequest, stream api.GoBgpService_ListDynamicNeighborServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(dn *api.DynamicNeighbor) {
 		if err := stream.Send(&api.ListDynamicNeighborResponse{DynamicNeighbor: dn}); err != nil {
@@ -126,7 +126,7 @@ func (s *server) ListDynamicNeighbor(r *api.ListDynamicNeighborRequest, stream a
 }
 
 func (s *server) ListPeerGroup(r *api.ListPeerGroupRequest, stream api.GoBgpService_ListPeerGroupServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(pg *api.PeerGroup) {
 		if err := stream.Send(&api.ListPeerGroupResponse{PeerGroup: pg}); err != nil {
@@ -146,7 +146,7 @@ func parseHost(host string) (string, string) {
 }
 
 func (s *server) ListPeer(r *api.ListPeerRequest, stream api.GoBgpService_ListPeerServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(p *api.Peer) {
 		if err := stream.Send(&api.ListPeerResponse{Peer: p}); err != nil {
@@ -312,7 +312,7 @@ func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*
 }
 
 func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPathServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	batchSize := r.BatchSize
 	if batchSize == 0 {
@@ -727,7 +727,7 @@ func (s *server) DeleteBmp(ctx context.Context, r *api.DeleteBmpRequest) (*api.D
 }
 
 func (s *server) ListBmp(r *api.ListBmpRequest, stream api.GoBgpService_ListBmpServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(rsp *api.ListBmpResponse_BmpStation) {
 		if err := stream.Send(&api.ListBmpResponse{Station: rsp}); err != nil {
@@ -758,7 +758,7 @@ func (s *server) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) (*api.R
 }
 
 func (s *server) ListRpki(r *api.ListRpkiRequest, stream api.GoBgpService_ListRpkiServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(r *api.Rpki) {
 		if err := stream.Send(&api.ListRpkiResponse{Server: r}); err != nil {
@@ -769,7 +769,7 @@ func (s *server) ListRpki(r *api.ListRpkiRequest, stream api.GoBgpService_ListRp
 }
 
 func (s *server) ListRpkiTable(r *api.ListRpkiTableRequest, stream api.GoBgpService_ListRpkiTableServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(r *api.Roa) {
 		if err := stream.Send(&api.ListRpkiTableResponse{Roa: r}); err != nil {
@@ -784,7 +784,7 @@ func (s *server) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) (*a
 }
 
 func (s *server) ListVrf(r *api.ListVrfRequest, stream api.GoBgpService_ListVrfServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(v *api.Vrf) {
 		if err := stream.Send(&api.ListVrfResponse{Vrf: v}); err != nil {
@@ -1400,7 +1400,7 @@ func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 var _regexpPrefixMaskLengthRange = regexp.MustCompile(`(\d+)\.\.(\d+)`)
 
 func (s *server) ListDefinedSet(r *api.ListDefinedSetRequest, stream api.GoBgpService_ListDefinedSetServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(d *api.DefinedSet) {
 		if err := stream.Send(&api.ListDefinedSetResponse{DefinedSet: d}); err != nil {
@@ -2159,7 +2159,7 @@ func newStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
 }
 
 func (s *server) ListStatement(r *api.ListStatementRequest, stream api.GoBgpService_ListStatementServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(s *api.Statement) {
 		if err := stream.Send(&api.ListStatementResponse{Statement: s}); err != nil {
@@ -2241,7 +2241,7 @@ func newRoaListFromTableStructList(origin []*table.ROA) []*api.Roa {
 }
 
 func (s *server) ListPolicy(r *api.ListPolicyRequest, stream api.GoBgpService_ListPolicyServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(p *api.Policy) {
 		if err := stream.Send(&api.ListPolicyResponse{Policy: p}); err != nil {
@@ -2260,7 +2260,7 @@ func (s *server) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest) (
 }
 
 func (s *server) ListPolicyAssignment(r *api.ListPolicyAssignmentRequest, stream api.GoBgpService_ListPolicyAssignmentServer) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	fn := func(a *api.PolicyAssignment) {
 		if err := stream.Send(&api.ListPolicyAssignmentResponse{Assignment: a}); err != nil {
