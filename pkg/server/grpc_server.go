@@ -308,21 +308,21 @@ func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*
 	}
 
 	err := s.bgpServer.ListPath(req, func(prefix bgp.NLRI, paths []*apiutil.Path) {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return
-		default:
-			d := api.Destination{
-				Prefix: prefix.String(),
-				Paths:  make([]*api.Path, len(paths)),
-			}
-			for i, path := range paths {
-				d.Paths[i] = toPathApi(path, r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
-			}
-			fn(&d)
 		}
+		d := api.Destination{
+			Prefix: prefix.String(),
+			Paths:  make([]*api.Path, len(paths)),
+		}
+		for i, path := range paths {
+			d.Paths[i] = toPathApi(path, r.EnableOnlyBinary, r.EnableNlriBinary, r.EnableAttributeBinary)
+		}
+		fn(&d)
 	})
-
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	return err
 }
 
