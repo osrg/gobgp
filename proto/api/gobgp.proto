@@ -725,9 +725,8 @@ message DynamicNeighbor {
 }
 
 message ApplyPolicy {
-  PolicyAssignment in_policy = 1;
-  PolicyAssignment export_policy = 2;
-  PolicyAssignment import_policy = 3;
+  PolicyAssignment export_policy = 1;
+  PolicyAssignment import_policy = 2;
 }
 
 message PrefixLimit {

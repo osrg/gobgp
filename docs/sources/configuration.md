@@ -161,8 +161,6 @@
         default-import-policy = "reject-route"
         export-policy-list = ["policy2"]
         default-export-policy = "accept-route"
-        in-policy-list = ["policy3"]
-        default-in-policy = "reject-route"
     [neighbors.route-server.config]
         route-server-client = true
     # To enable TTL Security, uncomment the following.

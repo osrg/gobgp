@@ -901,12 +901,6 @@ func readApplyPolicyFromAPIStruct(c *oc.ApplyPolicy, a *api.ApplyPolicy) {
 			c.Config.ExportPolicyList = append(c.Config.ExportPolicyList, p.Name)
 		}
 	}
-	if a.InPolicy != nil {
-		c.Config.DefaultInPolicy = f(a.InPolicy.DefaultAction)
-		for _, p := range a.InPolicy.Policies {
-			c.Config.InPolicyList = append(c.Config.InPolicyList, p.Name)
-		}
-	}
 }
 
 func readRouteSelectionOptionsFromAPIStruct(c *oc.RouteSelectionOptions, a *api.RouteSelectionOptions) {

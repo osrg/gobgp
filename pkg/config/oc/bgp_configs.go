@@ -3857,15 +3857,6 @@ type ApplyPolicyState struct {
 	// explicitly set a default policy if no policy definition
 	// in the export policy chain is satisfied.
 	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy" json:"default-export-policy,omitempty"`
-	// original -> gobgp:in-policy
-	// list of policy names in sequence to be applied on
-	// sending a routing update in the current context, e.g.,
-	// for the current other route server clients.
-	InPolicyList []string `mapstructure:"in-policy-list" json:"in-policy-list,omitempty"`
-	// original -> gobgp:default-in-policy
-	// explicitly set a default policy if no policy definition
-	// in the in-policy chain is satisfied.
-	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy" json:"default-in-policy,omitempty"`
 }
 
 // struct for container rpol:config.
@@ -3891,15 +3882,6 @@ type ApplyPolicyConfig struct {
 	// explicitly set a default policy if no policy definition
 	// in the export policy chain is satisfied.
 	DefaultExportPolicy DefaultPolicyType `mapstructure:"default-export-policy" json:"default-export-policy,omitempty"`
-	// original -> gobgp:in-policy
-	// list of policy names in sequence to be applied on
-	// sending a routing update in the current context, e.g.,
-	// for the current other route server clients.
-	InPolicyList []string `mapstructure:"in-policy-list" json:"in-policy-list,omitempty"`
-	// original -> gobgp:default-in-policy
-	// explicitly set a default policy if no policy definition
-	// in the in-policy chain is satisfied.
-	DefaultInPolicy DefaultPolicyType `mapstructure:"default-in-policy" json:"default-in-policy,omitempty"`
 }
 
 func (lhs *ApplyPolicyConfig) Equal(rhs *ApplyPolicyConfig) bool {
@@ -3926,17 +3908,6 @@ func (lhs *ApplyPolicyConfig) Equal(rhs *ApplyPolicyConfig) bool {
 		}
 	}
 	if lhs.DefaultExportPolicy != rhs.DefaultExportPolicy {
-		return false
-	}
-	if len(lhs.InPolicyList) != len(rhs.InPolicyList) {
-		return false
-	}
-	for idx, l := range lhs.InPolicyList {
-		if l != rhs.InPolicyList[idx] {
-			return false
-		}
-	}
-	if lhs.DefaultInPolicy != rhs.DefaultInPolicy {
 		return false
 	}
 	return true

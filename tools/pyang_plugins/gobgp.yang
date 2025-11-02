@@ -297,31 +297,6 @@ module gobgp {
   }
 
 
-  grouping gobgp-in-policy {
-    description
-      "additional policy";
-
-    leaf-list in-policy {
-      type leafref {
-        path "/rpol:routing-policy/rpol:policy-definitions/" +
-            "rpol:policy-definition/rpol:name";
-        //require-instance true;
-      }
-      description
-        "list of policy names in sequence to be applied on
-        sending a routing update in the current context, e.g.,
-        for the current other route server clients.";
-    }
-
-    leaf default-in-policy {
-      type rpol:default-policy-type;
-      default REJECT-ROUTE;
-      description
-        "explicitly set a default policy if no policy definition
-        in the in-policy chain is satisfied.";
-    }
-  }
-
   grouping gobgp-route-server-config {
     description
       "Configuration parameter specifying whether
@@ -1044,18 +1019,6 @@ module gobgp {
     description "TTL Security configuration for neighbor";
     uses gobgp-ttl-security-config-set;
    }
-
-  augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:config" {
-    description "addtional policy";
-    uses gobgp-in-policy;
-
-  }
-
-  augment "/bgp:bgp/bgp:global/bgp:apply-policy/bgp:state" {
-    description "additional policy";
-    uses gobgp-in-policy;
-
-  }
 
   augment "/rpol:routing-policy/rpol:policy-definitions/" +
     "rpol:policy-definition/rpol:statements/rpol:statement/" +
