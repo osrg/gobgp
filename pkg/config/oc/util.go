@@ -696,7 +696,6 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 		families = append(families, uint32(AfiSafiTypeToIntMap[f.Config.AfiSafiName]))
 	}
 
-	applyPolicy := newApplyPolicyFromConfigStruct(&c.ApplyPolicy)
 	l := make([]string, 0, len(c.Config.LocalAddressList))
 	for _, addr := range c.Config.LocalAddressList {
 		l = append(l, addr.String())
@@ -736,7 +735,6 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 			NotificationEnabled: c.GracefulRestart.Config.NotificationEnabled,
 			LonglivedEnabled:    c.GracefulRestart.Config.LongLivedEnabled,
 		},
-		ApplyPolicy: applyPolicy,
 	}
 }
 

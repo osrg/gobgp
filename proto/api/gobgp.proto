@@ -1323,8 +1323,7 @@ message Global {
   DefaultRouteDistance default_route_distance = 8;
   Confederation confederation = 9;
   GracefulRestart graceful_restart = 10;
-  ApplyPolicy apply_policy = 11;
-  string bind_to_device = 12;
+  string bind_to_device = 11;
 }
 
 message Confederation {

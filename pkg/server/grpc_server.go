@@ -2380,8 +2380,6 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 		})
 	}
 
-	applyPolicy := &oc.ApplyPolicy{}
-	readApplyPolicyFromAPIStruct(applyPolicy, a.ApplyPolicy)
 	l := make([]netip.Addr, 0, len(a.ListenAddresses))
 	for _, addr := range a.ListenAddresses {
 		l = append(l, netip.MustParseAddr(addr))
@@ -2394,8 +2392,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 			Port:             a.ListenPort,
 			LocalAddressList: l,
 		},
-		ApplyPolicy: *applyPolicy,
-		AfiSafis:    families,
+		AfiSafis: families,
 		UseMultiplePaths: oc.UseMultiplePaths{
 			Config: oc.UseMultiplePathsConfig{
 				Enabled: a.UseMultiplePaths,
