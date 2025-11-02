@@ -282,10 +282,6 @@ func getValidation(v map[*table.Path]*table.Validation, p *table.Path) *table.Va
 }
 
 func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*api.Destination)) error {
-	if r == nil {
-		return fmt.Errorf("nil request")
-	}
-
 	family := bgp.Family(0)
 	if r.Family != nil {
 		family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
@@ -364,10 +360,6 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 }
 
 func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time)) error {
-	if r == nil {
-		return status.Errorf(codes.InvalidArgument, "nil request")
-	}
-
 	opts := make([]WatchOption, 0)
 	if r.GetPeer() != nil {
 		opts = append(opts, WatchPeer())
@@ -634,8 +626,8 @@ func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
 }
 
 func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPathResponse, error) {
-	if r == nil || r.Path == nil {
-		return nil, fmt.Errorf("nil request")
+	if r.Path == nil {
+		return nil, status.Error(codes.InvalidArgument, "path is required")
 	}
 	var err error
 	var uuidBytes []byte
@@ -658,9 +650,6 @@ func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPa
 }
 
 func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api.DeletePathResponse, error) {
-	if r == nil {
-		return &api.DeletePathResponse{}, fmt.Errorf("nil request")
-	}
 	deletePath := func(ctx context.Context, r *api.DeletePathRequest) error {
 		var pathList []*apiutil.Path
 		if len(r.Uuid) == 0 {
