@@ -40,8 +40,6 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-const globalRIBName = "global"
-
 const (
 	cmdGlobal         = "global"
 	cmdNeighbor       = "neighbor"
