@@ -3835,12 +3835,10 @@ func (s *BgpServer) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest
 
 func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, table.PolicyDirection, error) {
 	if name == "" {
-		return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("empty table name")
+		name = table.GLOBAL_RIB_NAME
 	}
 
-	if name == table.GLOBAL_RIB_NAME {
-		name = table.GLOBAL_RIB_NAME
-	} else {
+	if name != table.GLOBAL_RIB_NAME {
 		remoteAddr, err := netip.ParseAddr(name)
 		if err != nil {
 			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("failed to parse address: %v", err)
