@@ -42,6 +42,14 @@ func main() {
 		log.Error("failed to start BGP", slog.String("Error", err.Error()))
 	}
 
+	// set default import policy
+	s.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+	})
+
 	// monitor the change of the peer state
 	if err := s.WatchEvent(context.Background(), server.WatchEventMessageCallbacks{
 		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
