@@ -18,8 +18,8 @@ package version
 import "fmt"
 
 const (
-	MAJOR uint = 3
-	MINOR uint = 37
+	MAJOR uint = 4
+	MINOR uint = 0
 	PATCH uint = 0
 )
 
