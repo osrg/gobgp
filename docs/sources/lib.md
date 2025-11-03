@@ -28,7 +28,7 @@ func main() {
 	lvl := &slog.LevelVar{}
 	lvl.Set(slog.LevelInfo)
 
-	s := server.NewBgpServer(server.LoggerOption(slog.Default(), lvl))
+	s := server.NewBgpServer(server.LoggerOption(log, lvl))
 	go s.Serve()
 
 	// global configuration
