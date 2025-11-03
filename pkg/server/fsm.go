@@ -962,13 +962,9 @@ func setPeerConnTTL(fsm *fsm, conn net.Conn) error {
 	} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == oc.PEER_TYPE_EXTERNAL {
 		if fsm.pConf.EbgpMultihop.Config.Enabled {
 			ttl = int(fsm.pConf.EbgpMultihop.Config.MultihopTtl)
-		} else if fsm.pConf.Transport.Config.Ttl != 0 {
-			ttl = int(fsm.pConf.Transport.Config.Ttl)
 		} else {
 			ttl = 1
 		}
-	} else if fsm.pConf.Transport.Config.Ttl != 0 {
-		ttl = int(fsm.pConf.Transport.Config.Ttl)
 	}
 
 	if ttl != 0 {

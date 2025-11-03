@@ -927,11 +927,6 @@ module gobgp {
       type inet:port-number;
     }
 
-    leaf ttl {
-      description "TTL value for BGP packets";
-      type uint8;
-    }
-
     leaf bind-interface {
       description "Interface name for binding.";
       type string;
