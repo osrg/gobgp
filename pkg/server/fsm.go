@@ -208,8 +208,6 @@ func (s *adminStateRaw) Store(state adminState) {
 }
 
 func initializeConn(fsm *fsm, conn net.Conn) {
-	conn.SetWriteDeadline(time.Now().Add(time.Second))
-
 	fsm.lock.Lock()
 	if err := setPeerConnTTL(fsm, conn); err != nil {
 		fsm.logger.Warn("cannot set TTL",
@@ -285,6 +283,7 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 			fsm.lock.Unlock()
 			b, _ := open.Serialize()
 
+			conn.SetWriteDeadline(time.Now().Add(time.Second))
 			if _, err := conn.Write(b); err != nil {
 				conn.Close()
 				continue
@@ -906,6 +905,7 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			fsm.lock.Unlock()
 
 			b, _ := m.Serialize()
+			conn.SetWriteDeadline(time.Now().Add(time.Second))
 			_, err := conn.Write(b)
 			if err == nil {
 				fsm.bgpMessageStateUpdate(m.Header.Type, false)
@@ -914,6 +914,7 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, []byte(err.Error()))
 		case result := <-fsm.outgoingConnCh:
 			b, _ := bgp.NewBGPKeepAliveMessage().Serialize()
+			result.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			if _, err := result.conn.Write(b); err != nil {
 				result.conn.Close()
 				fsm.logger.Warn("failed to send keepalive on outgoing connection", slog.String("Error", err.Error()))
@@ -1408,6 +1409,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 			}
 
 			b, _ := bgp.NewBGPKeepAliveMessage().Serialize()
+			fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			if _, err := fsm.conn.Write(b); err != nil {
 				fsm.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
@@ -1452,6 +1454,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				}
 			}
 			b, _ := bgp.NewBGPKeepAliveMessage().Serialize()
+			fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			if _, err := fsm.conn.Write(b); err != nil {
 				fsm.conn.Close()
 				fsm.logger.Warn("failed to send keepalive on outgoing connection", slog.String("Error", err.Error()))
@@ -1552,6 +1555,7 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
 			// TODO: check error
+			fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			fsm.conn.Write(b)
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case e := <-recvChan:
