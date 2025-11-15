@@ -5389,7 +5389,7 @@ func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 					Length: lenIpReach,
 				},
 				PrefixLength: uint8(prefixSize),
-				Prefix:       ip[:lenIpPrefix],
+				Prefix:       []byte(ip)[:lenIpPrefix],
 			}
 		} else if ipReach.Addr().Is6() {
 			ip := ipReach.Addr().AsSlice()
@@ -5399,7 +5399,7 @@ func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 					Length: lenIpReach,
 				},
 				PrefixLength: uint8(prefixSize),
-				Prefix:       ip[:lenIpPrefix],
+				Prefix:       []byte(ip)[:lenIpPrefix],
 			}
 		}
 		lsTLVs = append(lsTLVs, tlv)
