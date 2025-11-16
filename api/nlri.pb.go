@@ -2186,6 +2186,7 @@ type LsPrefixDescriptor struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	IpReachability []string               `protobuf:"bytes,1,rep,name=ip_reachability,json=ipReachability,proto3" json:"ip_reachability,omitempty"`
 	OspfRouteType  LsOspfRouteType        `protobuf:"varint,2,opt,name=ospf_route_type,json=ospfRouteType,proto3,enum=api.LsOspfRouteType" json:"ospf_route_type,omitempty"`
+	PrefixMetric   uint32                 `protobuf:"varint,3,opt,name=prefix_metric,json=prefixMetric,proto3" json:"prefix_metric,omitempty"` // TLV 268 - Prefix Metric (RFC 7752 section 3.3.3.4)
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2232,6 +2233,13 @@ func (x *LsPrefixDescriptor) GetOspfRouteType() LsOspfRouteType {
 		return x.OspfRouteType
 	}
 	return LsOspfRouteType_LS_OSPF_ROUTE_TYPE_UNSPECIFIED
+}
+
+func (x *LsPrefixDescriptor) GetPrefixMetric() uint32 {
+	if x != nil {
+		return x.PrefixMetric
+	}
+	return 0
 }
 
 type LsNodeNLRI struct {
@@ -3229,10 +3237,11 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\x13interface_addr_ipv4\x18\x03 \x01(\tR\x11interfaceAddrIpv4\x12,\n" +
 	"\x12neighbor_addr_ipv4\x18\x04 \x01(\tR\x10neighborAddrIpv4\x12.\n" +
 	"\x13interface_addr_ipv6\x18\x05 \x01(\tR\x11interfaceAddrIpv6\x12,\n" +
-	"\x12neighbor_addr_ipv6\x18\x06 \x01(\tR\x10neighborAddrIpv6\"{\n" +
+	"\x12neighbor_addr_ipv6\x18\x06 \x01(\tR\x10neighborAddrIpv6\"\xa0\x01\n" +
 	"\x12LsPrefixDescriptor\x12'\n" +
 	"\x0fip_reachability\x18\x01 \x03(\tR\x0eipReachability\x12<\n" +
-	"\x0fospf_route_type\x18\x02 \x01(\x0e2\x14.api.LsOspfRouteTypeR\rospfRouteType\"B\n" +
+	"\x0fospf_route_type\x18\x02 \x01(\x0e2\x14.api.LsOspfRouteTypeR\rospfRouteType\x12#\n" +
+	"\rprefix_metric\x18\x03 \x01(\rR\fprefixMetric\"B\n" +
 	"\n" +
 	"LsNodeNLRI\x124\n" +
 	"\n" +

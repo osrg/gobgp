@@ -274,6 +274,7 @@ enum LsOspfRouteType {
 message LsPrefixDescriptor {
   repeated string ip_reachability = 1;
   LsOspfRouteType ospf_route_type = 2;
+  uint32 prefix_metric = 3;  // TLV 268 - Prefix Metric (RFC 7752 section 3.3.3.4)
 }
 
 message LsNodeNLRI {

@@ -5231,6 +5231,7 @@ func (l *LsLinkNLRI) MarshalJSON() ([]byte, error) {
 type LsPrefixDescriptor struct {
 	IPReachability []netip.Prefix
 	OSPFRouteType  LsOspfRouteType
+	PrefixMetric   uint32
 }
 
 func (l *LsPrefixDescriptor) ParseTLVs(tlvs []LsTLVInterface, ipv6 bool) {
@@ -5241,6 +5242,9 @@ func (l *LsPrefixDescriptor) ParseTLVs(tlvs []LsTLVInterface, ipv6 bool) {
 
 		case *LsTLVOspfRouteType:
 			l.OSPFRouteType = v.RouteType
+
+		case *LsTLVPrefixMetric:
+			l.PrefixMetric = v.Metric
 		}
 	}
 }
@@ -5296,6 +5300,8 @@ func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVOspfRouteType{}
 		case LS_TLV_IP_REACH_INFO:
 			subTLV = &LsTLVIPReachability{}
+		case LS_TLV_PREFIX_METRIC:
+			subTLV = &LsTLVPrefixMetric{}
 
 		default:
 			tlv = tlv[sub.Len():]
@@ -5401,19 +5407,22 @@ func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 				PrefixLength: uint8(prefixSize),
 				Prefix:       []byte(ip)[:lenIpPrefix],
 			}
-		}
-		lsTLVs = append(lsTLVs, tlv)
 	}
+	lsTLVs = append(lsTLVs, tlv)
+}
 
-	if pd.OSPFRouteType != 0 {
-		lsTLVs = append(lsTLVs,
-			&LsTLVOspfRouteType{
-				LsTLV: LsTLV{
-					Type:   LS_TLV_OSPF_ROUTE_TYPE,
-					Length: 1,
-				},
-				RouteType: pd.OSPFRouteType,
-			})
+	lsTLVs = append(lsTLVs,
+		&LsTLVOspfRouteType{
+			LsTLV: LsTLV{
+				Type:   LS_TLV_OSPF_ROUTE_TYPE,
+				Length: 1,
+			},
+			RouteType: pd.OSPFRouteType,
+		})
+
+	// Add Prefix Metric TLV if metric is set (non-zero)
+	if pd.PrefixMetric != 0 {
+		lsTLVs = append(lsTLVs, NewLsTLVPrefixMetric(&pd.PrefixMetric))
 	}
 	return lsTLVs
 }
@@ -5469,6 +5478,8 @@ func (l *LsPrefixV6NLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVOspfRouteType{}
 		case LS_TLV_IP_REACH_INFO:
 			subTLV = &LsTLVIPReachability{}
+		case LS_TLV_PREFIX_METRIC:
+			subTLV = &LsTLVPrefixMetric{}
 
 		default:
 			tlv = tlv[sub.Len():]
@@ -9147,6 +9158,65 @@ func (l *LsTLVPrefixSID) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
+type LsTLVPrefixMetric struct {
+	LsTLV
+	Metric uint32
+}
+
+func NewLsTLVPrefixMetric(m *uint32) *LsTLVPrefixMetric {
+	return &LsTLVPrefixMetric{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_PREFIX_METRIC,
+			Length: 4, // Prefix Metric is always 4 bytes (32-bit unsigned integer)
+		},
+		Metric: *m,
+	}
+}
+
+func (l *LsTLVPrefixMetric) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_PREFIX_METRIC {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://tools.ietf.org/html/rfc7752#section-3.3.3.4
+	// Prefix Metric TLV is a 32-bit unsigned integer
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect Prefix Metric length")
+	}
+
+	l.Metric = binary.BigEndian.Uint32(value)
+	return nil
+}
+
+func (l *LsTLVPrefixMetric) Serialize() ([]byte, error) {
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:4], l.Metric)
+	return l.LsTLV.Serialize(buf[:])
+}
+
+func (l *LsTLVPrefixMetric) String() string {
+	return fmt.Sprintf("{Prefix Metric: %d}", l.Metric)
+}
+
+func (l *LsTLVPrefixMetric) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type   LsTLVType `json:"type"`
+		Metric uint32    `json:"prefix_metric"`
+	}{
+		Type:   l.Type,
+		Metric: l.Metric,
+	})
+}
+
+func (l *LsTLVPrefixMetric) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
 type LsTLVSourceRouterID struct {
 	LsTLV
 	RouterID []byte
@@ -10167,6 +10237,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		case LS_TLV_OPAQUE_PREFIX_ATTR:
 			tlv = &LsTLVOpaquePrefixAttr{}
+
+		case LS_TLV_PREFIX_METRIC:
+			tlv = &LsTLVPrefixMetric{}
 
 		// SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Prefix NLRI
 		case LS_TLV_PREFIX_SID:

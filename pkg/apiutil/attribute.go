@@ -702,6 +702,11 @@ func MarshalLsPrefixDescriptor(d *bgp.LsPrefixDescriptor) (*api.LsPrefixDescript
 	for _, ip := range d.IPReachability {
 		p.IpReachability = append(p.IpReachability, ip.String())
 	}
+
+	// Include prefix_metric if it's non-zero (RFC 7752: optional TLV)
+	if d.PrefixMetric != 0 {
+		p.PrefixMetric = d.PrefixMetric
+	}
 	return p, nil
 }
 
@@ -920,6 +925,7 @@ func UnmarshalPrefixDescriptor(pd *api.LsPrefixDescriptor) (*bgp.LsPrefixDescrip
 	return &bgp.LsPrefixDescriptor{
 		IPReachability: ipReachability,
 		OSPFRouteType:  ospfRouteType,
+		PrefixMetric:   pd.PrefixMetric,
 	}, nil
 }
 
@@ -1042,50 +1048,50 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 					Begin: r.Begin,
 					End:   r.End,
 				})
-			}
-			lsSrLocalBlock = &bgp.LsSrLocalBlock{
-				Ranges: srLocalBlockRanges,
-			}
 		}
-		var flags *bgp.LsNodeFlags
-		if a.Node.Flags != nil {
-			flags = &bgp.LsNodeFlags{
-				Overload: a.Node.Flags.Overload,
-				Attached: a.Node.Flags.Attached,
-				External: a.Node.Flags.External,
-				ABR:      a.Node.Flags.Abr,
-				Router:   a.Node.Flags.Router,
-				V6:       a.Node.Flags.V6,
-			}
+		lsSrLocalBlock = &bgp.LsSrLocalBlock{
+			Ranges: srLocalBlockRanges,
 		}
-		var nodeOpaque *[]byte
-		if len(a.Node.Opaque) > 0 {
-			nodeOpaque = &a.Node.Opaque
+	}
+	var flags *bgp.LsNodeFlags
+	if a.Node.Flags != nil {
+		flags = &bgp.LsNodeFlags{
+			Overload: a.Node.Flags.Overload,
+			Attached: a.Node.Flags.Attached,
+			External: a.Node.Flags.External,
+			ABR:      a.Node.Flags.Abr,
+			Router:   a.Node.Flags.Router,
+			V6:       a.Node.Flags.V6,
 		}
-		var nodeName *string
-		if a.Node.Name != "" {
-			nodeName = &a.Node.Name
-		}
-		var nodeIsisArea *[]byte
-		if len(a.Node.IsisArea) > 0 {
-			nodeIsisArea = &a.Node.IsisArea
-		}
-		var nodeSrAlgorithms *[]byte
-		if len(a.Node.SrAlgorithms) > 0 {
-			nodeSrAlgorithms = &a.Node.SrAlgorithms
-		}
+	}
+	var nodeOpaque *[]byte
+	if len(a.Node.Opaque) > 0 {
+		nodeOpaque = &a.Node.Opaque
+	}
+	var nodeName *string
+	if a.Node.Name != "" {
+		nodeName = &a.Node.Name
+	}
+	var nodeIsisArea *[]byte
+	if len(a.Node.IsisArea) > 0 {
+		nodeIsisArea = &a.Node.IsisArea
+	}
+	var nodeSrAlgorithms *[]byte
+	if len(a.Node.SrAlgorithms) > 0 {
+		nodeSrAlgorithms = &a.Node.SrAlgorithms
+	}
 
-		lsAttr.Node = bgp.LsAttributeNode{
-			Flags:           flags,
-			Opaque:          nodeOpaque,
-			Name:            nodeName,
-			IsisArea:        nodeIsisArea,
-			LocalRouterID:   nodeLocalRouterID,
-			LocalRouterIDv6: nodeLocalRouterIDv6,
-			SrCapabilties:   srCapabilities,
-			SrAlgorithms:    nodeSrAlgorithms,
-			SrLocalBlock:    lsSrLocalBlock,
-		}
+	lsAttr.Node = bgp.LsAttributeNode{
+		Flags:           flags,
+		Opaque:          nodeOpaque,
+		Name:            nodeName,
+		IsisArea:        nodeIsisArea,
+		LocalRouterID:   nodeLocalRouterID,
+		LocalRouterIDv6: nodeLocalRouterIDv6,
+		SrCapabilties:   srCapabilities,
+		SrAlgorithms:    nodeSrAlgorithms,
+		SrLocalBlock:    lsSrLocalBlock,
+	}
 	}
 
 	// For AttributeLink
