@@ -3253,3 +3253,74 @@ func TestEBGPRouteStuck(test *testing.T) {
 		assertPathCount(collect, peers[2], 1)
 	}, 20*time.Second, 1*time.Millisecond)
 }
+
+func TestUpdatePeer(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65000,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	// add peer
+	p := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "2.2.2.2",
+			LocalAsn:        65000,
+			PeerAsn:         65001,
+			Type:            api.PeerType_PEER_TYPE_EXTERNAL,
+			ReplacePeerAsn:  false,
+		},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{
+				HoldTime:               30,
+				KeepaliveInterval:      10,
+				ConnectRetry:           20,
+				IdleHoldTimeAfterReset: 30,
+			},
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p})
+	assert.NoError(t, err)
+
+	// update timer config
+	p.Timers.Config.HoldTime = 33
+	resp, err := s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: p})
+	assert.NoError(t, err)
+	assert.False(t, resp.NeedsSoftResetIn)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_ = s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
+			assert.Equal(collect, peer.Timers.Config, p.Timers.Config)
+		})
+	}, time.Second, 10*time.Millisecond)
+
+	// update AS_PATH option
+	p.Conf.ReplacePeerAsn = true
+	resp, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: p})
+	assert.NoError(t, err)
+	assert.True(t, resp.NeedsSoftResetIn)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_ = s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
+			assert.Equal(collect, peer.Conf, p.Conf)
+		})
+	}, time.Second, 10*time.Millisecond)
+
+	// set admin down
+	p.Conf.AdminDown = true
+	resp, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: p})
+	assert.NoError(t, err)
+	assert.False(t, resp.NeedsSoftResetIn)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_ = s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
+			assert.Equal(collect, peer.Conf, p.Conf)
+		})
+	}, time.Second, 10*time.Millisecond)
+}
