@@ -3434,7 +3434,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	}
 
 	if !original.Timers.Config.Equal(&c.Timers.Config) {
-		peer.fsm.logger.Info("Update timer configuration", slog.String("Err", err.Error()))
+		peer.fsm.logger.Info("Update timer configuration")
 		peer.fsm.pConf.Timers.Config = c.Timers.Config
 	}
 
