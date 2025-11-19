@@ -125,7 +125,7 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.Tab
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
 	rfs, _ := oc.AfiSafis(conf.AfiSafis).ToRfList()
-	peer.adjRibIn = table.NewAdjRib(peer.fsm.logger, rfs)
+	peer.adjRibIn = table.NewAdjRib(logger, rfs)
 	return peer
 }
 
