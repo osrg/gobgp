@@ -253,6 +253,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			if !n.RouteReflector.Config.RouteReflectorClusterId.IsValid() || !n.RouteReflector.Config.RouteReflectorClusterId.Is4() {
 				return fmt.Errorf("route-reflector-cluster-id should be specified as IPv4 address")
 			}
+			n.RouteReflector.State.RouteReflectorClusterId = n.RouteReflector.Config.RouteReflectorClusterId
 		}
 	}
 	return nil
