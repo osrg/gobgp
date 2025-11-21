@@ -3433,10 +3433,12 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		return needsSoftResetIn, err
 	}
 
+	peer.fsm.lock.Lock()
 	if !original.Timers.Config.Equal(&c.Timers.Config) {
 		peer.fsm.logger.Info("Update timer configuration")
 		peer.fsm.pConf.Timers.Config = c.Timers.Config
 	}
+	peer.fsm.lock.Unlock()
 
 	isLimit, err := peer.updatePrefixLimitConfig(c.AfiSafis)
 	if isLimit && err == nil {
