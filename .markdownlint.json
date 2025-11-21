@@ -6,6 +6,7 @@
     "commands-show-output": false,
     "no-duplicate-header": false,
     "no-duplicate-heading": false,
+    "table-column-style": false,
     "no-inline-html": {
         "allowed_elements": [
             "br"
