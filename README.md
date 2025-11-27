@@ -55,6 +55,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 ### Externals
 
 - [Tutorial: Using GoBGP as an IXP connecting router](http://www.slideshare.net/shusugimoto1986/tutorial-using-gobgp-as-an-ixp-connecting-router)
+- [GoBGP.nix: A NixOS module for GoBGP. Containing a working FRR implementation and a rich set of Options](https://github.com/wavelens/gobgp.nix)
 
 ## Community, discussion and support
 
