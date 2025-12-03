@@ -4950,8 +4950,8 @@ func (l *LsNodeNLRI) String() string {
 		return "NODE { EMPTY }"
 	}
 
-	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract()
-	return fmt.Sprintf("NODE { AS:%v BGP-LS ID:%v %v %v:%v }", local.Asn, local.BGPLsID, local.IGPRouterID, l.ProtocolID.String(), l.Identifier)
+	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract().String()
+	return fmt.Sprintf("NODE { LOCAL_NODE: %s }", local)
 }
 
 func (l *LsNodeNLRI) Serialize() ([]byte, error) {
@@ -5104,20 +5104,13 @@ func (l *LsLinkNLRI) String() string {
 	if l.LocalNodeDesc == nil || l.RemoteNodeDesc == nil {
 		return "LINK { EMPTY }"
 	}
-	var local string
-	var remote string
-	if l.ProtocolID == LS_PROTOCOL_BGP {
-		local = l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract().BGPRouterID.String()
-		remote = l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract().BGPRouterID.String()
-	} else {
-		local = l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract().IGPRouterID
-		remote = l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract().IGPRouterID
-	}
+	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract().String()
+	remote := l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract().String()
 
 	link := &LsLinkDescriptor{}
 	link.ParseTLVs(l.LinkDesc)
 
-	return fmt.Sprintf("LINK { LOCAL_NODE: %v REMOTE_NODE: %v LINK: %v}", local, remote, link)
+	return fmt.Sprintf("LINK { LOCAL_NODE: %s REMOTE_NODE: %s LINK: %v}", local, remote, link)
 }
 
 func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
@@ -7583,12 +7576,26 @@ type LsTLVIGPMetric struct {
 }
 
 func NewLsTLVIGPMetric(l *uint32) *LsTLVIGPMetric {
+	// Calculate the correct length based on metric value per RFC 7752 section 3.3.2.4
+	// 1 byte: if metric < 64 (uses only 6 bits: 0x3F)
+	// 2 bytes: if metric < 65536
+	// 3 bytes: if metric >= 65536
+	var length uint16
+	metric := *l
+	if metric < 64 {
+		length = 1
+	} else if metric < 65536 {
+		length = 2
+	} else {
+		length = 3
+	}
+
 	return &LsTLVIGPMetric{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_IGP_METRIC,
-			Length: 3, // TODO: implementation for IS-IS small metrics and OSPF link metrics.
+			Length: length,
 		},
-		Metric: *l,
+		Metric: metric,
 	}
 }
 
@@ -7606,12 +7613,18 @@ func (l *LsTLVIGPMetric) DecodeFromBytes(data []byte) error {
 	switch len(value) {
 	case 1:
 		l.Metric = uint32(value[0] & 0x3F)
+		// Update Length to match actual decoded value length
+		l.Length = 1
 
 	case 2:
 		l.Metric = uint32(binary.BigEndian.Uint16(value))
+		// Update Length to match actual decoded value length
+		l.Length = 2
 
 	case 3:
 		l.Metric = binary.BigEndian.Uint32([]byte{0, value[0], value[1], value[2]})
+		// Update Length to match actual decoded value length
+		l.Length = 3
 
 	default:
 		return malformedAttrListErr("Incorrect metric length")
@@ -7621,7 +7634,21 @@ func (l *LsTLVIGPMetric) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVIGPMetric) Serialize() ([]byte, error) {
-	switch l.Length {
+	// Calculate the correct length based on metric value per RFC 7752 section 3.3.2.4
+	// This ensures we serialize with the correct length even if Length field was set incorrectly
+	var length uint16
+	if l.Metric < 64 {
+		length = 1
+	} else if l.Metric < 65536 {
+		length = 2
+	} else {
+		length = 3
+	}
+
+	// Update the Length field to match what we're about to serialize
+	l.Length = length
+
+	switch length {
 	case 1:
 		return l.LsTLV.Serialize([]byte{uint8(l.Metric) & 0x3F})
 
