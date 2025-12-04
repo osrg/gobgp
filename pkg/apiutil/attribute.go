@@ -884,9 +884,17 @@ func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor,
 }
 
 func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor, error) {
-	desc := &bgp.LsLinkDescriptor{
-		LinkLocalID:  &ld.LinkLocalId,
-		LinkRemoteID: &ld.LinkRemoteId,
+	desc := &bgp.LsLinkDescriptor{}
+
+	// Only set LinkLocalID and LinkRemoteID if they are non-zero
+	// This ensures that NewLsLinkTLVs only creates a Link ID TLV when both values are meaningful
+	if ld.LinkLocalId != 0 {
+		linkLocalId := ld.LinkLocalId
+		desc.LinkLocalID = &linkLocalId
+	}
+	if ld.LinkRemoteId != 0 {
+		linkRemoteId := ld.LinkRemoteId
+		desc.LinkRemoteID = &linkRemoteId
 	}
 
 	if ld.GetInterfaceAddrIpv4() != "" {
@@ -1048,50 +1056,50 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 					Begin: r.Begin,
 					End:   r.End,
 				})
+			}
+			lsSrLocalBlock = &bgp.LsSrLocalBlock{
+				Ranges: srLocalBlockRanges,
+			}
 		}
-		lsSrLocalBlock = &bgp.LsSrLocalBlock{
-			Ranges: srLocalBlockRanges,
+		var flags *bgp.LsNodeFlags
+		if a.Node.Flags != nil {
+			flags = &bgp.LsNodeFlags{
+				Overload: a.Node.Flags.Overload,
+				Attached: a.Node.Flags.Attached,
+				External: a.Node.Flags.External,
+				ABR:      a.Node.Flags.Abr,
+				Router:   a.Node.Flags.Router,
+				V6:       a.Node.Flags.V6,
+			}
 		}
-	}
-	var flags *bgp.LsNodeFlags
-	if a.Node.Flags != nil {
-		flags = &bgp.LsNodeFlags{
-			Overload: a.Node.Flags.Overload,
-			Attached: a.Node.Flags.Attached,
-			External: a.Node.Flags.External,
-			ABR:      a.Node.Flags.Abr,
-			Router:   a.Node.Flags.Router,
-			V6:       a.Node.Flags.V6,
+		var nodeOpaque *[]byte
+		if len(a.Node.Opaque) > 0 {
+			nodeOpaque = &a.Node.Opaque
 		}
-	}
-	var nodeOpaque *[]byte
-	if len(a.Node.Opaque) > 0 {
-		nodeOpaque = &a.Node.Opaque
-	}
-	var nodeName *string
-	if a.Node.Name != "" {
-		nodeName = &a.Node.Name
-	}
-	var nodeIsisArea *[]byte
-	if len(a.Node.IsisArea) > 0 {
-		nodeIsisArea = &a.Node.IsisArea
-	}
-	var nodeSrAlgorithms *[]byte
-	if len(a.Node.SrAlgorithms) > 0 {
-		nodeSrAlgorithms = &a.Node.SrAlgorithms
-	}
+		var nodeName *string
+		if a.Node.Name != "" {
+			nodeName = &a.Node.Name
+		}
+		var nodeIsisArea *[]byte
+		if len(a.Node.IsisArea) > 0 {
+			nodeIsisArea = &a.Node.IsisArea
+		}
+		var nodeSrAlgorithms *[]byte
+		if len(a.Node.SrAlgorithms) > 0 {
+			nodeSrAlgorithms = &a.Node.SrAlgorithms
+		}
 
-	lsAttr.Node = bgp.LsAttributeNode{
-		Flags:           flags,
-		Opaque:          nodeOpaque,
-		Name:            nodeName,
-		IsisArea:        nodeIsisArea,
-		LocalRouterID:   nodeLocalRouterID,
-		LocalRouterIDv6: nodeLocalRouterIDv6,
-		SrCapabilties:   srCapabilities,
-		SrAlgorithms:    nodeSrAlgorithms,
-		SrLocalBlock:    lsSrLocalBlock,
-	}
+		lsAttr.Node = bgp.LsAttributeNode{
+			Flags:           flags,
+			Opaque:          nodeOpaque,
+			Name:            nodeName,
+			IsisArea:        nodeIsisArea,
+			LocalRouterID:   nodeLocalRouterID,
+			LocalRouterIDv6: nodeLocalRouterIDv6,
+			SrCapabilties:   srCapabilities,
+			SrAlgorithms:    nodeSrAlgorithms,
+			SrLocalBlock:    lsSrLocalBlock,
+		}
 	}
 
 	// For AttributeLink

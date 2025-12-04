@@ -5115,17 +5115,18 @@ func (l *LsLinkNLRI) String() string {
 
 func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 	if err := l.LsNLRI.DecodeFromBytes(data); err != nil {
-		return nil
+		return fmt.Errorf("failed to decode LsNLRI header (protocol=%d, identifier=%d, length=%d): %w", l.ProtocolID, l.Identifier, l.Length, err)
 	}
 
 	tlv := data[lsNLRIHdrLen:]
 	m := make(map[LsTLVType]bool)
+	linkDescCount := 0
 
 	for len(tlv) >= tlvHdrLen {
 		sub := &LsTLV{}
 		_, err := sub.DecodeFromBytes(tlv)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode TLV header at offset %d (remaining=%d bytes): %w", len(data)-len(tlv), len(tlv), err)
 		}
 		m[sub.Type] = true
 
@@ -5151,7 +5152,7 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 		}
 
 		if err := subTLV.DecodeFromBytes(tlv); err != nil {
-			return err
+			return fmt.Errorf("failed to decode TLV type=%d (length=%d) at offset %d: %w", sub.Type, sub.Length, len(data)-len(tlv), err)
 		}
 		tlv = tlv[subTLV.Len():]
 
@@ -5162,14 +5163,20 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 			l.RemoteNodeDesc = subTLV
 		default:
 			l.LinkDesc = append(l.LinkDesc, subTLV)
+			linkDescCount++
 		}
 	}
 
 	required := []LsTLVType{LS_TLV_LOCAL_NODE_DESC, LS_TLV_REMOTE_NODE_DESC}
 	for _, tlv := range required {
 		if _, ok := m[tlv]; !ok {
-			return malformedAttrListErr("Required TLV missing")
+			return malformedAttrListErr(fmt.Sprintf("Required TLV missing: type=%d (have: %v, linkDescCount=%d)", tlv, m, linkDescCount))
 		}
+	}
+
+	// Check if link descriptor is empty (no TLVs)
+	if linkDescCount == 0 {
+		return malformedAttrListErr("Link descriptor is empty - at least one link descriptor TLV is required (Link ID, Interface Address, or Neighbor Address)")
 	}
 
 	return nil
@@ -5183,25 +5190,50 @@ func (l *LsLinkNLRI) Serialize() ([]byte, error) {
 	buf := make([]byte, 0)
 	s, err := l.LocalNodeDesc.Serialize()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize local node descriptor: %w", err)
 	}
 	buf = append(buf, s...)
 
 	s, err = l.RemoteNodeDesc.Serialize()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize remote node descriptor: %w", err)
 	}
 	buf = append(buf, s...)
 
-	for _, tlv := range l.LinkDesc {
+	if len(l.LinkDesc) == 0 {
+		return nil, fmt.Errorf("link descriptor is empty - at least one link descriptor TLV is required (Link ID, Interface Address, or Neighbor Address)")
+	}
+
+	for i, tlv := range l.LinkDesc {
 		s, err := tlv.Serialize()
 		if err != nil {
-			return nil, err
+			// Get TLV type for debugging - all LsTLV* types embed LsTLV with Type field
+			tlvTypeStr := "unknown"
+			// Try to access Type field via reflection or type switch
+			switch v := tlv.(type) {
+			case *LsTLVLinkID:
+				tlvTypeStr = fmt.Sprintf("%d", v.Type)
+			case *LsTLVIPv4InterfaceAddr:
+				tlvTypeStr = fmt.Sprintf("%d", v.Type)
+			case *LsTLVIPv4NeighborAddr:
+				tlvTypeStr = fmt.Sprintf("%d", v.Type)
+			case *LsTLVIPv6InterfaceAddr:
+				tlvTypeStr = fmt.Sprintf("%d", v.Type)
+			case *LsTLVIPv6NeighborAddr:
+				tlvTypeStr = fmt.Sprintf("%d", v.Type)
+			default:
+				tlvTypeStr = fmt.Sprintf("type_%T", tlv)
+			}
+			return nil, fmt.Errorf("failed to serialize link descriptor TLV[%d] (type=%s): %w", i, tlvTypeStr, err)
 		}
 		buf = append(buf, s...)
 	}
 
-	return l.LsNLRI.Serialize(buf)
+	serialized, err := l.LsNLRI.Serialize(buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize LsNLRI header (protocol=%d, identifier=%d, length=%d): %w", l.ProtocolID, l.Identifier, l.Length, err)
+	}
+	return serialized, nil
 }
 
 func (l *LsLinkNLRI) MarshalJSON() ([]byte, error) {
@@ -5400,9 +5432,9 @@ func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 				PrefixLength: uint8(prefixSize),
 				Prefix:       []byte(ip)[:lenIpPrefix],
 			}
+		}
+		lsTLVs = append(lsTLVs, tlv)
 	}
-	lsTLVs = append(lsTLVs, tlv)
-}
 
 	lsTLVs = append(lsTLVs,
 		&LsTLVOspfRouteType{
@@ -9908,11 +9940,15 @@ func (l *LsAddrPrefix) Len(...*MarshallingOption) int {
 
 func (l *LsAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if len(data) < 4 {
-		return malformedAttrListErr("Malformed BGP-LS Address Prefix")
+		return malformedAttrListErr(fmt.Sprintf("Malformed BGP-LS Address Prefix: data too short (len=%d, need>=4)", len(data)))
 	}
 
 	l.Type = LsNLRIType(binary.BigEndian.Uint16(data[:2]))
 	l.Length = binary.BigEndian.Uint16(data[2:4])
+
+	if len(data) < 4+int(l.Length) {
+		return malformedAttrListErr(fmt.Sprintf("BGP-LS Address Prefix length mismatch: declared=%d, available=%d (type=%d)", l.Length, len(data)-4, l.Type))
+	}
 
 	switch l.Type {
 	case LS_NLRI_TYPE_NODE:
@@ -9948,11 +9984,13 @@ func (l *LsAddrPrefix) decodeFromBytes(data []byte, options ...*MarshallingOptio
 		l.NLRI = srv6sid
 
 	default:
-		return malformedAttrListErr("Unsupported BGP-LS NLRI")
+		return malformedAttrListErr(fmt.Sprintf("Unsupported BGP-LS NLRI type: %d", l.Type))
 	}
 
 	if l.NLRI != nil {
-		return l.NLRI.DecodeFromBytes(data[4:])
+		if err := l.NLRI.DecodeFromBytes(data[4:]); err != nil {
+			return fmt.Errorf("failed to decode BGP-LS NLRI (type=%d, length=%d): %w", l.Type, l.Length, err)
+		}
 	}
 
 	return nil
@@ -11967,7 +12005,25 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 		}
 		prefix, err := NLRIFromSlice(family, value, options...)
 		if err != nil {
-			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
+			// Enhanced error logging for BGP-LS debugging
+			errorMsg := fmt.Sprintf("failed to decode NLRI from MpReachNLRI (AFI=%d, SAFI=%d, remaining_bytes=%d, addpathLen=%d): %v",
+				family.Afi(), family.Safi(), len(value), addpathLen, err)
+			// Check if this is BGP-LS (AFI=16388, SAFI=71)
+			if family.Afi() == 16388 && family.Safi() == 71 {
+				// For BGP-LS, try to decode the first few bytes to see what we have
+				if len(value) >= 4 {
+					nlriType := binary.BigEndian.Uint16(value[:2])
+					nlriLength := binary.BigEndian.Uint16(value[2:4])
+					errorMsg += fmt.Sprintf(" - BGP-LS NLRI type=%d, declared_length=%d, available_bytes=%d",
+						nlriType, nlriLength, len(value))
+					// If we have more bytes, show protocol ID
+					if len(value) >= 13 {
+						protocolID := value[4]
+						errorMsg += fmt.Sprintf(", protocol_id=%d", protocolID)
+					}
+				}
+			}
+			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, errorMsg)
 		}
 		if len(value) < prefix.Len(options...) {
 			return NewMessageError(eCode, eSubCode, value, "prefix length is incorrect")
@@ -15408,7 +15464,23 @@ func (p *PathNLRI) toSlice(isAddPath bool) ([]byte, error) {
 	}
 	nbuf, err := p.NLRI.Serialize()
 	if err != nil {
-		return nil, err
+		// Add detailed error context for debugging
+		nlriType := "unknown"
+		if lsAddrPrefix, ok := p.NLRI.(*LsAddrPrefix); ok {
+			// LsAddrPrefix has Type field and NLRI field
+			var protocolID uint8
+			var linkDescCount int
+			var hasLocal, hasRemote bool
+			if linkNLRI, ok := lsAddrPrefix.NLRI.(*LsLinkNLRI); ok {
+				protocolID = uint8(linkNLRI.ProtocolID)
+				linkDescCount = len(linkNLRI.LinkDesc)
+				hasLocal = linkNLRI.LocalNodeDesc != nil
+				hasRemote = linkNLRI.RemoteNodeDesc != nil
+			}
+			nlriType = fmt.Sprintf("LsAddrPrefix(type=%d, protocol=%d) - LinkNLRI(local=%v, remote=%v, linkDescCount=%d)",
+				lsAddrPrefix.Type, protocolID, hasLocal, hasRemote, linkDescCount)
+		}
+		return nil, fmt.Errorf("failed to serialize NLRI (type=%T, string=%s): %w", p.NLRI, nlriType, err)
 	}
 	buf = append(buf, nbuf...)
 
@@ -15596,10 +15668,10 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	binary.BigEndian.PutUint16(pbuf, msg.TotalPathAttributeLen)
 
 	buf := append(wbuf, pbuf...)
-	for _, n := range msg.NLRI {
+	for i, n := range msg.NLRI {
 		nbuf, err := n.toSlice(v4AddPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to serialize NLRI[%d] in UPDATE message: %w", i, err)
 		}
 		buf = append(buf, nbuf...)
 	}

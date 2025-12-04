@@ -1615,9 +1615,39 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 
 		b, err := m.Serialize(&bgp.MarshallingOption{AddPath: fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)})
 		if err != nil {
-			fsm.logger.Warn("failed to serialize",
+			// Enhanced error logging for debugging BGP session issues
+			errorDetails := map[string]interface{}{
+				"error": err.Error(),
+			}
+			if m.Header.Type == bgp.BGP_MSG_UPDATE {
+				update := m.Body.(*bgp.BGPUpdate)
+				errorDetails["nlri_count"] = len(update.NLRI)
+				errorDetails["withdrawn_count"] = len(update.WithdrawnRoutes)
+				errorDetails["path_attrs_count"] = len(update.PathAttributes)
+				// Log NLRI details for debugging
+				for i, n := range update.NLRI {
+					errorDetails[fmt.Sprintf("nlri[%d]", i)] = n.NLRI.String()
+				}
+			}
+			msgTypeStr := "UNKNOWN"
+			switch m.Header.Type {
+			case bgp.BGP_MSG_OPEN:
+				msgTypeStr = "OPEN"
+			case bgp.BGP_MSG_UPDATE:
+				msgTypeStr = "UPDATE"
+			case bgp.BGP_MSG_NOTIFICATION:
+				msgTypeStr = "NOTIFICATION"
+			case bgp.BGP_MSG_KEEPALIVE:
+				msgTypeStr = "KEEPALIVE"
+			case bgp.BGP_MSG_ROUTE_REFRESH:
+				msgTypeStr = "ROUTE_REFRESH"
+			}
+			fsm.logger.Error("failed to serialize BGP message - this may cause BGP session to go down",
 				slog.String("State", fsm.state.String()),
-				slog.String("Error", err.Error()))
+				slog.String("MessageType", msgTypeStr),
+				slog.Int("MessageTypeCode", int(m.Header.Type)),
+				slog.Any("ErrorDetails", errorDetails),
+				slog.String("FullError", err.Error()))
 			fsm.bgpMessageStateUpdate(0, false)
 			return nil
 		}
