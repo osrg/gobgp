@@ -354,7 +354,7 @@ func newPackerMP(f bgp.Family) *packerMP {
 
 type packerV4 struct {
 	packer
-	hashmap     map[uint64][]*cage
+	hashmap     map[uint32][]*cage
 	mpPaths     []*Path
 	withdrawals []*Path
 }
@@ -491,7 +491,7 @@ func newPackerV4(f bgp.Family) *packerV4 {
 		packer: packer{
 			family: f,
 		},
-		hashmap:     make(map[uint64][]*cage),
+		hashmap:     make(map[uint32][]*cage),
 		withdrawals: make([]*Path, 0),
 		mpPaths:     make([]*Path, 0),
 	}

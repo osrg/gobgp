@@ -59,14 +59,14 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 		attrs = []bgp.PathAttributeInterface{}
 	}
 
-	var hash uint64
+	var hash uint32
 	if len(attrs) != 0 {
 		total := bytes.NewBuffer(make([]byte, 0))
 		for _, a := range attrs {
 			b, _ := a.Serialize()
 			total.Write(b)
 		}
-		hash = farm.Hash64(total.Bytes())
+		hash = farm.Hash32(total.Bytes())
 	}
 
 	listLen := len(update.NLRI) + len(update.WithdrawnRoutes)
@@ -137,6 +137,7 @@ func makeAttributeList(
 	copy(reachAttrs, attrs)
 	// we sort attributes when creating a bgp message from paths
 	reachAttrs[len(reachAttrs)-1] = reach
+
 	return reachAttrs
 }
 

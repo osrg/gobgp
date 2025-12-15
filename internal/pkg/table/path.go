@@ -30,7 +30,6 @@ import (
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
-	"github.com/segmentio/fasthash/fnv1a"
 )
 
 const (
@@ -74,7 +73,10 @@ func (b *Bitmap) FindandSetZeroBit() (uint, error) {
 }
 
 func (b *Bitmap) Expand() {
-	b.bitmap = append(b.bitmap, uint64(0))
+	old := b.bitmap
+	new := make([]uint64, len(old)+1)
+	copy(new, old)
+	b.bitmap = new
 }
 
 func NewBitmap(size int) *Bitmap {
@@ -136,7 +138,7 @@ type Path struct {
 	parent    *Path
 	pathAttrs []bgp.PathAttributeInterface
 	dels      []bgp.BGPAttrType
-	attrsHash uint64
+	attrsHash uint32
 	localID   uint32
 	remoteID  uint32
 	family    bgp.Family
@@ -182,6 +184,7 @@ func NewPath(family bgp.Family, source *PeerInfo, pathnlri bgp.PathNLRI, isWithd
 	if !isWithdraw && pattrs == nil {
 		return nil
 	}
+
 	return &Path{
 		info: &originInfo{
 			nlri:               pathnlri.NLRI,
@@ -560,7 +563,6 @@ func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 }
 
 func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
-	path.attrsHash = 0
 	if len(path.pathAttrs) == 0 {
 		path.pathAttrs = []bgp.PathAttributeInterface{a}
 	} else {
@@ -575,7 +577,6 @@ func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
 }
 
 func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
-	path.attrsHash = 0
 	if len(path.dels) == 0 {
 		path.dels = []bgp.BGPAttrType{typ}
 	} else {
@@ -1043,44 +1044,19 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return false
 	}
 
-	lhsPathAttrs := lhs.GetPathAttrs()
-	rhsPathAttrs := rhs.GetPathAttrs()
-	// comparing by length first as it's quite fast (with golang slice)
-	// and easy to know if paths are different
-	if len(lhsPathAttrs) == 0 && len(rhsPathAttrs) == 0 {
-		return lhs.EqualBySourceAndPathID(rhs)
-	}
-
-	if len(lhsPathAttrs) != len(rhsPathAttrs) {
-		return false
-	}
-
 	if !lhs.GetSource().Equal(rhs.GetSource()) {
 		return false
 	}
-	// The idea here is to calculate the hash of the attributes on demand
-	if lhs.attrsHash > 0 && rhs.attrsHash > 0 { // direct access to the hash to avoid unnecessary hash calculation
-		return lhs.attrsHash == rhs.attrsHash
-	}
-	// slow path comparison, could happen as attributes flags is not part of the hash
-	for t, a := range lhsPathAttrs {
-		b := rhsPathAttrs[t]
-		if a.GetType() != b.GetType() {
-			return false
-		}
-		if a.Len() != b.Len() {
-			return false
-		}
-		if a.GetFlags() != b.GetFlags() {
-			return false
-		}
-	}
-	// really slow path comparison, if hash not been calculated yet
-	if lhs.GetHash() != rhs.GetHash() {
-		return false
-	}
 
-	return true
+	pattrs := func(arg []bgp.PathAttributeInterface) []byte {
+		ret := make([]byte, 0)
+		for _, a := range arg {
+			aa, _ := a.Serialize()
+			ret = append(ret, aa...)
+		}
+		return ret
+	}
+	return bytes.Equal(pattrs(lhs.GetPathAttrs()), pattrs(rhs.GetPathAttrs()))
 }
 
 func (path *Path) MarshalJSON() ([]byte, error) {
@@ -1320,23 +1296,11 @@ func (p *Path) ToLocal() *Path {
 	return path
 }
 
-func (p *Path) updateHash() {
-	p.attrsHash = fnv1a.Init64
-	for _, a := range p.GetPathAttrs() {
-		d, _ := a.Serialize()
-		p.attrsHash = fnv1a.AddBytes64(p.attrsHash, d)
-	}
-}
-
-func (p *Path) SetHash(v uint64) {
+func (p *Path) SetHash(v uint32) {
 	p.attrsHash = v
 }
 
-// GetHash returns the hash value of the path attributes.
-func (p *Path) GetHash() uint64 {
-	if p.attrsHash == 0 {
-		p.updateHash()
-	}
+func (p *Path) GetHash() uint32 {
 	return p.attrsHash
 }
 
