@@ -180,6 +180,15 @@ func (peer *peer) isRouteServerClient() bool {
 	return peer.fsm.pConf.RouteServer.Config.RouteServerClient
 }
 
+// copyAfiSafis returns a deep copy of the peer's AfiSafis configuration.
+//
+// Caller must hold peer.fsm.lock.RLock().
+func (peer *peer) copyAfiSafis() []oc.AfiSafi {
+	afiSafis := make([]oc.AfiSafi, len(peer.fsm.pConf.AfiSafis))
+	copy(afiSafis, peer.fsm.pConf.AfiSafis)
+	return afiSafis
+}
+
 func (peer *peer) isSecondaryRouteEnabled() bool {
 	peer.fsm.lock.Lock()
 	defer peer.fsm.lock.Unlock()
@@ -565,8 +574,11 @@ func (peer *peer) isPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) bool {
 }
 
 func (peer *peer) updatePrefixLimitConfig(c []oc.AfiSafi) (bool, error) {
+	// Deep copy required: race detector detects races at struct element level,
+	// not field level. capabilitiesFromConfig writes to AfiSafis[i].MpGracefulRestart.State.Advertised
+	// and any concurrent read of the same struct element is a race.
 	peer.fsm.lock.Lock()
-	x := peer.fsm.pConf.AfiSafis
+	x := peer.copyAfiSafis()
 	peer.fsm.lock.Unlock()
 	y := c
 	if len(x) != len(y) {
@@ -660,10 +672,12 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 			paths = append(paths, path)
 		}
 		peer.adjRibIn.Update(pathList)
+
+		// Deep copy required: race detector detects races at struct element level
 		peer.fsm.lock.Lock()
-		peerAfiSafis := peer.fsm.pConf.AfiSafis
+		afiSafisCopy := peer.copyAfiSafis()
 		peer.fsm.lock.Unlock()
-		for _, af := range peerAfiSafis {
+		for _, af := range afiSafisCopy {
 			if isLimit := peer.isPrefixLimit(af.State.Family, &af.PrefixLimit.Config); isLimit {
 				return nil, nil, true
 			}
