@@ -283,8 +283,8 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		localAddr := peer.fsm.pConf.Transport.Config.LocalAddress
 		bindInterface := peer.fsm.pConf.Transport.Config.BindInterface
 		peer.fsm.lock.Unlock()
-		localAddrValid := func(laddr string) bool {
-			if laddr == "0.0.0.0" || laddr == "::" {
+		localAddrValid := func(laddr netip.Addr) bool {
+			if !laddr.IsValid() || laddr.IsUnspecified() {
 				return true
 			}
 			l := conn.LocalAddr()
@@ -292,17 +292,18 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 				// already closed
 				return false
 			}
+			a, _ := l.(*net.TCPAddr)
+			connLocalAddr, _ := netip.AddrFromSlice(a.IP)
 
-			host, _, _ := net.SplitHostPort(l.String())
-			if host != laddr && bindInterface == "" {
+			if connLocalAddr.WithZone(a.Zone).Unmap() != laddr.Unmap() && bindInterface == "" {
 				peer.fsm.logger.Info("Mismatched local address",
-					slog.String("Configured addr", laddr),
-					slog.String("Addr", host),
+					slog.String("Configured addr", laddr.String()),
+					slog.String("Addr", connLocalAddr.String()),
 					slog.String("BindInterface", bindInterface))
 				return false
 			}
 			return true
-		}(localAddr.String())
+		}(localAddr)
 
 		if !localAddrValid {
 			conn.Close()
