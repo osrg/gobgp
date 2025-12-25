@@ -2909,10 +2909,19 @@ func (s *Statement) ToConfig() *oc.Statement {
 				case *LargeCommunityCondition:
 					cond.BgpConditions.MatchLargeCommunitySet = oc.MatchLargeCommunitySet{LargeCommunitySet: v.set.Name(), MatchSetOptions: oc.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *NextHopCondition:
-					l := make([]netip.Addr, 0, len(v.set.List()))
-					for _, n := range v.set.List() {
-						ip := netip.MustParseAddr(n)
-						l = append(l, ip)
+					l := make([]netip.Addr, 0, len(v.set.list))
+					for _, n := range v.set.list {
+						if ipv4 := n.IP.To4(); ipv4 != nil {
+							if a, ok := netip.AddrFromSlice(ipv4); ok {
+								l = append(l, a)
+							}
+							continue
+						}
+						if ip16 := n.IP.To16(); ip16 != nil {
+							if a, ok := netip.AddrFromSlice(ip16); ok {
+								l = append(l, a)
+							}
+						}
 					}
 					cond.BgpConditions.NextHopInList = l
 				case *RpkiValidationCondition:
