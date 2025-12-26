@@ -59,6 +59,21 @@ func Test_PeerUpNotification(t *testing.T) {
 	verify(t, NewBMPPeerUpNotification(*p1, netip.MustParseAddr("fe80::6e40:8ff:feab:2c2a"), 10, 100, m, m))
 }
 
+func Test_PeerUpNotificationWithInfoTLVs(t *testing.T) {
+	m := bgp.NewTestBGPOpenMessage()
+	p0 := NewBMPPeerHeader(0, 0, 1000, netip.MustParseAddr("10.0.0.1"), 70000, netip.MustParseAddr("10.0.0.2"), 1)
+	verify(t, NewBMPPeerUpNotification(
+		*p0,
+		netip.MustParseAddr("10.0.0.3"),
+		10,
+		100,
+		m,
+		m,
+		NewBMPInfoTLVString(BMP_INIT_TLV_TYPE_VRF_TABLE_NAME, "global"),
+		NewBMPInfoTLVString(BMP_INIT_TLV_TYPE_VRF_TABLE_NAME, "blue"),
+	))
+}
+
 func Test_PeerDownNotification(t *testing.T) {
 	p0 := NewBMPPeerHeader(0, 0, 1000, netip.MustParseAddr("10.0.0.1"), 70000, netip.MustParseAddr("10.0.0.2"), 1)
 	verify(t, NewBMPPeerDownNotification(*p0, BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION, nil, []byte{0x3, 0xb}))

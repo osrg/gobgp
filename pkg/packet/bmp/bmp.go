@@ -476,15 +476,19 @@ type BMPPeerUpNotification struct {
 	RemotePort      uint16
 	SentOpenMsg     *bgp.BGPMessage
 	ReceivedOpenMsg *bgp.BGPMessage
+	// Info carries RFC7854/RFC9069 Peer Up Information TLVs.
+	// These TLVs, if present, follow the two BGP OPEN messages.
+	Info []BMPInfoTLVInterface
 }
 
-func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr netip.Addr, lPort, rPort uint16, sent, recv *bgp.BGPMessage) *BMPMessage {
+func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr netip.Addr, lPort, rPort uint16, sent, recv *bgp.BGPMessage, info ...BMPInfoTLVInterface) *BMPMessage {
 	b := &BMPPeerUpNotification{
 		LocalAddress:    lAddr,
 		LocalPort:       lPort,
 		RemotePort:      rPort,
 		SentOpenMsg:     sent,
 		ReceivedOpenMsg: recv,
+		Info:            append([]BMPInfoTLVInterface(nil), info...),
 	}
 	return &BMPMessage{
 		Header: BMPHeader{
@@ -517,6 +521,14 @@ func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte, optio
 	if err != nil {
 		return err
 	}
+	data = data[body.ReceivedOpenMsg.Header.Len:]
+	if len(data) > 0 {
+		info, err := parseBMPInfoTLVs(data)
+		if err != nil {
+			return err
+		}
+		body.Info = info
+	}
 	return nil
 }
 
@@ -535,13 +547,22 @@ func (body *BMPPeerUpNotification) Serialize(options ...*bgp.MarshallingOption) 
 	buf = append(buf, m...)
 	m, _ = body.ReceivedOpenMsg.Serialize(options...)
 	buf = append(buf, m...)
+	if len(body.Info) > 0 {
+		tlvBuf, err := serializeBMPInfoTLVs(body.Info)
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, tlvBuf...)
+	}
 	return buf, nil
 }
 
 const (
-	BMP_INIT_TLV_TYPE_STRING = iota
+	BMP_INIT_TLV_TYPE_STRING uint16 = iota
 	BMP_INIT_TLV_TYPE_SYS_DESCR
 	BMP_INIT_TLV_TYPE_SYS_NAME
+	// RFC9069: Peer Up Information TLV for Loc-RIB monitoring.
+	BMP_INIT_TLV_TYPE_VRF_TABLE_NAME
 )
 
 type BMPInfoTLVInterface interface {
@@ -623,6 +644,20 @@ func NewBMPInitiation(info []BMPInfoTLVInterface) *BMPMessage {
 }
 
 func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte, options ...*bgp.MarshallingOption) error {
+	info, err := parseBMPInfoTLVs(data)
+	if err != nil {
+		return err
+	}
+	body.Info = info
+	return nil
+}
+
+func (body *BMPInitiation) Serialize(options ...*bgp.MarshallingOption) ([]byte, error) {
+	return serializeBMPInfoTLVs(body.Info)
+}
+
+func parseBMPInfoTLVs(data []byte) ([]BMPInfoTLVInterface, error) {
+	var info []BMPInfoTLVInterface
 	for len(data) >= 4 {
 		tl := BMPInfoTLV{
 			Type:   binary.BigEndian.Uint16(data[:2]),
@@ -630,30 +665,30 @@ func (body *BMPInitiation) ParseBody(msg *BMPMessage, data []byte, options ...*b
 		}
 		data = data[4:]
 		if len(data) < int(tl.Length) {
-			return fmt.Errorf("value length is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
+			return nil, fmt.Errorf("value length is not enough: %d bytes (%d bytes expected)", len(data), tl.Length)
 		}
 		var tlv BMPInfoTLVInterface
 		switch tl.Type {
-		case BMP_INIT_TLV_TYPE_STRING, BMP_INIT_TLV_TYPE_SYS_DESCR, BMP_INIT_TLV_TYPE_SYS_NAME:
+		case BMP_INIT_TLV_TYPE_STRING, BMP_INIT_TLV_TYPE_SYS_DESCR, BMP_INIT_TLV_TYPE_SYS_NAME, BMP_INIT_TLV_TYPE_VRF_TABLE_NAME:
 			tlv = &BMPInfoTLVString{BMPInfoTLV: tl}
 		default:
 			tlv = &BMPInfoTLVUnknown{BMPInfoTLV: tl}
 		}
 		if err := tlv.ParseValue(data); err != nil {
-			return err
+			return nil, err
 		}
-		body.Info = append(body.Info, tlv)
+		info = append(info, tlv)
 		data = data[tl.Length:]
 	}
-	return nil
+	return info, nil
 }
 
-func (body *BMPInitiation) Serialize(options ...*bgp.MarshallingOption) ([]byte, error) {
+func serializeBMPInfoTLVs(info []BMPInfoTLVInterface) ([]byte, error) {
 	buf := make([]byte, 0)
-	for _, tlv := range body.Info {
+	for _, tlv := range info {
 		b, err := tlv.Serialize()
 		if err != nil {
-			return buf, err
+			return nil, err
 		}
 		buf = append(buf, b...)
 	}
