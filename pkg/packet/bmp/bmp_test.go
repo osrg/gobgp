@@ -74,6 +74,36 @@ func Test_PeerUpNotificationWithInfoTLVs(t *testing.T) {
 	))
 }
 
+func Test_NewBMPPeerHeader_LocalRIBDoesNotAutoSetVFlag(t *testing.T) {
+	p := NewBMPPeerHeader(
+		BMP_PEER_TYPE_LOCAL_RIB,
+		0,
+		1000,
+		netip.MustParseAddr("2001:db8::1"),
+		65000,
+		netip.MustParseAddr("10.0.0.2"),
+		1,
+	)
+	assert.Equal(t, BMP_PEER_TYPE_LOCAL_RIB, p.PeerType)
+	assert.Equal(t, uint8(0), p.Flags)
+}
+
+func Test_LocalRIBPeerHeader_FilteredFlagRoundTrip(t *testing.T) {
+	m := bgp.NewTestBGPUpdateMessage()
+	p := NewBMPPeerHeader(
+		BMP_PEER_TYPE_LOCAL_RIB,
+		BMP_PEER_FLAG_IPV6, // RFC9069: F flag (Filtered) for peer type 3
+		1000,
+		netip.Addr{},
+		0,
+		netip.MustParseAddr("10.0.0.2"),
+		1,
+	)
+	assert.True(t, p.isLocRIBInstancePeer())
+	assert.True(t, p.isFilteredLocRIB())
+	verify(t, NewBMPRouteMonitoring(*p, m))
+}
+
 func Test_PeerDownNotification(t *testing.T) {
 	p0 := NewBMPPeerHeader(0, 0, 1000, netip.MustParseAddr("10.0.0.1"), 70000, netip.MustParseAddr("10.0.0.2"), 1)
 	verify(t, NewBMPPeerDownNotification(*p0, BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION, nil, []byte{0x3, 0xb}))

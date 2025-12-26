@@ -88,7 +88,9 @@ type BMPPeerHeader struct {
 
 func NewBMPPeerHeader(t uint8, flags uint8, dist uint64, address netip.Addr, as uint32, id netip.Addr, stamp float64) *BMPPeerHeader {
 	// TODO: check id is v4
-	if address.Is6() {
+	// RFC9069: For Peer Type = 3 (Loc-RIB Instance Peer), bit 0 (0x80)
+	// is redefined as the F (Filtered) flag, and the V (IPv6) flag is not applicable.
+	if t != BMP_PEER_TYPE_LOCAL_RIB && address.Is6() {
 		flags |= BMP_PEER_FLAG_IPV6
 	}
 	h := &BMPPeerHeader{
@@ -101,6 +103,18 @@ func NewBMPPeerHeader(t uint8, flags uint8, dist uint64, address netip.Addr, as 
 		Timestamp:         stamp,
 	}
 	return h
+}
+
+func (h *BMPPeerHeader) hasVFlag() bool {
+	return h.PeerType != BMP_PEER_TYPE_LOCAL_RIB && h.Flags&BMP_PEER_FLAG_IPV6 != 0
+}
+
+func (h *BMPPeerHeader) isLocRIBInstancePeer() bool {
+	return h.PeerType == BMP_PEER_TYPE_LOCAL_RIB
+}
+
+func (h *BMPPeerHeader) isFilteredLocRIB() bool {
+	return h.PeerType == BMP_PEER_TYPE_LOCAL_RIB && h.Flags&BMP_PEER_FLAG_IPV6 != 0
 }
 
 func (h *BMPPeerHeader) IsPostPolicy() bool {
@@ -122,7 +136,10 @@ func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
 	h.PeerType = data[0]
 	h.Flags = data[1]
 	h.PeerDistinguisher = binary.BigEndian.Uint64(data[2:10])
-	if h.Flags&BMP_PEER_FLAG_IPV6 != 0 {
+	if h.PeerType == BMP_PEER_TYPE_LOCAL_RIB {
+		// RFC9069: Peer Address is set to 0 and has no meaning for Peer Type = 3.
+		h.PeerAddress = netip.Addr{}
+	} else if h.hasVFlag() {
 		h.PeerAddress, _ = netip.AddrFromSlice(data[10:26])
 	} else {
 		h.PeerAddress, _ = netip.AddrFromSlice(data[22:26])
@@ -141,7 +158,10 @@ func (h *BMPPeerHeader) Serialize() ([]byte, error) {
 	buf[0] = h.PeerType
 	buf[1] = h.Flags
 	binary.BigEndian.PutUint64(buf[2:10], h.PeerDistinguisher)
-	if h.Flags&BMP_PEER_FLAG_IPV6 != 0 {
+	if h.PeerType == BMP_PEER_TYPE_LOCAL_RIB {
+		// RFC9069: Peer Address MUST be set to 0 for Peer Type = 3.
+		// Leave the field as zeros.
+	} else if h.hasVFlag() {
 		copy(buf[10:26], h.PeerAddress.AsSlice())
 	} else {
 		copy(buf[22:26], h.PeerAddress.AsSlice())
@@ -501,7 +521,7 @@ func NewBMPPeerUpNotification(p BMPPeerHeader, lAddr netip.Addr, lPort, rPort ui
 }
 
 func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte, options ...*bgp.MarshallingOption) error {
-	if msg.PeerHeader.Flags&BMP_PEER_FLAG_IPV6 != 0 {
+	if msg.PeerHeader.PeerType != BMP_PEER_TYPE_LOCAL_RIB && msg.PeerHeader.Flags&BMP_PEER_FLAG_IPV6 != 0 {
 		body.LocalAddress, _ = netip.AddrFromSlice(data[:16])
 	} else {
 		body.LocalAddress, _ = netip.AddrFromSlice(data[12:16])
