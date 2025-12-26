@@ -175,6 +175,17 @@ func (b *bmpClient) loop() {
 				return false
 			}
 
+			// RFC9069 (minimal): announce a single Loc-RIB instance only when
+			// route-monitoring-policy includes local-rib.
+			sentLocRIBPeerUp := false
+			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
+				// For now, use PD=0 and VRF/Table Name="global".
+				if err := write(bmpLocRIBPeerUp(b.s.bgpConfig.Global.Config.As, b.s.bgpConfig.Global.Config.RouterId, "global", 0, time.Now().Unix())); err != nil {
+					return false
+				}
+				sentLocRIBPeerUp = true
+			}
+
 			for {
 				select {
 				case ev := <-w.Event():
@@ -255,6 +266,10 @@ func (b *bmpClient) loop() {
 						return false
 					}
 				case <-b.dead:
+					// RFC9069 (minimal): close the announced Loc-RIB instance.
+					if sentLocRIBPeerUp {
+						_ = write(bmpLocRIBPeerDown(b.s.bgpConfig.Global.Config.As, b.s.bgpConfig.Global.Config.RouterId, "global", 0, time.Now().Unix()))
+					}
 					term := bmp.NewBMPTermination([]bmp.BMPTermTLVInterface{
 						bmp.NewBMPTermTLV16(bmp.BMP_TERM_TLV_TYPE_REASON, bmp.BMP_TERM_REASON_PERMANENTLY_ADMIN),
 					})
@@ -269,6 +284,60 @@ func (b *bmpClient) loop() {
 			return
 		}
 	}
+}
+
+func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peerDist uint64, timestamp int64) *bmp.BMPMessage {
+	const asTrans uint16 = 23456
+
+	myAS := asTrans
+	opts := []bgp.OptionParameterInterface{}
+	if localAS <= 0xffff {
+		myAS = uint16(localAS)
+	} else {
+		opts = append(opts, bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
+			bgp.NewCapFourOctetASNumber(localAS),
+		}))
+	}
+
+	open, _ := bgp.NewBGPOpenMessage(myAS, 90, routerID, opts)
+
+	ph := bmp.NewBMPPeerHeader(
+		bmp.BMP_PEER_TYPE_LOCAL_RIB,
+		0,
+		peerDist,
+		netip.Addr{},
+		0,
+		netip.MustParseAddr("0.0.0.0"),
+		float64(timestamp),
+	)
+	return bmp.NewBMPPeerUpNotification(
+		*ph,
+		netip.Addr{},
+		0,
+		0,
+		open,
+		open,
+		bmp.NewBMPInfoTLVString(bmp.BMP_INIT_TLV_TYPE_VRF_TABLE_NAME, tableName),
+	)
+}
+
+func bmpLocRIBPeerDown(localAS uint32, routerID netip.Addr, tableName string, peerDist uint64, timestamp int64) *bmp.BMPMessage {
+	ph := bmp.NewBMPPeerHeader(
+		bmp.BMP_PEER_TYPE_LOCAL_RIB,
+		0,
+		peerDist,
+		netip.Addr{},
+		0,
+		netip.MustParseAddr("0.0.0.0"),
+		float64(timestamp),
+	)
+	return bmp.NewBMPPeerDownNotification(
+		*ph,
+		bmp.BMP_PEER_DOWN_REASON_TLV_FOLLOWS,
+		nil,
+		nil,
+		bmp.NewBMPInfoTLVString(bmp.BMP_INIT_TLV_TYPE_VRF_TABLE_NAME, tableName),
+	)
 }
 
 type bmpClient struct {
