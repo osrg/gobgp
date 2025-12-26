@@ -4141,3 +4141,13 @@ func Test_LsTLVSrv6EndpointBehavior(t *testing.T) {
 		}
 	}
 }
+
+func TestParseSubTLVsOverflow(t *testing.T) {
+	l := &LsTLVSrv6EndXSID{}
+
+	// tlvLen = 65532 (0xFFFC) makes (uint16(4) + tlvLen) wrap to 0 in the buggy code.
+	data := []byte{0x00, 0x00, 0xFF, 0xFC}
+	if err := l.parseSubTLVs(data); err == nil {
+		t.Fatal("expected error for truncated Sub-TLV")
+	}
+}

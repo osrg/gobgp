@@ -8435,15 +8435,15 @@ func (l *LsTLVSrv6EndXSID) parseSubTLVs(data []byte) error {
 	for len(data) >= 4 {
 		tlvType := binary.BigEndian.Uint16(data[:2])
 		tlvLen := binary.BigEndian.Uint16(data[2:4])
-
-		if len(data) < int(4+tlvLen) {
-			return nil
+		need := 4 + int(tlvLen)
+		if len(data) < need {
+			return malformedAttrListErr("SRv6 End.X SID Sub-TLV is truncated")
 		}
 
 		switch tlvType {
 		case LS_TLV_SRV6_SID_STRUCTURE:
 			if tlvLen != 4 {
-				data = data[4+tlvLen:]
+				data = data[need:]
 				continue
 			}
 			l.Srv6SIDStructure.LocalBlock = data[4]
@@ -8454,7 +8454,7 @@ func (l *LsTLVSrv6EndXSID) parseSubTLVs(data []byte) error {
 			// TODO: handle unknown Sub-TLVs
 		}
 
-		data = data[4+tlvLen:]
+		data = data[need:]
 	}
 
 	return nil
