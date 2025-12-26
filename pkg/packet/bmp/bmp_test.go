@@ -111,6 +111,26 @@ func Test_PeerDownNotification(t *testing.T) {
 	verify(t, NewBMPPeerDownNotification(*p0, BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION, m, nil))
 }
 
+func Test_PeerDownNotificationWithInfoTLVs(t *testing.T) {
+	p0 := NewBMPPeerHeader(
+		BMP_PEER_TYPE_LOCAL_RIB,
+		BMP_PEER_FLAG_IPV6,
+		1000,
+		netip.Addr{},
+		0,
+		netip.MustParseAddr("10.0.0.2"),
+		1,
+	)
+	verify(t, NewBMPPeerDownNotification(
+		*p0,
+		BMP_PEER_DOWN_REASON_TLV_FOLLOWS,
+		nil,
+		nil,
+		NewBMPInfoTLVString(BMP_INIT_TLV_TYPE_VRF_TABLE_NAME, "blue"),
+		NewBMPInfoTLVString(BMP_INIT_TLV_TYPE_VRF_TABLE_NAME, "global"),
+	))
+}
+
 func Test_RouteMonitoring(t *testing.T) {
 	m := bgp.NewTestBGPUpdateMessage()
 	p0 := NewBMPPeerHeader(0, 0, 1000, netip.MustParseAddr("fe80::6e40:8ff:feab:2c2a"), 70000, netip.MustParseAddr("10.0.0.2"), 1)

@@ -425,15 +425,20 @@ const (
 	BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION
 	BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION
 	BMP_PEER_DOWN_REASON_PEER_DE_CONFIGURED
+	// RFC9069: Peer Down reason code 6 indicates that a sequence of
+	// Information TLVs follows.
+	BMP_PEER_DOWN_REASON_TLV_FOLLOWS
 )
 
 type BMPPeerDownNotification struct {
 	Reason          uint8
 	BGPNotification *bgp.BGPMessage
 	Data            []byte
+	// Info carries RFC9069 Peer Down Information TLVs (reason=6).
+	Info []BMPInfoTLVInterface
 }
 
-func NewBMPPeerDownNotification(p BMPPeerHeader, reason uint8, notification *bgp.BGPMessage, data []byte) *BMPMessage {
+func NewBMPPeerDownNotification(p BMPPeerHeader, reason uint8, notification *bgp.BGPMessage, data []byte, info ...BMPInfoTLVInterface) *BMPMessage {
 	b := &BMPPeerDownNotification{
 		Reason: reason,
 	}
@@ -442,6 +447,8 @@ func NewBMPPeerDownNotification(p BMPPeerHeader, reason uint8, notification *bgp
 		b.BGPNotification = notification
 	case BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION:
 		b.Data = data
+	case BMP_PEER_DOWN_REASON_TLV_FOLLOWS:
+		b.Info = append([]BMPInfoTLVInterface(nil), info...)
 	default:
 	}
 	return &BMPMessage{
@@ -455,15 +462,27 @@ func NewBMPPeerDownNotification(p BMPPeerHeader, reason uint8, notification *bgp
 }
 
 func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte, options ...*bgp.MarshallingOption) error {
+	if len(data) < 1 {
+		return errors.New("invalid BMP Peer Down notification length")
+	}
 	body.Reason = data[0]
 	data = data[1:]
-	if body.Reason == BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION || body.Reason == BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION {
+	switch body.Reason {
+	case BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION, BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION:
 		notification, err := bgp.ParseBGPMessage(data, options...)
 		if err != nil {
 			return err
 		}
 		body.BGPNotification = notification
-	} else {
+	case BMP_PEER_DOWN_REASON_TLV_FOLLOWS:
+		if len(data) > 0 {
+			info, err := parseBMPInfoTLVs(data)
+			if err != nil {
+				return err
+			}
+			body.Info = info
+		}
+	default:
 		body.Data = data
 	}
 	return nil
@@ -481,6 +500,14 @@ func (body *BMPPeerDownNotification) Serialize(options ...*bgp.MarshallingOption
 			} else {
 				buf = append(buf, b...)
 			}
+		}
+	case BMP_PEER_DOWN_REASON_TLV_FOLLOWS:
+		if len(body.Info) > 0 {
+			tlvBuf, err := serializeBMPInfoTLVs(body.Info)
+			if err != nil {
+				return nil, err
+			}
+			buf = append(buf, tlvBuf...)
 		}
 	default:
 		if body.Data != nil {
