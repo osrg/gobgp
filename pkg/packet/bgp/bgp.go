@@ -3466,6 +3466,9 @@ func parseFlowSpecNumericOperator(submatch []string) (operator uint8, err error)
 // e.g.) "&==100", ">=200" or "&<300"
 func parseFlowSpecNumericOpValues(typ BGPFlowSpecType, args []string, validationFunc func(uint64) error) (FlowSpecComponentInterface, error) {
 	argsLen := len(args)
+	if argsLen == 0 {
+		return nil, fmt.Errorf("invalid argument for %s: %q", typ.String(), args)
+	}
 	items := make([]*FlowSpecComponentItem, 0, argsLen)
 	for idx, arg := range args {
 		m := _regexpFlowSpecNumericType.FindStringSubmatch(arg)
@@ -3675,6 +3678,9 @@ func flowSpecTcpFlagParser(_ Family, typ BGPFlowSpecType, args []string) (FlowSp
 	// - Not FIN and not URG
 	//   args := []string{"!=F", "&!=U"}
 	args = normalizeFlowSpecOpValues(args)
+	if len(args) == 0 {
+		return nil, fmt.Errorf("invalid argument for %s: %q", typ.String(), args)
+	}
 
 	argsLen := len(args)
 	items := make([]*FlowSpecComponentItem, 0, argsLen)
@@ -3727,6 +3733,9 @@ func flowSpecFragmentParser(_ Family, typ BGPFlowSpecType, args []string) (FlowS
 	// - is-fragment and last-fragment (exact match)
 	//   args := []string{"==is-fragment+last-fragment"}
 	args = normalizeFlowSpecOpValues(args)
+	if len(args) == 0 {
+		return nil, fmt.Errorf("invalid argument for %s: %q", typ.String(), args)
+	}
 
 	argsLen := len(args)
 	items := make([]*FlowSpecComponentItem, 0, argsLen)

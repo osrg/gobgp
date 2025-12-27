@@ -911,6 +911,31 @@ func Test_CompareFlowSpecNLRI(t *testing.T) {
 	assert.True(r < 0)
 }
 
+func Test_ParseFlowSpecComponents_DoesNotPanicOnInvalidInput(t *testing.T) {
+	// Regression: some inputs pass ParseFlowSpecComponents()'s len(args)>0 check
+	// but are discarded by normalizeFlowSpecOpValues(), leading to argsLen==0 and
+	// a panic when marking the end-of-list bit.
+	cases := []string{
+		"dscp foo",
+		"tcp-flags foo",
+		"fragment foo",
+	}
+
+	for _, c := range cases {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("ParseFlowSpecComponents must not panic for %q: %v", c, r)
+				}
+			}()
+			_, err := ParseFlowSpecComponents(RF_FS_IPv4_UC, c)
+			if err == nil {
+				t.Fatalf("expected error for %q", c)
+			}
+		}()
+	}
+}
+
 func TestMpReachDecodeDoesNotMutateInputWhenDeletingSecondRD(t *testing.T) {
 	// Triggers nexthoplen == 2*RD + (IPv6 global + link-local)
 	// and ensures DecodeFromBytes does not modify the input buffer.
