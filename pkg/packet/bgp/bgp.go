@@ -27,7 +27,6 @@ import (
 	"net/netip"
 	"reflect"
 	"regexp"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -11821,7 +11820,17 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 
 	switch nexthoplen {
 	case 2*BGP_ATTR_NHLEN_VPN_RD + BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL: // 8 bytes RD + 16 bytes IPv6 Global + 8 bytes RD + 16 bytes IPv6 Link Local
-		nexthopbin = slices.Delete(nexthopbin, BGP_ATTR_NHLEN_VPN_RD+BGP_ATTR_NHLEN_IPV6_GLOBAL, 2*BGP_ATTR_NHLEN_VPN_RD+BGP_ATTR_NHLEN_IPV6_GLOBAL) // skip second RD
+		// NOTE: Do not use slices.Delete on nexthopbin here because nexthopbin aliases the input buffer.
+		// slices.Delete shifts elements and clears tail elements in-place, which would mutate the caller's input.
+		// We instead build a new slice without the second RD.
+		{
+			start := BGP_ATTR_NHLEN_VPN_RD + BGP_ATTR_NHLEN_IPV6_GLOBAL
+			end := 2*BGP_ATTR_NHLEN_VPN_RD + BGP_ATTR_NHLEN_IPV6_GLOBAL
+			tmp := make([]byte, 0, len(nexthopbin)-(end-start))
+			tmp = append(tmp, nexthopbin[:start]...)
+			tmp = append(tmp, nexthopbin[end:]...)
+			nexthopbin = tmp
+		}
 		nexthoplen -= BGP_ATTR_NHLEN_VPN_RD
 		fallthrough
 	case BGP_ATTR_NHLEN_VPN_RD + BGP_ATTR_NHLEN_IPV4, // 8 bytes RD + 4 bytes IPv4
