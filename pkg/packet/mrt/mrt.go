@@ -326,13 +326,14 @@ func parsePeerIndexTable(data []byte) (*PeerIndexTable, error) {
 		return nil, errNnotAllPeerIndexBytesAvailable
 	}
 	t.CollectorBgpId, _ = netip.AddrFromSlice(data[:4])
-	viewLen := binary.BigEndian.Uint16(data[4:6])
-	if len(data) < 6+int(viewLen) {
+	viewLen := int(binary.BigEndian.Uint16(data[4:6]))
+	viewEnd := 6 + viewLen
+	if len(data) < viewEnd {
 		return nil, errNnotAllPeerIndexBytesAvailable
 	}
-	t.ViewName = string(data[6 : 6+viewLen])
+	t.ViewName = string(data[6:viewEnd])
 
-	data = data[6+viewLen:]
+	data = data[viewEnd:]
 
 	if len(data) < 2 {
 		return nil, errNnotAllPeerIndexBytesAvailable

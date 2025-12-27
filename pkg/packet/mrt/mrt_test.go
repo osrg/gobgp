@@ -108,6 +108,33 @@ func TestMrtPeerIndexTable(t *testing.T) {
 	assert.Equal(t, reflect.DeepEqual(pt1, pt2), true)
 }
 
+func TestParsePeerIndexTable_LargeViewNameDoesNotPanic(t *testing.T) {
+	// Regression: viewLen is uint16 in the wire format. Using uint16 arithmetic
+	// in slice indices can wrap (e.g., 6+0xffff == 5), causing a panic even when
+	// the buffer is large enough.
+	viewLen := 0xffff
+
+	data := make([]byte, 0, 4+2+viewLen+2)
+	data = append(data, 192, 0, 2, 1) // CollectorBgpId
+	data = append(data, 0xff, 0xff)   // ViewName length
+	data = append(data, bytes.Repeat([]byte{'a'}, viewLen)...)
+	data = append(data, 0x00, 0x00) // PeerNum
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("parsePeerIndexTable must not panic: %v", r)
+		}
+	}()
+
+	tbl, err := parsePeerIndexTable(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(tbl.ViewName) != viewLen {
+		t.Fatalf("unexpected view name length: got %d want %d", len(tbl.ViewName), viewLen)
+	}
+}
+
 func TestMrtRibEntry(t *testing.T) {
 	aspath1 := []bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(2, []uint16{1000}),
