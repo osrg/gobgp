@@ -1126,6 +1126,9 @@ func FuzzZapi(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		for v := MinZapiVer; v <= MaxZapiVer; v++ {
 			ZAPIHeaderSize := int(HeaderSize(v))
+			if len(data) < ZAPIHeaderSize {
+				continue
+			}
 
 			hd := &Header{}
 			err := hd.decodeFromBytes(data[:ZAPIHeaderSize])
