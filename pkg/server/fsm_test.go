@@ -60,19 +60,23 @@ type MockConnection struct {
 	net.Conn
 	remote net.Conn
 
-	lock     sync.Mutex
-	bufReady *NotificationChannel
-	lastBuf  []byte
-	lastErr  error
+	lock        sync.Mutex
+	bufReady    *NotificationChannel
+	lastBuf     []byte
+	lastErr     error
+	allMessages [][]byte
+	remoteAddr  net.Addr
+	localAddr   net.Addr
 }
 
 func NewMockConnection() *MockConnection {
 	l, r := net.Pipe()
 	m := &MockConnection{
-		Conn:     l,
-		remote:   r,
-		bufReady: NewNotificationChannel(),
-		lastBuf:  make([]byte, bgp.BGP_MAX_MESSAGE_LENGTH),
+		Conn:        l,
+		remote:      r,
+		bufReady:    NewNotificationChannel(),
+		lastBuf:     make([]byte, bgp.BGP_MAX_MESSAGE_LENGTH),
+		allMessages: make([][]byte, 0),
 	}
 
 	go func() {
@@ -86,6 +90,9 @@ func NewMockConnection() *MockConnection {
 			copy(m.lastBuf, buf[:n])
 			m.lastBuf = m.lastBuf[:n]
 			m.lastErr = err
+			msg := make([]byte, n)
+			copy(msg, buf[:n])
+			m.allMessages = append(m.allMessages, msg)
 			m.lock.Unlock()
 			m.bufReady.Notify()
 			if err != nil {
@@ -104,6 +111,51 @@ func (m *MockConnection) GetLastestBuf() ([]byte, error) {
 	err := m.lastErr
 	copy(buf, m.lastBuf)
 	return buf, err
+}
+
+// Additional MockConnection helpers used by server_test.go:
+//   - SetRemoteAddr configures deterministic local/remote TCP addresses so tests
+//     can validate BGP server behavior that depends on peer addressing.
+//   - RemoteAddr and LocalAddr honor any test-specified addresses while
+//     falling back to the underlying net.Conn when none are set.
+func (m *MockConnection) SetRemoteAddr(addr string) {
+	ip := netip.MustParseAddr(addr)
+	m.lock.Lock()
+	m.remoteAddr = net.TCPAddrFromAddrPort(netip.AddrPortFrom(ip, 10179))
+	m.localAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.201"), Port: 10179}
+	m.lock.Unlock()
+}
+
+func (m *MockConnection) RemoteAddr() net.Addr {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.remoteAddr != nil {
+		return m.remoteAddr
+	}
+	return m.Conn.RemoteAddr()
+}
+
+func (m *MockConnection) LocalAddr() net.Addr {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.localAddr != nil {
+		return m.localAddr
+	}
+	return m.Conn.LocalAddr()
+}
+
+func (m *MockConnection) PushBgpMessage(msg *bgp.BGPMessage) {
+	buf, _ := msg.Serialize()
+	m.remote.Write(buf)
+}
+
+func (m *MockConnection) GetSentMessages() [][]byte {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	// Return collected messages
+	result := make([][]byte, len(m.allMessages))
+	copy(result, m.allMessages)
+	return result
 }
 
 func TestReadAll(t *testing.T) {
