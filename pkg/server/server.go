@@ -1512,10 +1512,22 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			neighborAddress := peer.fsm.pConf.State.NeighborAddress
 
 			peer.fsm.lock.Unlock()
-			deferralExpiredFunc := func(family bgp.Family) func() {
+			deferralExpiredFunc := func(family bgp.Family, deferralTime time.Duration) func() {
 				//nolint: errcheck // ignore error
 				return func() {
 					s.mgmtOperation(func() error {
+						peer.fsm.lock.Lock()
+						downtime := peer.fsm.pConf.Timers.State.Downtime
+						peer.fsm.lock.Unlock()
+						if time.Since(time.Unix(downtime, 0)) < deferralTime {
+							s.logger.Debug("soft reset skipped because downtime is less than deferral time",
+								slog.String("Topic", "Peer"),
+								slog.String("Key", peer.ID()),
+								slog.String("Family", family.String()),
+								slog.Any("Duration", deferralTime),
+								slog.Any("Downtime", downtime))
+							return nil
+						}
 						return s.softResetOut(neighborAddress.String(), family, true)
 					}, false)
 				}
@@ -1542,11 +1554,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					peer.setRtcEORWait(true)
 					pathList, _ = s.getBestFromLocal(peer, []bgp.Family{bgp.RF_RTC_UC}, true)
 					t := c.RouteTargetMembership.Config.DeferralTime
-					for _, f := range peer.negotiatedRFList() {
-						if f != bgp.RF_RTC_UC {
-							time.AfterFunc(time.Second*time.Duration(t), deferralExpiredFunc(f))
-						}
-					}
+					time.AfterFunc(time.Second*time.Duration(t), deferralExpiredFunc(bgp.Family(0), time.Second*time.Duration(t)))
 				} else {
 					pathList, _ = s.getBestFromLocal(peer, peer.negotiatedRFList(), true)
 				}
@@ -1591,8 +1599,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					deferral := peer.fsm.pConf.GracefulRestart.Config.DeferralTime
 					peer.fsm.lock.Unlock()
 					peer.fsm.logger.Debug("Now syncing, suppress sending updates. start deferral timer", slog.Any("Duration", deferral))
-
-					time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.Family(0)))
+					time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.Family(0), time.Second*time.Duration(deferral)))
 				}
 			}
 		} else {
@@ -2494,14 +2501,14 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 		families := familiesForSoftreset(peer, family)
 
 		if deferral {
-			if family == bgp.Family(0) {
-				families = peer.configuredRFlist()
-			}
 			peer.fsm.lock.Lock()
 			c := peer.fsm.pConf.GetAfiSafi(bgp.RF_RTC_UC)
 			restarting := peer.fsm.pConf.GracefulRestart.State.LocalRestarting
 			peer.fsm.lock.Unlock()
 			if restarting {
+				if family == bgp.Family(0) {
+					families = peer.configuredRFlist()
+				}
 				peer.fsm.lock.Lock()
 				peer.fsm.pConf.GracefulRestart.State.LocalRestarting = false
 				peer.fsm.lock.Unlock()
@@ -2509,6 +2516,14 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 			} else if peer.IsFamilyEnabled(bgp.RF_RTC_UC) && !c.MpGracefulRestart.State.EndOfRibReceived {
 				peer.setRtcEORWait(false)
 				peer.fsm.logger.Debug("route-target deferral timer expired", slog.Any("Families", families))
+				if family == bgp.Family(0) {
+					families = make([]bgp.Family, 0, len(peer.negotiatedRFList())-1)
+					for _, f := range peer.negotiatedRFList() {
+						if f != bgp.RF_RTC_UC {
+							families = append(families, f)
+						}
+					}
+				}
 			} else {
 				continue
 			}

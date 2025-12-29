@@ -3324,3 +3324,366 @@ func TestUpdatePeer(t *testing.T) {
 		})
 	}, time.Second, 10*time.Millisecond)
 }
+
+// TestRTCDeferralTimerRaceCondition tests that RTC deferral timer works correctly
+// and doesn't cause race conditions when multiple families are involved
+func TestRTCDeferralTimerRaceCondition(t *testing.T) {
+	const (
+		asn      = 65000
+		holdTime = 180
+	)
+
+	ctx := context.Background()
+
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:             asn,
+			RouterId:        "1.1.1.1",
+			ListenAddresses: []string{"127.0.0.201"},
+			ListenPort:      10179,
+			GracefulRestart: &api.GracefulRestart{
+				Enabled: true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(ctx, &api.StopBgpRequest{})
+
+	err = s.SetLogLevel(ctx, &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	require.NoError(t, err)
+
+	peerAddr := "127.0.0.1"
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				RemotePort:  10179,
+				PassiveMode: true,
+			},
+		},
+		Timers: oc.Timers{
+			Config: oc.TimersConfig{
+				HoldTime: 180,
+			},
+		},
+		GracefulRestart: oc.GracefulRestart{
+			Config: oc.GracefulRestartConfig{
+				Enabled: true,
+			},
+		},
+		AfiSafis: []oc.AfiSafi{
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_RTC,
+					Enabled:     true,
+				},
+				MpGracefulRestart: oc.MpGracefulRestart{
+					Config: oc.MpGracefulRestartConfig{
+						Enabled: true,
+					},
+				},
+				RouteTargetMembership: oc.RouteTargetMembership{
+					Config: oc.RouteTargetMembershipConfig{
+						DeferralTime: 200, // 200 second deferral time is needed to reproduce fsmhandler behavior manually
+					},
+				},
+			},
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST,
+					Enabled:     true,
+				},
+				MpGracefulRestart: oc.MpGracefulRestart{
+					Config: oc.MpGracefulRestartConfig{
+						Enabled: true,
+					},
+				},
+			},
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_L3VPN_IPV6_UNICAST,
+					Enabled:     true,
+				},
+				MpGracefulRestart: oc.MpGracefulRestart{
+					Config: oc.MpGracefulRestartConfig{
+						Enabled: true,
+					},
+				},
+			},
+		},
+	}
+
+	err = s.AddPeer(ctx, &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+
+	wg := waitActive(s)
+	wg.Wait()
+
+	m := NewMockConnection()
+	m.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { m.Close() })
+
+	afiSafis := []bgp.Family{bgp.RF_RTC_UC, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN}
+	mpCaps := make([]bgp.ParameterCapabilityInterface, 0, len(afiSafis))
+	grTuples := make([]*bgp.CapGracefulRestartTuple, 0, len(afiSafis))
+
+	for _, rf := range afiSafis {
+		mpCaps = append(mpCaps, bgp.NewCapMultiProtocol(rf))
+		grTuples = append(grTuples, &bgp.CapGracefulRestartTuple{
+			AFI:   uint16(rf >> 16),
+			SAFI:  uint8(rf),
+			Flags: 0,
+		})
+	}
+
+	openMsg, err := bgp.NewBGPOpenMessage(asn, holdTime, netip.MustParseAddr(peerAddr),
+		[]bgp.OptionParameterInterface{
+			bgp.NewOptionParameterCapability(mpCaps),
+			bgp.NewOptionParameterCapability(
+				[]bgp.ParameterCapabilityInterface{
+					bgp.NewCapGracefulRestart(false, true, 100, grTuples),
+				},
+			),
+		},
+	)
+	require.NoError(t, err)
+
+	wgEstablished := waitEstablished(s)
+
+	peerAddrParsed := netip.MustParseAddr(peerAddr)
+	s.neighborMap[peerAddrParsed].fsm.connCh <- m
+	m.PushBgpMessage(openMsg)
+	m.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
+
+	wgEstablished.Wait()
+
+	peer := s.neighborMap[peerAddrParsed]
+
+	// Wait for initial RTC EOR to be sent
+	time.Sleep(200 * time.Millisecond)
+
+	if !peer.getRtcEORWait() {
+		t.Fatal("rtcEORWait should be true after ESTABLISHED")
+	}
+
+	// This test verifies that RTC deferral timer works correctly
+	// and doesn't cause race conditions when multiple families are involved.
+	// The bug was: When 1 family timer expired -> RTC EOR -> second family timer expired
+	// NOOP in soft RESET because we have already received RTC EOR
+	// We will not send routes because rtcEORWait is false after first family
+	// We will not send routes on updates Rts because we received all Rts already
+	// Now we use only 1 timer for all families, so this should work correctly.
+
+	// Trigger soft reset for all families (simulates deferral timer expiration)
+	_ = s.mgmtOperation(func() error {
+		return s.softResetOut(peerAddr, bgp.Family(0), true)
+	}, false)
+
+	// Wait for rtcEORWait to be false that means softResetOut has executed
+	require.Eventually(t, func() bool {
+		return !peer.getRtcEORWait()
+	}, 10*time.Second, 1*time.Millisecond)
+
+	// Send RTC EOR from peer
+	m.PushBgpMessage(bgp.NewEndOfRib(bgp.RF_RTC_UC))
+
+	// Wait for all EOR messages to be sent
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify that all expected EORs were sent
+	sentMessages := m.GetSentMessages()
+
+	eorFamilies := make(map[bgp.Family]bool)
+	for _, msgData := range sentMessages {
+		if len(msgData) < bgp.BGP_HEADER_LENGTH {
+			continue
+		}
+		msg, err := bgp.ParseBGPMessage(msgData)
+		if err != nil {
+			continue
+		}
+		if msg.Header.Type == bgp.BGP_MSG_UPDATE {
+			update := msg.Body.(*bgp.BGPUpdate)
+			// Check if this is an EOR
+			if len(update.NLRI) == 0 && len(update.WithdrawnRoutes) == 0 {
+				for _, attr := range update.PathAttributes {
+					if mpUnreach, ok := attr.(*bgp.PathAttributeMpUnreachNLRI); ok {
+						family := bgp.NewFamily(mpUnreach.AFI, mpUnreach.SAFI)
+						if len(mpUnreach.Value) == 0 {
+							eorFamilies[family] = true
+							t.Logf("Received EOR for family: %s", family)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// We expect EORs for: RTC, L3VPN IPv4, L3VPN IPv6
+	expectedFamilies := []bgp.Family{bgp.RF_RTC_UC, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN}
+	for _, family := range expectedFamilies {
+		assert.True(t, eorFamilies[family], "Expected EOR for family %s", family)
+	}
+}
+
+// Test to verify that stale RTC deferral timers are properly ignored
+// when peer reconnects before timer expiration
+func TestRTCDeferralTimerStaleProtection(t *testing.T) {
+	const (
+		asn          = 65001
+		holdTime     = 90
+		peerAddr     = "10.0.0.1"
+		deferralTime = 2
+	)
+
+	ctx := context.Background()
+
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        asn,
+			RouterId:   "192.168.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(ctx, &api.StopBgpRequest{})
+
+	err = s.SetLogLevel(ctx, &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
+	require.NoError(t, err)
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				PassiveMode: true,
+			},
+		},
+		AfiSafis: []oc.AfiSafi{
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_RTC,
+					Enabled:     true,
+				},
+				RouteTargetMembership: oc.RouteTargetMembership{
+					Config: oc.RouteTargetMembershipConfig{
+						DeferralTime: deferralTime,
+					},
+				},
+			},
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST,
+					Enabled:     true,
+				},
+			},
+		},
+	}
+
+	err = s.AddPeer(ctx, &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+
+	wg := waitActive(s)
+	wg.Wait()
+
+	peerAddrParsed := netip.MustParseAddr(peerAddr)
+	peer := s.neighborMap[peerAddrParsed]
+	require.NotNil(t, peer)
+
+	createOpenMsg := func() (*bgp.BGPMessage, error) {
+		afiSafis := []bgp.Family{bgp.RF_RTC_UC, bgp.RF_IPv4_VPN}
+		mpCaps := make([]bgp.ParameterCapabilityInterface, 0, len(afiSafis))
+		for _, rf := range afiSafis {
+			mpCaps = append(mpCaps, bgp.NewCapMultiProtocol(rf))
+		}
+
+		return bgp.NewBGPOpenMessage(asn, holdTime, netip.MustParseAddr(peerAddr),
+			[]bgp.OptionParameterInterface{
+				bgp.NewOptionParameterCapability(mpCaps),
+			})
+	}
+
+	m1 := NewMockConnection()
+	m1.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { m1.Close() })
+
+	wgEstablished1 := waitEstablished(s)
+
+	peer.fsm.connCh <- m1
+	openMsg1, err := createOpenMsg()
+	require.NoError(t, err)
+	m1.PushBgpMessage(openMsg1)
+	m1.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
+
+	wgEstablished1.Wait()
+
+	peer.fsm.lock.Lock()
+	downtimeAfterFirstEstablished := peer.fsm.pConf.Timers.State.Downtime
+	peer.fsm.lock.Unlock()
+
+	// Wait a bit before closing connection (less than deferral time to test stale timer protection)
+	time.Sleep(100 * time.Millisecond)
+
+	wgActive2 := waitActive(s)
+
+	m1.Close()
+	wgActive2.Wait()
+
+	peer.fsm.lock.Lock()
+	downtimeAfterDown := peer.fsm.pConf.Timers.State.Downtime
+	peer.fsm.lock.Unlock()
+	assert.Greater(t, downtimeAfterDown, downtimeAfterFirstEstablished,
+		"Downtime should be updated after PeerDown")
+
+	m2 := NewMockConnection()
+	m2.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { m2.Close() })
+
+	wgEstablished2 := waitEstablished(s)
+
+	peer.fsm.connCh <- m2
+	openMsg2, err := createOpenMsg()
+	require.NoError(t, err)
+	m2.PushBgpMessage(openMsg2)
+	m2.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
+
+	wgEstablished2.Wait()
+
+	peer.fsm.lock.Lock()
+	downtimeAfterSecondEstablished := peer.fsm.pConf.Timers.State.Downtime
+	peer.fsm.lock.Unlock()
+
+	assert.Equal(t, downtimeAfterDown, downtimeAfterSecondEstablished,
+		"Downtime should not change on ESTABLISHED (only updated on PeerDown)")
+
+	// Wait for half deferral time and verify rtcEORWait is still true (stale timer protection)
+	time.Sleep(time.Duration(deferralTime/2) * time.Second)
+	assert.True(t, peer.getRtcEORWait(), "rtcEORWait should be true because of stale timer protection")
+
+	// Wait for deferral timer to expire and rtcEORWait to become false
+	require.Eventually(t, func() bool {
+		return !peer.getRtcEORWait()
+	}, time.Duration(deferralTime+1)*time.Second, 100*time.Millisecond,
+		"rtcEORWait should be false after deferral timer expires")
+
+	state := peer.fsm.state.Load()
+
+	assert.Equal(t, bgp.BGP_FSM_ESTABLISHED, state,
+		"Peer should still be ESTABLISHED after timers")
+}
