@@ -263,7 +263,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 		return nil
 	}
 
-	f := func(p *Path) (bgp.EthernetSegmentIdentifier, uint32, net.HardwareAddr, int, net.IP) {
+	f := func(p *Path) (bgp.EthernetSegmentIdentifier, uint32, net.HardwareAddr, int, netip.Addr) {
 		nlri := p.GetNlri().(*bgp.EVPNNLRI)
 		d := nlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
 		ecs := p.GetExtCommunities()
@@ -274,7 +274,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 				break
 			}
 		}
-		return d.ESI, d.ETag, d.MacAddress, seq, p.GetSource().Address.AsSlice()
+		return d.ESI, d.ETag, d.MacAddress, seq, p.GetSource().Address
 	}
 	e1, et1, m1, s1, i1 := f(path)
 
@@ -294,7 +294,7 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 		}
 		e2, et2, m2, s2, i2 := f(path2)
 		if et1 == et2 && bytes.Equal(m1, m2) && !bytes.Equal(e1.Value, e2.Value) {
-			if s1 > s2 || s1 == s2 && bytes.Compare(i1, i2) < 0 {
+			if s1 > s2 || s1 == s2 && i1.Compare(i2) < 0 {
 				pathList = append(pathList, path2.Clone(true))
 			}
 		}

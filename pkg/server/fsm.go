@@ -542,7 +542,7 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 	case bgp.BGP_FSM_ESTABLISHED:
 		remoteTCP := fsm.conn.RemoteAddr().(*net.TCPAddr)
 		remoteAddr, _ := netip.AddrFromSlice(remoteTCP.IP)
-		remoteAddr = remoteAddr.WithZone("")
+		remoteAddr = remoteAddr.WithZone(remoteTCP.Zone)
 
 		localTCP := fsm.conn.LocalAddr().(*net.TCPAddr)
 		localAddr, _ := netip.AddrFromSlice(localTCP.IP)
