@@ -37,7 +37,7 @@ import (
 
 type PolicyOptions struct {
 	Info       *PeerInfo
-	OldNextHop net.IP
+	OldNextHop netip.Addr
 	Validate   func(*Path) *Validation
 }
 
@@ -546,7 +546,7 @@ func NewPrefixSet(c oc.PrefixSet) (*PrefixSet, error) {
 }
 
 type NextHopSet struct {
-	list []net.IPNet
+	list []netip.Prefix
 }
 
 func (s *NextHopSet) Name() string {
@@ -571,11 +571,11 @@ func (lhs *NextHopSet) Remove(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	ps := make([]net.IPNet, 0, len(lhs.list))
+	ps := make([]netip.Prefix, 0, len(lhs.list))
 	for _, x := range lhs.list {
 		found := false
 		for _, y := range rhs.list {
-			if x.String() == y.String() {
+			if x == y {
 				found = true
 				break
 			}
@@ -617,31 +617,24 @@ func (s *NextHopSet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.ToConfig())
 }
 
-func NewNextHopSetFromApiStruct(name string, list []net.IPNet) (*NextHopSet, error) {
+func NewNextHopSetFromApiStruct(name string, list []netip.Prefix) (*NextHopSet, error) {
 	return &NextHopSet{
 		list: list,
 	}, nil
 }
 
 func NewNextHopSet(c []string) (*NextHopSet, error) {
-	list := make([]net.IPNet, 0, len(c))
+	list := make([]netip.Prefix, 0, len(c))
 	for _, x := range c {
-		_, cidr, err := net.ParseCIDR(x)
+		p, err := netip.ParsePrefix(x)
 		if err != nil {
-			addr := net.ParseIP(x)
-			if addr == nil {
-				return nil, fmt.Errorf("invalid address or prefix: %s", x)
+			addr, err := netip.ParseAddr(x)
+			if err != nil {
+				return nil, fmt.Errorf("invalid address or prefix: %w", err)
 			}
-			mask := net.CIDRMask(32, 32)
-			if addr.To4() == nil {
-				mask = net.CIDRMask(128, 128)
-			}
-			cidr = &net.IPNet{
-				IP:   addr,
-				Mask: mask,
-			}
+			p = netip.PrefixFrom(addr, addr.BitLen())
 		}
-		list = append(list, *cidr)
+		list = append(list, p)
 	}
 	return &NextHopSet{
 		list: list,
@@ -1392,18 +1385,18 @@ func (c *NextHopCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 		return true
 	}
 
-	nexthop := path.GetNexthop().AsSlice()
+	nexthop := path.GetNexthop()
 
 	// In cases where we advertise routes from iBGP to eBGP, we want to filter
 	// on the "original" nexthop. The current paths' nexthop has already been
 	// set and is ready to be advertised as per:
 	// https://tools.ietf.org/html/rfc4271#section-5.1.3
-	if options != nil && options.OldNextHop != nil &&
-		!options.OldNextHop.IsUnspecified() && !options.OldNextHop.Equal(nexthop) {
+	if options != nil && options.OldNextHop.IsValid() &&
+		!options.OldNextHop.IsUnspecified() && options.OldNextHop != nexthop {
 		nexthop = options.OldNextHop
 	}
 
-	if nexthop == nil {
+	if !nexthop.IsValid() {
 		return false
 	}
 
@@ -2761,7 +2754,7 @@ func NewAsPathPrependAction(action oc.SetAsPathPrepend) (*AsPathPrependAction, e
 }
 
 type NexthopAction struct {
-	value       net.IP
+	value       netip.Addr
 	self        bool
 	peerAddress bool
 	unchanged   bool
@@ -2775,16 +2768,16 @@ func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) (*Path, error)
 	switch {
 	case a.self:
 		if options != nil && options.Info != nil && options.Info.LocalAddress.IsValid() {
-			path.SetNexthop(options.Info.LocalAddress.AsSlice())
+			path.SetNexthop(options.Info.LocalAddress)
 		}
 		return path, nil
 	case a.peerAddress:
 		if options != nil && options.Info != nil && options.Info.Address.IsValid() {
-			path.SetNexthop(options.Info.Address.AsSlice())
+			path.SetNexthop(options.Info.Address)
 		}
 		return path, nil
 	case a.unchanged:
-		if options != nil && options.OldNextHop != nil {
+		if options != nil && options.OldNextHop.IsValid() {
 			path.SetNexthop(options.OldNextHop)
 		}
 		return path, nil
@@ -2830,9 +2823,9 @@ func NewNexthopAction(c oc.BgpNextHopType) (*NexthopAction, error) {
 			unchanged: true,
 		}, nil
 	}
-	addr := net.ParseIP(string(c))
-	if addr == nil {
-		return nil, fmt.Errorf("invalid ip address format: %s", string(c))
+	addr, err := netip.ParseAddr(string(c))
+	if err != nil {
+		return nil, fmt.Errorf("invalid ip address format: %w", err)
 	}
 	return &NexthopAction{
 		value: addr,
@@ -2911,16 +2904,8 @@ func (s *Statement) ToConfig() *oc.Statement {
 				case *NextHopCondition:
 					l := make([]netip.Addr, 0, len(v.set.list))
 					for _, n := range v.set.list {
-						if ipv4 := n.IP.To4(); ipv4 != nil {
-							if a, ok := netip.AddrFromSlice(ipv4); ok {
-								l = append(l, a)
-							}
-							continue
-						}
-						if ip16 := n.IP.To16(); ip16 != nil {
-							if a, ok := netip.AddrFromSlice(ip16); ok {
-								l = append(l, a)
-							}
+						if n.Addr().Is4() || n.Addr().Is6() {
+							l = append(l, n.Addr())
 						}
 					}
 					cond.BgpConditions.NextHopInList = l

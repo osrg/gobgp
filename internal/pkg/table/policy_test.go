@@ -18,7 +18,6 @@ package table
 import (
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -909,7 +908,7 @@ func TestSetNextHop(t *testing.T) {
 		assert.NoError(t, err)
 		pType, newPath := r.policyMap["pd1"].Apply(logger, path, &PolicyOptions{Info: peer})
 		assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
-		path.SetNexthop(net.ParseIP("10.2.2.2"))
+		path.SetNexthop(netip.MustParseAddr("10.2.2.2"))
 		if diff := cmp.Diff(newPath, path); diff != "" {
 			t.Errorf("(-want, +got):\n%s", diff)
 		}
@@ -929,7 +928,7 @@ func TestSetNextHop(t *testing.T) {
 		assert.NoError(t, err)
 		pType, newPath := r.policyMap["pd1"].Apply(logger, path, &PolicyOptions{Info: peer})
 		assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
-		path.SetNexthop(net.ParseIP("20.0.0.1"))
+		path.SetNexthop(netip.MustParseAddr("20.0.0.1"))
 		if diff := cmp.Diff(newPath, path); diff != "" {
 			t.Errorf("(-want, +got):\n%s", diff)
 		}
@@ -949,7 +948,7 @@ func TestSetNextHop(t *testing.T) {
 		assert.NoError(t, err)
 		pType, newPath := r.policyMap["pd1"].Apply(logger, path, &PolicyOptions{Info: peer})
 		assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
-		path.SetNexthop(net.ParseIP("10.0.0.2"))
+		path.SetNexthop(netip.MustParseAddr("10.0.0.2"))
 		if diff := cmp.Diff(newPath, path); diff != "" {
 			t.Errorf("(-want, +got):\n%s", diff)
 		}

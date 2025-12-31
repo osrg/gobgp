@@ -251,7 +251,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 	case oc.PEER_TYPE_EXTERNAL:
 		// NEXTHOP handling
 		if !path.IsLocal() || nexthop.IsUnspecified() {
-			path.SetNexthop(localAddress.AsSlice())
+			path.SetNexthop(localAddress)
 		}
 
 		// remove-private-as handling
@@ -274,7 +274,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 		// if not, don't modify it.
 		// TODO: NEXT-HOP-SELF support
 		if path.IsLocal() && nexthop.IsUnspecified() {
-			path.SetNexthop(localAddress.AsSlice())
+			path.SetNexthop(localAddress)
 		}
 
 		// AS_PATH handling for iBGP
@@ -304,7 +304,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 			// advertiser, and the Next-hop attribute shall be set of the local
 			// address for that session.
 			if path.GetFamily() == bgp.RF_RTC_UC {
-				path.SetNexthop(localAddress.AsSlice())
+				path.SetNexthop(localAddress)
 				attr, _ := bgp.NewPathAttributeOriginatorId(info.LocalID)
 				path.setPathAttr(attr)
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
@@ -460,22 +460,22 @@ func (path *Path) GetNexthop() netip.Addr {
 	return netip.Addr{}
 }
 
-func (path *Path) SetNexthop(nexthop net.IP) {
-	if path.GetFamily() == bgp.RF_IPv4_UC && nexthop.To4() == nil {
+func (path *Path) SetNexthop(nexthop netip.Addr) {
+	if path.GetFamily() == bgp.RF_IPv4_UC && nexthop.Is6() {
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.PathNLRI{{NLRI: path.GetNlri(), ID: path.localID}}, netip.MustParseAddr(nexthop.String()))
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.PathNLRI{{NLRI: path.GetNlri(), ID: path.localID}}, nexthop)
 		path.setPathAttr(mpreach)
 		return
 	}
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
 	if attr != nil {
-		pa, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop.String()))
+		pa, _ := bgp.NewPathAttributeNextHop(nexthop)
 		path.setPathAttr(pa)
 	}
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {
 		oldNlri := attr.(*bgp.PathAttributeMpReachNLRI)
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), oldNlri.Value, netip.MustParseAddr(nexthop.String()))
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), oldNlri.Value, nexthop)
 		path.setPathAttr(mpreach)
 	}
 }
