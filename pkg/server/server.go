@@ -619,7 +619,11 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		// OldNextHop option should be set to the local address.
 		// Otherwise, we advertise the unspecified nexthop as is when
 		// nexthop-unchanged is configured.
-		options.OldNextHop = net.ParseIP(peer.fsm.pConf.Transport.State.LocalAddress.String())
+		//
+		// When the local address contains zone, we need to strip it
+		// because BGP nexthop cannot contain zone information (AsSlice
+		// drops zone).
+		options.OldNextHop = net.IP(peer.fsm.pConf.Transport.State.LocalAddress.AsSlice())
 	} else {
 		options.OldNextHop = path.GetNexthop().AsSlice()
 	}

@@ -546,7 +546,7 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 
 		localTCP := fsm.conn.LocalAddr().(*net.TCPAddr)
 		localAddr, _ := netip.AddrFromSlice(localTCP.IP)
-		localAddr = localAddr.WithZone("")
+		localAddr = localAddr.WithZone(localTCP.Zone)
 
 		fsm.pConf.Transport.State.RemoteAddress = remoteAddr
 		fsm.pConf.Transport.State.RemotePort = uint16(remoteTCP.Port)
