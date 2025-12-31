@@ -21,7 +21,6 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -89,8 +88,8 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 	for {
 		b.s.logger.Debug("Connecting to BMP server",
 			slog.String("Topic", "bmp"),
-			slog.String("Key", b.host))
-		conn, err := net.Dial("tcp", b.host)
+			slog.String("Key", b.host.String()))
+		conn, err := net.Dial("tcp", b.host.String())
 		if err != nil {
 			select {
 			case <-b.dead:
@@ -104,7 +103,7 @@ func (b *bmpClient) tryConnect() *net.TCPConn {
 		} else {
 			b.s.logger.Debug("Connected to BMP server",
 				slog.String("Topic", "bmp"),
-				slog.String("Key", b.host))
+				slog.String("Key", b.host.String()))
 			return conn.(*net.TCPConn)
 		}
 	}
@@ -160,7 +159,7 @@ func (b *bmpClient) loop() {
 				if err != nil {
 					b.s.logger.Warn("failed to write to bmp server",
 						slog.String("Topic", "bmp"),
-						slog.String("Key", b.host),
+						slog.String("Key", b.host.String()),
 						slog.String("Message", err.Error()))
 				}
 				return err
@@ -220,7 +219,7 @@ func (b *bmpClient) loop() {
 						}
 					case *watchEventBestPath:
 						info := &table.PeerInfo{
-							Address: netip.MustParseAddr("0.0.0.0"),
+							Address: netip.IPv4Unspecified(),
 							AS:      b.s.bgpConfig.Global.Config.As,
 							ID:      b.s.bgpConfig.Global.Config.RouterId,
 						}
@@ -307,7 +306,7 @@ func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peer
 		peerDist,
 		netip.Addr{},
 		0,
-		netip.MustParseAddr("0.0.0.0"),
+		netip.IPv4Unspecified(),
 		float64(timestamp),
 	)
 	return bmp.NewBMPPeerUpNotification(
@@ -328,7 +327,7 @@ func bmpLocRIBPeerDown(localAS uint32, routerID netip.Addr, tableName string, pe
 		peerDist,
 		netip.Addr{},
 		0,
-		netip.MustParseAddr("0.0.0.0"),
+		netip.IPv4Unspecified(),
 		float64(timestamp),
 	)
 	return bmp.NewBMPPeerDownNotification(
@@ -343,7 +342,7 @@ func bmpLocRIBPeerDown(localAS uint32, routerID netip.Addr, tableName string, pe
 type bmpClient struct {
 	s        *BgpServer
 	dead     chan struct{}
-	host     string
+	host     netip.AddrPort
 	c        *oc.BmpServerConfig
 	ribout   ribout
 	uptime   int64
@@ -356,8 +355,8 @@ func bmpPeerUp(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMess
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
 	}
 	// TODO: use netip event strcutres. MustParseAddr is safe because they are valid IP addresses.
-	ph := bmp.NewBMPPeerHeader(t, flags, pd, netip.MustParseAddr(ev.PeerAddress.String()), ev.PeerAS, netip.MustParseAddr(ev.PeerID.String()), float64(ev.Timestamp.Unix()))
-	return bmp.NewBMPPeerUpNotification(*ph, netip.MustParseAddr(ev.LocalAddress.String()), ev.LocalPort, ev.PeerPort, ev.SentOpen, ev.RecvOpen)
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, ev.PeerAddress, ev.PeerAS, ev.PeerID, float64(ev.Timestamp.Unix()))
+	return bmp.NewBMPPeerUpNotification(*ph, ev.LocalAddress, ev.LocalPort, ev.PeerPort, ev.SentOpen, ev.RecvOpen)
 }
 
 func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
@@ -365,7 +364,7 @@ func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMe
 	if policy {
 		flags |= bmp.BMP_PEER_FLAG_POST_POLICY
 	}
-	ph := bmp.NewBMPPeerHeader(t, flags, pd, netip.MustParseAddr(ev.PeerAddress.String()), ev.PeerAS, netip.MustParseAddr(ev.PeerID.String()), float64(ev.Timestamp.Unix()))
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, ev.PeerAddress, ev.PeerAS, ev.PeerID, float64(ev.Timestamp.Unix()))
 
 	reasonCode := bmp.BMP_peerDownByUnknownReason
 	switch ev.StateReason.Type {
@@ -391,7 +390,7 @@ func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *tabl
 	if !fourBytesAs {
 		flags |= bmp.BMP_PEER_FLAG_TWO_AS
 	}
-	ph := bmp.NewBMPPeerHeader(t, flags, pd, netip.MustParseAddr(peeri.Address.String()), peeri.AS, netip.MustParseAddr(peeri.ID.String()), float64(timestamp))
+	ph := bmp.NewBMPPeerHeader(t, flags, pd, peeri.Address, peeri.AS, peeri.ID, float64(timestamp))
 	m := bmp.NewBMPRouteMonitoring(*ph, nil)
 	body := m.Body.(*bmp.BMPRouteMonitoring)
 	body.BGPUpdatePayload = payload
@@ -420,7 +419,7 @@ func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, peer *api.Pe
 
 func bmpPeerRouteMirroring(peerType uint8, peerDist uint64, peerInfo *table.PeerInfo, timestamp int64, msg *bgp.BGPMessage) *bmp.BMPMessage {
 	var peerFlags uint8 = 0
-	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, netip.MustParseAddr(peerInfo.Address.String()), peerInfo.AS, netip.MustParseAddr(peerInfo.ID.String()), float64(timestamp))
+	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, peerInfo.Address, peerInfo.AS, peerInfo.ID, float64(timestamp))
 	return bmp.NewBMPRouteMirroring(
 		*ph,
 		[]bmp.BMPRouteMirrTLVInterface{
@@ -431,7 +430,7 @@ func bmpPeerRouteMirroring(peerType uint8, peerDist uint64, peerInfo *table.Peer
 }
 
 func (b *bmpClientManager) addServer(c *oc.BmpServerConfig) error {
-	host := net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port)))
+	host := netip.AddrPortFrom(c.Address, uint16(c.Port))
 	if _, y := b.clientMap[host]; y {
 		return fmt.Errorf("bmp client %s is already configured", host)
 	}
@@ -447,7 +446,7 @@ func (b *bmpClientManager) addServer(c *oc.BmpServerConfig) error {
 }
 
 func (b *bmpClientManager) deleteServer(c *oc.BmpServerConfig) error {
-	host := net.JoinHostPort(c.Address.String(), strconv.Itoa(int(c.Port)))
+	host := netip.AddrPortFrom(c.Address, uint16(c.Port))
 	if c, y := b.clientMap[host]; !y {
 		return fmt.Errorf("bmp client %s isn't found", host)
 	} else {
@@ -459,12 +458,12 @@ func (b *bmpClientManager) deleteServer(c *oc.BmpServerConfig) error {
 
 type bmpClientManager struct {
 	s         *BgpServer
-	clientMap map[string]*bmpClient
+	clientMap map[netip.AddrPort]*bmpClient
 }
 
 func newBmpClientManager(s *BgpServer) *bmpClientManager {
 	return &bmpClientManager{
 		s:         s,
-		clientMap: make(map[string]*bmpClient),
+		clientMap: make(map[netip.AddrPort]*bmpClient),
 	}
 }
