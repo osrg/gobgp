@@ -825,6 +825,20 @@ func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 			ttl = 1
 			if fsm.pConf.EbgpMultihop.Config.Enabled {
 				ttl = fsm.pConf.EbgpMultihop.Config.MultihopTtl
+				// If MultihopTtl is 0, use default value of 255
+				if ttl == 0 {
+					ttl = 255
+				}
+				fsm.logger.Info("eBGP multihop enabled",
+					slog.String("Topic", "Peer"),
+					slog.String("Key", addr.String()),
+					slog.Int("MultihopTtl", int(ttl)))
+			} else {
+				fsm.logger.Info("eBGP multihop not enabled, using default TTL 1",
+					slog.String("Topic", "Peer"),
+					slog.String("Key", addr.String()),
+					slog.Bool("Enabled", fsm.pConf.EbgpMultihop.Config.Enabled),
+					slog.Int("MultihopTtl", int(fsm.pConf.EbgpMultihop.Config.MultihopTtl)))
 			}
 		}
 		return tick, addr.String(), port, password, ttl, ttlMin, fsm.pConf.Transport.Config.TcpMss, fsm.pConf.Transport.Config.LocalAddress.String(), int(fsm.pConf.Transport.Config.LocalPort), fsm.pConf.Transport.Config.BindInterface
@@ -963,6 +977,10 @@ func setPeerConnTTL(fsm *fsm, conn net.Conn) error {
 	} else if fsm.pConf.Config.PeerAs != 0 && fsm.pConf.Config.PeerType == oc.PEER_TYPE_EXTERNAL {
 		if fsm.pConf.EbgpMultihop.Config.Enabled {
 			ttl = int(fsm.pConf.EbgpMultihop.Config.MultihopTtl)
+			// If MultihopTtl is 0, use default value of 255
+			if ttl == 0 {
+				ttl = 255
+			}
 		} else {
 			ttl = 1
 		}
