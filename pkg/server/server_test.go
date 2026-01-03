@@ -226,51 +226,106 @@ func TestListPolicyAssignment(t *testing.T) {
 	assert.Equal(4, len(ps))
 }
 
-//nolint:errcheck // WatchEvent won't return an error here
-func waitState(s *BgpServer, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) *sync.WaitGroup {
-	wg := &sync.WaitGroup{}
-	watchCtxMsg, watchCancelMsg := context.WithCancel(context.Background())
-	wg.Add(1)
+type peerStateWaiter struct {
+	doneCh chan struct{}
+	cancel context.CancelFunc
+	once   sync.Once
 
-	opts := make([]WatchOption, 0)
-	opts = append(opts, WatchPeer())
-	s.WatchEvent(watchCtxMsg,
+	state api.PeerState_SessionState
+}
+
+//nolint:errcheck // WatchEvent won't return an error here
+func newPeerStateWaiter(s *BgpServer, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) *peerStateWaiter {
+	w := &peerStateWaiter{doneCh: make(chan struct{}), state: state}
+	watchCtx, watchCancel := context.WithCancel(context.Background())
+	w.cancel = watchCancel
+	finish := func() {
+		w.once.Do(func() {
+			watchCancel()
+			close(w.doneCh)
+		})
+	}
+
+	apiPeerSessionState := func(peer apiutil.Peer) api.PeerState_SessionState {
+		return api.PeerState_SessionState(int(peer.State.SessionState) + 1)
+	}
+
+	s.WatchEvent(watchCtx,
 		WatchEventMessageCallbacks{
 			OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
 				if peer == nil {
 					return
 				}
-				apiPeerSessionState := func(peer apiutil.Peer) api.PeerState_SessionState {
-					return api.PeerState_SessionState(int(peer.State.SessionState) + 1)
+				if peer.Type != apiutil.PEER_EVENT_STATE {
+					return
 				}
-				if peer.Type == apiutil.PEER_EVENT_STATE && apiPeerSessionState(peer.Peer) == state {
-					for _, rf := range expectedFamilies {
-						found := false
-						for _, cap := range peer.Peer.State.RemoteCap {
-							if cap.Code() == bgp.BGP_CAP_MULTIPROTOCOL && cap.(*bgp.CapMultiProtocol).CapValue == rf {
-								found = true
-								break
-							}
+				if apiPeerSessionState(peer.Peer) != state {
+					return
+				}
+				for _, rf := range expectedFamilies {
+					found := false
+					for _, cap := range peer.Peer.State.RemoteCap {
+						if cap == nil {
+							continue
 						}
-						if !found {
-							return
+						if cap.Code() == bgp.BGP_CAP_MULTIPROTOCOL && cap.(*bgp.CapMultiProtocol).CapValue == rf {
+							found = true
+							break
 						}
 					}
-					watchCancelMsg()
-					wg.Done()
+					if !found {
+						return
+					}
 				}
+				finish()
 			},
-		}, opts...)
+		}, WatchPeer())
 
-	return wg
+	// WatchEvent is started before this check to avoid missing the state-change event.
+	_ = s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(p *api.Peer) {
+		if p == nil || p.State == nil {
+			return
+		}
+		if p.State.SessionState != state {
+			return
+		}
+		for _, rf := range expectedFamilies {
+			found := false
+			for _, cap := range p.State.RemoteCap {
+				if cap == nil {
+					continue
+				}
+				if mp := cap.GetMultiProtocol(); mp != nil && mp.Family != nil {
+					if apiutil.ToFamily(mp.Family) == rf {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
+				return
+			}
+		}
+		finish()
+	})
+
+	return w
 }
 
-func waitActive(s *BgpServer) *sync.WaitGroup {
-	return waitState(s, api.PeerState_SESSION_STATE_ACTIVE)
+func (w *peerStateWaiter) Wait(t *testing.T, timeout time.Duration) {
+	t.Helper()
+	select {
+	case <-w.doneCh:
+		return
+	case <-time.After(timeout):
+		w.cancel()
+		t.Fatalf("failed to reach state %v within %s", w.state, timeout)
+	}
 }
 
-func waitEstablished(s *BgpServer, rfs ...bgp.Family) *sync.WaitGroup {
-	return waitState(s, api.PeerState_SESSION_STATE_ESTABLISHED, rfs...)
+func waitPeerState(t *testing.T, s *BgpServer, state api.PeerState_SessionState, timeout time.Duration, expectedFamilies ...bgp.Family) {
+	t.Helper()
+	newPeerStateWaiter(s, state, expectedFamilies...).Wait(t, timeout)
 }
 
 func TestListPathEnableFiltered(test *testing.T) {
@@ -329,12 +384,12 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	}
 
-	establishedWg := waitEstablished(server1)
+	establishedWaiter := newPeerStateWaiter(server1, api.PeerState_SESSION_STATE_ESTABLISHED)
 
 	err = server2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
 
-	establishedWg.Wait()
+	establishedWaiter.Wait(test, 10*time.Second)
 
 	// Add IMPORT policy at server1 for rejecting 10.1.0.0/24
 	d1 := &api.DefinedSet{
@@ -883,12 +938,12 @@ func TestMonitor(test *testing.T) {
 	// 	}
 	// })
 
-	establishedWg := waitEstablished(s)
+	establishedWaiter := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ESTABLISHED)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
 
-	establishedWg.Wait()
+	establishedWaiter.Wait(test, 10*time.Second)
 
 	// Test WatchBestPath.
 	w := s.watch(WatchBestPath(false))
@@ -1326,12 +1381,12 @@ func TestPeerGroup(test *testing.T) {
 		},
 	}
 
-	establishedWg := waitEstablished(s)
+	establishedWaiter := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ESTABLISHED)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.NoError(err)
 
-	establishedWg.Wait()
+	establishedWaiter.Wait(test, 10*time.Second)
 }
 
 func TestDynamicNeighbor(t *testing.T) {
@@ -1397,12 +1452,12 @@ func TestDynamicNeighbor(t *testing.T) {
 			},
 		},
 	}
-	establisedWg := waitEstablished(s2)
+	establisedWaiter := newPeerStateWaiter(s2, api.PeerState_SESSION_STATE_ESTABLISHED)
 
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
 	assert.NoError(err)
 
-	establisedWg.Wait()
+	establisedWaiter.Wait(t, 10*time.Second)
 }
 
 func TestGracefulRestartTimerExpired(t *testing.T) {
@@ -1489,12 +1544,12 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	}
 
-	establishedWg := waitEstablished(s2)
+	establishedWaiter := newPeerStateWaiter(s2, api.PeerState_SESSION_STATE_ESTABLISHED)
 
 	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(t, err)
 
-	establishedWg.Wait()
+	establishedWaiter.Wait(t, 10*time.Second)
 
 	// Force TCP session disconnected in order to cause Graceful Restart at s1
 	// side.
@@ -1579,12 +1634,12 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 		},
 	}
 
-	activeWg := waitActive(s1)
+	activeWaiter := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ACTIVE)
 
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
 
-	activeWg.Wait()
+	activeWaiter.Wait(t, 10*time.Second)
 
 	// We delete the peer incoming channel from the server list so that we can
 	// intercept the transition from ACTIVE state to OPENSENT state.
@@ -1653,13 +1708,13 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 	<-neighbor1.fsm.connCh
 	assert.Empty(neighbor1.fsm.conn)
 
-	establishedWg := waitEstablished(s2)
+	establishedWaiter := newPeerStateWaiter(s2, api.PeerState_SESSION_STATE_ESTABLISHED)
 
 	// Check that we can establish the peering when re-adding the peer.
 	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p1})
 	assert.NoError(err)
 
-	establishedWg.Wait()
+	establishedWaiter.Wait(t, 10*time.Second)
 }
 
 func TestFamiliesForSoftreset(t *testing.T) {
@@ -2844,7 +2899,7 @@ func TestRTCDefferalTime(test *testing.T) {
 		neighborIsReceiver.AfiSafis = append(neighborIsReceiver.AfiSafis, afiSafi)
 	}
 
-	establishedSender := waitEstablished(sender)
+	establishedSender := newPeerStateWaiter(sender, api.PeerState_SESSION_STATE_ESTABLISHED)
 
 	if err := sender.AddPeer(ctx, &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(neighborIsReceiver)}); err != nil {
 		test.Fatal(err)
@@ -2859,7 +2914,7 @@ func TestRTCDefferalTime(test *testing.T) {
 	defer receiver.DeletePeer(ctx, &api.DeletePeerRequest{
 		Address: "127.0.0.1",
 	})
-	establishedSender.Wait()
+	establishedSender.Wait(test, 10*time.Second)
 
 	watcher := receiver.watch(WatchUpdate(true, "", ""), WatchEor(true))
 	t1 := time.NewTimer(50 * time.Second)
@@ -3059,11 +3114,11 @@ func TestWatchEvent(test *testing.T) {
 			},
 		},
 	}
-	watchers := waitEstablished(s, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
+	watchers := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ESTABLISHED, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC)
 
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
-	watchers.Wait()
+	watchers.Wait(test, 10*time.Second)
 
 	count := 0
 	ctx, cancel := context.WithCancel(context.Background())
@@ -3170,9 +3225,9 @@ func TestEBGPRouteStuck(test *testing.T) {
 		defer peer.StopBgp(context.Background(), &api.StopBgpRequest{})
 	}
 
-	wg := waitEstablished(peers[0])
-	wg1 := waitEstablished(peers[1])
-	wg2 := waitEstablished(peers[2])
+	wg := newPeerStateWaiter(peers[0], api.PeerState_SESSION_STATE_ESTABLISHED)
+	wg1 := newPeerStateWaiter(peers[1], api.PeerState_SESSION_STATE_ESTABLISHED)
+	wg2 := newPeerStateWaiter(peers[2], api.PeerState_SESSION_STATE_ESTABLISHED)
 	// Use only eBGP
 	for i, server := range peers {
 		for j, peer := range peers {
@@ -3186,9 +3241,9 @@ func TestEBGPRouteStuck(test *testing.T) {
 		}
 	}
 
-	wg.Wait()
-	wg1.Wait()
-	wg2.Wait()
+	wg.Wait(test, 10*time.Second)
+	wg1.Wait(test, 10*time.Second)
+	wg2.Wait(test, 10*time.Second)
 
 	family4 := &api.Family{
 		Afi:  api.Family_AFI_IP,
@@ -3420,12 +3475,12 @@ func TestRTCDeferralTimerRaceCondition(t *testing.T) {
 		},
 	}
 
-	wg := waitActive(s)
+	wg := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ACTIVE)
 	err = s.AddPeer(ctx, &api.AddPeerRequest{
 		Peer: oc.NewPeerFromConfigStruct(neighbor),
 	})
 	require.NoError(t, err)
-	wg.Wait()
+	wg.Wait(t, 10*time.Second)
 
 	m := NewMockConnection()
 	m.SetRemoteAddr(peerAddr)
@@ -3456,14 +3511,14 @@ func TestRTCDeferralTimerRaceCondition(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	wgEstablished := waitEstablished(s)
+	wgEstablished := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ESTABLISHED)
 
 	peerAddrParsed := netip.MustParseAddr(peerAddr)
 	s.neighborMap[peerAddrParsed].fsm.connCh <- m
 	m.PushBgpMessage(openMsg)
 	m.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
 
-	wgEstablished.Wait()
+	wgEstablished.Wait(t, 10*time.Second)
 
 	peer := s.neighborMap[peerAddrParsed]
 
@@ -3593,13 +3648,13 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 		},
 	}
 
-	wg := waitActive(s)
+	wg := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ACTIVE)
 
 	err = s.AddPeer(ctx, &api.AddPeerRequest{
 		Peer: oc.NewPeerFromConfigStruct(neighbor),
 	})
 	require.NoError(t, err)
-	wg.Wait()
+	wg.Wait(t, 10*time.Second)
 
 	peerAddrParsed := netip.MustParseAddr(peerAddr)
 	peer := s.neighborMap[peerAddrParsed]
@@ -3628,9 +3683,7 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 	m1.PushBgpMessage(openMsg1)
 	m1.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
 
-	require.Eventually(t, func() bool {
-		return peer.fsm.state.Load() == bgp.BGP_FSM_ESTABLISHED
-	}, 10*time.Second, 10*time.Millisecond, "peer should become ESTABLISHED")
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, 10*time.Second, bgp.RF_RTC_UC, bgp.RF_IPv4_VPN)
 
 	peer.fsm.lock.Lock()
 	downtimeAfterFirstEstablished := peer.fsm.pConf.Timers.State.Downtime
@@ -3648,9 +3701,7 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 		return downtime > downtimeAfterFirstEstablished
 	}, 10*time.Second, 10*time.Millisecond, "Downtime should be updated after PeerDown")
 
-	require.Eventually(t, func() bool {
-		return peer.fsm.state.Load() == bgp.BGP_FSM_ACTIVE
-	}, 10*time.Second, 10*time.Millisecond, "peer should return to ACTIVE after disconnect")
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 
 	peer.fsm.lock.Lock()
 	downtimeAfterDown := peer.fsm.pConf.Timers.State.Downtime
@@ -3668,9 +3719,7 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 	m2.PushBgpMessage(openMsg2)
 	m2.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
 
-	require.Eventually(t, func() bool {
-		return peer.fsm.state.Load() == bgp.BGP_FSM_ESTABLISHED
-	}, 10*time.Second, 10*time.Millisecond, "peer should become ESTABLISHED after reconnect")
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, 10*time.Second, bgp.RF_RTC_UC, bgp.RF_IPv4_VPN)
 
 	peer.fsm.lock.Lock()
 	downtimeAfterSecondEstablished := peer.fsm.pConf.Timers.State.Downtime
