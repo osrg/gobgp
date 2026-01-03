@@ -230,7 +230,8 @@ func (m *mrtWriter) loop(ctx context.Context) error {
 			if e.Init {
 				return nil
 			}
-			mp, _ := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, netip.MustParseAddr(e.PeerAddress.String()), netip.MustParseAddr(e.LocalAddress.String()), e.FourBytesAs, nil)
+			// MRT encodes IP addresses and does not carry zone information.
+			mp, _ := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, e.PeerAddress.WithZone(""), e.LocalAddress.WithZone(""), e.FourBytesAs, nil)
 			mp.BGPMessagePayload = e.Payload
 			isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetFamily())
 			subtype := mrt.MESSAGE
