@@ -3420,12 +3420,11 @@ func TestRTCDeferralTimerRaceCondition(t *testing.T) {
 		},
 	}
 
+	wg := waitActive(s)
 	err = s.AddPeer(ctx, &api.AddPeerRequest{
 		Peer: oc.NewPeerFromConfigStruct(neighbor),
 	})
 	require.NoError(t, err)
-
-	wg := waitActive(s)
 	wg.Wait()
 
 	m := NewMockConnection()
@@ -3594,12 +3593,12 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 		},
 	}
 
+	wg := waitActive(s)
+
 	err = s.AddPeer(ctx, &api.AddPeerRequest{
 		Peer: oc.NewPeerFromConfigStruct(neighbor),
 	})
 	require.NoError(t, err)
-
-	wg := waitActive(s)
 	wg.Wait()
 
 	peerAddrParsed := netip.MustParseAddr(peerAddr)
@@ -3623,15 +3622,15 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 	m1.SetRemoteAddr(peerAddr)
 	t.Cleanup(func() { m1.Close() })
 
-	wgEstablished1 := waitEstablished(s)
-
 	peer.fsm.connCh <- m1
 	openMsg1, err := createOpenMsg()
 	require.NoError(t, err)
 	m1.PushBgpMessage(openMsg1)
 	m1.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
 
-	wgEstablished1.Wait()
+	require.Eventually(t, func() bool {
+		return peer.fsm.state.Load() == bgp.BGP_FSM_ESTABLISHED
+	}, 10*time.Second, 10*time.Millisecond, "peer should become ESTABLISHED")
 
 	peer.fsm.lock.Lock()
 	downtimeAfterFirstEstablished := peer.fsm.pConf.Timers.State.Downtime
@@ -3640,10 +3639,18 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 	// Wait a bit before closing connection (less than deferral time to test stale timer protection)
 	time.Sleep(100 * time.Millisecond)
 
-	wgActive2 := waitActive(s)
-
 	m1.Close()
-	wgActive2.Wait()
+
+	require.Eventually(t, func() bool {
+		peer.fsm.lock.Lock()
+		downtime := peer.fsm.pConf.Timers.State.Downtime
+		peer.fsm.lock.Unlock()
+		return downtime > downtimeAfterFirstEstablished
+	}, 10*time.Second, 10*time.Millisecond, "Downtime should be updated after PeerDown")
+
+	require.Eventually(t, func() bool {
+		return peer.fsm.state.Load() == bgp.BGP_FSM_ACTIVE
+	}, 10*time.Second, 10*time.Millisecond, "peer should return to ACTIVE after disconnect")
 
 	peer.fsm.lock.Lock()
 	downtimeAfterDown := peer.fsm.pConf.Timers.State.Downtime
@@ -3655,15 +3662,15 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 	m2.SetRemoteAddr(peerAddr)
 	t.Cleanup(func() { m2.Close() })
 
-	wgEstablished2 := waitEstablished(s)
-
 	peer.fsm.connCh <- m2
 	openMsg2, err := createOpenMsg()
 	require.NoError(t, err)
 	m2.PushBgpMessage(openMsg2)
 	m2.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
 
-	wgEstablished2.Wait()
+	require.Eventually(t, func() bool {
+		return peer.fsm.state.Load() == bgp.BGP_FSM_ESTABLISHED
+	}, 10*time.Second, 10*time.Millisecond, "peer should become ESTABLISHED after reconnect")
 
 	peer.fsm.lock.Lock()
 	downtimeAfterSecondEstablished := peer.fsm.pConf.Timers.State.Downtime
