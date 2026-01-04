@@ -17,7 +17,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
@@ -29,7 +28,6 @@ import (
 	"net/netip"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -310,12 +308,6 @@ func newConn() (*grpc.ClientConn, error) {
 	target := globalOpts.Target
 	if target == "" {
 		target = net.JoinHostPort(globalOpts.Host, strconv.Itoa(globalOpts.Port))
-	} else if strings.HasPrefix(target, "unix://") {
-		target = target[len("unix://"):]
-		dialer := func(ctx context.Context, addr string) (net.Conn, error) {
-			return net.Dial("unix", addr)
-		}
-		grpcOpts = append(grpcOpts, grpc.WithContextDialer(dialer))
 	}
 	return grpc.NewClient(target, grpcOpts...)
 }
