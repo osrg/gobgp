@@ -137,7 +137,7 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 }
 
 type destination struct {
-	nlri          bgp.NLRI
+	nlri          bgp.NLRI // not mutable
 	knownPathList []*Path
 	localIdMap    *Bitmap
 }
@@ -155,12 +155,23 @@ func newDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *destination {
 	return d
 }
 
+// no need to lock here as nlri is not mutable
 func (dd *destination) GetNlri() bgp.NLRI {
 	return dd.nlri
 }
 
+// snapshot returns a stable copy of the destination state.
+// Caller must hold the appropriate shard lock.
+func (dd *destination) snapshot() *destination {
+	return newDestination(dd.nlri, 0, dd.GetAllKnownPathList()...)
+}
+
+// GetAllKnownPathList returns a copy of the known path list.
+// Caller must hold the appropriate shard lock.
 func (dd *destination) GetAllKnownPathList() []*Path {
-	return dd.knownPathList
+	l := make([]*Path, len(dd.knownPathList))
+	copy(l, dd.knownPathList)
+	return l
 }
 
 func rsFilter(id string, as uint32, path *Path) bool {
@@ -171,6 +182,8 @@ func rsFilter(id string, as uint32, path *Path) bool {
 	return id != GLOBAL_RIB_NAME && (path.GetSource().Address.String() == id || isASLoop(as, path))
 }
 
+// GetKnownPathList returns filtered path list.
+// Caller must hold the appropriate shard lock.
 func (dd *destination) GetKnownPathList(id string, as uint32) []*Path {
 	list := make([]*Path, 0, len(dd.knownPathList))
 	for _, p := range dd.knownPathList {
@@ -180,6 +193,12 @@ func (dd *destination) GetKnownPathList(id string, as uint32) []*Path {
 		list = append(list, p)
 	}
 	return list
+}
+
+// GetKnownPathListLength returns the count of known paths.
+// Caller must hold the appropriate shard lock.
+func (dd *destination) GetKnownPathListLength() int {
+	return len(dd.knownPathList)
 }
 
 func getBestPath(id string, as uint32, pathList []*Path) *Path {
@@ -192,6 +211,8 @@ func getBestPath(id string, as uint32, pathList []*Path) *Path {
 	return nil
 }
 
+// GetBestPath returns the best path for the given ID and AS.
+// Caller must hold the appropriate shard lock.
 func (dd *destination) GetBestPath(id string, as uint32) *Path {
 	p := getBestPath(id, as, dd.knownPathList)
 	if p == nil || p.IsNexthopInvalid {
@@ -200,14 +221,16 @@ func (dd *destination) GetBestPath(id string, as uint32) *Path {
 	return p
 }
 
+// GetMultiBestPath returns multiple best paths.
+// Caller must hold the appropriate shard lock.
 func (dd *destination) GetMultiBestPath(id string) []*Path {
 	return getMultiBestPath(id, dd.knownPathList)
 }
 
-// Calculates best-path among known paths for this destination.
-//
+// Calculate computes best-path among known paths for this destination.
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
+// Caller must hold the appropriate shard lock.
 func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
 	oldKnownPathList := make([]*Path, len(dest.knownPathList))
 	copy(oldKnownPathList, dest.knownPathList)
@@ -837,6 +860,7 @@ func (d *destination) Select(option ...DestinationSelectOption) *destination {
 	}
 	var paths []*Path
 	if adj {
+		// Caller must hold appropriate shard lock
 		paths = make([]*Path, len(d.knownPathList))
 		copy(paths, d.knownPathList)
 	} else {
