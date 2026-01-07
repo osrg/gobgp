@@ -207,6 +207,10 @@ func (s *adminStateRaw) Store(state adminState) {
 	s.val.Store(int32(state))
 }
 
+func (s *adminStateRaw) CompareAndSwap(old, new adminState) bool {
+	return s.val.CompareAndSwap(int32(old), int32(new))
+}
+
 func initializeConn(fsm *fsm, conn net.Conn) {
 	fsm.lock.Lock()
 	if err := setPeerConnTTL(fsm, conn); err != nil {
@@ -2007,13 +2011,11 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 
 func (h *fsmHandler) changeadminState(s adminState) error {
 	fsm := h.fsm
-	// nobody can call changeadminState concurrently because fsm.lock is held so no swap() is needed.
-	if fsm.adminState.Load() != s {
+	old := fsm.adminState.Load()
+	if fsm.adminState.CompareAndSwap(old, s) {
 		fsm.logger.Debug("admin state changed",
 			slog.String("State", fsm.state.String()),
 			slog.String("adminState", s.String()))
-
-		fsm.adminState.Store(s)
 
 		h.fsm.lock.Lock()
 		fsm.pConf.State.AdminDown = !fsm.pConf.State.AdminDown
