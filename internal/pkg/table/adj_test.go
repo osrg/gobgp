@@ -233,5 +233,7 @@ func TestWithdrawUnknownPath(t *testing.T) {
 
 	adj := NewAdjRib(logger, families)
 	adj.Update([]*Path{p1})
-	assert.Equal(t, len(adj.table[family].destinations), 0)
+	// Check that the table is empty (no destinations across all shards)
+	dests := adj.table[family].GetDestinations()
+	assert.Equal(t, 0, len(dests))
 }

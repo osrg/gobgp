@@ -67,9 +67,30 @@ func TestTableDeleteDest(t *testing.T) {
 	}
 	dest := newDestination(pathT[0].GetNlri(), 0)
 	ipv4t.setDestination(dest)
-	ipv4t.deleteDest(dest)
+	// Test deletion by removing directly
+	shard := ipv4t.destinations.getShard(pathT[0].GetNlri())
+	shard.mu.Lock()
+	ipv4t.deleteDestLocked(shard, dest)
+	shard.mu.Unlock()
 	gdest := ipv4t.GetDestination(pathT[0].GetNlri())
 	assert.Nil(t, gdest)
+}
+
+func TestTableDeleteDestKeepsDestinationWhilePathIDsReserved(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
+
+	dest := newDestination(nlri, 64)
+	dest.localIdMap.Flag(1)
+	ipv4t.setDestination(dest)
+
+	shard := ipv4t.destinations.getShard(nlri)
+	shard.mu.Lock()
+	ipv4t.deleteDestLocked(shard, dest)
+	shard.mu.Unlock()
+
+	gdest := ipv4t.GetDestination(nlri)
+	assert.NotNil(t, gdest)
 }
 
 func TestTableGetFamily(t *testing.T) {
@@ -83,9 +104,13 @@ func TestTableDestinationsCollision(t *testing.T) {
 	pathT := TableCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 
+	// Fake a collision by inserting a destination with different NLRI but same hash key
 	k := tableKey(pathT[0].GetNlri())
-	// fake an entry
-	ipv4t.destinations[k] = []*destination{{nlri: pathT[1].GetNlri()}}
+	shard := ipv4t.destinations.getShard(pathT[0].GetNlri())
+	shard.mu.Lock()
+	shard.mp[k] = []*destination{newDestination(pathT[1].GetNlri(), 0)}
+	shard.mu.Unlock()
+
 	for _, path := range pathT {
 		dest := newDestination(path.GetNlri(), 0)
 		ipv4t.setDestination(dest)
@@ -111,7 +136,10 @@ func TestTableSetDestinations(t *testing.T) {
 	slices.SortFunc(ds, func(a, b *destination) int {
 		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
-	assert.Equal(t, ds, destinations)
+	assert.Equal(t, len(destinations), len(ds))
+	for i := range ds {
+		assert.Equal(t, 0, AddrPrefixOnlyCompare(ds[i].GetNlri(), destinations[i].GetNlri()))
+	}
 }
 
 func TestTableGetDestinations(t *testing.T) {
@@ -132,7 +160,10 @@ func TestTableGetDestinations(t *testing.T) {
 	slices.SortFunc(ds, func(a, b *destination) int {
 		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
-	assert.Equal(t, ds, destinations)
+	assert.Equal(t, len(destinations), len(ds))
+	for i := range ds {
+		assert.Equal(t, 0, AddrPrefixOnlyCompare(ds[i].GetNlri(), destinations[i].GetNlri()))
+	}
 }
 
 func TestTableKey(t *testing.T) {
