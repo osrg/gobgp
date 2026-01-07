@@ -123,7 +123,13 @@ func (adj *AdjRib) Update(pathList []*Path) {
 		}
 		rf := path.GetFamily()
 		t := adj.table[path.GetFamily()]
-		d := t.getOrCreateDest(path.GetNlri(), 0)
+		nlri := path.GetNlri()
+		shard := t.destinations.getShard(nlri)
+
+		// Lock shard for entire operation
+		shard.mu.Lock()
+
+		d := t.getOrCreateDestLocked(shard, nlri, 0)
 		var old *Path
 		idx := -1
 		for i, p := range d.knownPathList {
@@ -145,7 +151,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				}
 			}
 			if len(d.knownPathList) == 0 {
-				t.deleteDest(d)
+				t.deleteDestLocked(shard, d)
 			}
 			path.SetDropped(true)
 		} else {
@@ -169,6 +175,8 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				}
 			}
 		}
+
+		shard.mu.Unlock()
 	}
 }
 
@@ -185,11 +193,16 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 			continue
 		}
 		t := adj.table[path.GetFamily()]
-		d := t.getOrCreateDest(path.GetNlri(), 0)
+		nlri := path.GetNlri()
+		shard := t.destinations.getShard(nlri)
+
+		shard.mu.Lock()
+		d := t.getOrCreateDestLocked(shard, nlri, 0)
 		d.knownPathList = append(d.knownPathList, path)
 		if !path.IsRejected() {
 			t.adjRts.add(path)
 		}
+		shard.mu.Unlock()
 	}
 }
 
