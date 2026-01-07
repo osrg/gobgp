@@ -103,12 +103,12 @@ func TimingHookOption(hook FSMTimingHook) ServerOption {
 }
 
 type sharedData struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 func newSharedData() *sharedData {
 	return &sharedData{
-		mu: sync.Mutex{},
+		mu: sync.RWMutex{},
 	}
 }
 
@@ -1341,8 +1341,8 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
-	s.shared.mu.Lock()
-	defer s.shared.mu.Unlock()
+	s.shared.mu.RLock()
+	defer s.shared.mu.RUnlock()
 
 	switch e.MsgType {
 	case fsmMsgStateChange:
