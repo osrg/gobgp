@@ -24,6 +24,7 @@ import (
 	"net/netip"
 	"slices"
 	"sort"
+	"sync"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -137,6 +138,7 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 }
 
 type destination struct {
+	mu            *sync.RWMutex
 	nlri          bgp.NLRI
 	knownPathList []*Path
 	localIdMap    *Bitmap
@@ -144,6 +146,7 @@ type destination struct {
 
 func newDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *destination {
 	d := &destination{
+		mu:            &sync.RWMutex{},
 		nlri:          nlri,
 		knownPathList: known,
 		localIdMap:    NewBitmap(mapSize),
@@ -155,12 +158,18 @@ func newDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *destination {
 	return d
 }
 
+// no need to lock here as nlri is not mutable
 func (dd *destination) GetNlri() bgp.NLRI {
 	return dd.nlri
 }
 
 func (dd *destination) GetAllKnownPathList() []*Path {
-	return dd.knownPathList
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
+	l := make([]*Path, len(dd.knownPathList))
+	copy(l, dd.knownPathList)
+	return l
 }
 
 func rsFilter(id string, as uint32, path *Path) bool {
@@ -172,6 +181,9 @@ func rsFilter(id string, as uint32, path *Path) bool {
 }
 
 func (dd *destination) GetKnownPathList(id string, as uint32) []*Path {
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
 	list := make([]*Path, 0, len(dd.knownPathList))
 	for _, p := range dd.knownPathList {
 		if rsFilter(id, as, p) {
@@ -180,6 +192,13 @@ func (dd *destination) GetKnownPathList(id string, as uint32) []*Path {
 		list = append(list, p)
 	}
 	return list
+}
+
+func (dd *destination) GetKnownPathListLength() int {
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
+	return len(dd.knownPathList)
 }
 
 func getBestPath(id string, as uint32, pathList []*Path) *Path {
@@ -193,6 +212,9 @@ func getBestPath(id string, as uint32, pathList []*Path) *Path {
 }
 
 func (dd *destination) GetBestPath(id string, as uint32) *Path {
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
 	p := getBestPath(id, as, dd.knownPathList)
 	if p == nil || p.IsNexthopInvalid {
 		return nil
@@ -201,6 +223,9 @@ func (dd *destination) GetBestPath(id string, as uint32) *Path {
 }
 
 func (dd *destination) GetMultiBestPath(id string) []*Path {
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
 	return getMultiBestPath(id, dd.knownPathList)
 }
 
@@ -209,6 +234,9 @@ func (dd *destination) GetMultiBestPath(id string) []*Path {
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
 func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
+	dest.mu.Lock()
+	defer dest.mu.Unlock()
+
 	oldKnownPathList := make([]*Path, len(dest.knownPathList))
 	copy(oldKnownPathList, dest.knownPathList)
 
@@ -837,8 +865,10 @@ func (d *destination) Select(option ...DestinationSelectOption) *destination {
 	}
 	var paths []*Path
 	if adj {
+		d.mu.RLock()
 		paths = make([]*Path, len(d.knownPathList))
 		copy(paths, d.knownPathList)
+		d.mu.RUnlock()
 	} else {
 		paths = d.GetKnownPathList(id, as)
 		if vrf != nil {

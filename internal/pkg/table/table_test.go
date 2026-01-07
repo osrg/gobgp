@@ -85,7 +85,7 @@ func TestTableDestinationsCollision(t *testing.T) {
 
 	k := tableKey(pathT[0].GetNlri())
 	// fake an entry
-	ipv4t.destinations[k] = []*destination{{nlri: pathT[1].GetNlri()}}
+	ipv4t.destinations.mp[k] = []*destination{newDestination(pathT[1].GetNlri(), 0)}
 	for _, path := range pathT {
 		dest := newDestination(path.GetNlri(), 0)
 		ipv4t.setDestination(dest)

@@ -26,6 +26,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/k-sone/critbitgo"
 	"github.com/segmentio/fasthash/fnv1a"
@@ -92,10 +93,34 @@ func tableKey(nlri bgp.NLRI) addrPrefixKey {
 	return addrPrefixKey(h)
 }
 
-type Destinations map[addrPrefixKey][]*destination
+type Destinations struct {
+	mp map[addrPrefixKey][]*destination
+	mu *sync.RWMutex
+}
 
+func NewDestinations() *Destinations {
+	return &Destinations{mp: make(map[addrPrefixKey][]*destination), mu: &sync.RWMutex{}}
+}
+
+func (d Destinations) Lock() {
+	d.mu.Lock()
+}
+
+func (d Destinations) Unlock() {
+	d.mu.Unlock()
+}
+
+func (d Destinations) RLock() {
+	d.mu.RLock()
+}
+
+func (d Destinations) RUnlock() {
+	d.mu.RUnlock()
+}
+
+// getDestinationList need to be called under lock
 func (d Destinations) getDestinationList(nlri bgp.NLRI) []*destination {
-	dest, ok := d[tableKey(nlri)]
+	dest, ok := d.mp[tableKey(nlri)]
 	if !ok {
 		return nil
 	}
@@ -103,6 +128,9 @@ func (d Destinations) getDestinationList(nlri bgp.NLRI) []*destination {
 }
 
 func (d Destinations) Get(nlri bgp.NLRI) *destination {
+	d.RLock()
+	defer d.RUnlock()
+
 	for _, d := range d.getDestinationList(nlri) {
 		if AddrPrefixOnlyCompare(d.nlri, nlri) == 0 {
 			return d
@@ -112,16 +140,19 @@ func (d Destinations) Get(nlri bgp.NLRI) *destination {
 }
 
 func (d Destinations) InsertUpdate(dest *destination) (collision bool) {
+	d.Lock()
+	defer d.Unlock()
+
 	nlri := dest.nlri
 	key := tableKey(nlri)
 	new := false
-	if _, ok := d[key]; !ok {
-		d[key] = make([]*destination, 0)
+	if _, ok := d.mp[key]; !ok {
+		d.mp[key] = make([]*destination, 0)
 		new = true
 	}
-	for i, v := range d[key] {
+	for i, v := range d.mp[key] {
 		if AddrPrefixOnlyCompare(v.nlri, nlri) == 0 {
-			d[key][i] = dest
+			d.mp[key][i] = dest
 			return collision
 		}
 	}
@@ -129,20 +160,23 @@ func (d Destinations) InsertUpdate(dest *destination) (collision bool) {
 		// we have collision
 		collision = true
 	}
-	d[key] = append(d[key], dest)
+	d.mp[key] = append(d.mp[key], dest)
 	return collision
 }
 
 func (d Destinations) Remove(nlri bgp.NLRI) {
+	d.Lock()
+	defer d.Unlock()
+
 	key := tableKey(nlri)
-	if _, ok := d[key]; !ok {
+	if _, ok := d.mp[key]; !ok {
 		return
 	}
-	for i, v := range d[key] {
+	for i, v := range d.mp[key] {
 		if AddrPrefixOnlyCompare(v.nlri, nlri) == 0 {
-			d[key] = append(d[key][:i], d[key][i+1:]...)
-			if len(d[key]) == 0 {
-				delete(d, key)
+			d.mp[key] = append(d.mp[key][:i], d.mp[key][i+1:]...)
+			if len(d.mp[key]) == 0 {
+				delete(d.mp, key)
 			}
 			return
 		}
@@ -189,7 +223,7 @@ func (e EVPNMacNLRIs) Remove(rt bgp.ExtendedCommunityInterface, mac net.Hardware
 
 type Table struct {
 	Family       bgp.Family
-	destinations Destinations
+	destinations *Destinations
 	logger       *slog.Logger
 	// adjRts is an RT->count map (reference count of RTC paths per RT).
 	// It is used only for Adj-RIB tables with RF_RTC_UC.
@@ -203,7 +237,7 @@ type Table struct {
 func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*destination) *Table {
 	t := &Table{
 		Family:       rf,
-		destinations: make(Destinations),
+		destinations: NewDestinations(),
 		logger:       logger,
 		macIndex:     make(EVPNMacNLRIs),
 	}
@@ -231,8 +265,11 @@ func NewAdjTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Tabl
 }
 
 func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
+	t.destinations.RLock()
+	defer t.destinations.RUnlock()
+
 	pathList := make([]*Path, 0)
-	for _, dests := range t.destinations {
+	for _, dests := range t.destinations.mp {
 		for _, dest := range dests {
 			for _, p := range dest.knownPathList {
 				var rd bgp.RouteDistinguisherInterface
@@ -258,12 +295,15 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 }
 
 func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
+	t.destinations.RLock()
+	defer t.destinations.RUnlock()
+
 	pathList := make([]*Path, 0)
 	if t.Family != bgp.RF_RTC_UC {
 		return pathList
 	}
 	for lhs := range vrf.ImportRt {
-		for _, dests := range t.destinations {
+		for _, dests := range t.destinations.mp {
 			for _, dest := range dests {
 				nlri := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI)
 				rhs, _ := extCommRouteTargetKey(nlri.RouteTarget)
@@ -283,10 +323,13 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 
 func (t *Table) deleteDest(dest *destination) {
 	count := 0
+	dest.mu.RLock()
+	lenLocalIdMap := len(dest.localIdMap.bitmap)
 	for _, v := range dest.localIdMap.bitmap {
 		count += bits.OnesCount64(v)
 	}
-	if len(dest.localIdMap.bitmap) != 0 && count != 1 {
+	dest.mu.RUnlock()
+	if lenLocalIdMap != 0 && count != 1 {
 		return
 	}
 	t.destinations.Remove(dest.GetNlri())
@@ -363,7 +406,7 @@ func (t *Table) update(newPath *Path) *Update {
 	dst := t.getOrCreateDest(newPath.GetNlri(), 64)
 	u := dst.Calculate(t.logger, newPath)
 
-	if len(dst.knownPathList) == 0 {
+	if dst.GetKnownPathListLength() == 0 {
 		t.deleteDest(dst)
 		return u
 	}
@@ -379,9 +422,16 @@ func (t *Table) update(newPath *Path) *Update {
 	return u
 }
 
-func (t *Table) GetDestinations() []*destination {
-	d := make([]*destination, 0, len(t.destinations))
-	for _, dests := range t.destinations {
+func (t *Table) GetDestinations(size ...*int) []*destination {
+	t.destinations.RLock()
+	defer t.destinations.RUnlock()
+
+	l := len(t.destinations.mp)
+	if len(size) > 0 {
+		*size[0] = l
+	}
+	d := make([]*destination, 0, l)
+	for _, dests := range t.destinations.mp {
 		d = append(d, dests...)
 	}
 	return d
@@ -543,10 +593,13 @@ func (t *Table) GetMUPDestinationsWithRouteType(p string) ([]*destination, error
 
 func (t *Table) setDestination(dst *destination) {
 	if collision := t.destinations.InsertUpdate(dst); collision {
+		t.destinations.RLock()
+		firstPrefix := t.destinations.getDestinationList(dst.GetNlri())[0].GetNlri().String()
+		t.destinations.RUnlock()
 		t.logger.Warn("insert collision detected",
 			slog.String("Topic", "Table"),
 			slog.String("Key", t.Family.String()),
-			slog.String("1stPrefix", t.destinations.getDestinationList(dst.GetNlri())[0].GetNlri().String()),
+			slog.String("1stPrefix", firstPrefix),
 			slog.String("Prefix", dst.GetNlri().String()),
 		)
 	}
@@ -563,8 +616,12 @@ func (t *Table) setDestination(dst *destination) {
 }
 
 func (t *Table) Bests(id string, as uint32) []*Path {
-	paths := make([]*Path, 0, len(t.destinations))
-	for _, dst := range t.GetDestinations() {
+	var paths []*Path
+	var size int
+	for i, dst := range t.GetDestinations(&size) {
+		if i == 0 {
+			paths = make([]*Path, 0, size)
+		}
 		path := dst.GetBestPath(id, as)
 		if path != nil {
 			paths = append(paths, path)
@@ -574,8 +631,12 @@ func (t *Table) Bests(id string, as uint32) []*Path {
 }
 
 func (t *Table) MultiBests(id string) [][]*Path {
-	paths := make([][]*Path, 0, len(t.destinations))
-	for _, dst := range t.GetDestinations() {
+	var paths [][]*Path
+	var size int
+	for i, dst := range t.GetDestinations(&size) {
+		if i == 0 {
+			paths = make([][]*Path, 0, size)
+		}
 		path := dst.GetMultiBestPath(id)
 		if path != nil {
 			paths = append(paths, path)
@@ -585,8 +646,12 @@ func (t *Table) MultiBests(id string) [][]*Path {
 }
 
 func (t *Table) GetKnownPathList(id string, as uint32) []*Path {
-	paths := make([]*Path, 0, len(t.destinations))
-	for _, dst := range t.GetDestinations() {
+	var paths []*Path
+	var size int
+	for i, dst := range t.GetDestinations(&size) {
+		if i == 0 {
+			paths = make([]*Path, 0, size)
+		}
 		paths = append(paths, dst.GetKnownPathList(id, as)...)
 	}
 	return paths
@@ -873,7 +938,10 @@ func (t *Table) Info(option ...TableInfoOptions) *TableInfo {
 		as = o.AS
 	}
 
-	for _, dests := range t.destinations {
+	t.destinations.RLock()
+	defer t.destinations.RUnlock()
+
+	for _, dests := range t.destinations.mp {
 		if len(dests) > 1 {
 			numC += len(dests) - 1
 		}
