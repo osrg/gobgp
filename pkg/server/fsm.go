@@ -208,7 +208,6 @@ func (s *adminStateRaw) Store(state adminState) {
 }
 
 func initializeConn(fsm *fsm, conn net.Conn) {
-	fsm.lock.Lock()
 	if err := setPeerConnTTL(fsm, conn); err != nil {
 		fsm.logger.Warn("cannot set TTL",
 			slog.String("State", fsm.state.String()),
@@ -219,7 +218,6 @@ func initializeConn(fsm *fsm, conn net.Conn) {
 			slog.String("State", fsm.state.String()),
 			slog.String("Error", err.Error()))
 	}
-	fsm.lock.Unlock()
 }
 
 type outgoingConn struct {
@@ -276,9 +274,9 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 				}
 				return
 			}
-			initializeConn(fsm, conn)
 
 			fsm.lock.Lock()
+			initializeConn(fsm, conn)
 			open := buildopen(fsm.gConf, fsm.pConf)
 			fsm.lock.Unlock()
 			b, _ := open.Serialize()
@@ -895,12 +893,11 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				break
 			}
 
+			fsm.lock.Lock()
 			fsm.conn = conn
 			initializeConn(fsm, conn)
-
 			// we don't implement delayed open timer so move to opensent right
 			// away.
-			fsm.lock.Lock()
 			m := buildopen(fsm.gConf, fsm.pConf)
 			fsm.lock.Unlock()
 
@@ -922,8 +919,8 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm)
 			} else {
 				fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
-				fsm.conn = result.conn
 				fsm.lock.Lock()
+				fsm.conn = result.conn
 				fsm.recvOpen = result.open
 				fsm.lock.Unlock()
 
