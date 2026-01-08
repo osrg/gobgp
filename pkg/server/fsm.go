@@ -420,67 +420,60 @@ func (fsm *fsm) isDominant(open *bgp.BGPOpen) bool {
 }
 
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
-	fsm.lock.Lock()
-	defer fsm.lock.Unlock()
-	state := &fsm.pConf.State.Messages
-	timer := &fsm.pConf.Timers
 	if isIn {
-		state.Received.Total++
+		atomic.AddUint64(&fsm.pConf.State.Messages.Received.Total, 1)
 	} else {
-		state.Sent.Total++
+		atomic.AddUint64(&fsm.pConf.State.Messages.Sent.Total, 1)
 	}
 	switch MessageType {
 	case bgp.BGP_MSG_OPEN:
 		if isIn {
-			state.Received.Open++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Received.Open, 1)
 		} else {
-			state.Sent.Open++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Sent.Open, 1)
 		}
 	case bgp.BGP_MSG_UPDATE:
 		if isIn {
-			state.Received.Update++
-			timer.State.UpdateRecvTime = time.Now().Unix()
+			atomic.AddUint64(&fsm.pConf.State.Messages.Received.Update, 1)
+			atomic.StoreInt64(&fsm.pConf.Timers.State.UpdateRecvTime, time.Now().Unix())
 		} else {
-			state.Sent.Update++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Sent.Update, 1)
 		}
 	case bgp.BGP_MSG_NOTIFICATION:
 		if isIn {
-			state.Received.Notification++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Received.Notification, 1)
 		} else {
-			state.Sent.Notification++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Sent.Notification, 1)
 		}
 	case bgp.BGP_MSG_KEEPALIVE:
 		if isIn {
-			state.Received.Keepalive++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Received.Keepalive, 1)
 		} else {
-			state.Sent.Keepalive++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Sent.Keepalive, 1)
 		}
 	case bgp.BGP_MSG_ROUTE_REFRESH:
 		if isIn {
-			state.Received.Refresh++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Received.Refresh, 1)
 		} else {
-			state.Sent.Refresh++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Sent.Refresh, 1)
 		}
 	default:
 		if isIn {
-			state.Received.Discarded++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Received.Discarded, 1)
 		} else {
-			state.Sent.Discarded++
+			atomic.AddUint64(&fsm.pConf.State.Messages.Sent.Discarded, 1)
 		}
 	}
 }
 
 func (fsm *fsm) bmpStatsUpdate(statType uint16, increment int) {
-	fsm.lock.Lock()
-	defer fsm.lock.Unlock()
-	stats := &fsm.pConf.State.Messages.Received
 	switch statType {
 	// TODO
 	// Support other stat types.
 	case bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE:
-		stats.WithdrawUpdate += uint32(increment)
+		atomic.AddUint32(&fsm.pConf.State.Messages.Received.WithdrawUpdate, uint32(increment))
 	case bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX:
-		stats.WithdrawPrefix += uint32(increment)
+		atomic.AddUint32(&fsm.pConf.State.Messages.Received.WithdrawPrefix, uint32(increment))
 	}
 }
 

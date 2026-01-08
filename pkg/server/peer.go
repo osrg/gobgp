@@ -22,6 +22,7 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -611,10 +612,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 		slog.Any("withdrawals", update.WithdrawnRoutes),
 		slog.Any("path_attributes", update.PathAttributes))
 
-	peer.fsm.lock.Lock()
-	peer.fsm.pConf.Timers.State.UpdateRecvTime = time.Now().Unix()
-	peer.fsm.lock.Unlock()
-
+	atomic.StoreInt64(&peer.fsm.pConf.Timers.State.UpdateRecvTime, time.Now().Unix())
 	pathList := table.ProcessMessage(m, peer.peerInfo, e.timestamp, treatAsWithdraw)
 	if len(pathList) > 0 {
 		paths := make([]*table.Path, 0, len(pathList))

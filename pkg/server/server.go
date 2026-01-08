@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"reflect"
 	"slices"
 	"strconv"
 	"sync"
@@ -729,8 +730,58 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 
 func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	// create copy which can be access to without mutex
+	var conf oc.Neighbor
 	peer.fsm.lock.Lock()
-	conf := *peer.fsm.pConf
+
+	conf.Config = peer.fsm.pConf.Config
+	// copy config but not config.State and Timers
+	for _, f := range reflect.VisibleFields(reflect.TypeOf(conf)) {
+		if f.Name == "State" || f.Name == "Timers" || f.Name == "AfiSafis" {
+			continue
+		}
+		from := reflect.ValueOf(peer.fsm.pConf).Elem().FieldByName(f.Name)
+		to := reflect.ValueOf(&conf).Elem().FieldByName(f.Name)
+		to.Set(from)
+	}
+	// copy config state but not config.State.Messages
+	for _, f := range reflect.VisibleFields(reflect.TypeOf(conf.State)) {
+		if f.Name == "Messages" {
+			continue
+		}
+		from := reflect.ValueOf(&peer.fsm.pConf.State).Elem().FieldByName(f.Name)
+		to := reflect.ValueOf(&conf.State).Elem().FieldByName(f.Name)
+		to.Set(from)
+	}
+	conf.State.Messages.Received.Total = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Received.Total)
+	conf.State.Messages.Received.Open = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Received.Open)
+	conf.State.Messages.Received.Update = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Received.Update)
+	conf.State.Messages.Received.Notification = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Received.Notification)
+	conf.State.Messages.Received.Keepalive = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Received.Keepalive)
+	conf.State.Messages.Received.Refresh = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Received.Refresh)
+	conf.State.Messages.Received.WithdrawUpdate = atomic.LoadUint32(&peer.fsm.pConf.State.Messages.Received.WithdrawUpdate)
+	conf.State.Messages.Received.WithdrawPrefix = atomic.LoadUint32(&peer.fsm.pConf.State.Messages.Received.WithdrawPrefix)
+	conf.State.Messages.Received.Discarded = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Received.Discarded)
+	conf.State.Messages.Sent.Total = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Sent.Total)
+	conf.State.Messages.Sent.Open = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Sent.Open)
+	conf.State.Messages.Sent.Update = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Sent.Update)
+	conf.State.Messages.Sent.Notification = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Sent.Notification)
+	conf.State.Messages.Sent.Keepalive = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Sent.Keepalive)
+	conf.State.Messages.Sent.Refresh = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Sent.Refresh)
+	conf.State.Messages.Sent.WithdrawUpdate = atomic.LoadUint32(&peer.fsm.pConf.State.Messages.Sent.WithdrawUpdate)
+	conf.State.Messages.Sent.WithdrawPrefix = atomic.LoadUint32(&peer.fsm.pConf.State.Messages.Sent.WithdrawPrefix)
+	conf.State.Messages.Sent.Discarded = atomic.LoadUint64(&peer.fsm.pConf.State.Messages.Sent.Discarded)
+	conf.Timers.Config = peer.fsm.pConf.Timers.Config
+	// copy config timers state but not config.Timers.State.UpdateRecvTime
+	for _, f := range reflect.VisibleFields(reflect.TypeOf(conf.Timers.State)) {
+		if f.Name == "UpdateRecvTime" {
+			continue
+		}
+		from := reflect.ValueOf(&peer.fsm.pConf.Timers.State).Elem().FieldByName(f.Name)
+		to := reflect.ValueOf(&conf.Timers.State).Elem().FieldByName(f.Name)
+		to.Set(from)
+	}
+	conf.Timers.State.UpdateRecvTime = atomic.LoadInt64(&peer.fsm.pConf.Timers.State.UpdateRecvTime)
+
 	peerAfiSafis := peer.fsm.pConf.AfiSafis
 	peerCapMap := peer.fsm.capMap
 	peer.fsm.lock.Unlock()
