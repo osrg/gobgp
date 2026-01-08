@@ -1726,12 +1726,11 @@ func TestFamiliesForSoftreset(t *testing.T) {
 		}
 	}
 	peer := &peer{
-		fsm: &fsm{
-			pConf: &oc.Neighbor{
-				AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
-			},
-		},
+		fsm: &fsm{},
 	}
+	peer.fsm.pConf.Update(&oc.Neighbor{
+		AfiSafis: []oc.AfiSafi{f(bgp.RF_RTC_UC), f(bgp.RF_IPv4_UC), f(bgp.RF_IPv6_UC)},
+	})
 
 	families := familiesForSoftreset(peer, bgp.RF_IPv4_UC)
 	assert.Equal(t, len(families), 1)
@@ -3685,9 +3684,8 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 
 	waitPeerState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, 10*time.Second, bgp.RF_RTC_UC, bgp.RF_IPv4_VPN)
 
-	peer.fsm.lock.Lock()
-	downtimeAfterFirstEstablished := peer.fsm.pConf.Timers.State.Downtime
-	peer.fsm.lock.Unlock()
+	conf := peer.fsm.pConf.ReadOnly()
+	downtimeAfterFirstEstablished := conf.Timers.State.Downtime
 
 	// Wait a bit before closing connection (less than deferral time to test stale timer protection)
 	time.Sleep(100 * time.Millisecond)
@@ -3695,17 +3693,15 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 	m1.Close()
 
 	require.Eventually(t, func() bool {
-		peer.fsm.lock.Lock()
-		downtime := peer.fsm.pConf.Timers.State.Downtime
-		peer.fsm.lock.Unlock()
+		conf := peer.fsm.pConf.ReadOnly()
+		downtime := conf.Timers.State.Downtime
 		return downtime > downtimeAfterFirstEstablished
 	}, 10*time.Second, 10*time.Millisecond, "Downtime should be updated after PeerDown")
 
 	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 
-	peer.fsm.lock.Lock()
-	downtimeAfterDown := peer.fsm.pConf.Timers.State.Downtime
-	peer.fsm.lock.Unlock()
+	conf = peer.fsm.pConf.ReadOnly()
+	downtimeAfterDown := conf.Timers.State.Downtime
 	assert.Greater(t, downtimeAfterDown, downtimeAfterFirstEstablished,
 		"Downtime should be updated after PeerDown")
 
@@ -3721,9 +3717,8 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 
 	waitPeerState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, 10*time.Second, bgp.RF_RTC_UC, bgp.RF_IPv4_VPN)
 
-	peer.fsm.lock.Lock()
-	downtimeAfterSecondEstablished := peer.fsm.pConf.Timers.State.Downtime
-	peer.fsm.lock.Unlock()
+	conf = peer.fsm.pConf.ReadOnly()
+	downtimeAfterSecondEstablished := conf.Timers.State.Downtime
 
 	assert.Equal(t, downtimeAfterDown, downtimeAfterSecondEstablished,
 		"Downtime should not change on ESTABLISHED (only updated on PeerDown)")

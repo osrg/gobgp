@@ -408,8 +408,10 @@ func TestGRPCWatchEvent(t *testing.T) {
 
 	err = t2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
 	assert.NoError(err)
+	t.Log("t2 add peer done")
 
 	establishedWg.Wait()
+	t.Log("t2 peer established done")
 
 	count := 0
 	tableCh := make(chan any)

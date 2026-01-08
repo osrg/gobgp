@@ -53,3 +53,4 @@ uptime
 vpls
 zapi
 buflen
+mgmt
