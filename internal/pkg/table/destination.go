@@ -136,14 +136,14 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 	}
 }
 
-type Destination struct {
+type destination struct {
 	nlri          bgp.NLRI
 	knownPathList []*Path
 	localIdMap    *Bitmap
 }
 
-func NewDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *Destination {
-	d := &Destination{
+func newDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *destination {
+	d := &destination{
 		nlri:          nlri,
 		knownPathList: known,
 		localIdMap:    NewBitmap(mapSize),
@@ -155,11 +155,11 @@ func NewDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *Destination {
 	return d
 }
 
-func (dd *Destination) GetNlri() bgp.NLRI {
+func (dd *destination) GetNlri() bgp.NLRI {
 	return dd.nlri
 }
 
-func (dd *Destination) GetAllKnownPathList() []*Path {
+func (dd *destination) GetAllKnownPathList() []*Path {
 	return dd.knownPathList
 }
 
@@ -171,7 +171,7 @@ func rsFilter(id string, as uint32, path *Path) bool {
 	return id != GLOBAL_RIB_NAME && (path.GetSource().Address.String() == id || isASLoop(as, path))
 }
 
-func (dd *Destination) GetKnownPathList(id string, as uint32) []*Path {
+func (dd *destination) GetKnownPathList(id string, as uint32) []*Path {
 	list := make([]*Path, 0, len(dd.knownPathList))
 	for _, p := range dd.knownPathList {
 		if rsFilter(id, as, p) {
@@ -192,7 +192,7 @@ func getBestPath(id string, as uint32, pathList []*Path) *Path {
 	return nil
 }
 
-func (dd *Destination) GetBestPath(id string, as uint32) *Path {
+func (dd *destination) GetBestPath(id string, as uint32) *Path {
 	p := getBestPath(id, as, dd.knownPathList)
 	if p == nil || p.IsNexthopInvalid {
 		return nil
@@ -200,7 +200,7 @@ func (dd *Destination) GetBestPath(id string, as uint32) *Path {
 	return p
 }
 
-func (dd *Destination) GetMultiBestPath(id string) []*Path {
+func (dd *destination) GetMultiBestPath(id string) []*Path {
 	return getMultiBestPath(id, dd.knownPathList)
 }
 
@@ -208,7 +208,7 @@ func (dd *Destination) GetMultiBestPath(id string) []*Path {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *Destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
+func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
 	oldKnownPathList := make([]*Path, len(dest.knownPathList))
 	copy(oldKnownPathList, dest.knownPathList)
 
@@ -250,7 +250,7 @@ func (dest *Destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
 // since not all paths get installed into the table due to bgp policy and
 // we can receive withdraws for such paths and withdrawals may not be
 // stopped by the same policies.
-func (dest *Destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *Path {
+func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *Path {
 	logger.Debug("Removing withdrawals",
 		slog.String("Topic", "Table"),
 		slog.String("Key", dest.GetNlri().String()))
@@ -292,7 +292,7 @@ func (dest *Destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 //
 // Known paths will no longer have paths whose new version is present in
 // new paths.
-func (dest *Destination) implicitWithdraw(logger *slog.Logger, newPath *Path) {
+func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) {
 	found := -1
 	for i, path := range dest.knownPathList {
 		if path.NoImplicitWithdraw() {
@@ -318,7 +318,7 @@ func (dest *Destination) implicitWithdraw(logger *slog.Logger, newPath *Path) {
 	}
 }
 
-func (dest *Destination) insertSort(newPath *Path) {
+func (dest *destination) insertSort(newPath *Path) {
 	// Find the correct position for newPath
 	insertIdx := sort.Search(len(dest.knownPathList), func(i int) bool {
 		//Determine where in the array newPath belongs. The slice
@@ -799,7 +799,7 @@ func compareByAge(path1, path2 *Path) *Path {
 	return nil
 }
 
-func (dest *Destination) String() string {
+func (dest *destination) String() string {
 	return fmt.Sprintf("Destination NLRI: %s", dest.nlri.String())
 }
 
@@ -812,11 +812,11 @@ type DestinationSelectOption struct {
 	MultiPath bool
 }
 
-func (d *Destination) MarshalJSON() ([]byte, error) {
+func (d *destination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.GetAllKnownPathList())
 }
 
-func (d *Destination) Select(option ...DestinationSelectOption) *Destination {
+func (d *destination) Select(option ...DestinationSelectOption) *destination {
 	id := GLOBAL_RIB_NAME
 	var vrf *Vrf
 	adj := false
@@ -871,5 +871,5 @@ func (d *Destination) Select(option ...DestinationSelectOption) *Destination {
 			}
 		}
 	}
-	return NewDestination(d.nlri, 0, paths...)
+	return newDestination(d.nlri, 0, paths...)
 }

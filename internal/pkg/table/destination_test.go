@@ -31,26 +31,26 @@ import (
 func TestDestinationNewIPv4(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv4d := NewDestination(pathD[0].GetNlri(), 0)
+	ipv4d := newDestination(pathD[0].GetNlri(), 0)
 	assert.NotNil(t, ipv4d)
 }
 
 func TestDestinationNewIPv6(t *testing.T) {
 	peerD := DestCreatePeer()
 	pathD := DestCreatePath(peerD)
-	ipv6d := NewDestination(pathD[0].GetNlri(), 0)
+	ipv6d := newDestination(pathD[0].GetNlri(), 0)
 	assert.NotNil(t, ipv6d)
 }
 
 func TestDestinationGetNlri(t *testing.T) {
-	dd := &Destination{}
+	dd := &destination{}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.110.123.1/24"))
 	dd.nlri = nlri
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
 
 	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.110.123.2/24"))
-	dd2 := NewDestination(nlri2, 0)
+	dd2 := newDestination(nlri2, 0)
 	r_nlri2 := dd2.GetNlri()
 	assert.Equal(t, r_nlri2, nlri2)
 }
@@ -69,7 +69,7 @@ func TestCalculate2(t *testing.T) {
 	peer1 := &PeerInfo{AS: 1, Address: netip.MustParseAddr("1.1.1.1")}
 	path1 := ProcessMessage(update1, peer1, time.Now(), false)[0]
 
-	d := NewDestination(nlri, 0)
+	d := newDestination(nlri, 0)
 	d.Calculate(logger, path1)
 
 	// suppose peer2 sends grammaatically correct but semantically flawed update message
@@ -198,7 +198,7 @@ func TestTimeTieBreaker(t *testing.T) {
 	peer2 := &PeerInfo{AS: 2, LocalAS: 1, Address: netip.MustParseAddr("2.2.2.2"), ID: netip.MustParseAddr("2.2.2.2")} // weaker router-id
 	path2 := ProcessMessage(updateMsg, peer2, time.Now().Add(-1*time.Hour), false)[0]                                  // older than path1
 
-	d := NewDestination(nlri, 0)
+	d := newDestination(nlri, 0)
 	d.Calculate(logger, path1)
 	d.Calculate(logger, path2)
 
@@ -207,7 +207,7 @@ func TestTimeTieBreaker(t *testing.T) {
 
 	// this option disables tie breaking by age
 	SelectionOptions.ExternalCompareRouterId = true
-	d = NewDestination(nlri, 0)
+	d = newDestination(nlri, 0)
 	d.Calculate(logger, path1)
 	d.Calculate(logger, path2)
 
@@ -331,7 +331,7 @@ func TestMultipath(t *testing.T) {
 	updateMsg = bgp.NewBGPUpdateMessage(nil, pathAttributes, []bgp.PathNLRI{{NLRI: nlri}})
 	path2 := ProcessMessage(updateMsg, peer2, time.Now(), false)[0]
 
-	d := NewDestination(nlri, 0)
+	d := newDestination(nlri, 0)
 	d.Calculate(logger, path2)
 
 	best, old, multi := d.Calculate(logger, path1).GetChanges(GLOBAL_RIB_NAME, 0, false)
@@ -384,7 +384,7 @@ func TestMultipath(t *testing.T) {
 
 func TestIdMap(t *testing.T) {
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.101/24"))
-	d := NewDestination(nlri, 64)
+	d := newDestination(nlri, 64)
 	for i := 0; ; i++ {
 		if id, err := d.localIdMap.FindandSetZeroBit(); err == nil {
 			assert.Equal(t, uint(i+1), id)
@@ -437,7 +437,7 @@ func TestDestination_Calculate_ExplicitWithdraw(t *testing.T) {
 	p1 := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	p2 := NewPath(bgp.RF_IPv4_UC, peer2, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
-	d := NewDestination(nlri, 1, p1, p2)
+	d := newDestination(nlri, 1, p1, p2)
 
 	// Test explicit withdraw
 	withdrawPath := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, true, attrs, time.Now(), false)
@@ -457,7 +457,7 @@ func TestDestination_Calculate_ImplicitWithdraw(t *testing.T) {
 
 	// Create initial path
 	p1 := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
-	d := NewDestination(nlri, 0, p1)
+	d := newDestination(nlri, 0, p1)
 
 	// Send new path from same peer (should trigger implicit withdraw)
 	newAttrs := []bgp.PathAttributeInterface{
@@ -481,7 +481,7 @@ func TestDestination_GetBestPath_InvalidNexthop(t *testing.T) {
 
 	p1 := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
-	d := NewDestination(nlri, 0, p1)
+	d := newDestination(nlri, 0, p1)
 
 	p1.IsNexthopInvalid = false
 	bestPath := d.GetBestPath("", 0)
@@ -504,7 +504,7 @@ func TestDestination_Select_BestAndMultiPath(t *testing.T) {
 	p1 := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	p2 := NewPath(bgp.RF_IPv4_UC, peer2, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
-	d := NewDestination(nlri, 0, p1, p2)
+	d := newDestination(nlri, 0, p1, p2)
 
 	// Test best path selection
 	selected := d.Select(DestinationSelectOption{Best: true})
@@ -650,7 +650,7 @@ func BenchmarkMultiPath(b *testing.B) {
 
 	b.Run("Benchmark Calculate", func(b *testing.B) {
 		for range b.N {
-			d := NewDestination(nlri, 0)
+			d := newDestination(nlri, 0)
 			b.StartTimer()
 			for j := range pathList {
 				d.Calculate(logger, pathList[j])
@@ -660,7 +660,7 @@ func BenchmarkMultiPath(b *testing.B) {
 	})
 
 	b.Run("Benchmark GetMultiBestPath", func(b *testing.B) {
-		d := NewDestination(nlri, 0)
+		d := newDestination(nlri, 0)
 		for j := range pathList {
 			d.Calculate(logger, pathList[j])
 		}
@@ -682,7 +682,7 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 	p2 := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("13.2.5.0/24"))
 	p3 := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
-	d := NewDestination(nlri, 0, p1, p2, p3)
+	d := newDestination(nlri, 0, p1, p2, p3)
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("13.2.6.0/24"))
 	p4 := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
@@ -696,7 +696,7 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 	// p1 is no implecit withdrawn
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("13.2.3.0/24"))
 	p1 = NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), true)
-	d = NewDestination(nlri, 0, p1, p2, p3)
+	d = newDestination(nlri, 0, p1, p2, p3)
 	update = d.Calculate(logger, p4)
 	assert.Len(t, update.KnownPathList, 3)
 	assert.Len(t, update.KnownPathList, 3)
@@ -708,7 +708,7 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("13.2.8.0/24"))
 	p5 := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
-	d = NewDestination(nlri, 0, p1, p2, p3, p5)
+	d = newDestination(nlri, 0, p1, p2, p3, p5)
 	update = d.Calculate(logger, p4)
 
 	assert.Len(t, update.KnownPathList, 4)

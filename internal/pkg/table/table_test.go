@@ -37,19 +37,19 @@ func TestLookupLonger(t *testing.T) {
 	tbl := NewTable(logger, bgp.RF_IPv4_UC)
 
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.0/23"))
-	tbl.setDestination(NewDestination(nlri, 0))
+	tbl.setDestination(newDestination(nlri, 0))
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.0/24"))
-	tbl.setDestination(NewDestination(nlri, 0))
+	tbl.setDestination(newDestination(nlri, 0))
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.4/32"))
-	tbl.setDestination(NewDestination(nlri, 0))
+	tbl.setDestination(newDestination(nlri, 0))
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.129/32"))
-	tbl.setDestination(NewDestination(nlri, 0))
+	tbl.setDestination(newDestination(nlri, 0))
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.144/28"))
-	tbl.setDestination(NewDestination(nlri, 0))
+	tbl.setDestination(newDestination(nlri, 0))
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.144/29"))
-	tbl.setDestination(NewDestination(nlri, 0))
+	tbl.setDestination(newDestination(nlri, 0))
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix("11.0.0.145/32"))
-	tbl.setDestination(NewDestination(nlri, 0))
+	tbl.setDestination(newDestination(nlri, 0))
 
 	r, _ := tbl.GetLongerPrefixDestinations("11.0.0.128/25")
 	assert.Equal(t, len(r), 4)
@@ -62,10 +62,10 @@ func TestTableDeleteDest(t *testing.T) {
 	pathT := TableCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 	for _, path := range pathT {
-		dest := NewDestination(path.GetNlri(), 0)
+		dest := newDestination(path.GetNlri(), 0)
 		ipv4t.setDestination(dest)
 	}
-	dest := NewDestination(pathT[0].GetNlri(), 0)
+	dest := newDestination(pathT[0].GetNlri(), 0)
 	ipv4t.setDestination(dest)
 	ipv4t.deleteDest(dest)
 	gdest := ipv4t.GetDestination(pathT[0].GetNlri())
@@ -85,9 +85,9 @@ func TestTableDestinationsCollision(t *testing.T) {
 
 	k := tableKey(pathT[0].GetNlri())
 	// fake an entry
-	ipv4t.destinations[k] = []*Destination{{nlri: pathT[1].GetNlri()}}
+	ipv4t.destinations[k] = []*destination{{nlri: pathT[1].GetNlri()}}
 	for _, path := range pathT {
-		dest := NewDestination(path.GetNlri(), 0)
+		dest := newDestination(path.GetNlri(), 0)
 		ipv4t.setDestination(dest)
 	}
 	assert.Equal(t, 1, ipv4t.Info().NumCollision)
@@ -97,18 +97,18 @@ func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	destinations := make([]*Destination, 0)
+	destinations := make([]*destination, 0)
 	for _, path := range pathT {
-		dest := NewDestination(path.GetNlri(), 0)
+		dest := newDestination(path.GetNlri(), 0)
 		destinations = append(destinations, dest)
 		ipv4t.setDestination(dest)
 	}
 	// make them comparable
-	slices.SortFunc(destinations, func(a, b *Destination) int {
+	slices.SortFunc(destinations, func(a, b *destination) int {
 		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
 	ds := ipv4t.GetDestinations()
-	slices.SortFunc(ds, func(a, b *Destination) int {
+	slices.SortFunc(ds, func(a, b *destination) int {
 		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
 	assert.Equal(t, ds, destinations)
@@ -118,18 +118,18 @@ func TestTableGetDestinations(t *testing.T) {
 	peerT := DestCreatePeer()
 	pathT := DestCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
-	destinations := make([]*Destination, 0)
+	destinations := make([]*destination, 0)
 	for _, path := range pathT {
-		dest := NewDestination(path.GetNlri(), 0)
+		dest := newDestination(path.GetNlri(), 0)
 		destinations = append(destinations, dest)
 		ipv4t.setDestination(dest)
 	}
 	// make them comparable
-	slices.SortFunc(destinations, func(a, b *Destination) int {
+	slices.SortFunc(destinations, func(a, b *destination) int {
 		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
 	ds := ipv4t.GetDestinations()
-	slices.SortFunc(ds, func(a, b *Destination) int {
+	slices.SortFunc(ds, func(a, b *destination) int {
 		return AddrPrefixOnlyCompare(a.GetNlri(), b.GetNlri())
 	})
 	assert.Equal(t, ds, destinations)
@@ -138,9 +138,9 @@ func TestTableGetDestinations(t *testing.T) {
 func TestTableKey(t *testing.T) {
 	tb := NewTable(logger, bgp.RF_IPv4_UC)
 	n1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
-	d1 := NewDestination(n1, 0)
+	d1 := newDestination(n1, 0)
 	n2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/1"))
-	d2 := NewDestination(n2, 0)
+	d2 := newDestination(n2, 0)
 
 	assert.NotEqual(t, tableKey(d1.GetNlri()), tableKey(d2.GetNlri()))
 	tb.setDestination(d1)
@@ -278,7 +278,7 @@ func TestTableSelectVPNv4(t *testing.T) {
 		rd, p, _ := bgp.ParseVPNPrefix(prefix)
 		nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(p, *bgp.NewMPLSLabelStack(), rd)
 
-		destination := NewDestination(nlri, 0, NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, nil, time.Now(), false))
+		destination := newDestination(nlri, 0, NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, nil, time.Now(), false))
 		table.setDestination(destination)
 	}
 	assert.Equal(t, 9, len(table.GetDestinations()))
@@ -385,7 +385,7 @@ func TestTableSelectVPNv6(t *testing.T) {
 	for _, prefix := range prefixes {
 		rd, p, _ := bgp.ParseVPNPrefix(prefix)
 		nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(p, *bgp.NewMPLSLabelStack(), rd)
-		destination := NewDestination(nlri, 0, NewPath(bgp.RF_IPv6_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, nil, time.Now(), false))
+		destination := newDestination(nlri, 0, NewPath(bgp.RF_IPv6_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, nil, time.Now(), false))
 		table.setDestination(destination)
 	}
 	assert.Equal(t, 9, len(table.GetDestinations()))
@@ -629,12 +629,12 @@ func TestTableDestinationsCollisionAttack(t *testing.T) {
 		}
 
 		for _, p := range createAddrPrefixBaseIndex(i) {
-			dest := NewDestination(p, 0)
+			dest := newDestination(p, 0)
 			ipv4t.setDestination(dest)
 		}
 
 		for _, p := range createRandomAddrPrefix() {
-			dest := NewDestination(p, 0)
+			dest := newDestination(p, 0)
 			ipv4t.setDestination(dest)
 		}
 
@@ -697,7 +697,7 @@ func buildPrefixesWithLabels() []bgp.NLRI {
 func TestTableKeyWithLabels(t *testing.T) {
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 	for _, p := range buildPrefixesWithLabels() {
-		dest := NewDestination(p, 0)
+		dest := newDestination(p, 0)
 		ipv4t.setDestination(dest)
 	}
 

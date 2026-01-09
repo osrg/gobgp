@@ -395,7 +395,7 @@ func (manager *TableManager) GetPathListWithSource(id string, rfList []bgp.Famil
 	return paths
 }
 
-func (manager *TableManager) GetDestination(path *Path) *Destination {
+func (manager *TableManager) GetDestination(path *Path) *destination {
 	if path == nil {
 		return nil
 	}

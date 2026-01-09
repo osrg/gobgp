@@ -110,7 +110,7 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 	}
 }
 
-func (adj *AdjRib) walk(families []bgp.Family, fn func(*Destination) bool) {
+func (adj *AdjRib) walk(families []bgp.Family, fn func(*destination) bool) {
 	for _, f := range families {
 		if t, ok := adj.table[f]; ok {
 			for _, d := range t.GetDestinations() {
@@ -124,7 +124,7 @@ func (adj *AdjRib) walk(families []bgp.Family, fn func(*Destination) bool) {
 
 func (adj *AdjRib) PathList(rfList []bgp.Family, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
-	adj.walk(rfList, func(d *Destination) bool {
+	adj.walk(rfList, func(d *destination) bool {
 		for _, p := range d.knownPathList {
 			if accepted && p.IsRejected() {
 				continue
@@ -138,7 +138,7 @@ func (adj *AdjRib) PathList(rfList []bgp.Family, accepted bool) []*Path {
 
 func (adj *AdjRib) Count(rfList []bgp.Family) int {
 	count := 0
-	adj.walk(rfList, func(d *Destination) bool {
+	adj.walk(rfList, func(d *destination) bool {
 		count += len(d.knownPathList)
 		return false
 	})
@@ -157,7 +157,7 @@ func (adj *AdjRib) Accepted(rfList []bgp.Family) int {
 
 func (adj *AdjRib) Drop(rfList []bgp.Family) []*Path {
 	l := make([]*Path, 0, adj.Count(rfList))
-	adj.walk(rfList, func(d *Destination) bool {
+	adj.walk(rfList, func(d *destination) bool {
 		for _, p := range d.knownPathList {
 			w := p.Clone(true)
 			w.SetDropped(true)
@@ -174,7 +174,7 @@ func (adj *AdjRib) Drop(rfList []bgp.Family) []*Path {
 
 func (adj *AdjRib) DropStale(rfList []bgp.Family) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
-	adj.walk(rfList, func(d *Destination) bool {
+	adj.walk(rfList, func(d *destination) bool {
 		for _, p := range d.knownPathList {
 			if p.IsStale() {
 				w := p.Clone(true)
@@ -190,7 +190,7 @@ func (adj *AdjRib) DropStale(rfList []bgp.Family) []*Path {
 
 func (adj *AdjRib) StaleAll(rfList []bgp.Family) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
-	adj.walk(rfList, func(d *Destination) bool {
+	adj.walk(rfList, func(d *destination) bool {
 		for i, p := range d.knownPathList {
 			n := p.Clone(false)
 			n.MarkStale(true)
@@ -207,7 +207,7 @@ func (adj *AdjRib) StaleAll(rfList []bgp.Family) []*Path {
 
 func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.Family) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
-	adj.walk(rfList, func(d *Destination) bool {
+	adj.walk(rfList, func(d *destination) bool {
 		for i, p := range d.knownPathList {
 			if p.HasNoLLGR() {
 				n := p.Clone(true)
