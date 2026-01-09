@@ -159,10 +159,6 @@ func (dd *Destination) GetNlri() bgp.NLRI {
 	return dd.nlri
 }
 
-func (dd *Destination) setNlri(nlri bgp.NLRI) {
-	dd.nlri = nlri
-}
-
 func (dd *Destination) GetAllKnownPathList() []*Path {
 	return dd.knownPathList
 }
