@@ -42,20 +42,17 @@ func TestDestinationNewIPv6(t *testing.T) {
 	assert.NotNil(t, ipv6d)
 }
 
-func TestDestinationSetNlri(t *testing.T) {
-	dd := &Destination{}
-	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("13.2.3.1/24"))
-	dd.setNlri(nlri)
-	r_nlri := dd.GetNlri()
-	assert.Equal(t, r_nlri, nlri)
-}
-
 func TestDestinationGetNlri(t *testing.T) {
 	dd := &Destination{}
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.110.123.1/24"))
-	dd.setNlri(nlri)
+	dd.nlri = nlri
 	r_nlri := dd.GetNlri()
 	assert.Equal(t, r_nlri, nlri)
+
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.110.123.2/24"))
+	dd2 := NewDestination(nlri2, 0)
+	r_nlri2 := dd2.GetNlri()
+	assert.Equal(t, r_nlri2, nlri2)
 }
 
 func TestCalculate2(t *testing.T) {
