@@ -90,6 +90,10 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 		nexthop := reach.Nexthop
 		family := bgp.NewFamily(reach.AFI, reach.SAFI)
 
+		if nexthop.IsUnspecified() && reach.LinkLocalNexthop.IsValid() && !reach.LinkLocalNexthop.IsUnspecified() {
+			nexthop = reach.LinkLocalNexthop
+		}
+
 		for _, nlri := range reach.Value {
 			// when build path from reach
 			// reachAttrs might not contain next_hop if `attrs` does not have one
