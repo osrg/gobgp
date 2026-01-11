@@ -729,20 +729,29 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 }
 
 func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
-	// create copy which can be access to without mutex
+	// Create consistent snapshot under single lock to avoid TOCTOU races.
+	// Deep copy AfiSafis to prevent race with capabilitiesFromConfig which
+	// writes to AfiSafis[i].MpGracefulRestart.State.Advertised
 	peer.fsm.lock.Lock()
 	conf := *peer.fsm.pConf
-	peerAfiSafis := peer.fsm.pConf.AfiSafis
 	peerCapMap := peer.fsm.capMap
+	conf.AfiSafis = peer.copyAfiSafis()
+	state := peer.State()
+
+	conf.State.SessionState = oc.IntToSessionStateMap[int(state)]
+	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.AdminState())]
+	conf.State.Flops = peer.fsm.pConf.State.Flops
+
+	if state == bgp.BGP_FSM_ESTABLISHED {
+		buf, _ := peer.fsm.recvOpen.Serialize()
+		// need to copy all values here
+		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
+	}
 	peer.fsm.lock.Unlock()
 
-	conf.AfiSafis = make([]oc.AfiSafi, len(peerAfiSafis))
-	for i, af := range peerAfiSafis {
-		conf.AfiSafis[i] = af
-		conf.AfiSafis[i].AddPaths.State.Receive = peer.isAddPathReceiveEnabled(af.State.Family)
-		if peer.isAddPathSendEnabled(af.State.Family) {
-			conf.AfiSafis[i].AddPaths.State.SendMax = af.AddPaths.State.SendMax
-		} else {
+	for i := range conf.AfiSafis {
+		conf.AfiSafis[i].AddPaths.State.Receive = peer.isAddPathReceiveEnabled(conf.AfiSafis[i].State.Family)
+		if !peer.isAddPathSendEnabled(conf.AfiSafis[i].State.Family) {
 			conf.AfiSafis[i].AddPaths.State.SendMax = 0
 		}
 	}
@@ -759,26 +768,10 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 
 	conf.State.RemoteCapabilityList = remoteCap
 
-	peer.fsm.lock.Lock()
-	conf.State.LocalCapabilityList = capabilitiesFromConfig(peer.fsm.pConf)
-	peer.fsm.lock.Unlock()
+	// Use copy of conf here - no lock needed since capabilitiesFromConfig
+	// writes to conf.AfiSafis which is our local deep copy
+	conf.State.LocalCapabilityList = capabilitiesFromConfig(&conf)
 
-	state := peer.State()
-
-	peer.fsm.lock.Lock()
-	conf.State.SessionState = oc.IntToSessionStateMap[int(state)]
-	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.AdminState())]
-	conf.State.Flops = peer.fsm.pConf.State.Flops
-	peer.fsm.lock.Unlock()
-
-	if state == bgp.BGP_FSM_ESTABLISHED {
-		peer.fsm.lock.Lock()
-		buf, _ := peer.fsm.recvOpen.Serialize()
-		// need to copy all values here
-		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
-		conf.State.RemoteRouterId = peer.fsm.pConf.State.RemoteRouterId
-		peer.fsm.lock.Unlock()
-	}
 	return &conf
 }
 
@@ -1651,10 +1644,11 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				s.propagateUpdate(peer, pathList)
 			}
 
-			peer.fsm.lock.Lock()
-			peerAfiSafis := peer.fsm.pConf.AfiSafis
-			peer.fsm.lock.Unlock()
 			if len(eor) > 0 {
+				// Deep copy required: race detector detects races at struct element level
+				peer.fsm.lock.Lock()
+				peerAfiSafis := peer.copyAfiSafis()
+				peer.fsm.lock.Unlock()
 				rtc := false
 				for _, f := range eor {
 					if f == bgp.RF_RTC_UC {

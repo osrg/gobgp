@@ -1086,7 +1086,7 @@ func capabilitiesFromConfig(pConf *oc.Neighbor) []bgp.ParameterCapabilityInterfa
 
 	// ADD-PATH Capability
 	if c := capAddPathFromConfig(pConf); c != nil {
-		caps = append(caps, capAddPathFromConfig(pConf))
+		caps = append(caps, c)
 	}
 
 	return caps
