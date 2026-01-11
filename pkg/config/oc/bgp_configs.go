@@ -2672,6 +2672,7 @@ func (lhs *Transport) Equal(rhs *Transport) bool {
 // State information relating to the timers used for the BGP
 // neighbor or group.
 type TimersState struct {
+	Padding_for_i386 uint16
 	// original -> bgp:connect-retry
 	// bgp:connect-retry's original type is decimal64.
 	// Time interval in seconds between attempts to establish a
@@ -3029,6 +3030,7 @@ func (lhs *Sent) Equal(rhs *Sent) bool {
 // Counters for BGP messages sent and received from the
 // neighbor.
 type Messages struct {
+	Padding_for_i386 uint16
 	// original -> bgp:sent
 	// Counters relating to BGP messages sent to the neighbor.
 	Sent Sent `mapstructure:"sent" json:"sent,omitempty"`
