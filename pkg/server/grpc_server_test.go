@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
@@ -447,6 +448,65 @@ func TestGRPCWatchEvent(t *testing.T) {
 	<-tableCh
 
 	assert.Equal(2, count)
+}
+
+func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
+	assert := assert.New(t)
+
+	socketName, err := os.MkdirTemp("", "gobgp-grpc-test-*")
+	assert.NoError(err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(socketName)
+	})
+	socketAddr := "unix://" + socketName + "/gobgp.sock"
+
+	s := NewBgpServer(GrpcListenAddress(socketAddr))
+	go s.Serve()
+	defer s.Stop()
+
+	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+
+	conn, err := grpc.NewClient(socketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	assert.NoError(err)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+	client := api.NewGoBgpServiceClient(conn)
+
+	prefix, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	assert.NoError(err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	assert.NoError(err)
+	origin := bgp.NewPathAttributeOrigin(0)
+
+	path := &api.Path{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_UNICAST,
+		},
+		Nlri:   nlri(prefix),
+		Pattrs: attrs([]bgp.PathAttributeInterface{origin, nh}),
+	}
+
+	resp, err := client.AddPath(context.Background(), &api.AddPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Path:      path,
+	})
+	assert.NoError(err)
+
+	id, err := uuid.FromBytes(resp.Uuid)
+	assert.NoError(err)
+	assert.Len(s.uuidMap, 1)
+	for _, v := range s.uuidMap {
+		assert.Equal(id, v)
+	}
 }
 
 func TestToOcAttributeComparison(t *testing.T) {

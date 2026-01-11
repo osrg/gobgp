@@ -2096,10 +2096,6 @@ func pathTokey(path *table.Path) string {
 	return fmt.Sprintf("%d:%s", path.RemoteID(), path.GetPrefix())
 }
 
-func apiutilPathTokey(path *apiutil.Path) string {
-	return fmt.Sprintf("%d:%s", path.RemoteID, path.Nlri.String())
-}
-
 func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	err := s.fixupApiPath(vrfId, pathList)
 	if err == nil {

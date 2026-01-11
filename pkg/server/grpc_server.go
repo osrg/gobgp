@@ -644,7 +644,6 @@ func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPa
 	}
 
 	id := path[0].UUID
-	s.bgpServer.uuidMap[apiutilPathTokey(p)] = id
 	uuidBytes, err = id.MarshalBinary()
 	return &api.AddPathResponse{Uuid: uuidBytes}, err
 }
