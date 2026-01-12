@@ -298,20 +298,32 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 			reasonCh := make(chan fsmStateReason, 1)
 			var wg sync.WaitGroup
 			wg.Add(1)
+			holdTimer := time.NewTimer(time.Second * time.Duration(fsm.opensentHoldTime))
 			go ocm.fsm.h.recvMessage(ocm.ctx, conn, recvCh, reasonCh, &wg)
 			select {
+			case <-holdTimer.C:
+				fsm.logger.Debug("outgoing connection closing due to hold timer expired in OPEN SENT state")
+				notif := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+				// sendNotification closes the connection
+				_ = fsm.sendNotification(conn, notif)
+				wg.Wait()
+				ocm.state.Store(bgp.BGP_FSM_CONNECT)
+				continue
 			case <-ocm.ctx.Done():
+				holdTimer.Stop()
 				conn.SetReadDeadline(time.Now())
 				conn.Close()
 				wg.Wait()
 				return
 			case reason := <-reasonCh:
+				holdTimer.Stop()
 				fsm.logger.Debug("outgoing connection IO error", slog.String("reason", reason.String()))
 				conn.Close()
 				wg.Wait()
 				ocm.state.Store(bgp.BGP_FSM_CONNECT)
 				continue
 			case fmsg := <-recvCh:
+				holdTimer.Stop()
 				wg.Wait()
 				nextState, _, notif := ocm.fsm.handleOpen(fmsg)
 				if nextState != bgp.BGP_FSM_OPENCONFIRM {
