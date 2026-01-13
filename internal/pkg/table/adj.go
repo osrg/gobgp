@@ -22,6 +22,57 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
+type rtCounter struct {
+	rts map[uint64]int
+}
+
+func (rtc *rtCounter) add(path *Path) {
+	if rtc == nil {
+		return
+	}
+	if path.GetFamily() != bgp.RF_RTC_UC {
+		return
+	}
+	nlri, ok := path.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+	if !ok {
+		return
+	}
+	rtHash, err := nlriRouteTargetKey(nlri)
+	if err != nil {
+		return
+	}
+	if _, found := rtc.rts[rtHash]; !found {
+		rtc.rts[rtHash] = 1
+		return
+	}
+	rtc.rts[rtHash]++
+}
+
+func (rtc *rtCounter) sub(path *Path, deleteEmpty bool) {
+	if rtc == nil {
+		return
+	}
+	if path.GetFamily() != bgp.RF_RTC_UC {
+		return
+	}
+	nlri, ok := path.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+	if !ok {
+		return
+	}
+	rtHash, err := nlriRouteTargetKey(nlri)
+	if err != nil {
+		return
+	}
+	if val, found := rtc.rts[rtHash]; found {
+		if val > 0 {
+			rtc.rts[rtHash]--
+		}
+		if val <= 1 && deleteEmpty {
+			delete(rtc.rts, rtHash)
+		}
+	}
+}
+
 type AdjRib struct {
 	accepted map[bgp.Family]int
 	table    map[bgp.Family]*Table
@@ -31,13 +82,38 @@ type AdjRib struct {
 func NewAdjRib(logger *slog.Logger, rfList []bgp.Family) *AdjRib {
 	m := make(map[bgp.Family]*Table)
 	for _, f := range rfList {
-		m[f] = NewTable(logger, f)
+		m[f] = NewAdjTable(logger, f)
 	}
 	return &AdjRib{
 		table:    m,
 		accepted: make(map[bgp.Family]int),
 		logger:   logger,
 	}
+}
+
+func (adj *AdjRib) HasRTinRtcTable(routeTarget bgp.ExtendedCommunityInterface) bool {
+	table, found := adj.table[bgp.RF_RTC_UC]
+	if !found || table.adjRts == nil {
+		return false
+	}
+
+	key, err := extCommRouteTargetKey(routeTarget)
+	if err != nil {
+		return false
+	}
+
+	num, found := table.adjRts.rts[key]
+	return found && num > 0
+}
+
+func (adj *AdjRib) HasDefaultRT() bool {
+	table, found := adj.table[bgp.RF_RTC_UC]
+	if !found || table.adjRts == nil {
+		return false
+	}
+
+	num, found := table.adjRts.rts[DefaultRT]
+	return found && num > 0
 }
 
 func (adj *AdjRib) Update(pathList []*Path) {
@@ -68,6 +144,9 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				}
 				if !old.IsRejected() {
 					adj.accepted[rf]--
+					if t.adjRts != nil {
+						t.adjRts.sub(path, true)
+					}
 				}
 			}
 			path.SetDropped(true)
@@ -75,8 +154,14 @@ func (adj *AdjRib) Update(pathList []*Path) {
 			if idx != -1 {
 				if old.IsRejected() && !path.IsRejected() {
 					adj.accepted[rf]++
+					if t.adjRts != nil {
+						t.adjRts.add(path)
+					}
 				} else if !old.IsRejected() && path.IsRejected() {
 					adj.accepted[rf]--
+					if t.adjRts != nil {
+						t.adjRts.sub(path, true)
+					}
 				}
 				if old.Equal(path) {
 					path.setTimestamp(old.GetTimestamp())
@@ -86,6 +171,9 @@ func (adj *AdjRib) Update(pathList []*Path) {
 				d.knownPathList = append(d.knownPathList, path)
 				if !path.IsRejected() {
 					adj.accepted[rf]++
+					if t.adjRts != nil {
+						t.adjRts.add(path)
+					}
 				}
 			}
 		}
@@ -107,6 +195,9 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 		t := adj.table[path.GetFamily()]
 		d := t.getOrCreateDest(path.GetNlri(), 0)
 		d.knownPathList = append(d.knownPathList, path)
+		if !path.IsRejected() && t.adjRts != nil {
+			t.adjRts.add(path)
+		}
 	}
 }
 
@@ -166,7 +257,7 @@ func (adj *AdjRib) Drop(rfList []bgp.Family) []*Path {
 		return false
 	})
 	for _, rf := range rfList {
-		adj.table[rf] = NewTable(adj.logger, rf)
+		adj.table[rf] = NewAdjTable(adj.logger, rf)
 		adj.accepted[rf] = 0
 	}
 	return l
@@ -233,7 +324,7 @@ func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.Family) []*Path {
 func (adj *AdjRib) Select(family bgp.Family, accepted bool, option ...TableSelectOption) (*Table, error) {
 	t, ok := adj.table[family]
 	if !ok {
-		t = NewTable(adj.logger, family)
+		t = NewAdjTable(adj.logger, family)
 	}
 	option = append(option, TableSelectOption{adj: true})
 	return t.Select(option...)
