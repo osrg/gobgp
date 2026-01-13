@@ -191,18 +191,26 @@ type Table struct {
 	Family       bgp.Family
 	destinations Destinations
 	logger       *slog.Logger
+	// adjRts is an RT->count map (reference count of RTC paths per RT).
+	// It is used only for Adj-RIB tables with RF_RTC_UC.
+	adjRts *rtCounter
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
 	macIndex EVPNMacNLRIs
 }
 
-func NewTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
+func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*destination) *Table {
 	t := &Table{
 		Family:       rf,
 		destinations: make(Destinations),
 		logger:       logger,
 		macIndex:     make(EVPNMacNLRIs),
+	}
+	if isAdj && rf == bgp.RF_RTC_UC {
+		t.adjRts = &rtCounter{
+			rts: make(map[uint64]int),
+		}
 	}
 	for _, dst := range dsts {
 		t.setDestination(dst)
@@ -212,6 +220,14 @@ func NewTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
 
 func (t *Table) GetFamily() bgp.Family {
 	return t.Family
+}
+
+func NewTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
+	return newTablePartial(logger, rf, false, dsts...)
+}
+
+func NewAdjTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
+	return newTablePartial(logger, rf, true, dsts...)
 }
 
 func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
@@ -887,6 +903,11 @@ func (t *Table) Info(option ...TableInfoOptions) *TableInfo {
 	}
 }
 
+// DefaultRT is the uint64 encoding of the default (wildcard) Route Target used in RTC.
+// It indicates interest in all routes, regardless of their Route Targets.
+// In RouteTargetMembershipNLRI, this value is represented as a nil RouteTarget.
+const DefaultRT uint64 = 0
+
 var (
 	ErrInvalidRouteTarget error = errors.New("ExtendedCommunity is not RouteTarget")
 	ErrNilCommunity       error = errors.New("RouteTarget could not be nil")
@@ -906,6 +927,13 @@ func extCommRouteTargetKey(routeTarget bgp.ExtendedCommunityInterface) (uint64, 
 	default:
 		return 0, ErrInvalidRouteTarget
 	}
+}
+
+func nlriRouteTargetKey(nlri *bgp.RouteTargetMembershipNLRI) (uint64, error) {
+	if nlri.RouteTarget == nil {
+		return DefaultRT, nil
+	}
+	return extCommRouteTargetKey(nlri.RouteTarget)
 }
 
 type routeTargetMap map[uint64]bgp.ExtendedCommunityInterface

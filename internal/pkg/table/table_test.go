@@ -734,7 +734,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[9:], 0x15161718)
 	r, err := bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err := extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
+	key, err := nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x0002131415161718), key)
 
@@ -749,7 +749,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint16(buf[11:], 0x1314)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
+	key, err = nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x01020a0102031314), key)
 
@@ -763,7 +763,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint16(buf[11:], 0x1314)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
+	key, err = nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x0202151617181314), key)
 
@@ -775,8 +775,16 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	_, err = extCommRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI).RouteTarget)
+	_, err = nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NotNil(err)
+
+	r = &bgp.RouteTargetMembershipNLRI{}
+	key, err = nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
+	assert.NoError(err)
+	assert.Equal(DefaultRT, key)
+
+	_, err = extCommRouteTargetKey(nil)
+	assert.Equal(ErrNilCommunity, err)
 }
 
 func TestContainsCIDR(t *testing.T) {
