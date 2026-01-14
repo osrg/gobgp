@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Cisco Systems, Inc.
+// Copyright (C) 2026 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,17 +114,23 @@ func newTestBgpServerWithPeer(t *testing.T) (*BgpServer, string, netip.Addr) {
 //
 //	go test -race -count=1 ./pkg/server/... -run TestRace_SoftResetPeerAndWatch
 //
-// Expected: FAIL with "race detected during execution of test"
+// This test was originally added to reproduce a data race in the unfixed code,
+// which caused "race detected during execution of test" when run with -race.
+// With the race fixed, this test is now expected to PASS (even under -race) and
+// serves as a regression test to ensure the race does not reappear.
 func TestRace_SoftResetPeerAndWatch(t *testing.T) {
 	s, peerAddr, peerAddrIP := newTestBgpServerWithPeer(t)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	// Get the internal peer object for direct access to internal functions
 	var testPeer *peer
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		testPeer = s.neighborMap[peerAddrIP]
 		return nil
 	}, true)
+	if err != nil {
+		t.Fatalf("mgmtOperation failed: %v", err)
+	}
 
 	if testPeer == nil {
 		t.Fatal("Could not get internal peer object")

@@ -25,10 +25,13 @@ func TestRace_UpdatePrefixLimitConfig(t *testing.T) {
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	var testPeer *peer
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		testPeer = s.neighborMap[peerAddrIP]
 		return nil
 	}, true)
+	if err != nil {
+		t.Fatalf("mgmtOperation failed: %v", err)
+	}
 
 	if testPeer == nil {
 		t.Fatal("Could not get internal peer object")
@@ -86,10 +89,13 @@ func TestRace_HandleUpdatePrefixLimit(t *testing.T) {
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	var testPeer *peer
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		testPeer = s.neighborMap[peerAddrIP]
 		return nil
 	}, true)
+	if err != nil {
+		t.Fatalf("mgmtOperation failed: %v", err)
+	}
 
 	if testPeer == nil {
 		t.Fatal("Could not get internal peer object")
@@ -150,10 +156,13 @@ func TestRace_HandleFSMMessageEOR(t *testing.T) {
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	var testPeer *peer
-	s.mgmtOperation(func() error {
+	err := s.mgmtOperation(func() error {
 		testPeer = s.neighborMap[peerAddrIP]
 		return nil
 	}, true)
+	if err != nil {
+		t.Fatalf("mgmtOperation failed: %v", err)
+	}
 
 	if testPeer == nil {
 		t.Fatal("Could not get internal peer object")
@@ -205,4 +214,3 @@ func TestRace_HandleFSMMessageEOR(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
-
