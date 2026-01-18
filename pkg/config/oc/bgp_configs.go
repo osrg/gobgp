@@ -2615,6 +2615,9 @@ type TransportConfig struct {
 	// original -> gobgp:bind-interface
 	// Interface name for binding.
 	BindInterface string `mapstructure:"bind-interface" json:"bind-interface,omitempty"`
+	// original -> gobgp:ip-tos
+	// IPv4 Type of Service/IPv6 Traffic Class value set on BGP TCP socket.
+	IpTos uint8 `mapstructure:"ip-tos" json:"ip-tos,omitempty"`
 }
 
 func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
@@ -2640,6 +2643,9 @@ func (lhs *TransportConfig) Equal(rhs *TransportConfig) bool {
 		return false
 	}
 	if lhs.BindInterface != rhs.BindInterface {
+		return false
+	}
+	if lhs.IpTos != rhs.IpTos {
 		return false
 	}
 	return true

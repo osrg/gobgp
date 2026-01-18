@@ -8452,8 +8452,7 @@ type Transport struct {
 	RemotePort    uint32                 `protobuf:"varint,6,opt,name=remote_port,json=remotePort,proto3" json:"remote_port,omitempty"`
 	TcpMss        uint32                 `protobuf:"varint,7,opt,name=tcp_mss,json=tcpMss,proto3" json:"tcp_mss,omitempty"`
 	BindInterface string                 `protobuf:"bytes,8,opt,name=bind_interface,json=bindInterface,proto3" json:"bind_interface,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	IpTos         uint32                 `protobuf:"varint,9,opt,name=ip_tos,json=ipTos,proto3" json:"ip_tos,omitempty"`
 }
 
 func (x *Transport) Reset() {
@@ -8540,6 +8539,13 @@ func (x *Transport) GetBindInterface() string {
 		return x.BindInterface
 	}
 	return ""
+}
+
+func (x *Transport) GetIpTos() uint32 {
+	if x != nil {
+		return x.IpTos
+	}
+	return 0
 }
 
 type RouteServer struct {
@@ -13229,7 +13235,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x1eminimum_advertisement_interval\x18\x04 \x01(\x04R\x1cminimumAdvertisementInterval\x120\n" +
 	"\x14negotiated_hold_time\x18\x05 \x01(\x04R\x12negotiatedHoldTime\x122\n" +
 	"\x06uptime\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x06uptime\x126\n" +
-	"\bdowntime\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\bdowntime\"\x9f\x02\n" +
+	"\bdowntime\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\bdowntime\"\xb6\x02\n" +
 	"\tTransport\x12#\n" +
 	"\rlocal_address\x18\x01 \x01(\tR\flocalAddress\x12\x1d\n" +
 	"\n" +
@@ -13240,7 +13246,8 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\vremote_port\x18\x06 \x01(\rR\n" +
 	"remotePort\x12\x17\n" +
 	"\atcp_mss\x18\a \x01(\rR\x06tcpMss\x12%\n" +
-	"\x0ebind_interface\x18\b \x01(\tR\rbindInterface\"f\n" +
+	"\x0ebind_interface\x18\b \x01(\tR\rbindInterface\x12\x15\n" +
+	"\x06ip_tos\x18\t \x01(\rR\x05ipTos\"f\n" +
 	"\vRouteServer\x12.\n" +
 	"\x13route_server_client\x18\x01 \x01(\bR\x11routeServerClient\x12'\n" +
 	"\x0fsecondary_route\x18\x02 \x01(\bR\x0esecondaryRoute\"\xb4\x03\n" +

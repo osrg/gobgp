@@ -44,7 +44,11 @@ func SetTCPMSSSockopt(conn net.Conn, mss uint16) error {
 	return SetTcpMSSSockopt(conn, mss)
 }
 
-func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
+func SetIPTOSSockopt(conn net.Conn, tos uint8) error {
+	return SetIpTOSSockopt(conn, tos)
+}
+
+func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string, tos uint8) error {
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",
 			slog.String("Topic", "Peer"),
@@ -65,6 +69,12 @@ func DialerControl(logger *slog.Logger, network, address string, c syscall.RawCo
 	}
 	if mss != 0 {
 		logger.Warn("setting MSS for active connection is not supported",
+			slog.String("Topic", "Peer"),
+			slog.String("Key", address),
+		)
+	}
+	if tos != 0 {
+		logger.Warn("setting TOS for active connection is not supported",
 			slog.String("Topic", "Peer"),
 			slog.String("Key", address),
 		)

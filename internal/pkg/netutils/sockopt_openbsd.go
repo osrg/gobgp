@@ -400,7 +400,21 @@ func SetBindToDevSockopt(sc syscall.RawConn, device string) error {
 	return fmt.Errorf("binding connection to a device is not supported")
 }
 
-func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
+func SetIPTOSSockopt(conn net.Conn, tos uint8) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setSockOptIpTos(sc, family, tos)
+}
+
+func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string, tos uint8) error {
+	family := syscall.AF_INET
+	raddr, _ := net.ResolveTCPAddr("tcp", address)
+	if raddr.IP.To4() == nil {
+		family = syscall.AF_INET6
+	}
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",
 			slog.String("Topic", "Peer"),
@@ -422,6 +436,22 @@ func DialerControl(logger *slog.Logger, network, address string, c syscall.RawCo
 			level := syscall.IPPROTO_TCP
 			name := syscall.TCP_MAXSEG
 			sockerr = os.NewSyscallError("setSockOpt", syscall.SetsockoptInt(int(fd), level, name, int(mss)))
+		}); err != nil {
+			return err
+		}
+		if sockerr != nil {
+			return sockerr
+		}
+	}
+	if tos != 0 {
+		if err := c.Control(func(fd uintptr) {
+			level := syscall.IPPROTO_IP
+			name := syscall.IP_TOS
+			if family == syscall.AF_INET6 {
+				level = syscall.IPPROTO_IPV6
+				name = syscall.IPV6_TCLASS
+			}
+			sockerr = os.NewSyscallError("setSockOpt", syscall.SetsockoptInt(int(fd), level, name, int(tos)))
 		}); err != nil {
 			return err
 		}

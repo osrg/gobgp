@@ -222,6 +222,11 @@ func initializeConn(fsm *fsm, conn net.Conn) {
 			slog.String("State", fsm.state.String()),
 			slog.String("Error", err.Error()))
 	}
+	if err := setPeerConnTOS(fsm, conn); err != nil {
+		fsm.logger.Warn("cannot set TOS",
+			slog.String("State", fsm.state.String()),
+			slog.String("Error", err.Error()))
+	}
 }
 
 type outgoingConn struct {
@@ -843,11 +848,10 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 		}
 	}
 }
-
 func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 	fsm := h.fsm
 
-	retryInterval, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, bindInterface := func() (int, string, int, string, uint8, uint8, uint16, string, int, string) {
+	retryInterval, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, bindInterface, tos := func() (int, string, int, string, uint8, uint8, uint16, string, int, string, uint8) {
 		conf := fsm.pConf.ReadOnly()
 		tick := max(int(conf.Timers.Config.ConnectRetry), minConnectRetryInterval)
 
@@ -859,7 +863,11 @@ func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 		password := conf.Config.AuthPassword
 		ttl := uint8(0)
 		ttlMin := uint8(0)
+		tos := uint8(0)
 
+		if conf.Transport.Config.IpTos != 0 {
+			tos = conf.Transport.Config.IpTos
+		}
 		if conf.TtlSecurity.Config.Enabled {
 			ttl = 255
 			ttlMin = conf.TtlSecurity.Config.TtlMin
@@ -869,7 +877,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 				ttl = conf.EbgpMultihop.Config.MultihopTtl
 			}
 		}
-		return tick, addr.String(), port, password, ttl, ttlMin, conf.Transport.Config.TcpMss, conf.Transport.Config.LocalAddress.String(), int(conf.Transport.Config.LocalPort), conf.Transport.Config.BindInterface
+		return tick, addr.String(), port, password, ttl, ttlMin, conf.Transport.Config.TcpMss, conf.Transport.Config.LocalAddress.String(), int(conf.Transport.Config.LocalPort), conf.Transport.Config.BindInterface, tos
 	}()
 
 	tick := minConnectRetryInterval
@@ -895,7 +903,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 				Timeout:   time.Duration(max(retryInterval-1, minConnectRetryInterval)) * time.Second,
 				KeepAlive: -1,
 				Control: func(network, address string, c syscall.RawConn) error {
-					return netutils.DialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface)
+					return netutils.DialerControl(fsm.logger, network, address, c, ttl, ttlMin, mss, password, bindInterface, tos)
 				},
 			}
 
@@ -1020,6 +1028,18 @@ func setPeerConnTTL(fsm *fsm, conn net.Conn) error {
 		if err := netutils.SetTCPMinTTLSockopt(conn, ttlMin); err != nil {
 			return fmt.Errorf("failed to set minimal TTL %d: %w", ttlMin, err)
 		}
+	}
+	return nil
+}
+
+func setPeerConnTOS(fsm *fsm, conn net.Conn) error {
+	conf := fsm.pConf.ReadOnly()
+	tos := conf.Transport.Config.IpTos
+	if tos == 0 {
+		return nil
+	}
+	if err := netutils.SetIPTOSSockopt(conn, tos); err != nil {
+		return fmt.Errorf("failed to set TOS %d: %w", tos, err)
 	}
 	return nil
 }

@@ -606,6 +606,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			PassiveMode:   pconf.Transport.Config.PassiveMode,
 			BindInterface: pconf.Transport.Config.BindInterface,
 			TcpMss:        uint32(pconf.Transport.Config.TcpMss),
+			IpTos:         uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
 	}
@@ -685,6 +686,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			LocalAddress: pconf.Transport.Config.LocalAddress.String(),
 			PassiveMode:  pconf.Transport.Config.PassiveMode,
 			TcpMss:       uint32(pconf.Transport.Config.TcpMss),
+			IpTos:        uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
 	}

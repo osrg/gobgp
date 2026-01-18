@@ -919,6 +919,7 @@ message Transport {
   uint32 remote_port = 6;
   uint32 tcp_mss = 7;
   string bind_interface = 8;
+  uint32 ip_tos = 9;
 }
 
 message RouteServer {

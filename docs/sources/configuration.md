@@ -79,6 +79,7 @@
         passive-mode = true
         local-address = "192.168.10.1"
         remote-port = 2016
+        ip-tos = 192 #DSCP class CS6
     [neighbors.ebgp-multihop.config]
         enabled = true #directly connection should be set false，if not ，peer will be deleted after hold-time
         multihop-ttl = 100
