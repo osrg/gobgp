@@ -931,6 +931,11 @@ module gobgp {
       description "Interface name for binding.";
       type string;
     }
+
+    leaf ip-tos {
+      description "IPv4 Type of Service/IPv6 Traffic Class value set on BGP TCP socket.";
+      type uint8;
+    }
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:config" {

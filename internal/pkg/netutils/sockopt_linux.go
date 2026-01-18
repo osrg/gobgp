@@ -126,7 +126,16 @@ func SetTCPMSSSockopt(conn net.Conn, mss uint16) error {
 	return setSockOptTcpMss(sc, family, mss)
 }
 
-func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string) error {
+func SetIPTOSSockopt(conn net.Conn, tos uint8) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setSockOptIpTos(sc, family, tos)
+}
+
+func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string, tos uint8) error {
 	family := syscall.AF_INET
 	raddr, _ := net.ResolveTCPAddr("tcp", address)
 	if raddr.IP.To4() == nil {
@@ -197,6 +206,23 @@ func DialerControl(logger *slog.Logger, network, address string, c syscall.RawCo
 	if bindInterface != "" {
 		if err := SetBindToDevSockopt(c, bindInterface); err != nil {
 			return err
+		}
+	}
+
+	if tos != 0 {
+		if err := c.Control(func(fd uintptr) {
+			level := syscall.IPPROTO_IP
+			name := syscall.IP_TOS
+			if family == syscall.AF_INET6 {
+				level = syscall.IPPROTO_IPV6
+				name = syscall.IPV6_TCLASS
+			}
+			sockerr = os.NewSyscallError("setSockOpt", syscall.SetsockoptInt(int(fd), level, name, int(tos)))
+		}); err != nil {
+			return err
+		}
+		if sockerr != nil {
+			return sockerr
 		}
 	}
 	return nil
