@@ -230,6 +230,7 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 		PattrsBinary:       binPattrs,
 		SourceAsn:          path.PeerASN,
 		// ListPath API fields only
+		Best:            path.Best,
 		SendMaxFiltered: path.SendMaxFiltered,
 		Filtered:        path.Filtered,
 		Validation:      path.Validation,
