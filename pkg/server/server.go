@@ -1369,15 +1369,24 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
+	needStopNeighbor := false
+	var oldState bgp.FSMState
 	s.shared.mu.RLock()
-	defer s.shared.mu.RUnlock()
+	defer func() {
+		s.shared.mu.RUnlock()
+		if needStopNeighbor {
+			s.shared.mu.Lock()
+			s.stopNeighbor(peer, oldState, e)
+			s.shared.mu.Unlock()
+		}
+	}()
 
 	switch e.MsgType {
 	case fsmMsgStateChange:
 		nextState := e.MsgData.(bgp.FSMState)
 		peer.fsm.lock.Lock()
 		conf := peer.fsm.pConf.ReadCopy()
-		oldState := bgp.FSMState(conf.State.SessionState.ToInt())
+		oldState = bgp.FSMState(conf.State.SessionState.ToInt())
 		conf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
 		peer.fsm.pConf.Update(&conf)
 
@@ -1433,7 +1442,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 
 			if !graceful && peer.isDynamicNeighbor() {
-				s.stopNeighbor(peer, oldState, e)
+				needStopNeighbor = true
 				return
 			}
 		} else if nextStateIdle {
@@ -1513,7 +1522,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				s.propagateUpdate(peer, peer.DropAll(peer.configuredRFlist()))
 
 				if peer.isDynamicNeighbor() {
-					s.stopNeighbor(peer, oldState, e)
+					needStopNeighbor = true
 					return
 				}
 			}
