@@ -189,10 +189,20 @@ func macKeyHash(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) macKey 
 	return macKey(fnv1a.HashBytes64(b))
 }
 
-type EVPNMacNLRIs map[macKey]map[*destination]struct{}
+type EVPNMacNLRIs struct {
+	mp map[macKey]map[*destination]struct{}
+	mu *sync.RWMutex
+}
 
-func (e EVPNMacNLRIs) Get(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) (d []*destination) {
-	if dests, ok := e[macKeyHash(rt, mac)]; ok {
+func NewEVPNMacNLRIs() *EVPNMacNLRIs {
+	return &EVPNMacNLRIs{mp: make(map[macKey]map[*destination]struct{}), mu: &sync.RWMutex{}}
+}
+
+func (e *EVPNMacNLRIs) Get(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) (d []*destination) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	if dests, ok := e.mp[macKeyHash(rt, mac)]; ok {
 		d = make([]*destination, len(dests))
 		i := 0
 		for dest := range dests {
@@ -203,20 +213,26 @@ func (e EVPNMacNLRIs) Get(rt bgp.ExtendedCommunityInterface, mac net.HardwareAdd
 	return d
 }
 
-func (e EVPNMacNLRIs) Insert(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr, dest *destination) {
+func (e *EVPNMacNLRIs) Insert(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr, dest *destination) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	macKey := macKeyHash(rt, mac)
-	if _, ok := e[macKey]; !ok {
-		e[macKey] = make(map[*destination]struct{})
+	if _, ok := e.mp[macKey]; !ok {
+		e.mp[macKey] = make(map[*destination]struct{})
 	}
-	e[macKey][dest] = struct{}{}
+	e.mp[macKey][dest] = struct{}{}
 }
 
-func (e EVPNMacNLRIs) Remove(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr, dest *destination) {
+func (e *EVPNMacNLRIs) Remove(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr, dest *destination) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	macKey := macKeyHash(rt, mac)
-	if dests, ok := e[macKey]; ok {
+	if dests, ok := e.mp[macKey]; ok {
 		delete(dests, dest)
 		if len(dests) == 0 {
-			delete(e, macKey)
+			delete(e.mp, macKey)
 		}
 	}
 }
@@ -231,7 +247,7 @@ type Table struct {
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
-	macIndex EVPNMacNLRIs
+	macIndex *EVPNMacNLRIs
 }
 
 func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*destination) *Table {
@@ -239,7 +255,7 @@ func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*de
 		Family:       rf,
 		destinations: NewDestinations(),
 		logger:       logger,
-		macIndex:     make(EVPNMacNLRIs),
+		macIndex:     NewEVPNMacNLRIs(),
 	}
 	if isAdj && rf == bgp.RF_RTC_UC {
 		t.adjRts = &rtCounter{
