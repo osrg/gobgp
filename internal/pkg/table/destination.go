@@ -137,16 +137,33 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 	}
 }
 
+// This global will be parameterizable in the future
+const destinationBucketLocksSize = uint32(2048)
+
+var destinationBucketLocks = newDestinationBucketLocks(destinationBucketLocksSize)
+
+func newDestinationBucketLocks(size uint32) []*sync.RWMutex {
+	if size&(size-1) != 0 {
+		panic(fmt.Sprintf("newDestinationBucketLocks: size %d is not a power of 2", size))
+	}
+	locks := make([]*sync.RWMutex, size)
+	for i := range size {
+		locks[i] = &sync.RWMutex{}
+	}
+	return locks
+}
+
 type destination struct {
 	mu            *sync.RWMutex
-	nlri          bgp.NLRI
+	nlri          bgp.NLRI // not mutable
 	knownPathList []*Path
 	localIdMap    *Bitmap
 }
 
 func newDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *destination {
+	key := tableKey(nlri)
 	d := &destination{
-		mu:            &sync.RWMutex{},
+		mu:            destinationBucketLocks[uint32(key)&(destinationBucketLocksSize-1)],
 		nlri:          nlri,
 		knownPathList: known,
 		localIdMap:    NewBitmap(mapSize),
