@@ -1430,7 +1430,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.pConf.Update(&conf)
 			peer.fsm.lock.Unlock()
 
+			peer.mu.Lock()
 			peer.prefixLimitWarned = make(map[bgp.Family]bool)
+			peer.mu.Unlock()
 			s.propagateUpdate(peer, peer.DropAll(dropFamilies))
 
 			if conf.Config.PeerAs == 0 {
@@ -1470,7 +1472,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 
 				for _, f := range llgr {
 					endCh := make(chan struct{})
+					peer.mu.Lock()
 					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
+					peer.mu.Unlock()
 					go func(family bgp.Family, endCh chan struct{}) {
 						peer.llgrRestartTimerStarted(family)
 						t := peer.llgrRestartTime(family)
