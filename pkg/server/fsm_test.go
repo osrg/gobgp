@@ -622,10 +622,12 @@ func TestRace_UpdatePrefixLimitConfig(t *testing.T) {
 				return
 			default:
 				// Get fresh config like production API calls would provide.
+				testPeer.fsm.lock.Lock()
 				conf := testPeer.fsm.pConf.ReadCopy()
 				freshConfig := conf.AfiSafis
 				_, _ = testPeer.updatePrefixLimitConfig(&conf, freshConfig)
 				testPeer.fsm.pConf.Update(&conf)
+				testPeer.fsm.lock.Unlock()
 			}
 		}
 	}()
