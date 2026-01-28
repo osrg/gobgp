@@ -103,11 +103,11 @@ type peer struct {
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
 	peerInfo          atomic.Pointer[table.PeerInfo]
-	prefixLimitWarned map[bgp.Family]bool
+	prefixLimitWarned map[bgp.Family]bool // protected by fsm.lock
 	// map of path local identifiers sent for that prefix
 	sentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
 	sendMaxPathFiltered map[table.PathLocalKey]struct{}
-	llgrEndChs          []chan struct{}
+	llgrEndChs          []chan struct{} // protected by fsm.lock
 	longLivedRunning    atomic.Bool
 }
 
@@ -459,12 +459,13 @@ func (peer *peer) stopPeerRestarting() {
 		conf.AfiSafis[i].LongLivedGracefulRestart.State.Running = false
 	}
 	peer.fsm.pConf.Update(&conf)
-	peer.fsm.lock.Unlock()
 
 	for _, ch := range peer.llgrEndChs {
 		close(ch)
 	}
 	peer.llgrEndChs = make([]chan struct{}, 0)
+	peer.fsm.lock.Unlock()
+
 	peer.longLivedRunning.Store(false)
 }
 
@@ -535,16 +536,20 @@ func (peer *peer) sendNotification(msg *bgp.BGPMessage) {
 	nonblockSendChannel(peer.fsm.notification, msg)
 }
 
+// needs to be called under fsm.lock
 func (peer *peer) isPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) bool {
 	if maxPrefixes := int(c.MaxPrefixes); maxPrefixes > 0 {
 		count := peer.adjRibIn.Count([]bgp.Family{k})
 		pct := int(c.ShutdownThresholdPct)
-		if pct > 0 && !peer.prefixLimitWarned[k] && count > maxPrefixes*pct/100 {
+
+		warned := peer.prefixLimitWarned[k]
+		if pct > 0 && !warned && count > maxPrefixes*pct/100 {
 			peer.prefixLimitWarned[k] = true
 			peer.fsm.logger.Warn("prefix limit reached",
 				slog.String("Family", k.String()),
 				slog.Int("Pct", pct))
 		}
+
 		if count > maxPrefixes {
 			peer.fsm.logger.Warn("prefix limit reached", slog.String("Family", k.String()))
 			return true
@@ -654,11 +659,14 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 			paths = append(paths, path)
 		}
 		peer.adjRibIn.Update(pathList)
+		peer.fsm.lock.Lock()
 		for _, af := range conf.AfiSafis {
 			if isLimit := peer.isPrefixLimit(af.State.Family, &af.PrefixLimit.Config); isLimit {
+				peer.fsm.lock.Unlock()
 				return nil, nil, true
 			}
 		}
+		peer.fsm.lock.Unlock()
 		return paths, eor, false
 	}
 	return nil, nil, false
