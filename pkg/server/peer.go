@@ -97,12 +97,13 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 }
 
 type peer struct {
+	mu                sync.RWMutex // protects prefixLimitWarned, llgrEndChs
 	tableId           string
 	fsm               *fsm
 	adjRibIn          *table.AdjRib
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
-	peerInfo          *table.PeerInfo
+	peerInfo          atomic.Pointer[table.PeerInfo]
 	prefixLimitWarned map[bgp.Family]bool
 	// map of path local identifiers sent for that prefix
 	sentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
@@ -461,10 +462,13 @@ func (peer *peer) stopPeerRestarting() {
 	peer.fsm.pConf.Update(&conf)
 	peer.fsm.lock.Unlock()
 
+	peer.mu.Lock()
 	for _, ch := range peer.llgrEndChs {
 		close(ch)
 	}
 	peer.llgrEndChs = make([]chan struct{}, 0)
+	peer.mu.Unlock()
+
 	peer.longLivedRunning.Store(false)
 }
 
@@ -539,12 +543,17 @@ func (peer *peer) isPrefixLimit(k bgp.Family, c *oc.PrefixLimitConfig) bool {
 	if maxPrefixes := int(c.MaxPrefixes); maxPrefixes > 0 {
 		count := peer.adjRibIn.Count([]bgp.Family{k})
 		pct := int(c.ShutdownThresholdPct)
-		if pct > 0 && !peer.prefixLimitWarned[k] && count > maxPrefixes*pct/100 {
+
+		peer.mu.Lock()
+		warned := peer.prefixLimitWarned[k]
+		if pct > 0 && !warned && count > maxPrefixes*pct/100 {
 			peer.prefixLimitWarned[k] = true
 			peer.fsm.logger.Warn("prefix limit reached",
 				slog.String("Family", k.String()),
 				slog.Int("Pct", pct))
 		}
+		peer.mu.Unlock()
+
 		if count > maxPrefixes {
 			peer.fsm.logger.Warn("prefix limit reached", slog.String("Family", k.String()))
 			return true
@@ -576,7 +585,9 @@ func (peer *peer) updatePrefixLimitConfig(conf *oc.Neighbor, c []oc.AfiSafi) (bo
 				slog.Int("OldShutdownThresholdPct", int(p.ShutdownThresholdPct)),
 				slog.Int("NewShutdownThresholdPct", int(e.PrefixLimit.Config.ShutdownThresholdPct)))
 
+			peer.mu.Lock()
 			peer.prefixLimitWarned[e.State.Family] = false
+			peer.mu.Unlock()
 			if peer.isPrefixLimit(e.State.Family, &e.PrefixLimit.Config) {
 				reachLimit = true
 			}
@@ -602,7 +613,7 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 	conf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	peer.fsm.pConf.Update(&conf)
 	peer.fsm.lock.Unlock()
-	pathList := table.ProcessMessage(m, peer.peerInfo, e.timestamp, treatAsWithdraw)
+	pathList := table.ProcessMessage(m, peer.peerInfo.Load(), e.timestamp, treatAsWithdraw)
 	if len(pathList) > 0 {
 		paths := make([]*table.Path, 0, len(pathList))
 		eor := []bgp.Family{}

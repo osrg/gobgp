@@ -103,12 +103,12 @@ func TimingHookOption(hook FSMTimingHook) ServerOption {
 }
 
 type sharedData struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 func newSharedData() *sharedData {
 	return &sharedData{
-		mu: sync.Mutex{},
+		mu: sync.RWMutex{},
 	}
 }
 
@@ -602,8 +602,10 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		return nil, nil, true
 	}
 
+	peerInfo := peer.peerInfo.Load()
+
 	options := &table.PolicyOptions{
-		Info: peer.peerInfo,
+		Info: peerInfo,
 	}
 	peer.fsm.lock.Lock()
 	if path.IsLocal() && path.GetNexthop().IsUnspecified() {
@@ -619,7 +621,7 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 	} else {
 		options.OldNextHop = path.GetNexthop()
 	}
-	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, conf, peer.peerInfo, path)
+	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, conf, peerInfo, path)
 	peer.fsm.lock.Unlock()
 
 	return path, options, false
@@ -1090,7 +1092,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 		}
 
 		if !rs && peer != nil {
-			policyOptions.Info = peer.peerInfo
+			policyOptions.Info = peer.peerInfo.Load()
 		}
 
 		if p := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
@@ -1341,15 +1343,24 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
-	s.shared.mu.Lock()
-	defer s.shared.mu.Unlock()
+	needStopNeighbor := false
+	var oldState bgp.FSMState
+	s.shared.mu.RLock()
+	defer func() {
+		s.shared.mu.RUnlock()
+		if needStopNeighbor {
+			s.shared.mu.Lock()
+			s.stopNeighbor(peer, oldState, e)
+			s.shared.mu.Unlock()
+		}
+	}()
 
 	switch e.MsgType {
 	case fsmMsgStateChange:
 		nextState := e.MsgData.(bgp.FSMState)
 		peer.fsm.lock.Lock()
 		conf := peer.fsm.pConf.ReadCopy()
-		oldState := bgp.FSMState(conf.State.SessionState.ToInt())
+		oldState = bgp.FSMState(conf.State.SessionState.ToInt())
 		conf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
 		peer.fsm.pConf.Update(&conf)
 
@@ -1393,7 +1404,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.pConf.Update(&conf)
 			peer.fsm.lock.Unlock()
 
+			peer.mu.Lock()
 			peer.prefixLimitWarned = make(map[bgp.Family]bool)
+			peer.mu.Unlock()
 			s.propagateUpdate(peer, peer.DropAll(dropFamilies))
 
 			if conf.Config.PeerAs == 0 {
@@ -1405,7 +1418,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 
 			if !graceful && peer.isDynamicNeighbor() {
-				s.stopNeighbor(peer, oldState, e)
+				needStopNeighbor = true
 				return
 			}
 		} else if nextStateIdle {
@@ -1433,7 +1446,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 
 				for _, f := range llgr {
 					endCh := make(chan struct{})
+					peer.mu.Lock()
 					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
+					peer.mu.Unlock()
 					go func(family bgp.Family, endCh chan struct{}) {
 						peer.llgrRestartTimerStarted(family)
 						t := peer.llgrRestartTime(family)
@@ -1485,7 +1500,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				s.propagateUpdate(peer, peer.DropAll(peer.configuredRFlist()))
 
 				if peer.isDynamicNeighbor() {
-					s.stopNeighbor(peer, oldState, e)
+					needStopNeighbor = true
 					return
 				}
 			}
@@ -1495,10 +1510,11 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			conf := peer.fsm.pConf.ReadOnly()
-			peer.peerInfo = table.NewPeerInfo(peer.fsm.gConf, conf,
+			peerInfo := table.NewPeerInfo(peer.fsm.gConf, conf,
 				conf.State.PeerAs, conf.Config.LocalAs,
 				conf.State.RemoteRouterId,
 				peer.fsm.gConf.Config.RouterId, conf.Transport.State.RemoteAddress, conf.Transport.State.LocalAddress)
+			peer.peerInfo.Store(peerInfo)
 
 			neighborAddress := conf.State.NeighborAddress
 			deferralExpiredFunc := func(family bgp.Family, deferralTime time.Duration) func() {
@@ -1644,7 +1660,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					if f == bgp.RF_RTC_UC {
 						rtc = true
 					}
-					peerInfo := *peer.peerInfo
+					peerInfo := *peer.peerInfo.Load()
 					ev := &watchEventEor{
 						Family:   f,
 						PeerInfo: &peerInfo,
@@ -4655,7 +4671,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 					for _, a := range conf.AfiSafis {
 						if s := a.MpGracefulRestart.State; s.EndOfRibReceived {
 							family := a.State.Family
-							peerInfo := *p.peerInfo
+							peerInfo := *p.peerInfo.Load()
 							w.notify(&watchEventEor{
 								Family:    family,
 								PeerInfo:  &peerInfo,
