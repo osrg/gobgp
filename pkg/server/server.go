@@ -1848,6 +1848,9 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	if !s.isServing.Load() {
+		return fmt.Errorf("BGP server is not running")
+	}
 	err := s.mgmtOperation(func() error {
 		defer s.runningCancel()
 

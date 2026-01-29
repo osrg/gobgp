@@ -56,6 +56,9 @@ func TestStop(t *testing.T) {
 	assert.NoError(err)
 	err = s.StopBgp(context.Background(), &api.StopBgpRequest{})
 	assert.NoError(err)
+	// stop again to verify we not getting stuck and report an error
+	err = s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	assert.Error(err)
 
 	s = NewBgpServer()
 	err = s.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
