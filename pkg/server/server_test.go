@@ -1152,7 +1152,7 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 	remoteAddr := netip.MustParseAddr(address)
 	localAddr := netip.MustParseAddr("1.1.1.1")
 	info := table.NewPeerInfo(gConf, nConf, as, myAs, remoteAddr, localAddr, remoteAddr, localAddr)
-	p.peerInfo = info
+	p.peerInfo.Store(info)
 	return p
 }
 
@@ -1181,8 +1181,8 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})}), bgp.NewPathAttributeLocalPref(200)}
 	pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p2As})})}
 
-	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo, bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
-	path2 := table.NewPath(bgp.RF_IPv4_UC, p2.peerInfo, bgp.PathNLRI{NLRI: nlri}, false, pa2, time.Now(), false)
+	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
+	path2 := table.NewPath(bgp.RF_IPv4_UC, p2.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa2, time.Now(), false)
 	rib.Update(path2)
 	d := rib.Update(path1)
 	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false)
@@ -1223,7 +1223,7 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})}), bgp.NewPathAttributeLocalPref(200)}
 	// pa2 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{as})})}
 
-	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo, bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
+	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
 	// path2 := table.NewPath(bgp.RF_IPv4_UC, pi2, bgp.PathNLRI{NLRI: nlri}, false, pa2, time.Now(), false)
 
 	new, old := process(rib, []*table.Path{path1})
@@ -1289,7 +1289,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 		if addCommunity {
 			pa1 = append(pa1, bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}))
 		}
-		path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo, bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
+		path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
 		new, old := process(rib2, []*table.Path{path1})
 		assert.Equal(t, new, path1)
 		s := NewBgpServer()
