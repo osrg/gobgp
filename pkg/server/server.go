@@ -602,8 +602,10 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		return nil, nil, true
 	}
 
+	peerInfo := peer.peerInfo.Load()
+
 	options := &table.PolicyOptions{
-		Info: peer.peerInfo,
+		Info: peerInfo,
 	}
 	peer.fsm.lock.Lock()
 	if path.IsLocal() && path.GetNexthop().IsUnspecified() {
@@ -619,7 +621,7 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 	} else {
 		options.OldNextHop = path.GetNexthop()
 	}
-	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, conf, peer.peerInfo, path)
+	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, conf, peerInfo, path)
 	peer.fsm.lock.Unlock()
 
 	return path, options, false
@@ -1090,7 +1092,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 		}
 
 		if !rs && peer != nil {
-			policyOptions.Info = peer.peerInfo
+			policyOptions.Info = peer.peerInfo.Load()
 		}
 
 		if p := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
@@ -1495,10 +1497,11 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			conf := peer.fsm.pConf.ReadOnly()
-			peer.peerInfo = table.NewPeerInfo(peer.fsm.gConf, conf,
+			peerInfo := table.NewPeerInfo(peer.fsm.gConf, conf,
 				conf.State.PeerAs, conf.Config.LocalAs,
 				conf.State.RemoteRouterId,
 				peer.fsm.gConf.Config.RouterId, conf.Transport.State.RemoteAddress, conf.Transport.State.LocalAddress)
+			peer.peerInfo.Store(peerInfo)
 
 			neighborAddress := conf.State.NeighborAddress
 			deferralExpiredFunc := func(family bgp.Family, deferralTime time.Duration) func() {
@@ -1644,7 +1647,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					if f == bgp.RF_RTC_UC {
 						rtc = true
 					}
-					peerInfo := *peer.peerInfo
+					peerInfo := *peer.peerInfo.Load()
 					ev := &watchEventEor{
 						Family:   f,
 						PeerInfo: &peerInfo,
@@ -4655,7 +4658,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 					for _, a := range conf.AfiSafis {
 						if s := a.MpGracefulRestart.State; s.EndOfRibReceived {
 							family := a.State.Family
-							peerInfo := *p.peerInfo
+							peerInfo := *p.peerInfo.Load()
 							w.notify(&watchEventEor{
 								Family:    family,
 								PeerInfo:  &peerInfo,
