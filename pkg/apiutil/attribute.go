@@ -884,17 +884,9 @@ func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor,
 }
 
 func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor, error) {
-	desc := &bgp.LsLinkDescriptor{}
-
-	// Only set LinkLocalID and LinkRemoteID if they are non-zero
-	// This ensures that NewLsLinkTLVs only creates a Link ID TLV when both values are meaningful
-	if ld.LinkLocalId != 0 {
-		linkLocalId := ld.LinkLocalId
-		desc.LinkLocalID = &linkLocalId
-	}
-	if ld.LinkRemoteId != 0 {
-		linkRemoteId := ld.LinkRemoteId
-		desc.LinkRemoteID = &linkRemoteId
+	desc := &bgp.LsLinkDescriptor{
+		LinkLocalID:  &ld.LinkLocalId,
+		LinkRemoteID: &ld.LinkRemoteId,
 	}
 
 	if ld.GetInterfaceAddrIpv4() != "" {

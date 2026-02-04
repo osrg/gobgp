@@ -10,6 +10,8 @@ GoBGP is an open source Border Gateway Protocol (BGP) implementation designed fr
 modern environment and implemented in a modern programming language,
 [the Go Programming Language](http://golang.org/).
 
+**Note:** Fluent Bit is currently being tested as a log processing alternative to Logstash and shows better performance metrics (lower memory usage ~6.59MB vs Logstash's high RAM consumption, processing delay 31-90ms) compared to Logstash.
+
 ----
 
 ## Install
