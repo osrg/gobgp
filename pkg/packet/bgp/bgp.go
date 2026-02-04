@@ -25,13 +25,16 @@ import (
 	"log"
 	"math"
 	"net"
+	"net/http"
 	"net/netip"
+	"os"
 	"reflect"
 	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type MarshallingOption struct {
@@ -5185,6 +5188,34 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 			foundTypes = append(foundTypes, fmt.Sprintf("%d", tlvType))
 		}
 		sort.Strings(foundTypes)
+
+		// Extract node identifiers for network-engineer-friendly error message
+		var localNodeStr, remoteNodeStr string
+		if l.LocalNodeDesc != nil {
+			if localNodeDesc, ok := l.LocalNodeDesc.(*LsTLVNodeDescriptor); ok {
+				localNodeStr = localNodeDesc.Extract().String()
+			} else {
+				localNodeStr = "unknown"
+			}
+		} else {
+			localNodeStr = "unknown"
+		}
+		if l.RemoteNodeDesc != nil {
+			if remoteNodeDesc, ok := l.RemoteNodeDesc.(*LsTLVNodeDescriptor); ok {
+				remoteNodeStr = remoteNodeDesc.Extract().String()
+			} else {
+				remoteNodeStr = "unknown"
+			}
+		} else {
+			remoteNodeStr = "unknown"
+		}
+
+		// Build network-engineer-friendly message
+		errorMessage := fmt.Sprintf("BGP-LS Link NLRI malformed between node %s and node %s: Link descriptor is empty - at least one link descriptor TLV is required (Link ID=258, IPv4 Interface Address=259, IPv4 Neighbor Address=260, IPv6 Interface Address=261, or IPv6 Neighbor Address=262). Found TLV types: %s", localNodeStr, remoteNodeStr, strings.Join(foundTypes, ", "))
+
+		// Send notification to Topolograph (fire-and-forget, non-blocking)
+		sendBgpLsErrorNotification(localNodeStr, remoteNodeStr, l.ProtocolID, foundTypes)
+
 		// Return error with ATTRIBUTE_DISCARD handling so the NLRI is skipped but session continues
 		return NewMessageErrorWithErrorHandling(
 			BGP_ERROR_UPDATE_MESSAGE_ERROR,
@@ -5192,7 +5223,7 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 			nil,
 			ERROR_HANDLING_ATTRIBUTE_DISCARD,
 			nil,
-			fmt.Sprintf("BGP-LS Link NLRI (type=2) has empty link descriptor - at least one link descriptor TLV is required (Link ID=258, IPv4 Interface Address=259, IPv4 Neighbor Address=260, IPv6 Interface Address=261, or IPv6 Neighbor Address=262). Found TLV types: %s. This NLRI will be discarded.", strings.Join(foundTypes, ", ")))
+			errorMessage)
 	}
 
 	return nil
@@ -16045,6 +16076,62 @@ func getErrorHandlingFromPathAttribute(t BGPAttrType) ErrorHandling {
 	default:
 		return ERROR_HANDLING_ATTRIBUTE_DISCARD
 	}
+}
+
+// sendBgpLsErrorNotification sends a fire-and-forget HTTP POST notification to Topolograph
+// about malformed BGP-LS Link NLRI. This is non-blocking and best-effort only.
+func sendBgpLsErrorNotification(localNodeStr, remoteNodeStr string, protocolID LsProtocolID, foundTLVTypes []string) {
+	webhookURL := os.Getenv("WEBHOOK_URL")
+	if webhookURL == "" {
+		// WEBHOOK_URL not set, silently skip notification
+		return
+	}
+
+	// Build the notification payload
+	payload := map[string]interface{}{
+		"event_name":        "bgpls_error",
+		"watcher_name":      "bgplswatcher",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339Nano),
+		"object_status":     "changed",
+		"event_object":      "unknown", // Peer IP not available at this point
+		"event_detected_by": "gobgp",
+		"message":           fmt.Sprintf("BGP-LS Link NLRI malformed between node %s and node %s: Link descriptor is empty - at least one link descriptor TLV is required", localNodeStr, remoteNodeStr),
+		"details": map[string]interface{}{
+			"afi":             16388,
+			"safi":            71,
+			"nlri_type":       2,
+			"protocol_id":     int(protocolID),
+			"found_tlv_types": foundTLVTypes,
+		},
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("WARN: Failed to marshal BGP-LS error notification: %v", err)
+		return
+	}
+
+	// Fire-and-forget HTTP POST in a goroutine (non-blocking)
+	go func() {
+		url := strings.TrimSuffix(webhookURL, "/") + "/websocket"
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			// Silently fail - this is best-effort only
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{
+			Timeout: 2 * time.Second, // Short timeout to avoid blocking
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			// Silently fail - this is best-effort only
+			return
+		}
+		resp.Body.Close() // Close response body to avoid leaks
+	}()
 }
 
 type MessageError struct {
