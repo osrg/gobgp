@@ -139,13 +139,13 @@ func (adj *AdjRib) Update(pathList []*Path) {
 		if path.IsWithdraw {
 			if idx != -1 {
 				d.knownPathList = append(d.knownPathList[:idx], d.knownPathList[idx+1:]...)
-				if len(d.knownPathList) == 0 {
-					t.deleteDest(d)
-				}
 				if !old.IsRejected() {
 					adj.accepted[rf]--
 					t.adjRts.sub(old)
 				}
+			}
+			if len(d.knownPathList) == 0 {
+				t.deleteDest(d)
 			}
 			path.SetDropped(true)
 		} else {
