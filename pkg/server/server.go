@@ -763,6 +763,26 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
 	}
 
+	conf.State.Messages.Received.Total = atomic.LoadUint64(&peer.fsm.counterStats.Received.Total)
+	conf.State.Messages.Received.Update = atomic.LoadUint64(&peer.fsm.counterStats.Received.Update)
+	conf.State.Messages.Received.Notification = atomic.LoadUint64(&peer.fsm.counterStats.Received.Notification)
+	conf.State.Messages.Received.Open = atomic.LoadUint64(&peer.fsm.counterStats.Received.Open)
+	conf.State.Messages.Received.Refresh = atomic.LoadUint64(&peer.fsm.counterStats.Received.Refresh)
+	conf.State.Messages.Received.Keepalive = atomic.LoadUint64(&peer.fsm.counterStats.Received.Keepalive)
+	conf.State.Messages.Received.WithdrawUpdate = atomic.LoadUint32(&peer.fsm.counterStats.Received.WithdrawUpdate)
+	conf.State.Messages.Received.WithdrawPrefix = atomic.LoadUint32(&peer.fsm.counterStats.Received.WithdrawPrefix)
+	conf.State.Messages.Received.Discarded = atomic.LoadUint64(&peer.fsm.counterStats.Received.Discarded)
+	conf.State.Messages.Sent.Total = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Total)
+	conf.State.Messages.Sent.Update = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Update)
+	conf.State.Messages.Sent.Notification = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Notification)
+	conf.State.Messages.Sent.Open = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Open)
+	conf.State.Messages.Sent.Refresh = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Refresh)
+	conf.State.Messages.Sent.Keepalive = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Keepalive)
+	conf.State.Messages.Sent.WithdrawUpdate = atomic.LoadUint32(&peer.fsm.counterStats.Sent.WithdrawUpdate)
+	conf.State.Messages.Sent.WithdrawPrefix = atomic.LoadUint32(&peer.fsm.counterStats.Sent.WithdrawPrefix)
+	conf.State.Messages.Sent.Discarded = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Discarded)
+	conf.Timers.State.UpdateRecvTime = atomic.LoadInt64(&peer.fsm.timerStats.State.UpdateRecvTime)
+
 	return &conf
 }
 
@@ -1606,6 +1626,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			conf.State.PeerAs = conf.Config.PeerAs
 			conf.Timers.State = oc.TimersState{}
 			peer.fsm.pConf.Update(&conf)
+			peer.fsm.bgpMessageResetStats()
 			peer.fsm.lock.Unlock()
 		}
 		s.broadcastPeerState(peer, nextState, oldState, e)
