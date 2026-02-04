@@ -16130,7 +16130,12 @@ func sendBgpLsErrorNotification(localNodeStr, remoteNodeStr string, protocolID L
 			// Silently fail - this is best-effort only
 			return
 		}
-		resp.Body.Close() // Close response body to avoid leaks
+		defer resp.Body.Close() // Close response body to avoid leaks
+		
+		// Log non-2xx responses for debugging (but don't fail)
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			log.Printf("WARN: BGP-LS error notification returned status %d", resp.StatusCode)
+		}
 	}()
 }
 
