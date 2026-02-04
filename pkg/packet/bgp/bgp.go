@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"net"
 	"net/netip"
@@ -5175,8 +5176,23 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 	}
 
 	// Check if link descriptor is empty (no TLVs)
+	// Instead of terminating the session, return a special error that allows the NLRI to be skipped
+	// This makes the decoder more tolerant of malformed BGP-LS Link NLRI messages from misbehaving peers
 	if linkDescCount == 0 {
-		return malformedAttrListErr("Link descriptor is empty - at least one link descriptor TLV is required (Link ID, Interface Address, or Neighbor Address)")
+		// Build list of found TLV types for better error message
+		foundTypes := make([]string, 0, len(m))
+		for tlvType := range m {
+			foundTypes = append(foundTypes, fmt.Sprintf("%d", tlvType))
+		}
+		sort.Strings(foundTypes)
+		// Return error with ATTRIBUTE_DISCARD handling so the NLRI is skipped but session continues
+		return NewMessageErrorWithErrorHandling(
+			BGP_ERROR_UPDATE_MESSAGE_ERROR,
+			BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST,
+			nil,
+			ERROR_HANDLING_ATTRIBUTE_DISCARD,
+			nil,
+			fmt.Sprintf("BGP-LS Link NLRI (type=2) has empty link descriptor - at least one link descriptor TLV is required (Link ID=258, IPv4 Interface Address=259, IPv4 Neighbor Address=260, IPv6 Interface Address=261, or IPv6 Neighbor Address=262). Found TLV types: %s. This NLRI will be discarded.", strings.Join(foundTypes, ", ")))
 	}
 
 	return nil
@@ -5436,14 +5452,20 @@ func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 		lsTLVs = append(lsTLVs, tlv)
 	}
 
-	lsTLVs = append(lsTLVs,
-		&LsTLVOspfRouteType{
-			LsTLV: LsTLV{
-				Type:   LS_TLV_OSPF_ROUTE_TYPE,
-				Length: 1,
-			},
-			RouteType: pd.OSPFRouteType,
-		})
+	// Add OSPF Route Type TLV only if route type is set (not UNKNOWN)
+	// OSPF Route Type is only relevant for OSPF prefixes, not IS-IS
+	// When ospf_route_type is not set in YAML, protobuf defaults it to 0 (UNKNOWN),
+	// which causes "Incorrect OSPF Route type" error when decoding
+	if pd.OSPFRouteType != LS_OSPF_ROUTE_TYPE_UNKNOWN {
+		lsTLVs = append(lsTLVs,
+			&LsTLVOspfRouteType{
+				LsTLV: LsTLV{
+					Type:   LS_TLV_OSPF_ROUTE_TYPE,
+					Length: 1,
+				},
+				RouteType: pd.OSPFRouteType,
+			})
+	}
 
 	// Add Prefix Metric TLV if metric is set (non-zero)
 	if pd.PrefixMetric != 0 {
@@ -6018,7 +6040,7 @@ func (l *LsTLV) Len() int {
 
 func (l *LsTLV) Serialize(value []byte) ([]byte, error) {
 	if len(value) != int(l.Length) {
-		return nil, malformedAttrListErr("serialization failed: LS TLV malformed")
+		return nil, malformedAttrListErr(fmt.Sprintf("serialization failed: LS TLV malformed - TLV type=%d, declared_length=%d, actual_value_length=%d", l.Type, l.Length, len(value)))
 	}
 
 	buf := make([]byte, tlvHdrLen+len(value))
@@ -6071,6 +6093,12 @@ func (l *LsTLVLinkID) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVLinkID) Serialize() ([]byte, error) {
+	// Ensure Type and Length are set correctly before serialization
+	// Link ID TLV always has type 258 and fixed length of 8 bytes (4 bytes Local + 4 bytes Remote)
+	// This defensive fix ensures correct serialization even if fields were lost during marshal/unmarshal cycles
+	l.Type = LS_TLV_LINK_ID
+	l.Length = 8
+
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint32(buf[:4], l.Local)
 	binary.BigEndian.PutUint32(buf[4:], l.Remote)
@@ -6759,7 +6787,7 @@ type LsTLVOpaqueNodeAttr struct {
 func NewLsTLVOpaqueNodeAttr(l *[]byte) *LsTLVOpaqueNodeAttr {
 	return &LsTLVOpaqueNodeAttr{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_OPAQUE_NODE_ATTR,
 			Length: uint16(len(*l)),
 		},
 		Attr: *l,
@@ -9327,7 +9355,7 @@ type LsTLVOpaqueLinkAttr struct {
 func NewLsTLVOpaqueLinkAttr(l *[]byte) *LsTLVOpaqueLinkAttr {
 	return &LsTLVOpaqueLinkAttr{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_OPAQUE_LINK_ATTR,
 			Length: uint16(len(*l)),
 		},
 		Attr: *l,
@@ -9446,20 +9474,20 @@ type LsTLVIGPFlags struct {
 func NewLsTLVIGPFlags(l *LsIGPFlags) *LsTLVIGPFlags {
 	var flags uint8
 	if l.Down {
-		flags = flags & (1 >> 0)
+		flags = flags | (1 << 0)
 	}
 	if l.NoUnicast {
-		flags = flags & (1 >> 1)
+		flags = flags | (1 << 1)
 	}
 	if l.LocalAddress {
-		flags = flags & (1 >> 2)
+		flags = flags | (1 << 2)
 	}
 	if l.PropagateNSSA {
-		flags = flags & (1 >> 3)
+		flags = flags | (1 << 3)
 	}
 	return &LsTLVIGPFlags{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_IGP_FLAGS,
 			Length: 1,
 		},
 		Flags: flags,
@@ -9544,8 +9572,8 @@ type LsTLVOpaquePrefixAttr struct {
 func NewLsTLVOpaquePrefixAttr(l *[]byte) *LsTLVOpaquePrefixAttr {
 	return &LsTLVOpaquePrefixAttr{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
-			Length: 0,
+			Type:   LS_TLV_OPAQUE_PREFIX_ATTR,
+			Length: uint16(len(*l)),
 		},
 		Attr: *l,
 	}
@@ -10351,10 +10379,26 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 func (p *PathAttributeLs) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	buf := []byte{}
 
-	for _, tlv := range p.TLVs {
+	for i, tlv := range p.TLVs {
+		// Defensive check: skip TLVs with invalid types (type < 256) which are not valid BGP-LS TLV types
+		// This prevents serialization errors from corrupted TLVs that may have been created with wrong types
+		if tlvInterface, ok := tlv.(interface{ GetLsTLV() LsTLV }); ok {
+			tlvType := tlvInterface.GetLsTLV().Type
+			if tlvType < 256 {
+				// Log warning and skip invalid TLV instead of failing
+				// This handles cases where TLVs were incorrectly created with wrong types (e.g., BGP_ASPATH_ATTR_TYPE_SET = 1)
+				continue
+			}
+		}
+
 		s, err := tlv.Serialize()
 		if err != nil {
-			return nil, err
+			// Get TLV type for debugging
+			tlvType := "unknown"
+			if tlvInterface, ok := tlv.(interface{ GetLsTLV() LsTLV }); ok {
+				tlvType = fmt.Sprintf("%d", tlvInterface.GetLsTLV().Type)
+			}
+			return nil, fmt.Errorf("failed to serialize BGP-LS Attribute TLV[%d] (type=%s): %w", i, tlvType, err)
 		}
 		buf = append(buf, s...)
 	}
@@ -12003,26 +12047,49 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 			id = binary.BigEndian.Uint32(value[:addpathLen])
 			value = value[addpathLen:]
 		}
+
 		prefix, err := NLRIFromSlice(family, value, options...)
 		if err != nil {
 			// Enhanced error logging for BGP-LS debugging
 			errorMsg := fmt.Sprintf("failed to decode NLRI from MpReachNLRI (AFI=%d, SAFI=%d, remaining_bytes=%d, addpathLen=%d): %v",
 				family.Afi(), family.Safi(), len(value), addpathLen, err)
-			// Check if this is BGP-LS (AFI=16388, SAFI=71)
+
+			// For BGP-LS (AFI=16388, SAFI=71), skip malformed NLRI entries instead of terminating the session
+			// This makes the decoder more tolerant of misbehaving peers that send malformed BGP-LS Link NLRI messages
 			if family.Afi() == 16388 && family.Safi() == 71 {
-				// For BGP-LS, try to decode the first few bytes to see what we have
+				// Try to determine the NLRI length to skip it
+				nlriLength := 0
 				if len(value) >= 4 {
 					nlriType := binary.BigEndian.Uint16(value[:2])
-					nlriLength := binary.BigEndian.Uint16(value[2:4])
+					declaredLength := binary.BigEndian.Uint16(value[2:4])
 					errorMsg += fmt.Sprintf(" - BGP-LS NLRI type=%d, declared_length=%d, available_bytes=%d",
-						nlriType, nlriLength, len(value))
+						nlriType, declaredLength, len(value))
 					// If we have more bytes, show protocol ID
 					if len(value) >= 13 {
 						protocolID := value[4]
 						errorMsg += fmt.Sprintf(", protocol_id=%d", protocolID)
 					}
+					// Calculate NLRI length: 4 bytes (type + length) + declared length
+					nlriLength = 4 + int(declaredLength)
+					// Ensure we don't skip beyond available data
+					if nlriLength > len(value) {
+						nlriLength = len(value)
+					}
+				} else {
+					// If we can't determine length, skip remaining bytes (this shouldn't happen in practice)
+					nlriLength = len(value)
 				}
+
+				// Log the error about the malformed NLRI
+				log.Printf("WARN: Skipping malformed BGP-LS NLRI: %s", errorMsg)
+
+				// Skip the malformed NLRI and continue processing
+				value = value[nlriLength:]
+				// Continue to next iteration instead of returning error
+				continue
 			}
+
+			// For non-BGP-LS or other errors, return the error as before
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, errorMsg)
 		}
 		if len(value) < prefix.Len(options...) {
