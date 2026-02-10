@@ -2603,6 +2603,114 @@ func Test_LsTLVTEDefaultMetric(t *testing.T) {
 	}
 }
 
+func Test_LsTLVUnidirectionalLinkDelay(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		{[]byte{0x04, 0x5a, 0x00, 0x04, 0x00, 0x00, 0x21, 0x44}, `{"type":1114,"flags":0,"unidirectional_link_delay":8516}`, true, false},
+		{[]byte{0x04, 0x5a, 0x00, 0x04, 0x80, 0xff, 0xff, 0xff}, `{"type":1114,"flags":128,"unidirectional_link_delay":16777215}`, true, false},
+		{[]byte{0x04, 0x5a, 0x00, 0x03, 0x00, 0x21, 0x44}, "", false, true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVUnidirectionalLinkDelay{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+
+		if test.serialize {
+			got, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, got)
+		}
+	}
+}
+
+func Test_LsTLVMinMaxUnidirectionalLinkDelay(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		{[]byte{0x04, 0x5b, 0x00, 0x08, 0x00, 0x00, 0x21, 0x3f, 0x00, 0x00, 0x21, 0x4f}, `{"type":1115,"flags":0,"min_unidirectional_link_delay":8511,"max_unidirectional_link_delay":8527}`, true, false},
+		{[]byte{0x04, 0x5b, 0x00, 0x08, 0x80, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff}, `{"type":1115,"flags":128,"min_unidirectional_link_delay":16777214,"max_unidirectional_link_delay":16777215}`, true, false},
+		{[]byte{0x04, 0x5b, 0x00, 0x07, 0x00, 0x00, 0x21, 0x3f, 0x00, 0x21, 0x4f}, "", false, true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVMinMaxUnidirectionalLinkDelay{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+
+		if test.serialize {
+			got, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, got)
+		}
+	}
+}
+
+func Test_LsTLVUnidirectionalDelayVariation(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		{[]byte{0x04, 0x5c, 0x00, 0x04, 0x00, 0x00, 0x00, 0x33}, `{"type":1116,"unidirectional_delay_variation":51}`, true, false},
+		{[]byte{0x04, 0x5c, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff}, `{"type":1116,"unidirectional_delay_variation":16777215}`, true, false},
+		{[]byte{0x04, 0x5c, 0x00, 0x03, 0x00, 0x00, 0x33}, "", false, true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVUnidirectionalDelayVariation{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+
+		if test.serialize {
+			got, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, got)
+		}
+	}
+}
+
 func Test_LsTLVIGPMetric(t *testing.T) {
 	assert := assert.New(t)
 
@@ -3795,6 +3903,42 @@ func Test_PathAttributeLs(t *testing.T) {
 	}
 }
 
+func Test_PathAttributeLsDelayMetricTLVs(t *testing.T) {
+	assert := assert.New(t)
+
+	in := []byte{
+		0x80, 0x29, 0x1c, // Optional attribute, BGP_ATTR_TYPE_LS, length 28
+		0x04, 0x5a, 0x00, 0x04, 0x00, 0x00, 0x21, 0x44, // Unidirectional Link Delay, flags=0, delay=8516
+		0x04, 0x5b, 0x00, 0x08, 0x00, 0x00, 0x21, 0x3f, 0x00, 0x00, 0x21, 0x4f, // Min/Max Unidirectional Link Delay, flags=0, min=8511, max=8527
+		0x04, 0x5c, 0x00, 0x04, 0x00, 0x00, 0x00, 0x33, // Unidirectional Delay Variation, variation=51
+	}
+
+	attr := PathAttributeLs{}
+	assert.NoError(attr.DecodeFromBytes(in))
+	assert.Len(attr.TLVs, 3)
+
+	lsAttr := attr.Extract()
+
+	if assert.NotNil(lsAttr.Link.UnidirectionalLinkDelay) {
+		assert.Equal(uint32(8516), lsAttr.Link.UnidirectionalLinkDelay.Delay)
+		assert.False(lsAttr.Link.UnidirectionalLinkDelay.Flags.Anomalous)
+	}
+
+	if assert.NotNil(lsAttr.Link.MinMaxUnidirectionalLinkDelay) {
+		assert.Equal(uint32(8511), lsAttr.Link.MinMaxUnidirectionalLinkDelay.MinDelay)
+		assert.Equal(uint32(8527), lsAttr.Link.MinMaxUnidirectionalLinkDelay.MaxDelay)
+		assert.False(lsAttr.Link.MinMaxUnidirectionalLinkDelay.Flags.Anomalous)
+	}
+
+	if assert.NotNil(lsAttr.Link.UnidirectionalDelayVariation) {
+		assert.Equal(uint32(51), *lsAttr.Link.UnidirectionalDelayVariation)
+	}
+
+	got, err := attr.Serialize()
+	assert.NoError(err)
+	assert.Equal(in, got)
+}
+
 func Test_BGPOpenDecodeCapabilities(t *testing.T) {
 	// BGP OPEN message with add-path and long-lived-graceful-restart capabilities,
 	// in that order.
@@ -3962,6 +4106,9 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&LsTLVMaxReservableLinkBw{}).DecodeFromBytes(data)
 		(&LsTLVUnreservedBw{}).DecodeFromBytes(data)
 		(&LsTLVTEDefaultMetric{}).DecodeFromBytes(data)
+		(&LsTLVUnidirectionalLinkDelay{}).DecodeFromBytes(data)
+		(&LsTLVMinMaxUnidirectionalLinkDelay{}).DecodeFromBytes(data)
+		(&LsTLVUnidirectionalDelayVariation{}).DecodeFromBytes(data)
 		(&LsTLVIGPMetric{}).DecodeFromBytes(data)
 		(&LsTLVLinkName{}).DecodeFromBytes(data)
 		(&LsTLVSrAlgorithm{}).DecodeFromBytes(data)

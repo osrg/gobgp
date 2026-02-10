@@ -1778,43 +1778,49 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 	}
 
 	m, err := extractReserved(args, map[string]int{
-		"protocol":                        paramSingle,
-		"identifier":                      paramSingle,
-		"local-asn":                       paramSingle, // optional, one of the four local fields is required
-		"local-bgp-ls-id":                 paramSingle, // optional, one of the four local fields is required
-		"local-bgp-router-id":             paramSingle, // optional, one of the four local fields is required
-		"local-igp-router-id":             paramSingle, // optional, one of the four local fields is required
-		"local-bgp-confederation-member":  paramSingle, // optional
-		"remote-asn":                      paramSingle, // optional, one of the four remote fields is required
-		"remote-bgp-ls-id":                paramSingle, // optional, one of the four remote fields is required
-		"remote-bgp-router-id":            paramSingle, // optional, one of the four remote fields is required
-		"remote-igp-router-id":            paramSingle, // optional, one of the four remote fields is required
-		"remote-bgp-confederation-member": paramSingle, // optional
-		"link-local-id":                   paramSingle, // optional, link local id
-		"link-remote-id":                  paramSingle, // optional, link remote id
-		"ipv4-interface-address":          paramSingle, // optional, IPv4 interface address
-		"ipv4-neighbor-address":           paramSingle, // optional, IPv4 neighbor address
-		"ipv6-interface-address":          paramSingle, // optional, IPv6 interface address
-		"ipv6-neighbor-address":           paramSingle, // optional, IPv6 neighbor address
-		"sid":                             paramSingle, // optional
-		"sid-type":                        paramSingle, // optional
-		"v-flag":                          paramFlag,   // optional
-		"l-flag":                          paramFlag,   // optional
-		"b-flag":                          paramFlag,   // optional
-		"p-flag":                          paramFlag,   // optional
-		"weight":                          paramSingle, // optional
-		"max-link-bandwidth":              paramSingle, // optional, maximum link bandwidth
-		"te-default-metric":               paramSingle, // optional, te default metric
-		"metric":                          paramSingle, // optional, metric
-		"srv6-endpoint-behavior":          paramSingle, // optional, srv6 end.x sid
-		"srv6-sids":                       paramList,   // optional, srv6 end.x sid
-		"srv6-weight":                     paramSingle, // optional, srv6 end.x sid
-		"srv6-flags":                      paramSingle, // optional, srv6 end.x sid
-		"srv6-algo":                       paramSingle, // optional, srv6 end.x sid
-		"srv6-structure-lb":               paramSingle, // optional, srv6 sid structure
-		"srv6-structure-ln":               paramSingle, // optional, srv6 sid structure
-		"srv6-structure-fun":              paramSingle, // optional, srv6 sid structure
-		"srv6-structure-arg":              paramSingle, // optional, srv6 sid structure
+		"protocol":                            paramSingle,
+		"identifier":                          paramSingle,
+		"local-asn":                           paramSingle, // optional, one of the four local fields is required
+		"local-bgp-ls-id":                     paramSingle, // optional, one of the four local fields is required
+		"local-bgp-router-id":                 paramSingle, // optional, one of the four local fields is required
+		"local-igp-router-id":                 paramSingle, // optional, one of the four local fields is required
+		"local-bgp-confederation-member":      paramSingle, // optional
+		"remote-asn":                          paramSingle, // optional, one of the four remote fields is required
+		"remote-bgp-ls-id":                    paramSingle, // optional, one of the four remote fields is required
+		"remote-bgp-router-id":                paramSingle, // optional, one of the four remote fields is required
+		"remote-igp-router-id":                paramSingle, // optional, one of the four remote fields is required
+		"remote-bgp-confederation-member":     paramSingle, // optional
+		"link-local-id":                       paramSingle, // optional, link local id
+		"link-remote-id":                      paramSingle, // optional, link remote id
+		"ipv4-interface-address":              paramSingle, // optional, IPv4 interface address
+		"ipv4-neighbor-address":               paramSingle, // optional, IPv4 neighbor address
+		"ipv6-interface-address":              paramSingle, // optional, IPv6 interface address
+		"ipv6-neighbor-address":               paramSingle, // optional, IPv6 neighbor address
+		"sid":                                 paramSingle, // optional
+		"sid-type":                            paramSingle, // optional
+		"v-flag":                              paramFlag,   // optional
+		"l-flag":                              paramFlag,   // optional
+		"b-flag":                              paramFlag,   // optional
+		"p-flag":                              paramFlag,   // optional
+		"weight":                              paramSingle, // optional
+		"max-link-bandwidth":                  paramSingle, // optional, maximum link bandwidth
+		"te-default-metric":                   paramSingle, // optional, te default metric
+		"unidirectional-link-delay":           paramSingle, // optional, RFC8571 TLV 1114
+		"unidirectional-link-delay-anomalous": paramFlag,   // optional, RFC8571 TLV 1114 A-flag
+		"min-unidirectional-link-delay":       paramSingle, // optional, RFC8571 TLV 1115
+		"max-unidirectional-link-delay":       paramSingle, // optional, RFC8571 TLV 1115
+		"min-max-unidirectional-link-delay-anomalous": paramFlag,   // optional, RFC8571 TLV 1115 A-flag
+		"unidirectional-delay-variation":              paramSingle, // optional, RFC8571 TLV 1116
+		"metric":                                      paramSingle, // optional, metric
+		"srv6-endpoint-behavior":                      paramSingle, // optional, srv6 end.x sid
+		"srv6-sids":                                   paramList,   // optional, srv6 end.x sid
+		"srv6-weight":                                 paramSingle, // optional, srv6 end.x sid
+		"srv6-flags":                                  paramSingle, // optional, srv6 end.x sid
+		"srv6-algo":                                   paramSingle, // optional, srv6 end.x sid
+		"srv6-structure-lb":                           paramSingle, // optional, srv6 sid structure
+		"srv6-structure-ln":                           paramSingle, // optional, srv6 sid structure
+		"srv6-structure-fun":                          paramSingle, // optional, srv6 sid structure
+		"srv6-structure-arg":                          paramSingle, // optional, srv6 sid structure
 	})
 	if err != nil {
 		return nil, nil, err
@@ -2091,6 +2097,89 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 				Length: 4,
 			},
 			Metric: uint32(teMetric),
+		}
+		tlvs = append(tlvs, lsTLV)
+		length += uint16(lsTLV.Len())
+	}
+
+	const maxDelayMetricValue = 0xFFFFFF
+	if delayStr, ok := m["unidirectional-link-delay"]; ok && len(delayStr) > 0 {
+		delay, err := strconv.ParseUint(delayStr[0], 10, 32)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid unidirectional-link-delay: %v", err)
+		}
+		if delay > maxDelayMetricValue {
+			return nil, nil, fmt.Errorf("invalid unidirectional-link-delay: must be <= %d", maxDelayMetricValue)
+		}
+		flags := uint8(0)
+		if _, ok := m["unidirectional-link-delay-anomalous"]; ok {
+			flags = flags | 1<<7
+		}
+		lsTLV := &bgp.LsTLVUnidirectionalLinkDelay{
+			LsTLV: bgp.LsTLV{
+				Type:   bgp.LS_TLV_UNIDIRECTIONAL_LINK_DELAY,
+				Length: 4,
+			},
+			Flags: flags,
+			Delay: uint32(delay),
+		}
+		tlvs = append(tlvs, lsTLV)
+		length += uint16(lsTLV.Len())
+	}
+
+	minDelayStr, hasMinDelay := m["min-unidirectional-link-delay"]
+	maxDelayStr, hasMaxDelay := m["max-unidirectional-link-delay"]
+	if hasMinDelay != hasMaxDelay {
+		return nil, nil, fmt.Errorf("both min-unidirectional-link-delay and max-unidirectional-link-delay must be specified together")
+	}
+	if hasMinDelay && len(minDelayStr) > 0 && len(maxDelayStr) > 0 {
+		minDelay, err := strconv.ParseUint(minDelayStr[0], 10, 32)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid min-unidirectional-link-delay: %v", err)
+		}
+		if minDelay > maxDelayMetricValue {
+			return nil, nil, fmt.Errorf("invalid min-unidirectional-link-delay: must be <= %d", maxDelayMetricValue)
+		}
+		maxDelay, err := strconv.ParseUint(maxDelayStr[0], 10, 32)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid max-unidirectional-link-delay: %v", err)
+		}
+		if maxDelay > maxDelayMetricValue {
+			return nil, nil, fmt.Errorf("invalid max-unidirectional-link-delay: must be <= %d", maxDelayMetricValue)
+		}
+		flags := uint8(0)
+		if _, ok := m["min-max-unidirectional-link-delay-anomalous"]; ok {
+			flags = flags | 1<<7
+		}
+		lsTLV := &bgp.LsTLVMinMaxUnidirectionalLinkDelay{
+			LsTLV: bgp.LsTLV{
+				Type:   bgp.LS_TLV_MIN_MAX_UNIDIRECTIONAL_LINK_DELAY,
+				Length: 8,
+			},
+			Flags:    flags,
+			MinDelay: uint32(minDelay),
+			Reserved: 0,
+			MaxDelay: uint32(maxDelay),
+		}
+		tlvs = append(tlvs, lsTLV)
+		length += uint16(lsTLV.Len())
+	}
+
+	if delayVariationStr, ok := m["unidirectional-delay-variation"]; ok && len(delayVariationStr) > 0 {
+		delayVariation, err := strconv.ParseUint(delayVariationStr[0], 10, 32)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid unidirectional-delay-variation: %v", err)
+		}
+		if delayVariation > maxDelayMetricValue {
+			return nil, nil, fmt.Errorf("invalid unidirectional-delay-variation: must be <= %d", maxDelayMetricValue)
+		}
+		lsTLV := &bgp.LsTLVUnidirectionalDelayVariation{
+			LsTLV: bgp.LsTLV{
+				Type:   bgp.LS_TLV_UNIDIRECTIONAL_DELAY_VARIATION,
+				Length: 4,
+			},
+			Reserved:       0,
+			DelayVariation: uint32(delayVariation),
 		}
 		tlvs = append(tlvs, lsTLV)
 		length += uint16(lsTLV.Len())
