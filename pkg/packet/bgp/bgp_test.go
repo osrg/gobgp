@@ -2915,6 +2915,20 @@ func Test_LsTLVSrCapabilities(t *testing.T) {
 	}
 }
 
+func Test_LsTLVSrCapabilitiesFlagBits(t *testing.T) {
+	assert := assert.New(t)
+
+	tlv := NewLsTLVSrCapabilities(&LsSrCapabilities{
+		IPv4Supported: true,
+		IPv6Supported: true,
+	})
+	assert.Equal(uint8(0xC0), tlv.Flags)
+
+	caps := (&LsTLVSrCapabilities{Flags: 0xC0}).Extract()
+	assert.True(caps.IPv4Supported)
+	assert.True(caps.IPv6Supported)
+}
+
 func Test_LsTLVLocalBlock(t *testing.T) {
 	assert := assert.New(t)
 
@@ -3333,6 +3347,24 @@ func Test_LsTLVIGPFlags(t *testing.T) {
 			}
 		}
 	}
+}
+
+func Test_LsTLVIGPFlagsFlagBits(t *testing.T) {
+	assert := assert.New(t)
+
+	tlv := NewLsTLVIGPFlags(&LsIGPFlags{
+		Down:          true,
+		NoUnicast:     true,
+		LocalAddress:  true,
+		PropagateNSSA: true,
+	})
+	assert.Equal(uint8(0xF0), tlv.Flags)
+
+	flags := (&LsTLVIGPFlags{Flags: 0xF0}).Extract()
+	assert.True(flags.Down)
+	assert.True(flags.NoUnicast)
+	assert.True(flags.LocalAddress)
+	assert.True(flags.PropagateNSSA)
 }
 
 func Test_LsTLVOpaquePrefixAttr(t *testing.T) {

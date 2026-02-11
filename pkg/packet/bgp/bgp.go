@@ -8065,10 +8065,10 @@ type LsTLVSrCapabilities struct {
 func NewLsTLVSrCapabilities(l *LsSrCapabilities) *LsTLVSrCapabilities {
 	var flags uint8
 	if l.IPv4Supported {
-		flags = flags & (1 >> 0)
+		flags = flags | 1<<7
 	}
 	if l.IPv6Supported {
-		flags = flags & (1 >> 1)
+		flags = flags | 1<<6
 	}
 	ranges := []LsSrLabelRange{}
 	var length uint16
@@ -8112,8 +8112,8 @@ type LsSrCapabilities struct {
 
 func (l *LsTLVSrCapabilities) Extract() *LsSrCapabilities {
 	lsc := &LsSrCapabilities{
-		IPv4Supported: l.Flags&(1<<0) > 0,
-		IPv6Supported: l.Flags&(1<<1) > 0,
+		IPv4Supported: l.Flags&(1<<7) > 0,
+		IPv6Supported: l.Flags&(1<<6) > 0,
 	}
 
 	for _, r := range l.Ranges {
@@ -9608,16 +9608,16 @@ type LsTLVIGPFlags struct {
 func NewLsTLVIGPFlags(l *LsIGPFlags) *LsTLVIGPFlags {
 	var flags uint8
 	if l.Down {
-		flags = flags & (1 >> 0)
+		flags = flags | 1<<7
 	}
 	if l.NoUnicast {
-		flags = flags & (1 >> 1)
+		flags = flags | 1<<6
 	}
 	if l.LocalAddress {
-		flags = flags & (1 >> 2)
+		flags = flags | 1<<5
 	}
 	if l.PropagateNSSA {
-		flags = flags & (1 >> 3)
+		flags = flags | 1<<4
 	}
 	return &LsTLVIGPFlags{
 		LsTLV: LsTLV{
@@ -9638,10 +9638,10 @@ type LsIGPFlags struct {
 
 func (l *LsTLVIGPFlags) Extract() *LsIGPFlags {
 	return &LsIGPFlags{
-		Down:          l.Flags&(1<<0) > 0,
-		NoUnicast:     l.Flags&(1<<1) > 0,
-		LocalAddress:  l.Flags&(1<<2) > 0,
-		PropagateNSSA: l.Flags&(1<<3) > 0,
+		Down:          l.Flags&(1<<7) > 0,
+		NoUnicast:     l.Flags&(1<<6) > 0,
+		LocalAddress:  l.Flags&(1<<5) > 0,
+		PropagateNSSA: l.Flags&(1<<4) > 0,
 	}
 }
 
