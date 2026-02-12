@@ -31,6 +31,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -869,4 +870,334 @@ func TestRace_SoftResetPeerAndWatch(t *testing.T) {
 
 	close(stop)
 	wg.Wait()
+}
+
+// TestAtomicMessageCounters verifies that atomic message counters exposed via toConfig
+// accurately match the messages processed through bgpMessageStateUpdate.
+func TestAtomicMessageCounters(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	// Create a mock server to use toConfig
+	s := NewBgpServer()
+
+	// Simulate processing various BGP messages
+	testCases := []struct {
+		msgType uint8
+		isIn    bool
+		count   int
+	}{
+		{bgp.BGP_MSG_OPEN, true, 1},
+		{bgp.BGP_MSG_OPEN, false, 1},
+		{bgp.BGP_MSG_KEEPALIVE, true, 5},
+		{bgp.BGP_MSG_KEEPALIVE, false, 5},
+		{bgp.BGP_MSG_UPDATE, true, 10},
+		{bgp.BGP_MSG_UPDATE, false, 8},
+		{bgp.BGP_MSG_NOTIFICATION, true, 2},
+		{bgp.BGP_MSG_NOTIFICATION, false, 1},
+		{bgp.BGP_MSG_ROUTE_REFRESH, true, 3},
+		{bgp.BGP_MSG_ROUTE_REFRESH, false, 2},
+	}
+
+	// Track expected counts
+	expectedReceived := make(map[uint8]uint64)
+	expectedSent := make(map[uint8]uint64)
+	var expectedReceivedTotal, expectedSentTotal uint64
+
+	// Process messages and track expectations
+	for _, tc := range testCases {
+		for range tc.count {
+			p.fsm.bgpMessageStateUpdate(tc.msgType, tc.isIn)
+			if tc.isIn {
+				expectedReceived[tc.msgType]++
+				expectedReceivedTotal++
+			} else {
+				expectedSent[tc.msgType]++
+				expectedSentTotal++
+			}
+		}
+	}
+
+	// Get config using toConfig
+	config := s.toConfig(p, false)
+
+	// Verify received message counts match
+	assert.Equal(expectedReceivedTotal, config.State.Messages.Received.Total,
+		"Received total count should match")
+	assert.Equal(expectedReceived[bgp.BGP_MSG_OPEN], config.State.Messages.Received.Open,
+		"Received OPEN count should match")
+	assert.Equal(expectedReceived[bgp.BGP_MSG_KEEPALIVE], config.State.Messages.Received.Keepalive,
+		"Received KEEPALIVE count should match")
+	assert.Equal(expectedReceived[bgp.BGP_MSG_UPDATE], config.State.Messages.Received.Update,
+		"Received UPDATE count should match")
+	assert.Equal(expectedReceived[bgp.BGP_MSG_NOTIFICATION], config.State.Messages.Received.Notification,
+		"Received NOTIFICATION count should match")
+	assert.Equal(expectedReceived[bgp.BGP_MSG_ROUTE_REFRESH], config.State.Messages.Received.Refresh,
+		"Received ROUTE_REFRESH count should match")
+
+	// Verify sent message counts match
+	assert.Equal(expectedSentTotal, config.State.Messages.Sent.Total,
+		"Sent total count should match")
+	assert.Equal(expectedSent[bgp.BGP_MSG_OPEN], config.State.Messages.Sent.Open,
+		"Sent OPEN count should match")
+	assert.Equal(expectedSent[bgp.BGP_MSG_KEEPALIVE], config.State.Messages.Sent.Keepalive,
+		"Sent KEEPALIVE count should match")
+	assert.Equal(expectedSent[bgp.BGP_MSG_UPDATE], config.State.Messages.Sent.Update,
+		"Sent UPDATE count should match")
+	assert.Equal(expectedSent[bgp.BGP_MSG_NOTIFICATION], config.State.Messages.Sent.Notification,
+		"Sent NOTIFICATION count should match")
+	assert.Equal(expectedSent[bgp.BGP_MSG_ROUTE_REFRESH], config.State.Messages.Sent.Refresh,
+		"Sent ROUTE_REFRESH count should match")
+}
+
+// TestAtomicTimerState verifies that UpdateRecvTime is correctly updated when
+// UPDATE messages are received and exposed via toConfig.
+func TestAtomicTimerState(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	s := NewBgpServer()
+
+	// Initially, UpdateRecvTime should be 0
+	config := s.toConfig(p, false)
+	assert.Equal(int64(0), config.Timers.State.UpdateRecvTime,
+		"UpdateRecvTime should be 0 initially")
+
+	// Record time before sending UPDATE
+	timeBefore := time.Now().Unix()
+
+	// Process an UPDATE message (received)
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_UPDATE, true)
+
+	// Record time after sending UPDATE
+	timeAfter := time.Now().Unix()
+
+	// Get config and verify UpdateRecvTime is set
+	config = s.toConfig(p, false)
+	updateTime := config.Timers.State.UpdateRecvTime
+
+	assert.True(updateTime >= timeBefore && updateTime <= timeAfter,
+		"UpdateRecvTime should be set to current time when UPDATE received")
+
+	// Sleep briefly to ensure time difference
+	time.Sleep(10 * time.Millisecond)
+
+	// Process another UPDATE message
+	timeBeforeSecond := time.Now().Unix()
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_UPDATE, true)
+	timeAfterSecond := time.Now().Unix()
+
+	// Verify UpdateRecvTime is updated
+	config = s.toConfig(p, false)
+	updateTimeSecond := config.Timers.State.UpdateRecvTime
+
+	assert.True(updateTimeSecond >= timeBeforeSecond && updateTimeSecond <= timeAfterSecond,
+		"UpdateRecvTime should be updated on subsequent UPDATE")
+	assert.True(updateTimeSecond >= updateTime,
+		"UpdateRecvTime should not go backwards")
+
+	// Verify that sending UPDATE (not receiving) does NOT update UpdateRecvTime
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_UPDATE, false)
+	config = s.toConfig(p, false)
+	assert.Equal(updateTimeSecond, config.Timers.State.UpdateRecvTime,
+		"UpdateRecvTime should not change when UPDATE is sent (only when received)")
+
+	// Verify other message types do NOT update UpdateRecvTime
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, true)
+	config = s.toConfig(p, false)
+	assert.Equal(updateTimeSecond, config.Timers.State.UpdateRecvTime,
+		"UpdateRecvTime should not change for non-UPDATE messages")
+}
+
+// TestAtomicCounterReset verifies that message counters and timer state
+// are correctly reset to zero when bgpMessageResetStats is called.
+func TestAtomicCounterReset(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	s := NewBgpServer()
+
+	// Process various messages to populate counters
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_OPEN, true)
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_OPEN, false)
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, true)
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_UPDATE, true)
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_UPDATE, false)
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_NOTIFICATION, true)
+	p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_ROUTE_REFRESH, true)
+
+	// Verify counters are non-zero
+	config := s.toConfig(p, false)
+	assert.Greater(config.State.Messages.Received.Total, uint64(0),
+		"Received total should be non-zero before reset")
+	assert.Greater(config.State.Messages.Sent.Total, uint64(0),
+		"Sent total should be non-zero before reset")
+	assert.Greater(config.Timers.State.UpdateRecvTime, int64(0),
+		"UpdateRecvTime should be non-zero before reset")
+
+	// Reset stats
+	p.fsm.bgpMessageResetStats()
+
+	// Verify all counters are zero after reset
+	config = s.toConfig(p, false)
+
+	// Check received counters
+	assert.Equal(uint64(0), config.State.Messages.Received.Total,
+		"Received total should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Received.Open,
+		"Received OPEN should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Received.Keepalive,
+		"Received KEEPALIVE should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Received.Update,
+		"Received UPDATE should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Received.Notification,
+		"Received NOTIFICATION should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Received.Refresh,
+		"Received REFRESH should be 0 after reset")
+	assert.Equal(uint32(0), config.State.Messages.Received.WithdrawUpdate,
+		"Received WithdrawUpdate should be 0 after reset")
+	assert.Equal(uint32(0), config.State.Messages.Received.WithdrawPrefix,
+		"Received WithdrawPrefix should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Received.Discarded,
+		"Received Discarded should be 0 after reset")
+
+	// Check sent counters
+	assert.Equal(uint64(0), config.State.Messages.Sent.Total,
+		"Sent total should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Sent.Open,
+		"Sent OPEN should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Sent.Keepalive,
+		"Sent KEEPALIVE should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Sent.Update,
+		"Sent UPDATE should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Sent.Notification,
+		"Sent NOTIFICATION should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Sent.Refresh,
+		"Sent REFRESH should be 0 after reset")
+	assert.Equal(uint32(0), config.State.Messages.Sent.WithdrawUpdate,
+		"Sent WithdrawUpdate should be 0 after reset")
+	assert.Equal(uint32(0), config.State.Messages.Sent.WithdrawPrefix,
+		"Sent WithdrawPrefix should be 0 after reset")
+	assert.Equal(uint64(0), config.State.Messages.Sent.Discarded,
+		"Sent Discarded should be 0 after reset")
+
+	// Check timer state
+	assert.Equal(int64(0), config.Timers.State.UpdateRecvTime,
+		"UpdateRecvTime should be 0 after reset")
+}
+
+// TestAtomicCountersConcurrentAccess verifies that atomic counters can be
+// safely updated and read concurrently from multiple goroutines.
+func TestAtomicCountersConcurrentAccess(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	s := NewBgpServer()
+
+	const numGoroutines = 10
+	const updatesPerGoroutine = 100
+
+	var wg sync.WaitGroup
+
+	// Launch multiple goroutines to update counters concurrently
+	for range numGoroutines {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range updatesPerGoroutine {
+				p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_UPDATE, true)
+				p.fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
+			}
+		}()
+	}
+
+	// Launch goroutines to read counters concurrently via toConfig
+	readDone := make(chan struct{})
+	var readWg sync.WaitGroup
+	for range numGoroutines {
+		readWg.Add(1)
+		go func() {
+			defer readWg.Done()
+			for {
+				select {
+				case <-readDone:
+					return
+				default:
+					// Read config without causing panic or race
+					_ = s.toConfig(p, false)
+				}
+			}
+		}()
+	}
+
+	// Wait for all writers to complete
+	wg.Wait()
+	close(readDone)
+	readWg.Wait()
+
+	// Verify final counts
+	config := s.toConfig(p, false)
+	expectedUpdates := uint64(numGoroutines * updatesPerGoroutine)
+	expectedKeepalives := uint64(numGoroutines * updatesPerGoroutine)
+
+	assert.Equal(expectedUpdates, config.State.Messages.Received.Update,
+		"Concurrent UPDATE counter updates should be accurate")
+	assert.Equal(expectedKeepalives, config.State.Messages.Sent.Keepalive,
+		"Concurrent KEEPALIVE counter updates should be accurate")
+	assert.Equal(expectedUpdates+expectedKeepalives, config.State.Messages.Received.Total+config.State.Messages.Sent.Total,
+		"Total message count should be sum of all messages")
+}
+
+// TestBMPStatsUpdate verifies that BMP stats are correctly updated via
+// atomic operations and exposed via toConfig.
+func TestBMPStatsUpdate(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	s := NewBgpServer()
+
+	// Update BMP withdraw stats
+	p.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 5)
+	p.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, 10)
+
+	// Get config and verify BMP stats
+	config := s.toConfig(p, false)
+	assert.Equal(uint32(5), config.State.Messages.Received.WithdrawUpdate,
+		"WithdrawUpdate count should match BMP stats")
+	assert.Equal(uint32(10), config.State.Messages.Received.WithdrawPrefix,
+		"WithdrawPrefix count should match BMP stats")
+
+	// Update again with different increments
+	p.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_UPDATE, 3)
+	p.fsm.bmpStatsUpdate(bmp.BMP_STAT_TYPE_WITHDRAW_PREFIX, 7)
+
+	config = s.toConfig(p, false)
+	assert.Equal(uint32(8), config.State.Messages.Received.WithdrawUpdate,
+		"WithdrawUpdate should accumulate correctly")
+	assert.Equal(uint32(17), config.State.Messages.Received.WithdrawPrefix,
+		"WithdrawPrefix should accumulate correctly")
+
+	// Verify reset clears BMP stats
+	p.fsm.bgpMessageResetStats()
+	config = s.toConfig(p, false)
+	assert.Equal(uint32(0), config.State.Messages.Received.WithdrawUpdate,
+		"WithdrawUpdate should be 0 after reset")
+	assert.Equal(uint32(0), config.State.Messages.Received.WithdrawPrefix,
+		"WithdrawPrefix should be 0 after reset")
 }
