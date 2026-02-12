@@ -221,3 +221,17 @@ func TestAdjRTC(t *testing.T) {
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 0)
 	assert.True(t, !adj.HasRTinRtcTable(rt2))
 }
+
+func TestWithdrawUnknownPath(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	p1 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri1}, true, attrs, time.Now(), false)
+	family := p1.GetFamily()
+	families := []bgp.Family{family}
+
+	adj := NewAdjRib(logger, families)
+	adj.Update([]*Path{p1})
+	assert.Equal(t, len(adj.table[family].destinations), 0)
+}
