@@ -438,6 +438,14 @@ message LsAttributeLink {
   uint32 sr_adjacency_sid = 13;
   repeated uint32 srlgs = 14;
   LsSrv6EndXSID srv6_end_x_sid = 15;
+
+  // RFC 8571 delay/measurement TLVs.
+  bool unidirectional_link_delay_anomalous = 16;
+  uint32 unidirectional_link_delay = 17;
+  bool min_max_unidirectional_link_delay_anomalous = 18;
+  uint32 min_unidirectional_link_delay = 19;
+  uint32 max_unidirectional_link_delay = 20;
+  uint32 unidirectional_delay_variation = 21;
 }
 
 message LsAttributePrefix {

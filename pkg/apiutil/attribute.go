@@ -1122,6 +1122,29 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		if a.Link.DefaultTeMetric != 0 {
 			linkDefaultTeMetric = &a.Link.DefaultTeMetric
 		}
+		var linkUnidirectionalLinkDelay *bgp.LsUnidirectionalLinkDelay
+		if a.Link.UnidirectionalLinkDelay != 0 || a.Link.UnidirectionalLinkDelayAnomalous {
+			linkUnidirectionalLinkDelay = &bgp.LsUnidirectionalLinkDelay{
+				Flags: bgp.LsDelayMetricFlags{
+					Anomalous: a.Link.UnidirectionalLinkDelayAnomalous,
+				},
+				Delay: a.Link.UnidirectionalLinkDelay,
+			}
+		}
+		var linkMinMaxUnidirectionalLinkDelay *bgp.LsMinMaxUnidirectionalLinkDelay
+		if a.Link.MinUnidirectionalLinkDelay != 0 || a.Link.MaxUnidirectionalLinkDelay != 0 || a.Link.MinMaxUnidirectionalLinkDelayAnomalous {
+			linkMinMaxUnidirectionalLinkDelay = &bgp.LsMinMaxUnidirectionalLinkDelay{
+				Flags: bgp.LsDelayMetricFlags{
+					Anomalous: a.Link.MinMaxUnidirectionalLinkDelayAnomalous,
+				},
+				MinDelay: a.Link.MinUnidirectionalLinkDelay,
+				MaxDelay: a.Link.MaxUnidirectionalLinkDelay,
+			}
+		}
+		var linkUnidirectionalDelayVariation *uint32
+		if a.Link.UnidirectionalDelayVariation != 0 {
+			linkUnidirectionalDelayVariation = &a.Link.UnidirectionalDelayVariation
+		}
 		var linkIgpMetric *uint32
 		if a.Link.IgpMetric != 0 {
 			linkIgpMetric = &a.Link.IgpMetric
@@ -1136,10 +1159,11 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		}
 		var linkReservableBandwidth *float32
 		if a.Link.ReservableBandwidth != 0 {
-			linkBandwidth = &a.Link.ReservableBandwidth
+			linkReservableBandwidth = &a.Link.ReservableBandwidth
 		}
 		var unreservedBandwidth *[8]float32
-		if a.Link.UnreservedBandwidth != nil {
+		if len(a.Link.UnreservedBandwidth) > 0 {
+			unreservedBandwidth = &[8]float32{}
 			copy(unreservedBandwidth[:], a.Link.UnreservedBandwidth)
 		}
 		var linkSrlgs *[]uint32
@@ -1177,21 +1201,24 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			}
 		}
 		lsAttr.Link = bgp.LsAttributeLink{
-			Name:                linkName,
-			LocalRouterID:       linkLocalRouterID,
-			LocalRouterIDv6:     linkLocalRouterIDv6,
-			RemoteRouterID:      linkRemoteRouterID,
-			RemoteRouterIDv6:    linkRemoteRouterIDv6,
-			AdminGroup:          linkAdminGroup,
-			DefaultTEMetric:     linkDefaultTeMetric,
-			IGPMetric:           linkIgpMetric,
-			Opaque:              linkOpaque,
-			Bandwidth:           linkBandwidth,
-			ReservableBandwidth: linkReservableBandwidth,
-			UnreservedBandwidth: unreservedBandwidth,
-			Srlgs:               linkSrlgs,
-			SrAdjacencySID:      linkSrAdjacencySid,
-			Srv6EndXSID:         srv6EndXSID,
+			Name:                          linkName,
+			LocalRouterID:                 linkLocalRouterID,
+			LocalRouterIDv6:               linkLocalRouterIDv6,
+			RemoteRouterID:                linkRemoteRouterID,
+			RemoteRouterIDv6:              linkRemoteRouterIDv6,
+			AdminGroup:                    linkAdminGroup,
+			DefaultTEMetric:               linkDefaultTeMetric,
+			UnidirectionalLinkDelay:       linkUnidirectionalLinkDelay,
+			MinMaxUnidirectionalLinkDelay: linkMinMaxUnidirectionalLinkDelay,
+			UnidirectionalDelayVariation:  linkUnidirectionalDelayVariation,
+			IGPMetric:                     linkIgpMetric,
+			Opaque:                        linkOpaque,
+			Bandwidth:                     linkBandwidth,
+			ReservableBandwidth:           linkReservableBandwidth,
+			UnreservedBandwidth:           unreservedBandwidth,
+			Srlgs:                         linkSrlgs,
+			SrAdjacencySID:                linkSrAdjacencySid,
+			Srv6EndXSID:                   srv6EndXSID,
 		}
 	}
 
@@ -2681,6 +2708,22 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 		}
 	}
 
+	var unidirectionalLinkDelayAnomalous bool
+	var unidirectionalLinkDelay uint32
+	if attr.Link.UnidirectionalLinkDelay != nil {
+		unidirectionalLinkDelayAnomalous = attr.Link.UnidirectionalLinkDelay.Flags.Anomalous
+		unidirectionalLinkDelay = attr.Link.UnidirectionalLinkDelay.Delay
+	}
+
+	var minMaxUnidirectionalLinkDelayAnomalous bool
+	var minUnidirectionalLinkDelay uint32
+	var maxUnidirectionalLinkDelay uint32
+	if attr.Link.MinMaxUnidirectionalLinkDelay != nil {
+		minMaxUnidirectionalLinkDelayAnomalous = attr.Link.MinMaxUnidirectionalLinkDelay.Flags.Anomalous
+		minUnidirectionalLinkDelay = attr.Link.MinMaxUnidirectionalLinkDelay.MinDelay
+		maxUnidirectionalLinkDelay = attr.Link.MinMaxUnidirectionalLinkDelay.MaxDelay
+	}
+
 	apiAttr := &api.LsAttribute{
 		Node: &api.LsAttributeNode{
 			Name:            stringOrDefault(attr.Node.Name),
@@ -2692,15 +2735,21 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 			SrAlgorithms: bytesOrDefault(attr.Node.SrAlgorithms),
 		},
 		Link: &api.LsAttributeLink{
-			Name:             stringOrDefault(attr.Link.Name),
-			Opaque:           bytesOrDefault(attr.Link.Opaque),
-			LocalRouterId:    ipOrDefault(attr.Link.LocalRouterID),
-			LocalRouterIdV6:  ipOrDefault(attr.Link.LocalRouterIDv6),
-			RemoteRouterId:   ipOrDefault(attr.Link.RemoteRouterID),
-			RemoteRouterIdV6: ipOrDefault(attr.Link.RemoteRouterIDv6),
-			AdminGroup:       uint32OrDefault(attr.Link.AdminGroup),
-			DefaultTeMetric:  uint32OrDefault(attr.Link.DefaultTEMetric),
-			IgpMetric:        uint32OrDefault(attr.Link.IGPMetric),
+			Name:                                   stringOrDefault(attr.Link.Name),
+			Opaque:                                 bytesOrDefault(attr.Link.Opaque),
+			LocalRouterId:                          ipOrDefault(attr.Link.LocalRouterID),
+			LocalRouterIdV6:                        ipOrDefault(attr.Link.LocalRouterIDv6),
+			RemoteRouterId:                         ipOrDefault(attr.Link.RemoteRouterID),
+			RemoteRouterIdV6:                       ipOrDefault(attr.Link.RemoteRouterIDv6),
+			AdminGroup:                             uint32OrDefault(attr.Link.AdminGroup),
+			DefaultTeMetric:                        uint32OrDefault(attr.Link.DefaultTEMetric),
+			UnidirectionalLinkDelayAnomalous:       unidirectionalLinkDelayAnomalous,
+			UnidirectionalLinkDelay:                unidirectionalLinkDelay,
+			MinMaxUnidirectionalLinkDelayAnomalous: minMaxUnidirectionalLinkDelayAnomalous,
+			MinUnidirectionalLinkDelay:             minUnidirectionalLinkDelay,
+			MaxUnidirectionalLinkDelay:             maxUnidirectionalLinkDelay,
+			UnidirectionalDelayVariation:           uint32OrDefault(attr.Link.UnidirectionalDelayVariation),
+			IgpMetric:                              uint32OrDefault(attr.Link.IGPMetric),
 
 			Bandwidth:           float32OrDefault(attr.Link.Bandwidth),
 			ReservableBandwidth: float32OrDefault(attr.Link.ReservableBandwidth),

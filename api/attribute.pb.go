@@ -3533,8 +3533,15 @@ type LsAttributeLink struct {
 	SrAdjacencySid      uint32                 `protobuf:"varint,13,opt,name=sr_adjacency_sid,json=srAdjacencySid,proto3" json:"sr_adjacency_sid,omitempty"`
 	Srlgs               []uint32               `protobuf:"varint,14,rep,packed,name=srlgs,proto3" json:"srlgs,omitempty"`
 	Srv6EndXSid         *LsSrv6EndXSID         `protobuf:"bytes,15,opt,name=srv6_end_x_sid,json=srv6EndXSid,proto3" json:"srv6_end_x_sid,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// RFC 8571 delay/measurement TLVs.
+	UnidirectionalLinkDelayAnomalous       bool   `protobuf:"varint,16,opt,name=unidirectional_link_delay_anomalous,json=unidirectionalLinkDelayAnomalous,proto3" json:"unidirectional_link_delay_anomalous,omitempty"`
+	UnidirectionalLinkDelay                uint32 `protobuf:"varint,17,opt,name=unidirectional_link_delay,json=unidirectionalLinkDelay,proto3" json:"unidirectional_link_delay,omitempty"`
+	MinMaxUnidirectionalLinkDelayAnomalous bool   `protobuf:"varint,18,opt,name=min_max_unidirectional_link_delay_anomalous,json=minMaxUnidirectionalLinkDelayAnomalous,proto3" json:"min_max_unidirectional_link_delay_anomalous,omitempty"`
+	MinUnidirectionalLinkDelay             uint32 `protobuf:"varint,19,opt,name=min_unidirectional_link_delay,json=minUnidirectionalLinkDelay,proto3" json:"min_unidirectional_link_delay,omitempty"`
+	MaxUnidirectionalLinkDelay             uint32 `protobuf:"varint,20,opt,name=max_unidirectional_link_delay,json=maxUnidirectionalLinkDelay,proto3" json:"max_unidirectional_link_delay,omitempty"`
+	UnidirectionalDelayVariation           uint32 `protobuf:"varint,21,opt,name=unidirectional_delay_variation,json=unidirectionalDelayVariation,proto3" json:"unidirectional_delay_variation,omitempty"`
+	unknownFields                          protoimpl.UnknownFields
+	sizeCache                              protoimpl.SizeCache
 }
 
 func (x *LsAttributeLink) Reset() {
@@ -3670,6 +3677,48 @@ func (x *LsAttributeLink) GetSrv6EndXSid() *LsSrv6EndXSID {
 		return x.Srv6EndXSid
 	}
 	return nil
+}
+
+func (x *LsAttributeLink) GetUnidirectionalLinkDelayAnomalous() bool {
+	if x != nil {
+		return x.UnidirectionalLinkDelayAnomalous
+	}
+	return false
+}
+
+func (x *LsAttributeLink) GetUnidirectionalLinkDelay() uint32 {
+	if x != nil {
+		return x.UnidirectionalLinkDelay
+	}
+	return 0
+}
+
+func (x *LsAttributeLink) GetMinMaxUnidirectionalLinkDelayAnomalous() bool {
+	if x != nil {
+		return x.MinMaxUnidirectionalLinkDelayAnomalous
+	}
+	return false
+}
+
+func (x *LsAttributeLink) GetMinUnidirectionalLinkDelay() uint32 {
+	if x != nil {
+		return x.MinUnidirectionalLinkDelay
+	}
+	return 0
+}
+
+func (x *LsAttributeLink) GetMaxUnidirectionalLinkDelay() uint32 {
+	if x != nil {
+		return x.MaxUnidirectionalLinkDelay
+	}
+	return 0
+}
+
+func (x *LsAttributeLink) GetUnidirectionalDelayVariation() uint32 {
+	if x != nil {
+		return x.UnidirectionalDelayVariation
+	}
+	return 0
 }
 
 type LsAttributePrefix struct {
@@ -5776,7 +5825,7 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x06opaque\x18\x06 \x01(\fR\x06opaque\x12>\n" +
 	"\x0fsr_capabilities\x18\a \x01(\v2\x15.api.LsSrCapabilitiesR\x0esrCapabilities\x12#\n" +
 	"\rsr_algorithms\x18\b \x01(\fR\fsrAlgorithms\x129\n" +
-	"\x0esr_local_block\x18\t \x01(\v2\x13.api.LsSrLocalBlockR\fsrLocalBlock\"\xd4\x04\n" +
+	"\x0esr_local_block\x18\t \x01(\v2\x13.api.LsSrLocalBlockR\fsrLocalBlock\"\x88\b\n" +
 	"\x0fLsAttributeLink\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12&\n" +
 	"\x0flocal_router_id\x18\x02 \x01(\tR\rlocalRouterId\x12+\n" +
@@ -5795,7 +5844,13 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x14unreserved_bandwidth\x18\f \x03(\x02R\x13unreservedBandwidth\x12(\n" +
 	"\x10sr_adjacency_sid\x18\r \x01(\rR\x0esrAdjacencySid\x12\x14\n" +
 	"\x05srlgs\x18\x0e \x03(\rR\x05srlgs\x127\n" +
-	"\x0esrv6_end_x_sid\x18\x0f \x01(\v2\x12.api.LsSrv6EndXSIDR\vsrv6EndXSid\"}\n" +
+	"\x0esrv6_end_x_sid\x18\x0f \x01(\v2\x12.api.LsSrv6EndXSIDR\vsrv6EndXSid\x12M\n" +
+	"#unidirectional_link_delay_anomalous\x18\x10 \x01(\bR unidirectionalLinkDelayAnomalous\x12:\n" +
+	"\x19unidirectional_link_delay\x18\x11 \x01(\rR\x17unidirectionalLinkDelay\x12[\n" +
+	"+min_max_unidirectional_link_delay_anomalous\x18\x12 \x01(\bR&minMaxUnidirectionalLinkDelayAnomalous\x12A\n" +
+	"\x1dmin_unidirectional_link_delay\x18\x13 \x01(\rR\x1aminUnidirectionalLinkDelay\x12A\n" +
+	"\x1dmax_unidirectional_link_delay\x18\x14 \x01(\rR\x1amaxUnidirectionalLinkDelay\x12D\n" +
+	"\x1eunidirectional_delay_variation\x18\x15 \x01(\rR\x1cunidirectionalDelayVariation\"}\n" +
 	"\x11LsAttributePrefix\x12,\n" +
 	"\tigp_flags\x18\x01 \x01(\v2\x0f.api.LsIGPFlagsR\bigpFlags\x12\x16\n" +
 	"\x06opaque\x18\x02 \x01(\fR\x06opaque\x12\"\n" +

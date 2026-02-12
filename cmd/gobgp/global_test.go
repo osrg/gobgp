@@ -98,3 +98,43 @@ func Test_ParseFlowSpecPath(t *testing.T) {
 		})
 	}
 }
+
+func Test_ParseLsLinkPathDelayMetricTLVs(t *testing.T) {
+	assert := assert.New(t)
+
+	args := strings.Split("link protocol 1 identifier 1 local-asn 65000 local-bgp-router-id 1.1.1.1 remote-asn 65001 remote-bgp-router-id 2.2.2.2 unidirectional-link-delay 8516 unidirectional-link-delay-anomalous min-unidirectional-link-delay 8511 max-unidirectional-link-delay 8527 min-max-unidirectional-link-delay-anomalous unidirectional-delay-variation 51", " ")
+	path, err := parsePath(bgp.RF_LS, args)
+	assert.NoError(err)
+	assert.NotNil(path)
+
+	attrs, err := apiutil.GetNativePathAttributes(path)
+	assert.NoError(err)
+	assert.NotEmpty(attrs)
+
+	var lsAttr *bgp.PathAttributeLs
+	for _, a := range attrs {
+		if v, ok := a.(*bgp.PathAttributeLs); ok {
+			lsAttr = v
+			break
+		}
+	}
+
+	if assert.NotNil(lsAttr) {
+		extracted := lsAttr.Extract()
+
+		if assert.NotNil(extracted.Link.UnidirectionalLinkDelay) {
+			assert.Equal(uint32(8516), extracted.Link.UnidirectionalLinkDelay.Delay)
+			assert.True(extracted.Link.UnidirectionalLinkDelay.Flags.Anomalous)
+		}
+
+		if assert.NotNil(extracted.Link.MinMaxUnidirectionalLinkDelay) {
+			assert.Equal(uint32(8511), extracted.Link.MinMaxUnidirectionalLinkDelay.MinDelay)
+			assert.Equal(uint32(8527), extracted.Link.MinMaxUnidirectionalLinkDelay.MaxDelay)
+			assert.True(extracted.Link.MinMaxUnidirectionalLinkDelay.Flags.Anomalous)
+		}
+
+		if assert.NotNil(extracted.Link.UnidirectionalDelayVariation) {
+			assert.Equal(uint32(51), *extracted.Link.UnidirectionalDelayVariation)
+		}
+	}
+}

@@ -41,6 +41,53 @@ func Test_OriginAttribute(t *testing.T) {
 	assert.Equal(input.Origin, output.Origin)
 }
 
+func Test_LsAttributeDelayMetricRoundTrip(t *testing.T) {
+	assert := assert.New(t)
+
+	input := &api.LsAttribute{
+		Link: &api.LsAttributeLink{
+			UnidirectionalLinkDelayAnomalous:       true,
+			UnidirectionalLinkDelay:                8516,
+			MinMaxUnidirectionalLinkDelayAnomalous: true,
+			MinUnidirectionalLinkDelay:             8511,
+			MaxUnidirectionalLinkDelay:             8527,
+			UnidirectionalDelayVariation:           51,
+		},
+	}
+
+	native, err := UnmarshalLsAttribute(input)
+	assert.NoError(err)
+
+	if assert.NotNil(native.Link.UnidirectionalLinkDelay) {
+		assert.True(native.Link.UnidirectionalLinkDelay.Flags.Anomalous)
+		assert.Equal(uint32(8516), native.Link.UnidirectionalLinkDelay.Delay)
+	}
+
+	if assert.NotNil(native.Link.MinMaxUnidirectionalLinkDelay) {
+		assert.True(native.Link.MinMaxUnidirectionalLinkDelay.Flags.Anomalous)
+		assert.Equal(uint32(8511), native.Link.MinMaxUnidirectionalLinkDelay.MinDelay)
+		assert.Equal(uint32(8527), native.Link.MinMaxUnidirectionalLinkDelay.MaxDelay)
+	}
+
+	if assert.NotNil(native.Link.UnidirectionalDelayVariation) {
+		assert.Equal(uint32(51), *native.Link.UnidirectionalDelayVariation)
+	}
+
+	pathAttrLs := &bgp.PathAttributeLs{
+		TLVs: bgp.NewLsAttributeTLVs(native),
+	}
+	output, err := NewLsAttributeFromNative(pathAttrLs)
+	assert.NoError(err)
+	if assert.NotNil(output.Link) {
+		assert.True(output.Link.UnidirectionalLinkDelayAnomalous)
+		assert.Equal(uint32(8516), output.Link.UnidirectionalLinkDelay)
+		assert.True(output.Link.MinMaxUnidirectionalLinkDelayAnomalous)
+		assert.Equal(uint32(8511), output.Link.MinUnidirectionalLinkDelay)
+		assert.Equal(uint32(8527), output.Link.MaxUnidirectionalLinkDelay)
+		assert.Equal(uint32(51), output.Link.UnidirectionalDelayVariation)
+	}
+}
+
 func Test_AsPathAttribute(t *testing.T) {
 	assert := assert.New(t)
 
