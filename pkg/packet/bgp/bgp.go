@@ -7752,12 +7752,16 @@ func (l *LsTLVMinMaxUnidirectionalLinkDelay) Serialize() ([]byte, error) {
 		return nil, malformedAttrListErr("Incorrect min/max unidirectional link delay value")
 	}
 
+	// Only the A-flag bit is defined by RFC8571; clear all other bits on transmit.
+	const lsDelayMetricAFlagMask uint8 = 0x01
+
 	buf := make([]byte, 8)
-	buf[0] = l.Flags
+	buf[0] = l.Flags & lsDelayMetricAFlagMask
 	buf[1] = byte(l.MinDelay >> 16)
 	buf[2] = byte(l.MinDelay >> 8)
 	buf[3] = byte(l.MinDelay)
-	buf[4] = l.Reserved
+	// Reserved byte must be zero on the wire per RFC8571.
+	buf[4] = 0
 	buf[5] = byte(l.MaxDelay >> 16)
 	buf[6] = byte(l.MaxDelay >> 8)
 	buf[7] = byte(l.MaxDelay)
