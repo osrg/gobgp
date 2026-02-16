@@ -7836,7 +7836,7 @@ func (l *LsTLVUnidirectionalDelayVariation) Serialize() ([]byte, error) {
 	}
 
 	buf := make([]byte, 4)
-	buf[0] = l.Reserved
+	buf[0] = 0
 	buf[1] = byte(l.DelayVariation >> 16)
 	buf[2] = byte(l.DelayVariation >> 8)
 	buf[3] = byte(l.DelayVariation)
