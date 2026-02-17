@@ -706,3 +706,44 @@ func TestMergeV4Withdraw(t *testing.T) {
 		assert.True(t, len(d) < bgp.BGP_MAX_MESSAGE_LENGTH)
 	}
 }
+
+// Test for issue #3308: AS4_PATH appearing before AS_PATH
+// This test ensures that when AS4_PATH (Type 17) appears before AS_PATH (Type 2)
+// in the attributes list, the code correctly handles the index adjustment after
+// AS4_PATH deletion without causing an index out of range panic.
+//
+// before:
+//
+//	as4-path : 400000, 300000, 40001 (Type 17, appears first)
+//	as-path  : 65000, 4000, 23456, 23456, 40001 (Type 2, appears second)
+//
+// expected result:
+//
+//	as-path  : 65000, 4000, 400000, 300000, 40001
+func TestAsPathAs4PathOrdering(t *testing.T) {
+	// Create AS_PATH with AS_TRANS
+	as := []uint16{65000, 4000, bgp.AS_TRANS, bgp.AS_TRANS, 40001}
+	params := []bgp.AsPathParamInterface{bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, as)}
+	aspath := bgp.NewPathAttributeAsPath(params)
+
+	// Create AS4_PATH
+	as4 := []uint32{400000, 300000, 40001}
+	param4s := []*bgp.As4PathParam{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, as4)}
+	as4path := bgp.NewPathAttributeAs4Path(param4s)
+
+	// IMPORTANT: Put AS4_PATH before AS_PATH to reproduce issue #3308
+	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{as4path, aspath}, nil).Body.(*bgp.BGPUpdate)
+
+	// This should not panic
+	UpdatePathAttrs4ByteAs(logger, msg)
+
+	// Verify the result
+	assert.Equal(t, len(msg.PathAttributes), 1)
+	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value), 1)
+	assert.Equal(t, len(msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS), 5)
+	assert.Equal(t, msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS[0], uint32(65000))
+	assert.Equal(t, msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS[1], uint32(4000))
+	assert.Equal(t, msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS[2], uint32(400000))
+	assert.Equal(t, msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS[3], uint32(300000))
+	assert.Equal(t, msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS[4], uint32(40001))
+}

@@ -110,6 +110,11 @@ func UpdatePathAttrs4ByteAs(logger *slog.Logger, msg *bgp.BGPUpdate) {
 
 	if as4Attr != nil {
 		msg.PathAttributes = append(msg.PathAttributes[:as4AttrPos], msg.PathAttributes[as4AttrPos+1:]...)
+		// Adjust asAttrPos if AS4_PATH was before AS_PATH
+		// (AS4_PATH removal shifts the indices of subsequent attributes)
+		if as4AttrPos < asAttrPos {
+			asAttrPos--
+		}
 	}
 
 	if asAttr == nil || as4Attr == nil {
