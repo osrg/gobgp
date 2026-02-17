@@ -3741,3 +3741,73 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 	assert.Equal(t, bgp.BGP_FSM_ESTABLISHED, state,
 		"Peer should still be ESTABLISHED after timers")
 }
+
+func TestStartBgp_RouterIdValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		routerID  string
+		wantErr   bool
+		errString string
+	}{
+		{
+			name:     "valid IPv4 address",
+			routerID: "1.1.1.1",
+			wantErr:  false,
+		},
+		{
+			name:     "valid IPv4 address 192.0.2.1",
+			routerID: "192.0.2.1",
+			wantErr:  false,
+		},
+		{
+			name:      "IPv6 address should be rejected",
+			routerID:  "::1",
+			wantErr:   true,
+			errString: "router-id must be an IPv4 address",
+		},
+		{
+			name:      "IPv6 address 2001:db8::1 should be rejected",
+			routerID:  "2001:db8::1",
+			wantErr:   true,
+			errString: "router-id must be an IPv4 address",
+		},
+		{
+			name:      "invalid format should be rejected",
+			routerID:  "invalid",
+			wantErr:   true,
+			errString: "invalid router-id format",
+		},
+		{
+			name:      "empty string should be rejected",
+			routerID:  "",
+			wantErr:   true,
+			errString: "invalid router-id format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewBgpServer()
+			go s.Serve()
+			defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+			err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+				Global: &api.Global{
+					Asn:        65000,
+					RouterId:   tt.routerID,
+					ListenPort: -1, // Disable listener to avoid port binding issues
+				},
+			})
+
+			if tt.wantErr {
+				assert.Error(t, err, "expected error for router-id: %s", tt.routerID)
+				if err != nil {
+					assert.Contains(t, err.Error(), tt.errString,
+						"error message should contain: %s", tt.errString)
+				}
+			} else {
+				assert.NoError(t, err, "should accept router-id: %s", tt.routerID)
+			}
+		})
+	}
+}

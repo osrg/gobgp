@@ -2302,8 +2302,12 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 	}
 	return s.mgmtOperation(func() error {
 		g := r.Global
-		if net.ParseIP(g.RouterId) == nil {
+		routerAddr, err := netip.ParseAddr(g.RouterId)
+		if err != nil {
 			return fmt.Errorf("invalid router-id format: %s", g.RouterId)
+		}
+		if !routerAddr.Is4() {
+			return fmt.Errorf("router-id must be an IPv4 address: %s", g.RouterId)
 		}
 
 		c := newGlobalFromAPIStruct(g)
