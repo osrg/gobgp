@@ -621,7 +621,15 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 			if aspath := path.GetAsPath(); aspath != nil {
 				localAS := conf.Config.LocalAs
 				allowOwnAS := int(conf.AsPathOptions.Config.AllowOwnAs)
-				if hasOwnASLoop(localAS, allowOwnAS, aspath) {
+
+				// RFC 5065 Section 4: Get Confederation ID for AS loop detection
+				// Copy primitive values while holding the lock to avoid data race
+				peer.fsm.lock.Lock()
+				confedEnabled := peer.fsm.gConf.Confederation.Config.Enabled
+				confedID := peer.fsm.gConf.Confederation.Config.Identifier
+				peer.fsm.lock.Unlock()
+
+				if hasOwnASLoop(localAS, allowOwnAS, aspath, confedID, confedEnabled) {
 					path.SetRejected(true)
 					continue
 				}

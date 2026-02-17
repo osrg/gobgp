@@ -374,9 +374,95 @@ func TestCheckOwnASLoop(t *testing.T) {
 	assert := assert.New(t)
 	aspathParam := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}
 	aspath := bgp.NewPathAttributeAsPath(aspathParam)
-	assert.False(hasOwnASLoop(65100, 10, aspath))
-	assert.True(hasOwnASLoop(65100, 0, aspath))
-	assert.False(hasOwnASLoop(65200, 0, aspath))
+
+	// Test without confederation (existing tests)
+	assert.False(hasOwnASLoop(65100, 10, aspath, 0, false))
+	assert.True(hasOwnASLoop(65100, 0, aspath, 0, false))
+	assert.False(hasOwnASLoop(65200, 0, aspath, 0, false))
+}
+
+// Test for issue #3311: Confederation ID loop detection (RFC 5065 Section 4)
+func TestCheckOwnASLoopWithConfederation(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test case 1: AS_PATH contains Confederation ID
+	// AS_PATH: [65100, 65250]
+	// Local AS: 65100
+	// Confederation ID: 65250
+	aspathParam1 := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100, 65250})}
+	aspath1 := bgp.NewPathAttributeAsPath(aspathParam1)
+
+	// Should detect loop when Confederation ID (65250) is in AS_PATH
+	assert.True(hasOwnASLoop(65100, 0, aspath1, 65250, true),
+		"Should detect AS loop when Confederation ID is in AS_PATH")
+
+	// Should detect loop with allowOwnAs=1 (ownAS appears once + confedID appears once = 2 > limit 1)
+	assert.True(hasOwnASLoop(65100, 1, aspath1, 65250, true),
+		"Should detect AS loop when total count exceeds limit")
+
+	// Should allow with allowOwnAs=2 (ownAS appears once + confedID appears once = 2 <= limit 2)
+	assert.False(hasOwnASLoop(65100, 2, aspath1, 65250, true),
+		"Should allow when count equals limit")
+
+	// Should not detect loop when confederation is disabled
+	assert.True(hasOwnASLoop(65100, 0, aspath1, 65250, false),
+		"Should still detect ownAS loop even when confederation disabled")
+
+	// Test case 2: AS_PATH contains only Confederation ID
+	// AS_PATH: [65200, 65250]
+	// Local AS: 65100
+	// Confederation ID: 65250
+	aspathParam2 := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65200, 65250})}
+	aspath2 := bgp.NewPathAttributeAsPath(aspathParam2)
+
+	// Should detect loop when only Confederation ID is in AS_PATH (not ownAS)
+	assert.True(hasOwnASLoop(65100, 0, aspath2, 65250, true),
+		"Should detect AS loop when only Confederation ID is in AS_PATH")
+
+	// Should not detect loop when confederation is disabled
+	assert.False(hasOwnASLoop(65100, 0, aspath2, 65250, false),
+		"Should not detect loop when confederation is disabled")
+
+	// Test case 3: AS_PATH contains multiple occurrences of Confederation ID
+	// AS_PATH: [65250, 65200, 65250]
+	// Local AS: 65100
+	// Confederation ID: 65250
+	aspathParam3 := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65250, 65200, 65250})}
+	aspath3 := bgp.NewPathAttributeAsPath(aspathParam3)
+
+	// Should detect loop (2 occurrences > limit 0)
+	assert.True(hasOwnASLoop(65100, 0, aspath3, 65250, true),
+		"Should detect AS loop with multiple Confederation ID occurrences")
+
+	// Should detect loop (2 occurrences > limit 1)
+	assert.True(hasOwnASLoop(65100, 1, aspath3, 65250, true),
+		"Should detect AS loop when count exceeds limit")
+
+	// Should allow with limit 2
+	assert.False(hasOwnASLoop(65100, 2, aspath3, 65250, true),
+		"Should allow when count equals limit")
+
+	// Test case 4: Confederation ID same as own AS
+	// AS_PATH: [65250]
+	// Local AS: 65250
+	// Confederation ID: 65250
+	aspathParam4 := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65250})}
+	aspath4 := bgp.NewPathAttributeAsPath(aspathParam4)
+
+	// Should count only once (not double count when confedID == ownAS)
+	assert.True(hasOwnASLoop(65250, 0, aspath4, 65250, true),
+		"Should detect AS loop when ownAS == Confederation ID")
+
+	// Test case 5: No loop - different AS
+	// AS_PATH: [65200, 65300]
+	// Local AS: 65100
+	// Confederation ID: 65250
+	aspathParam5 := []bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65200, 65300})}
+	aspath5 := bgp.NewPathAttributeAsPath(aspathParam5)
+
+	// Should not detect loop
+	assert.False(hasOwnASLoop(65100, 0, aspath5, 65250, true),
+		"Should not detect loop when neither ownAS nor Confederation ID is in AS_PATH")
 }
 
 func TestBadBGPIdentifier(t *testing.T) {

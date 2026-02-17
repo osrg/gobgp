@@ -1212,11 +1212,23 @@ func getPathAttrFromBGPUpdate(m *bgp.BGPUpdate, typ bgp.BGPAttrType) bgp.PathAtt
 	return nil
 }
 
-func hasOwnASLoop(ownAS uint32, limit int, asPath *bgp.PathAttributeAsPath) bool {
+func hasOwnASLoop(ownAS uint32, limit int, asPath *bgp.PathAttributeAsPath, confedID uint32, confedEnabled bool) bool {
 	cnt := 0
 	for _, param := range asPath.Value {
 		for _, as := range param.GetAS() {
+			// RFC 4271: Check own AS number
 			if as == ownAS {
+				cnt++
+				if cnt > limit {
+					return true
+				}
+			}
+			// RFC 5065 Section 4: Check Confederation ID
+			// "A BGP speaker receiving an AS_PATH attribute containing an
+			//  autonomous system matching its own AS Confederation Identifier
+			//  SHALL treat the path in the same fashion as if it had received
+			//  a path containing its own AS number."
+			if confedEnabled && as == confedID && confedID != ownAS {
 				cnt++
 				if cnt > limit {
 					return true
