@@ -1582,6 +1582,120 @@ func Test_PathAttributeNextHop(t *testing.T) {
 	f("2001:db8::68")
 }
 
+func Test_PathAttributeNextHop_InvalidLength(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       []byte
+		wantErr    bool
+		errSubCode uint8
+	}{
+		{
+			name: "valid IPv4",
+			data: []byte{
+				0x40, 0x03, // Flags, Type (NEXT_HOP)
+				0x04,         // Length = 4
+				192, 0, 2, 1, // 192.0.2.1
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid IPv6",
+			data: []byte{
+				0x40, 0x03, // Flags, Type (NEXT_HOP)
+				0x10, // Length = 16
+				0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0x00, 0x68, // 2001:db8::68
+			},
+			wantErr: false,
+		},
+		{
+			name: "length 0",
+			data: []byte{
+				0x40, 0x03, // Flags, Type
+				0x00, // Length = 0
+			},
+			wantErr:    true,
+			errSubCode: BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR,
+		},
+		{
+			name: "length 1",
+			data: []byte{
+				0x40, 0x03, // Flags, Type
+				0x01, // Length = 1
+				192,  // partial data
+			},
+			wantErr:    true,
+			errSubCode: BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR,
+		},
+		{
+			name: "length 2",
+			data: []byte{
+				0x40, 0x03, // Flags, Type
+				0x02,   // Length = 2
+				192, 0, // partial data
+			},
+			wantErr:    true,
+			errSubCode: BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR,
+		},
+		{
+			name: "length 3",
+			data: []byte{
+				0x40, 0x03, // Flags, Type
+				0x03,      // Length = 3
+				192, 0, 2, // partial data
+			},
+			wantErr:    true,
+			errSubCode: BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR,
+		},
+		{
+			name: "length 5 (invalid)",
+			data: []byte{
+				0x40, 0x03, // Flags, Type
+				0x05,            // Length = 5
+				192, 0, 2, 1, 0, // 5 bytes
+			},
+			wantErr:    true,
+			errSubCode: BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR,
+		},
+		{
+			name: "length mismatch (header says 4, data is 2)",
+			data: []byte{
+				0x40, 0x03, // Flags, Type
+				0x04,   // Length = 4
+				192, 0, // only 2 bytes
+			},
+			wantErr:    true,
+			errSubCode: BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &PathAttributeNextHop{}
+			err := p.DecodeFromBytes(tt.data)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error but got none")
+					return
+				}
+				// Check error type
+				if msgErr, ok := err.(*MessageError); ok {
+					if msgErr.SubTypeCode != tt.errSubCode {
+						t.Errorf("expected error subcode %d, got %d", tt.errSubCode, msgErr.SubTypeCode)
+					}
+				} else {
+					t.Errorf("expected MessageError, got %T", err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
 func Test_LsTLVDecode(t *testing.T) {
 	assert := assert.New(t)
 

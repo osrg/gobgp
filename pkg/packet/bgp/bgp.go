@@ -11255,7 +11255,13 @@ func (p *PathAttributeNextHop) DecodeFromBytes(data []byte, options ...*Marshall
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "nexthop length isn't correct")
 	}
-	p.Value, _ = netip.AddrFromSlice(value)
+	var ok bool
+	p.Value, ok = netip.AddrFromSlice(value)
+	if !ok {
+		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+		eSubCode := uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE)
+		return NewMessageError(eCode, eSubCode, nil, "invalid nexthop address")
+	}
 	return nil
 }
 
