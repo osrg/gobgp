@@ -241,8 +241,7 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 	if err := bgpServer.StartBgp(ctx, &api.StartBgpRequest{
 		Global: oc.NewGlobalFromConfigStruct(&newConfig.Global),
 	}); err != nil {
-		bgpServer.Log().Error("failed to set global config",
-			slog.String("Topic", "config"), slog.Any("Error", err))
+		return nil, err
 	}
 
 	if newConfig.Zebra.Config.Enabled {
