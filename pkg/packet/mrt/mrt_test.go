@@ -137,9 +137,9 @@ func TestParsePeerIndexTable_LargeViewNameDoesNotPanic(t *testing.T) {
 
 func TestMrtRibEntry(t *testing.T) {
 	aspath1 := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{1000}),
-		bgp.NewAsPathParam(1, []uint16{1001, 1002}),
-		bgp.NewAsPathParam(2, []uint16{1003, 1004}),
+		bgp.NewAs4PathParam(2, []uint32{1000}),
+		bgp.NewAs4PathParam(1, []uint32{1001, 1002}),
+		bgp.NewAs4PathParam(2, []uint32{1003, 1004}),
 	}
 	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
@@ -166,9 +166,9 @@ func TestMrtRibEntry(t *testing.T) {
 
 func TestMrtRibEntryWithAddPath(t *testing.T) {
 	aspath1 := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{1000}),
-		bgp.NewAsPathParam(1, []uint16{1001, 1002}),
-		bgp.NewAsPathParam(2, []uint16{1003, 1004}),
+		bgp.NewAs4PathParam(2, []uint32{1000}),
+		bgp.NewAs4PathParam(1, []uint32{1001, 1002}),
+		bgp.NewAs4PathParam(2, []uint32{1003, 1004}),
 	}
 	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
@@ -194,9 +194,9 @@ func TestMrtRibEntryWithAddPath(t *testing.T) {
 
 func TestMrtRib(t *testing.T) {
 	aspath1 := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{1000}),
-		bgp.NewAsPathParam(1, []uint16{1001, 1002}),
-		bgp.NewAsPathParam(2, []uint16{1003, 1004}),
+		bgp.NewAs4PathParam(2, []uint32{1000}),
+		bgp.NewAs4PathParam(1, []uint32{1001, 1002}),
+		bgp.NewAs4PathParam(2, []uint32{1003, 1004}),
 	}
 	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{
@@ -226,9 +226,9 @@ func TestMrtRib(t *testing.T) {
 
 func TestMrtRibWithAddPath(t *testing.T) {
 	aspath1 := []bgp.AsPathParamInterface{
-		bgp.NewAsPathParam(2, []uint16{1000}),
-		bgp.NewAsPathParam(1, []uint16{1001, 1002}),
-		bgp.NewAsPathParam(2, []uint16{1003, 1004}),
+		bgp.NewAs4PathParam(2, []uint32{1000}),
+		bgp.NewAs4PathParam(1, []uint32{1001, 1002}),
+		bgp.NewAs4PathParam(2, []uint32{1003, 1004}),
 	}
 	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
 	p := []bgp.PathAttributeInterface{

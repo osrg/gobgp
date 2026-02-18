@@ -4321,3 +4321,73 @@ func TestParseSubTLVsOverflow(t *testing.T) {
 		t.Fatal("expected error for truncated Sub-TLV")
 	}
 }
+
+// Test for issue #3292: 2-byte AS_PATH decoding with explicit option
+func TestAsPathDecoding2Byte(t *testing.T) {
+	// AS_PATH with values 100, 200, 300 encoded as 2-byte AS
+	// Segment 1: AS_SEQUENCE (type=2), count=2, AS 100, AS 200
+	// Segment 2: AS_SEQUENCE (type=2), count=1, AS 300
+	data := []byte{
+		0x40, 0x02, 0x0a, // PathAttribute: flags=0x40, type=AS_PATH, length=10
+		0x02, 0x02, 0x00, 0x64, 0x00, 0xc8, // Segment 1: type=2, count=2, AS 100, 200
+		0x02, 0x01, 0x01, 0x2c, // Segment 2: type=2, count=1, AS 300
+	}
+
+	// Decode with Use2ByteAS=true (2-byte AS)
+	asPath := &PathAttributeAsPath{}
+	err := asPath.DecodeFromBytes(data, &MarshallingOption{Use2ByteAS: true})
+	if err != nil {
+		t.Fatalf("Failed to decode 2-byte AS_PATH: %v", err)
+	}
+
+	// Verify the AS numbers are correct
+	expectedAS := []uint32{100, 200, 300}
+	var actualAS []uint32
+	for _, param := range asPath.Value {
+		actualAS = append(actualAS, param.GetAS()...)
+	}
+
+	if len(actualAS) != len(expectedAS) {
+		t.Fatalf("Expected %d AS numbers, got %d", len(expectedAS), len(actualAS))
+	}
+	for i, as := range expectedAS {
+		if actualAS[i] != as {
+			t.Errorf("AS[%d]: expected %d, got %d", i, as, actualAS[i])
+		}
+	}
+}
+
+// Test for issue #3292: 4-byte AS_PATH decoding with explicit option
+func TestAsPathDecoding4Byte(t *testing.T) {
+	// AS_PATH with values 100000, 200000 encoded as 4-byte AS
+	// Segment: AS_SEQUENCE (type=2), count=2, AS 100000, AS 200000
+	data := []byte{
+		0x40, 0x02, 0x0a, // PathAttribute: flags=0x40, type=AS_PATH, length=10
+		0x02, 0x02, // Segment: type=2, count=2
+		0x00, 0x01, 0x86, 0xa0, // AS 100000 (0x186a0)
+		0x00, 0x03, 0x0d, 0x40, // AS 200000 (0x30d40)
+	}
+
+	// Decode with Use2ByteAS=false (4-byte AS, or use default)
+	asPath := &PathAttributeAsPath{}
+	err := asPath.DecodeFromBytes(data, &MarshallingOption{Use2ByteAS: false})
+	if err != nil {
+		t.Fatalf("Failed to decode 4-byte AS_PATH: %v", err)
+	}
+
+	// Verify the AS numbers are correct
+	expectedAS := []uint32{100000, 200000}
+	var actualAS []uint32
+	for _, param := range asPath.Value {
+		actualAS = append(actualAS, param.GetAS()...)
+	}
+
+	if len(actualAS) != len(expectedAS) {
+		t.Fatalf("Expected %d AS numbers, got %d", len(expectedAS), len(actualAS))
+	}
+	for i, as := range expectedAS {
+		if actualAS[i] != as {
+			t.Errorf("AS[%d]: expected %d, got %d", i, as, actualAS[i])
+		}
+	}
+}

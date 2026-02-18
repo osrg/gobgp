@@ -33,8 +33,9 @@ import (
 )
 
 type MarshallingOption struct {
-	AddPath map[Family]BGPAddPathMode
-	MRT     bool
+	AddPath    map[Family]BGPAddPathMode
+	MRT        bool
+	Use2ByteAS bool // true if peer does NOT support 4-byte AS capability
 
 	attributes map[BGPAttrType]bool
 }
@@ -11172,7 +11173,7 @@ func (p *PathAttributeAsPath) DecodeFromBytes(data []byte, options ...*Marshalli
 		// ibgp or something
 		return nil
 	}
-	isAs4, err := validateAsPathValueBytes(value)
+	isAs4, err := validateAsPathValueBytes(value, options...)
 	if err != nil {
 		err.(*MessageError).Data, _ = p.PathAttribute.Serialize(value, options...)
 		return err

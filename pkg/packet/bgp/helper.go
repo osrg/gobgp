@@ -42,12 +42,6 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	w2, _ := NewIPAddrPrefix(netip.MustParsePrefix("100.33.3.0/17"))
 	w := []NLRI{w1, w2}
 
-	aspath1 := []AsPathParamInterface{
-		NewAsPathParam(2, []uint16{1000}),
-		NewAsPathParam(1, []uint16{1001, 1002}),
-		NewAsPathParam(2, []uint16{1003, 1004}),
-	}
-
 	aspath2 := []AsPathParamInterface{
 		NewAs4PathParam(2, []uint32{1000000}),
 		NewAs4PathParam(1, []uint32{1000001, 1002}),
@@ -113,7 +107,6 @@ func NewTestBGPUpdateMessage() *BGPMessage {
 	pacluster, _ := NewPathAttributeClusterList([]netip.Addr{netip.MustParseAddr("10.10.0.2"), netip.MustParseAddr("10.10.0.3")})
 	p := []PathAttributeInterface{
 		NewPathAttributeOrigin(3),
-		NewPathAttributeAsPath(aspath1),
 		NewPathAttributeAsPath(aspath2),
 		panh,
 		NewPathAttributeMultiExitDisc(1 << 20),
