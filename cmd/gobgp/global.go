@@ -2147,6 +2147,9 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 		if maxDelay > maxDelayMetricValue {
 			return nil, nil, fmt.Errorf("invalid max-unidirectional-link-delay: must be <= %d", maxDelayMetricValue)
 		}
+		if minDelay > maxDelay {
+			return nil, nil, fmt.Errorf("invalid min/max unidirectional-link-delay: min must be <= max")
+		}
 		flags := uint8(0)
 		if _, ok := m["min-max-unidirectional-link-delay-anomalous"]; ok {
 			flags = flags | 1<<7

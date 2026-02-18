@@ -2639,6 +2639,23 @@ func Test_LsTLVUnidirectionalLinkDelay(t *testing.T) {
 	}
 }
 
+func Test_LsTLVUnidirectionalLinkDelaySerializeMasksUndefinedFlagBits(t *testing.T) {
+	assert := assert.New(t)
+
+	tlv := LsTLVUnidirectionalLinkDelay{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_UNIDIRECTIONAL_LINK_DELAY,
+			Length: 4,
+		},
+		Flags: 0xff,
+		Delay: 0x123456,
+	}
+
+	got, err := tlv.Serialize()
+	assert.NoError(err)
+	assert.Equal([]byte{0x04, 0x5a, 0x00, 0x04, 0x80, 0x12, 0x34, 0x56}, got)
+}
+
 func Test_LsTLVMinMaxUnidirectionalLinkDelay(t *testing.T) {
 	assert := assert.New(t)
 
@@ -2649,7 +2666,7 @@ func Test_LsTLVMinMaxUnidirectionalLinkDelay(t *testing.T) {
 		err       bool
 	}{
 		{[]byte{0x04, 0x5b, 0x00, 0x08, 0x00, 0x00, 0x21, 0x3f, 0x00, 0x00, 0x21, 0x4f}, `{"type":1115,"flags":0,"min_unidirectional_link_delay":8511,"max_unidirectional_link_delay":8527}`, true, false},
-		{[]byte{0x04, 0x5b, 0x00, 0x08, 0x80, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff}, `{"type":1115,"flags":128,"min_unidirectional_link_delay":16777214,"max_unidirectional_link_delay":16777215}`, true, false},
+		{[]byte{0x04, 0x5b, 0x00, 0x08, 0x80, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff}, `{"type":1115,"flags":128,"min_unidirectional_link_delay":16777214,"max_unidirectional_link_delay":16777215}`, false, false},
 		{[]byte{0x04, 0x5b, 0x00, 0x07, 0x00, 0x00, 0x21, 0x3f, 0x00, 0x21, 0x4f}, "", false, true},
 		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
 	}
@@ -2675,6 +2692,25 @@ func Test_LsTLVMinMaxUnidirectionalLinkDelay(t *testing.T) {
 	}
 }
 
+func Test_LsTLVMinMaxUnidirectionalLinkDelaySerializeMasksUndefinedFlagBits(t *testing.T) {
+	assert := assert.New(t)
+
+	tlv := LsTLVMinMaxUnidirectionalLinkDelay{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_MIN_MAX_UNIDIRECTIONAL_LINK_DELAY,
+			Length: 8,
+		},
+		Flags:    0xff,
+		MinDelay: 0x000001,
+		Reserved: 0xff,
+		MaxDelay: 0x000002,
+	}
+
+	got, err := tlv.Serialize()
+	assert.NoError(err)
+	assert.Equal([]byte{0x04, 0x5b, 0x00, 0x08, 0x80, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02}, got)
+}
+
 func Test_LsTLVUnidirectionalDelayVariation(t *testing.T) {
 	assert := assert.New(t)
 
@@ -2685,7 +2721,7 @@ func Test_LsTLVUnidirectionalDelayVariation(t *testing.T) {
 		err       bool
 	}{
 		{[]byte{0x04, 0x5c, 0x00, 0x04, 0x00, 0x00, 0x00, 0x33}, `{"type":1116,"unidirectional_delay_variation":51}`, true, false},
-		{[]byte{0x04, 0x5c, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff}, `{"type":1116,"unidirectional_delay_variation":16777215}`, true, false},
+		{[]byte{0x04, 0x5c, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff}, `{"type":1116,"unidirectional_delay_variation":16777215}`, false, false},
 		{[]byte{0x04, 0x5c, 0x00, 0x03, 0x00, 0x00, 0x33}, "", false, true},
 		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
 	}
@@ -3365,6 +3401,58 @@ func Test_LsTLVIGPFlagsFlagBits(t *testing.T) {
 	assert.True(flags.NoUnicast)
 	assert.True(flags.LocalAddress)
 	assert.True(flags.PropagateNSSA)
+}
+
+func Test_LsTLVConstructorsUseLsTLVTypes(t *testing.T) {
+	assert := assert.New(t)
+
+	nodeOpaque := []byte{0x01}
+	assert.EqualValues(LS_TLV_OPAQUE_NODE_ATTR, NewLsTLVOpaqueNodeAttr(&nodeOpaque).Type)
+
+	adminGroup := uint32(0x01020304)
+	assert.EqualValues(LS_TLV_ADMIN_GROUP, NewLsTLVAdminGroup(&adminGroup).Type)
+
+	srCaps := NewLsTLVSrCapabilities(&LsSrCapabilities{
+		IPv4Supported: true,
+		Ranges: []LsSrRange{
+			{
+				Begin: 100500,
+				End:   135500,
+			},
+		},
+	})
+	assert.EqualValues(LS_TLV_SR_CAPABILITIES, srCaps.Type)
+	if assert.Len(srCaps.Ranges, 1) {
+		assert.EqualValues(LS_TLV_SID_LABEL_TLV, srCaps.Ranges[0].FirstLabel.Type)
+	}
+
+	srLocalBlock := NewLsTLVSrLocalBlock(&LsSrLocalBlock{
+		Ranges: []LsSrRange{
+			{
+				Begin: 160000,
+				End:   170000,
+			},
+		},
+	})
+	assert.EqualValues(LS_TLV_SR_LOCAL_BLOCK, srLocalBlock.Type)
+	if assert.Len(srLocalBlock.Ranges, 1) {
+		assert.EqualValues(LS_TLV_SID_LABEL_TLV, srLocalBlock.Ranges[0].FirstLabel.Type)
+	}
+
+	prefixSID := uint32(16000)
+	assert.EqualValues(LS_TLV_PREFIX_SID, NewLsTLVPrefixSID(&prefixSID).Type)
+
+	linkOpaque := []byte{0x02}
+	assert.EqualValues(LS_TLV_OPAQUE_LINK_ATTR, NewLsTLVOpaqueLinkAttr(&linkOpaque).Type)
+
+	srlgs := []uint32{100, 200}
+	assert.EqualValues(LS_TLV_SRLG, NewLsTLVSrlg(&srlgs).Type)
+
+	igpFlags := &LsIGPFlags{Down: true}
+	assert.EqualValues(LS_TLV_IGP_FLAGS, NewLsTLVIGPFlags(igpFlags).Type)
+
+	prefixOpaque := []byte{0x03, 0x04}
+	assert.EqualValues(LS_TLV_OPAQUE_PREFIX_ATTR, NewLsTLVOpaquePrefixAttr(&prefixOpaque).Type)
 }
 
 func Test_LsTLVOpaquePrefixAttr(t *testing.T) {

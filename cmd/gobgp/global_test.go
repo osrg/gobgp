@@ -138,3 +138,13 @@ func Test_ParseLsLinkPathDelayMetricTLVs(t *testing.T) {
 		}
 	}
 }
+
+func Test_ParseLsLinkPathDelayMetricTLVsMinGreaterThanMax(t *testing.T) {
+	assert := assert.New(t)
+
+	args := strings.Split("link protocol 1 identifier 1 local-asn 65000 local-bgp-router-id 1.1.1.1 remote-asn 65001 remote-bgp-router-id 2.2.2.2 min-unidirectional-link-delay 8527 max-unidirectional-link-delay 8511", " ")
+	path, err := parsePath(bgp.RF_LS, args)
+	assert.Error(err)
+	assert.Nil(path)
+	assert.Contains(err.Error(), "min must be <= max")
+}

@@ -6744,7 +6744,7 @@ type LsTLVOpaqueNodeAttr struct {
 func NewLsTLVOpaqueNodeAttr(l *[]byte) *LsTLVOpaqueNodeAttr {
 	return &LsTLVOpaqueNodeAttr{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_OPAQUE_NODE_ATTR,
 			Length: uint16(len(*l)),
 		},
 		Attr: *l,
@@ -7275,7 +7275,7 @@ type LsTLVAdminGroup struct {
 func NewLsTLVAdminGroup(l *uint32) *LsTLVAdminGroup {
 	return &LsTLVAdminGroup{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_ADMIN_GROUP,
 			Length: 4,
 		},
 		AdminGroup: *l,
@@ -7660,8 +7660,11 @@ func (l *LsTLVUnidirectionalLinkDelay) Serialize() ([]byte, error) {
 		return nil, malformedAttrListErr("Incorrect unidirectional link delay value")
 	}
 
+	// Only the A-flag bit is defined by RFC8571; clear all other bits on transmit.
+	const lsDelayMetricAFlagMask uint8 = 0x80
+
 	buf := make([]byte, 4)
-	buf[0] = l.Flags
+	buf[0] = l.Flags & lsDelayMetricAFlagMask
 	buf[1] = byte(l.Delay >> 16)
 	buf[2] = byte(l.Delay >> 8)
 	buf[3] = byte(l.Delay)
@@ -7753,7 +7756,7 @@ func (l *LsTLVMinMaxUnidirectionalLinkDelay) Serialize() ([]byte, error) {
 	}
 
 	// Only the A-flag bit is defined by RFC8571; clear all other bits on transmit.
-	const lsDelayMetricAFlagMask uint8 = 0x01
+	const lsDelayMetricAFlagMask uint8 = 0x80
 
 	buf := make([]byte, 8)
 	buf[0] = l.Flags & lsDelayMetricAFlagMask
@@ -8081,7 +8084,7 @@ func NewLsTLVSrCapabilities(l *LsSrCapabilities) *LsTLVSrCapabilities {
 			Range: r.End - r.Begin,
 			FirstLabel: LsTLVSIDLabel{
 				LsTLV: LsTLV{
-					Type:   BGP_ASPATH_ATTR_TYPE_SET,
+					Type:   LS_TLV_SID_LABEL_TLV,
 					Length: 4,
 				},
 				SID: r.Begin,
@@ -8091,7 +8094,7 @@ func NewLsTLVSrCapabilities(l *LsSrCapabilities) *LsTLVSrCapabilities {
 	}
 	return &LsTLVSrCapabilities{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_SR_CAPABILITIES,
 			Length: length,
 		},
 		Flags:  flags,
@@ -8240,7 +8243,7 @@ func NewLsTLVSrLocalBlock(l *LsSrLocalBlock) *LsTLVSrLocalBlock {
 			Range: r.End - r.Begin,
 			FirstLabel: LsTLVSIDLabel{
 				LsTLV: LsTLV{
-					Type:   BGP_ASPATH_ATTR_TYPE_SET,
+					Type:   LS_TLV_SID_LABEL_TLV,
 					Length: 4,
 				},
 				SID: r.Begin,
@@ -8250,7 +8253,7 @@ func NewLsTLVSrLocalBlock(l *LsSrLocalBlock) *LsTLVSrLocalBlock {
 	}
 	return &LsTLVSrLocalBlock{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_SR_LOCAL_BLOCK,
 			Length: length,
 		},
 		Flags:  flags, // MUST be set 0. (RFC9085 2.1.4)
@@ -9364,7 +9367,7 @@ func NewLsTLVPrefixSID(l *uint32) *LsTLVPrefixSID {
 	var flags uint8
 	return &LsTLVPrefixSID{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_PREFIX_SID,
 			Length: 0,
 		},
 		Flags:     flags, // TODO: Implementation for IGP
@@ -9493,7 +9496,7 @@ type LsTLVOpaqueLinkAttr struct {
 func NewLsTLVOpaqueLinkAttr(l *[]byte) *LsTLVOpaqueLinkAttr {
 	return &LsTLVOpaqueLinkAttr{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_OPAQUE_LINK_ATTR,
 			Length: uint16(len(*l)),
 		},
 		Attr: *l,
@@ -9545,7 +9548,7 @@ type LsTLVSrlg struct {
 func NewLsTLVSrlg(l *[]uint32) *LsTLVSrlg {
 	return &LsTLVSrlg{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_SRLG,
 			Length: uint16(4 * len(*l)),
 		},
 		Srlgs: *l,
@@ -9625,7 +9628,7 @@ func NewLsTLVIGPFlags(l *LsIGPFlags) *LsTLVIGPFlags {
 	}
 	return &LsTLVIGPFlags{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_IGP_FLAGS,
 			Length: 1,
 		},
 		Flags: flags,
@@ -9710,7 +9713,7 @@ type LsTLVOpaquePrefixAttr struct {
 func NewLsTLVOpaquePrefixAttr(l *[]byte) *LsTLVOpaquePrefixAttr {
 	return &LsTLVOpaquePrefixAttr{
 		LsTLV: LsTLV{
-			Type:   BGP_ASPATH_ATTR_TYPE_SET,
+			Type:   LS_TLV_OPAQUE_PREFIX_ATTR,
 			Length: 0,
 		},
 		Attr: *l,
