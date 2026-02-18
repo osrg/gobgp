@@ -147,7 +147,7 @@ func (p *PathAttributePrefixSID) String() string {
 	var buf bytes.Buffer
 
 	for _, tlv := range p.TLVs {
-		buf.WriteString(fmt.Sprintf("%s ", tlv.String()))
+		fmt.Fprintf(&buf, "%s ", tlv.String())
 	}
 
 	return fmt.Sprintf("{Prefix SID attributes: %s}", buf.String())
@@ -262,7 +262,7 @@ func (s *SRv6L3ServiceAttribute) String() string {
 	var buf bytes.Buffer
 
 	for _, tlv := range s.SubTLVs {
-		buf.WriteString(fmt.Sprintf("%s ", tlv.String()))
+		fmt.Fprintf(&buf, "%s ", tlv.String())
 	}
 
 	return fmt.Sprintf("{SRv6 L3 Service Attribute: %s}", buf.String())
@@ -446,11 +446,11 @@ func (s *SRv6InformationSubTLV) MarshalJSON() ([]byte, error) {
 
 func (s *SRv6InformationSubTLV) String() string {
 	var buf bytes.Buffer
-	buf.WriteString(fmt.Sprintf("SID: %s ", net.IP(s.SID).To16().String()))
-	buf.WriteString(fmt.Sprintf("Flag: %d ", s.Flags))
-	buf.WriteString(fmt.Sprintf("Endpoint Behavior: %d ", s.EndpointBehavior))
+	fmt.Fprintf(&buf, "SID: %s ", net.IP(s.SID).To16().String())
+	fmt.Fprintf(&buf, "Flag: %d ", s.Flags)
+	fmt.Fprintf(&buf, "Endpoint Behavior: %d ", s.EndpointBehavior)
 	for _, tlv := range s.SubSubTLVs {
-		buf.WriteString(fmt.Sprintf("%s ", tlv.String()))
+		fmt.Fprintf(&buf, "%s ", tlv.String())
 	}
 
 	return fmt.Sprintf("{SRv6 Information Sub TLV: %s}", buf.String())
@@ -708,7 +708,7 @@ func (t *SRv6ServiceTLV) String() string {
 	var buf bytes.Buffer
 
 	for _, tlv := range t.SubTLVs {
-		buf.WriteString(fmt.Sprintf("%s ", tlv.String()))
+		fmt.Fprintf(&buf, "%s ", tlv.String())
 	}
 
 	return fmt.Sprintf("{SRv6 Service TLV: %s}", buf.String())

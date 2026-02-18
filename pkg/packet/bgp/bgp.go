@@ -7917,7 +7917,7 @@ func (l *LsTLVSrCapabilities) String() string {
 	var buf bytes.Buffer
 
 	for _, r := range l.Ranges {
-		buf.WriteString(fmt.Sprintf("%v:%v ", r.FirstLabel.SID, r.FirstLabel.SID+r.Range))
+		fmt.Fprintf(&buf, "%v:%v ", r.FirstLabel.SID, r.FirstLabel.SID+r.Range)
 	}
 
 	return fmt.Sprintf("{SR Capabilities: Flags:%v SRGB Ranges: %v}", l.Flags, buf.String())
@@ -8058,7 +8058,7 @@ func (l *LsTLVSrLocalBlock) String() string {
 	var buf bytes.Buffer
 
 	for _, r := range l.Ranges {
-		buf.WriteString(fmt.Sprintf("%v:%v ", r.FirstLabel.SID, r.FirstLabel.SID+r.Range))
+		fmt.Fprintf(&buf, "%v:%v ", r.FirstLabel.SID, r.FirstLabel.SID+r.Range)
 	}
 
 	return fmt.Sprintf("{SR LocalBlock: Flags:%v SRGB Ranges: %v}", l.Flags, buf.String())
@@ -8507,7 +8507,7 @@ func (l *LsTLVSrv6EndXSID) serializeSubTLVs(buf []byte) ([]byte, error) {
 func (l *LsTLVSrv6EndXSID) String() string {
 	var buf bytes.Buffer
 	for _, sid := range l.SIDs {
-		buf.WriteString(fmt.Sprintf("%s ", sid.String()))
+		fmt.Fprintf(&buf, "%s ", sid.String())
 	}
 	return fmt.Sprintf("{SRv6 End.X SID: EndpointBehavior:%d SIDs: %s LocalBlock:%d LocalNode:%d LocalFunc:%d LocalArg:%d}", l.EndpointBehavior, buf.String(), l.Srv6SIDStructure.LocalBlock, l.Srv6SIDStructure.LocalNode, l.Srv6SIDStructure.LocalFunc, l.Srv6SIDStructure.LocalArg)
 }

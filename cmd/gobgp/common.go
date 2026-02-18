@@ -148,7 +148,7 @@ func cidr2prefix(cidr string) string {
 	}
 	var buffer bytes.Buffer
 	for i := range len(n.IP) {
-		buffer.WriteString(fmt.Sprintf("%08b", n.IP[i]))
+		fmt.Fprintf(&buffer, "%08b", n.IP[i])
 	}
 	ones, _ := n.Mask.Size()
 	return buffer.String()[:ones]
