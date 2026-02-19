@@ -87,7 +87,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	}
 	n.State.LocalAs = n.Config.LocalAs
 
-	if n.Config.PeerAs != n.Config.LocalAs {
+	if n.IsEBGPPeer(g) {
 		n.Config.PeerType = PEER_TYPE_EXTERNAL
 		n.State.PeerType = PEER_TYPE_EXTERNAL
 		n.State.RemovePrivateAs = n.Config.RemovePrivateAs

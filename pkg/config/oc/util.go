@@ -125,6 +125,12 @@ func (n *Neighbor) IsConfederation(g *Global) bool {
 }
 
 func (n *Neighbor) IsEBGPPeer(g *Global) bool {
+	if g != nil && g.Confederation.Config.Enabled {
+		// In confederation mode, peers in the local member-AS are iBGP.
+		// All other peers (including confederation members and non-members)
+		// are handled as external sessions.
+		return n.Config.PeerAs != g.Config.As
+	}
 	return n.Config.PeerAs != n.Config.LocalAs
 }
 
