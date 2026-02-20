@@ -103,12 +103,12 @@ func TimingHookOption(hook FSMTimingHook) ServerOption {
 }
 
 type sharedData struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 func newSharedData() *sharedData {
 	return &sharedData{
-		mu: sync.Mutex{},
+		mu: sync.RWMutex{},
 	}
 }
 
@@ -1363,15 +1363,24 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
-	s.shared.mu.Lock()
-	defer s.shared.mu.Unlock()
+	needStopNeighbor := false
+	var oldState bgp.FSMState
+	s.shared.mu.RLock()
+	defer func() {
+		s.shared.mu.RUnlock()
+		if needStopNeighbor {
+			s.shared.mu.Lock()
+			s.stopNeighbor(peer, oldState, e)
+			s.shared.mu.Unlock()
+		}
+	}()
 
 	switch e.MsgType {
 	case fsmMsgStateChange:
 		nextState := e.MsgData.(bgp.FSMState)
 		peer.fsm.lock.Lock()
 		conf := peer.fsm.pConf.ReadCopy()
-		oldState := bgp.FSMState(conf.State.SessionState.ToInt())
+		oldState = bgp.FSMState(conf.State.SessionState.ToInt())
 		conf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
 		peer.fsm.pConf.Update(&conf)
 
@@ -1415,7 +1424,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.pConf.Update(&conf)
 			peer.fsm.lock.Unlock()
 
+			peer.mu.Lock()
 			peer.prefixLimitWarned = make(map[bgp.Family]bool)
+			peer.mu.Unlock()
 			s.propagateUpdate(peer, peer.DropAll(dropFamilies))
 
 			if conf.Config.PeerAs == 0 {
@@ -1427,7 +1438,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 
 			if !graceful && peer.isDynamicNeighbor() {
-				s.stopNeighbor(peer, oldState, e)
+				needStopNeighbor = true
 				return
 			}
 		} else if nextStateIdle {
@@ -1455,7 +1466,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 
 				for _, f := range llgr {
 					endCh := make(chan struct{})
+					peer.mu.Lock()
 					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
+					peer.mu.Unlock()
 					go func(family bgp.Family, endCh chan struct{}) {
 						peer.llgrRestartTimerStarted(family)
 						t := peer.llgrRestartTime(family)
@@ -1507,7 +1520,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				s.propagateUpdate(peer, peer.DropAll(peer.configuredRFlist()))
 
 				if peer.isDynamicNeighbor() {
-					s.stopNeighbor(peer, oldState, e)
+					needStopNeighbor = true
 					return
 				}
 			}
