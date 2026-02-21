@@ -208,19 +208,21 @@ func (dd *destination) GetMultiBestPath(id string) []*Path {
 //
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
-func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
+// Returns Update and withdrawn path if it was removed.
+func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) (*Update, *Path) {
 	oldKnownPathList := make([]*Path, len(dest.knownPathList))
 	copy(oldKnownPathList, dest.knownPathList)
+	var withdrawn *Path
 
 	if newPath.IsWithdraw {
-		p := dest.explicitWithdraw(logger, newPath)
-		if p != nil && newPath.IsDropped() {
-			if id := p.localID; id != 0 {
+		withdrawn = dest.explicitWithdraw(logger, newPath)
+		if withdrawn != nil && newPath.IsDropped() {
+			if id := withdrawn.localID; id != 0 {
 				dest.localIdMap.Unflag(uint(id))
 			}
 		}
 	} else {
-		dest.implicitWithdraw(logger, newPath)
+		withdrawn = dest.implicitWithdraw(logger, newPath)
 		dest.insertSort(newPath)
 	}
 
@@ -240,7 +242,7 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
 	return &Update{
 		KnownPathList:    l,
 		OldKnownPathList: oldKnownPathList,
-	}
+	}, withdrawn
 }
 
 // Removes withdrawn paths.
@@ -292,7 +294,7 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 //
 // Known paths will no longer have paths whose new version is present in
 // new paths.
-func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) {
+func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) *Path {
 	found := -1
 	for i, path := range dest.knownPathList {
 		if path.NoImplicitWithdraw() {
@@ -314,8 +316,11 @@ func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) {
 		}
 	}
 	if found != -1 {
+		p := dest.knownPathList[found]
 		dest.knownPathList = append(dest.knownPathList[:found], dest.knownPathList[found+1:]...)
+		return p
 	}
+	return nil
 }
 
 func (dest *destination) insertSort(newPath *Path) {
