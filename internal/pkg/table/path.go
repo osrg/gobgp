@@ -26,6 +26,7 @@ import (
 	"net/netip"
 	"slices"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -136,7 +137,7 @@ type Path struct {
 	parent    *Path
 	pathAttrs []bgp.PathAttributeInterface
 	dels      []bgp.BGPAttrType
-	attrsHash uint64
+	attrsHash atomic.Uint64
 	localID   uint32
 	remoteID  uint32
 	family    bgp.Family
@@ -363,15 +364,16 @@ func (path *Path) IsIBGP() bool {
 
 // create new PathAttributes
 func (path *Path) Clone(isWithdraw bool) *Path {
-	return &Path{
+	p := &Path{
 		parent:           path,
 		family:           path.family,
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
-		attrsHash:        path.attrsHash,
 		localID:          path.localID,
 		remoteID:         path.remoteID,
 	}
+	p.attrsHash.Store(path.attrsHash.Load())
+	return p
 }
 
 func (path *Path) root() *Path {
@@ -566,7 +568,7 @@ func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 }
 
 func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
-	path.attrsHash = 0
+	path.attrsHash.Store(0)
 	if len(path.pathAttrs) == 0 {
 		path.pathAttrs = []bgp.PathAttributeInterface{a}
 	} else {
@@ -581,7 +583,7 @@ func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
 }
 
 func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
-	path.attrsHash = 0
+	path.attrsHash.Store(0)
 	if len(path.dels) == 0 {
 		path.dels = []bgp.BGPAttrType{typ}
 	} else {
@@ -1065,8 +1067,10 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return false
 	}
 	// The idea here is to calculate the hash of the attributes on demand
-	if lhs.attrsHash > 0 && rhs.attrsHash > 0 { // direct access to the hash to avoid unnecessary hash calculation
-		return lhs.attrsHash == rhs.attrsHash
+	lhsHash := lhs.attrsHash.Load()
+	rhsHash := rhs.attrsHash.Load()
+	if lhsHash > 0 && rhsHash > 0 { // avoid unnecessary hash calculation
+		return lhsHash == rhsHash
 	}
 	// slow path comparison, could happen as attributes flags is not part of the hash
 	for t, a := range lhsPathAttrs {
@@ -1327,23 +1331,24 @@ func (p *Path) ToLocal() *Path {
 }
 
 func (p *Path) updateHash() {
-	p.attrsHash = fnv1a.Init64
+	hash := fnv1a.Init64
 	for _, a := range p.GetPathAttrs() {
 		d, _ := a.Serialize()
-		p.attrsHash = fnv1a.AddBytes64(p.attrsHash, d)
+		hash = fnv1a.AddBytes64(hash, d)
 	}
+	p.attrsHash.Store(hash)
 }
 
 func (p *Path) SetHash(v uint64) {
-	p.attrsHash = v
+	p.attrsHash.Store(v)
 }
 
 // GetHash returns the hash value of the path attributes.
 func (p *Path) GetHash() uint64 {
-	if p.attrsHash == 0 {
+	if p.attrsHash.Load() == 0 {
 		p.updateHash()
 	}
-	return p.attrsHash
+	return p.attrsHash.Load()
 }
 
 func (p *Path) SetSource(peerInfo *PeerInfo) {
