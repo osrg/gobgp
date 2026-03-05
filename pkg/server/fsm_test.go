@@ -1319,6 +1319,39 @@ func TestRecvMessageWithError_MalformedNextHop(t *testing.T) {
 	})
 }
 
+// TestRecvMessageWithError_UnknownMessageType verifies that recvMessageWithError
+// handles an unknown BGP message type without panicking on nil dereference.
+// This is a regression test for https://github.com/osrg/gobgp/issues/3325.
+func TestRecvMessageWithError_UnknownMessageType(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	_, h := makePeerAndHandler(m)
+	t.Cleanup(func() {
+		h.outgoing.Close()
+		h.fsm.outgoingCh.Close()
+		h.fsm.conn.Close()
+	})
+
+	// BGP message with unknown type 0xFF.
+	// ParseBGPBody returns (nil, error) for unknown types.
+	raw := []byte{
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // marker
+		0x00, 0x13, // length: 19 (header only, no body)
+		0xff, // type: unknown
+	}
+
+	go m.remote.Write(raw)
+
+	stateReasonCh := make(chan fsmStateReason, 2)
+	fmsg, err := h.recvMessageWithError(m.Conn, stateReasonCh)
+
+	assert.Error(err)
+	assert.NotNil(fmsg)
+	assert.Equal(bgp.ERROR_HANDLING_SESSION_RESET, fmsg.handling)
+}
+
 // TestBMPStatsUpdate verifies that BMP stats are correctly updated via
 // atomic operations and exposed via toConfig.
 func TestBMPStatsUpdate(t *testing.T) {

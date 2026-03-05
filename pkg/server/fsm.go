@@ -1313,7 +1313,11 @@ func (h *fsmHandler) recvMessageWithError(conn net.Conn, stateReasonCh chan<- fs
 		Use2ByteAS: h.fsm.twoByteAsTrans, // true if peer does NOT support 4-byte AS
 	})
 	if err != nil {
-		handling = h.handlingError(m, err, useRevisedError)
+		if m == nil {
+			handling = bgp.ERROR_HANDLING_SESSION_RESET
+		} else {
+			handling = h.handlingError(m, err, useRevisedError)
+		}
 		h.fsm.bgpMessageStateUpdate(0, true)
 	} else {
 		h.fsm.bgpMessageStateUpdate(m.Header.Type, true)
