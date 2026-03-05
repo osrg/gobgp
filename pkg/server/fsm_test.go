@@ -1247,6 +1247,78 @@ func TestAtomicCountersConcurrentAccess(t *testing.T) {
 		"Total message count should be sum of all messages")
 }
 
+// TestRecvMessageWithError_MalformedNextHop verifies that recvMessageWithError
+// handles a malformed NEXT_HOP attribute (length < 4) without panicking.
+// This is a regression test for https://github.com/osrg/gobgp/issues/3305.
+func TestRecvMessageWithError_MalformedNextHop(t *testing.T) {
+	// Malformed BGP UPDATE from issue #3305:
+	// NEXT_HOP attribute with length 2 instead of 4.
+	raw := []byte{
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // marker
+		0x00, 0x28, // length: 40
+		0x02,       // type: UPDATE
+		0x00, 0x00, // withdrawn routes length: 0
+		0x00, 0x0d, // total path attribute length: 13
+		0x40, 0x01, 0x01, 0x02, // ORIGIN: INCOMPLETE
+		0x40, 0x02, 0x00, // AS_PATH: empty
+		0x40, 0x03, 0x02, 0x01, 0x02, // NEXT_HOP: length 2 (invalid, should be 4)
+		0x01, 0x18, 0xc0, 0xa8, 0x01, // NLRI: 192.168.1.0/24 (truncated but enough to trigger the bug)
+	}
+
+	t.Run("TreatAsWithdraw", func(t *testing.T) {
+		assert := assert.New(t)
+
+		m := NewMockConnection()
+		_, h := makePeerAndHandler(m)
+		t.Cleanup(func() {
+			h.outgoing.Close()
+			h.fsm.outgoingCh.Close()
+			h.fsm.conn.Close()
+		})
+
+		// Enable RFC 7606 revised error handling (treat-as-withdraw).
+		// Without this, malformed attributes cause SESSION_RESET which is
+		// handled inside recvMessageWithError. The panic only occurs when
+		// treat-as-withdraw is enabled and the malformed attribute survives
+		// into ValidateUpdateMsg.
+		h.fsm.isTreatAsWithdraw = true
+
+		go m.remote.Write(raw)
+
+		stateReasonCh := make(chan fsmStateReason, 2)
+		fmsg, err := h.recvMessageWithError(m.Conn, stateReasonCh)
+
+		assert.NoError(err)
+		assert.NotNil(fmsg)
+		assert.Equal(bgp.ERROR_HANDLING_TREAT_AS_WITHDRAW, fmsg.handling)
+	})
+
+	t.Run("SessionReset", func(t *testing.T) {
+		assert := assert.New(t)
+
+		m := NewMockConnection()
+		_, h := makePeerAndHandler(m)
+		t.Cleanup(func() {
+			h.outgoing.Close()
+			h.fsm.outgoingCh.Close()
+			h.fsm.conn.Close()
+		})
+
+		// Without RFC 7606, the error should cause a session reset.
+		h.fsm.isTreatAsWithdraw = false
+
+		go m.remote.Write(raw)
+
+		stateReasonCh := make(chan fsmStateReason, 2)
+		fmsg, err := h.recvMessageWithError(m.Conn, stateReasonCh)
+
+		assert.Error(err)
+		assert.NotNil(fmsg)
+		assert.Equal(bgp.ERROR_HANDLING_SESSION_RESET, fmsg.handling)
+	})
+}
+
 // TestBMPStatsUpdate verifies that BMP stats are correctly updated via
 // atomic operations and exposed via toConfig.
 func TestBMPStatsUpdate(t *testing.T) {
