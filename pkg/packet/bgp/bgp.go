@@ -13093,9 +13093,12 @@ func (e *OpaqueExtended) Serialize() ([]byte, error) {
 }
 
 func (e *OpaqueExtended) String() string {
-	var buf [8]byte
-	copy(buf[1:], e.Value)
-	return strconv.FormatUint(binary.BigEndian.Uint64(buf[:]), 10)
+	_, subType := e.GetTypes()
+	var val []byte
+	if len(e.Value) > 0 {
+		val = e.Value[1:]
+	}
+	return fmt.Sprintf("Opaque[transitive=%t][subtype:0x%x][value:0x%x]", e.IsTransitive, subType, val)
 }
 
 func (e *OpaqueExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
