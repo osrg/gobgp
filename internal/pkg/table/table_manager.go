@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/dgryski/go-farm"
@@ -141,6 +142,7 @@ func makeAttributeList(
 }
 
 type TableManager struct {
+	mu     sync.RWMutex // locking access to Tables and Vrfs maps only as rfList is not mutable
 	Tables map[bgp.Family]*Table
 	Vrfs   map[string]*Vrf
 	rfList []bgp.Family
@@ -149,6 +151,7 @@ type TableManager struct {
 
 func NewTableManager(logger *slog.Logger, rfList []bgp.Family) *TableManager {
 	t := &TableManager{
+		mu:     sync.RWMutex{},
 		Tables: make(map[bgp.Family]*Table),
 		Vrfs:   make(map[string]*Vrf),
 		rfList: rfList,
@@ -160,11 +163,16 @@ func NewTableManager(logger *slog.Logger, rfList []bgp.Family) *TableManager {
 	return t
 }
 
+// GetRFlist returns the list of routing families supported by the table manager.
+// no lock is need as rfList is not mutable
 func (manager *TableManager) GetRFlist() []bgp.Family {
 	return manager.rfList
 }
 
 func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	if _, ok := manager.Vrfs[name]; ok {
 		return nil, fmt.Errorf("vrf %s already exists", name)
 	}
@@ -200,6 +208,9 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 }
 
 func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	if _, ok := manager.Vrfs[name]; !ok {
 		return nil, fmt.Errorf("vrf %s not found", name)
 	}
@@ -230,13 +241,19 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 	// Except for a special case with EVPN, we'll have one destination.
 	updates := make([]*Update, 0, 1)
 	family := newPath.GetFamily()
-	if table, ok := manager.Tables[family]; ok {
-		updates = append(updates, table.update(newPath))
 
-		if family == bgp.RF_EVPN {
-			for _, p := range manager.handleMacMobility(newPath) {
-				updates = append(updates, table.update(p))
-			}
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
+	table, ok := manager.Tables[family]
+	if !ok {
+		return updates
+	}
+
+	updates = append(updates, table.update(newPath))
+	if family == bgp.RF_EVPN {
+		for _, p := range manager.handleMacMobility(newPath) {
+			updates = append(updates, table.update(p))
 		}
 	}
 	return updates
@@ -302,6 +319,8 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 	return pathList
 }
 
+// tables returns the list of tables for the given routing families.
+// must be called under read lock
 func (manager *TableManager) tables(list ...bgp.Family) []*Table {
 	l := make([]*Table, 0, len(manager.Tables))
 	if len(list) == 0 {
@@ -318,6 +337,8 @@ func (manager *TableManager) tables(list ...bgp.Family) []*Table {
 	return l
 }
 
+// getDestinationCount returns the total number of destinations in the tables for the given routing families.
+// must be called under read lock
 func (manager *TableManager) getDestinationCount(rfList []bgp.Family) int {
 	count := 0
 	for _, t := range manager.tables(rfList...) {
@@ -331,6 +352,10 @@ func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.
 		// Note: If best path selection disabled, there is no best path.
 		return nil
 	}
+
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, t := range manager.tables(rfList...) {
 		paths = append(paths, t.Bests(id, as)...)
@@ -344,6 +369,10 @@ func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.Family
 		// there is no best multi path.
 		return nil
 	}
+
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
 	paths := make([][]*Path, 0, manager.getDestinationCount(rfList))
 	for _, t := range manager.tables(rfList...) {
 		paths = append(paths, t.MultiBests(id)...)
@@ -352,6 +381,9 @@ func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.Family
 }
 
 func (manager *TableManager) GetPathList(id string, as uint32, rfList []bgp.Family) []*Path {
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, t := range manager.tables(rfList...) {
 		paths = append(paths, t.GetKnownPathList(id, as)...)
@@ -360,6 +392,9 @@ func (manager *TableManager) GetPathList(id string, as uint32, rfList []bgp.Fami
 }
 
 func (manager *TableManager) GetPathListWithMac(id string, as uint32, rfList []bgp.Family, rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) []*Path {
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
 	var paths []*Path
 	for _, t := range manager.tables(rfList...) {
 		paths = append(paths, t.GetKnownPathListWithMac(id, as, rt, mac, false)...)
@@ -368,6 +403,9 @@ func (manager *TableManager) GetPathListWithMac(id string, as uint32, rfList []b
 }
 
 func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Family, nexthop netip.Addr) []*Path {
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
@@ -382,6 +420,9 @@ func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Fami
 }
 
 func (manager *TableManager) GetPathListWithSource(id string, rfList []bgp.Family, source *PeerInfo) []*Path {
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
 	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
 	for _, rf := range rfList {
 		if t, ok := manager.Tables[rf]; ok {
@@ -400,6 +441,10 @@ func (manager *TableManager) GetDestination(path *Path) *destination {
 		return nil
 	}
 	family := path.GetFamily()
+
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
 	t, ok := manager.Tables[family]
 	if !ok {
 		return nil
