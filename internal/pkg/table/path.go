@@ -305,8 +305,13 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 			// address for that session.
 			if path.GetFamily() == bgp.RF_RTC_UC {
 				path.SetNexthop(localAddress)
-				attr, _ := bgp.NewPathAttributeOriginatorId(info.LocalID)
-				path.setPathAttr(attr)
+				if path.IsLocal() {
+					attr, _ := bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
+					path.setPathAttr(attr)
+				} else {
+					attr, _ := bgp.NewPathAttributeOriginatorId(info.LocalID)
+					path.setPathAttr(attr)
+				}
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				if path.IsLocal() {
 					attr, _ := bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
