@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -1771,8 +1772,36 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 		case o := <-h.outgoing.Out():
 			switch m := o.(type) {
 			case *fsmOutgoingMsg:
+				const maxCoalesceMsgs = 2048 // safety cap
+				paths := m.Paths
+				coalescedMsgs := 1
+				// coalesce queued messages for more efficient UPDATE packing
+				for coalescedMsgs < maxCoalesceMsgs {
+					select {
+					case <-ctx.Done():
+						return nil
+					default:
+					}
+					select {
+					case o2 := <-h.outgoing.Out():
+						if m2, ok := o2.(*fsmOutgoingMsg); ok {
+							paths = append(paths, m2.Paths...)
+							coalescedMsgs++
+							continue
+						}
+						return nil
+					default:
+					}
+					// yield for InfiniteChannel's pump goroutine
+					if h.outgoing.Len() > 0 {
+						runtime.Gosched()
+						continue
+					}
+					break
+				}
+
 				options := &bgp.MarshallingOption{AddPath: fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)}
-				for _, msg := range table.CreateUpdateMsgFromPaths(m.Paths, options) {
+				for _, msg := range table.CreateUpdateMsgFromPaths(paths, options) {
 					if err := send(msg); err != nil {
 						return nil
 					}

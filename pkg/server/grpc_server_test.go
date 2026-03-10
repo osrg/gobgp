@@ -16,7 +16,6 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -475,9 +474,21 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
+	if err != nil {
+		return
+	}
+	if !assert.Eventually(func() bool {
+		_, statErr := os.Stat(socketName + "/gobgp.sock")
+		return statErr == nil
+	}, time.Second, 10*time.Millisecond) {
+		return
+	}
 
 	conn, err := grpc.NewClient(socketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.NoError(err)
+	if err != nil {
+		return
+	}
 	t.Cleanup(func() {
 		_ = conn.Close()
 	})
@@ -502,7 +513,10 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path,
 	})
-	require.NoError(t, err)
+	assert.NoError(err)
+	if err != nil {
+		return
+	}
 
 	id, err := uuid.FromBytes(resp.Uuid)
 	assert.NoError(err)
