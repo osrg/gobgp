@@ -1512,6 +1512,21 @@ func TestUpdatePathAttrLenUnderflow(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCapSoftwareVersionRoundTrip(t *testing.T) {
+	versions := []string{"GoBGP", "a", "BIRD 2.15.1", "FRRouting/10.2.1"}
+	for _, v := range versions {
+		cap := NewCapSoftwareVersion(v)
+		buf, err := cap.Serialize()
+		require.NoError(t, err)
+
+		decoded := &CapSoftwareVersion{}
+		err = decoded.DecodeFromBytes(buf)
+		require.NoError(t, err)
+		require.Equal(t, v, decoded.SoftwareVersion)
+		require.Equal(t, uint8(len(v)), decoded.SoftwareVersionLen)
+	}
+}
+
 func TestFuzzCrashers(t *testing.T) {
 	crashers := []string{
 		"000000000000000000\x01",

@@ -1125,7 +1125,7 @@ func (c *CapSoftwareVersion) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "invalid length of software version capablity")
 	}
 	c.SoftwareVersionLen = softwareVersionLen
-	c.SoftwareVersion = string(data[1:c.SoftwareVersionLen])
+	c.SoftwareVersion = string(data[1 : 1+c.SoftwareVersionLen])
 	return nil
 }
 
