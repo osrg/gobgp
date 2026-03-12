@@ -435,7 +435,7 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	msgs := make([]*bgp.BGPMessage, 0, p.total)
 
 	emptyUnreach, _ := bgp.NewPathAttributeMpUnreachNLRI(p.family, nil)
-	baseUnreachLen := 19 + 2 + 2 + emptyUnreach.Len()
+	baseUnreachLen := 19 + 2 + 2 + emptyUnreach.Len() + 1 // +1 for extended-length attr header
 	split(baseUnreachLen, p.withdrawals, func(nlris []bgp.PathNLRI) {
 		unreach, _ := bgp.NewPathAttributeMpUnreachNLRI(p.family, nlris)
 		msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{unreach}, nil))
@@ -499,7 +499,7 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 			nexthops, _ := getMPReachNexthops(paths[0])
 			sampleNLRI := bgp.PathNLRI{NLRI: paths[0].GetNlri(), ID: paths[0].localID}
 			if sampleReach, err := bgp.NewPathAttributeMpReachNLRI(paths[0].GetFamily(), []bgp.PathNLRI{sampleNLRI}, nexthops...); err == nil {
-				baseReachLen += sampleReach.Len() - paths[0].GetNlri().Len(options...)
+				baseReachLen += sampleReach.Len() + 1 - paths[0].GetNlri().Len(options...) // +1 for extended-length attr header
 			} else {
 				baseReachLen = bgp.BGP_MAX_MESSAGE_LENGTH
 			}
