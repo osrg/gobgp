@@ -1574,7 +1574,8 @@ func TestParseMessageWithBadLength(t *testing.T) {
 			case *MessageError:
 				switch e.TypeCode {
 				case BGP_ERROR_MESSAGE_HEADER_ERROR:
-					if e.SubTypeCode != BGP_ERROR_SUB_BAD_MESSAGE_LENGTH {
+					if e.SubTypeCode != BGP_ERROR_SUB_BAD_MESSAGE_LENGTH &&
+						e.SubTypeCode != BGP_ERROR_SUB_CONNECTION_NOT_SYNCHRONIZED {
 						t.Fatalf("got unexpected message type and data: %v", e)
 					}
 				}

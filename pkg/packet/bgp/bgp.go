@@ -16017,6 +16017,12 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "not all BGP message header")
 	}
 
+	// RFC 4271 Section 6.1: marker must be all ones.
+	if binary.BigEndian.Uint64(data[:8]) != 0xffffffffffffffff ||
+		binary.BigEndian.Uint64(data[8:16]) != 0xffffffffffffffff {
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_CONNECTION_NOT_SYNCHRONIZED, nil, "marker is not all ones")
+	}
+
 	msg.Len = binary.BigEndian.Uint16(data[16:18])
 	if int(msg.Len) < BGP_HEADER_LENGTH {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
