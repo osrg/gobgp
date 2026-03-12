@@ -1771,11 +1771,14 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 			case *fsmOutgoingMsg:
 				// Drain queued messages so CreateUpdateMsgFromPaths
 				// can pack NLRIs with matching attributes into fewer
-				// UPDATEs. Non-path messages are re-injected.
+				// UPDATEs. Stop draining on non-path messages so
+				// control events (e.g. fsmStateReason) are handled
+				// immediately after sending the coalesced batch.
 				const maxCoalesce = 2048
 				paths := make([]*table.Path, len(m.Paths), len(m.Paths)+16)
 				copy(paths, m.Paths)
 				drained := false
+				stopAfterSend := false
 
 			drain:
 				for len(paths) < maxCoalesce {
@@ -1785,7 +1788,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 							paths = append(paths, m2.Paths...)
 							drained = true
 						} else {
-							h.outgoing.In() <- o2
+							stopAfterSend = true
 							break drain
 						}
 					default:
@@ -1793,7 +1796,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 					}
 				}
 
-				if drained && len(paths) < maxCoalesce {
+				if !stopAfterSend && drained && len(paths) < maxCoalesce {
 					timer := time.NewTimer(time.Millisecond)
 				wait:
 					for len(paths) < maxCoalesce {
@@ -1802,7 +1805,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 							if m2, ok := o2.(*fsmOutgoingMsg); ok {
 								paths = append(paths, m2.Paths...)
 							} else {
-								h.outgoing.In() <- o2
+								stopAfterSend = true
 								break wait
 							}
 						case <-timer.C:
@@ -1817,6 +1820,9 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 					if err := send(msg); err != nil {
 						return nil
 					}
+				}
+				if stopAfterSend {
+					return nil
 				}
 			default:
 				return nil
