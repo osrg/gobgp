@@ -15084,7 +15084,7 @@ type PathAttributeIP6ExtendedCommunities struct {
 }
 
 func ParseIP6Extended(data []byte) (ExtendedCommunityInterface, error) {
-	if len(data) < 8 {
+	if len(data) < 20 {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all extended community bytes are available")
 	}
 	attrType := ExtendedCommunityAttrType(data[0])
