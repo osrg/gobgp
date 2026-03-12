@@ -1060,7 +1060,7 @@ func (c *CapFQDN) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
 	c.DomainNameLen = domainNameLen
-	c.DomainName = string(data[hostNameLen+2:])
+	c.DomainName = string(data[hostNameLen+2 : hostNameLen+2+int(domainNameLen)])
 	return nil
 }
 

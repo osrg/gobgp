@@ -1512,6 +1512,45 @@ func TestUpdatePathAttrLenUnderflow(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCapFQDNRoundTrip(t *testing.T) {
+	tests := []struct {
+		host   string
+		domain string
+	}{
+		{"router1", "example.com"},
+		{"a", "b"},
+		{"gobgp", ""},
+		{"", "example.com"},
+	}
+	for _, tt := range tests {
+		cap := NewCapFQDN(tt.host, tt.domain)
+		buf, err := cap.Serialize()
+		require.NoError(t, err)
+
+		decoded := &CapFQDN{}
+		err = decoded.DecodeFromBytes(buf)
+		require.NoError(t, err)
+		require.Equal(t, tt.host, decoded.HostName)
+		require.Equal(t, tt.domain, decoded.DomainName)
+	}
+}
+
+func TestCapFQDNDomainNameTrailingBytes(t *testing.T) {
+	// Verify DomainName parsing respects DomainNameLen and does not
+	// consume trailing bytes beyond it.
+	cap := NewCapFQDN("router1", "example.com")
+	buf, err := cap.Serialize()
+	require.NoError(t, err)
+
+	// Append trailing garbage after the FQDN capability
+	buf = append(buf, 0xde, 0xad, 0xbe, 0xef)
+
+	decoded := &CapFQDN{}
+	err = decoded.DecodeFromBytes(buf)
+	require.NoError(t, err)
+	require.Equal(t, "example.com", decoded.DomainName)
+}
+
 func TestCapSoftwareVersionRoundTrip(t *testing.T) {
 	versions := []string{"GoBGP", "a", "BIRD 2.15.1", "FRRouting/10.2.1"}
 	for _, v := range versions {
