@@ -12326,7 +12326,7 @@ func NewPathAttributeMpReachNLRI(family Family, nlris []PathNLRI, nextHops ...ne
 	nhlen := 0
 
 	if len(nextHops) > 0 {
-		isNexthopIPv6 := afi == AFI_IP6 && nextHops[0].IsValid() && nextHops[0].Is6()
+		isNexthopIPv6 := afi == AFI_IP6 || nextHops[0].IsValid() && nextHops[0].Is6()
 		if isNexthopIPv6 {
 			nhs = append(nhs, nextHops[0])
 			// if nexthop is v4, it needs to be serialized as IPv4-mapped IPv6 address.
