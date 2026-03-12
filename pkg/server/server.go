@@ -1107,6 +1107,12 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 		}
 
+		// Strip LOCAL_PREF from eBGP peers on ingress.
+		// RFC 4271: LOCAL_PREF is only used in iBGP.
+		if peer != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
+			path.RemoveLocalPref()
+		}
+
 		policyOptions := &table.PolicyOptions{
 			Validate: s.roaTable.Validate,
 		}
