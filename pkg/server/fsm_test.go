@@ -1480,8 +1480,12 @@ func TestSendMessageloop_SingleMessage(t *testing.T) {
 	path := makePath(t, "10.0.0.0/24", "192.168.1.1", 0)
 	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{path}}
 
-	// Wait for the message to be sent.
-	time.Sleep(50 * time.Millisecond)
+	// Wait for the message to arrive at the mock connection.
+	select {
+	case <-m.bufReady.C:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for message")
+	}
 
 	cancel()
 	wg.Wait()
@@ -1524,8 +1528,9 @@ func TestSendMessageloop_CoalesceMultipleMessages(t *testing.T) {
 
 	go h.sendMessageloop(ctx, m, stateReasonCh, wg)
 
-	// Give enough time for all messages to be sent.
-	time.Sleep(200 * time.Millisecond)
+	assert.Eventually(func() bool {
+		return countNLRIs(parseBGPUpdates(t, m.GetSentMessages())) >= numPaths
+	}, 5*time.Second, 10*time.Millisecond, "timed out waiting for all NLRIs")
 
 	cancel()
 	wg.Wait()
@@ -1571,7 +1576,11 @@ func TestSendMessageloop_CoalesceMultipleAttributeGroups(t *testing.T) {
 	}
 
 	go h.sendMessageloop(ctx, m, stateReasonCh, wg)
-	time.Sleep(200 * time.Millisecond)
+
+	total := groupSize * numGroups
+	assert.Eventually(func() bool {
+		return countNLRIs(parseBGPUpdates(t, m.GetSentMessages())) >= total
+	}, 5*time.Second, 10*time.Millisecond, "timed out waiting for all NLRIs")
 
 	cancel()
 	wg.Wait()
@@ -1585,7 +1594,6 @@ func TestSendMessageloop_CoalesceMultipleAttributeGroups(t *testing.T) {
 		}
 	}
 
-	total := groupSize * numGroups
 	assert.Equal(total, nlris, "all NLRIs must be present")
 	t.Logf("coalesced %d paths (%d groups) into %d UPDATEs", total, numGroups, updates)
 }
