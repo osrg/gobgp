@@ -666,7 +666,7 @@ func TestMergeMPReachNLRIs(t *testing.T) {
 		}
 		assert.True(t, hasMPReach)
 		d, _ := msg.Serialize()
-		assert.True(t, len(d) < bgp.BGP_MAX_MESSAGE_LENGTH)
+		assert.LessOrEqual(t, len(d), bgp.BGP_MAX_MESSAGE_LENGTH)
 	}
 
 	assert.Equal(t, nr, total)
@@ -697,7 +697,7 @@ func TestMergeMPUnreachNLRIs(t *testing.T) {
 		}
 		assert.True(t, hasMPUnreach)
 		d, _ := msg.Serialize()
-		assert.True(t, len(d) < bgp.BGP_MAX_MESSAGE_LENGTH)
+		assert.LessOrEqual(t, len(d), bgp.BGP_MAX_MESSAGE_LENGTH)
 	}
 
 	assert.Equal(t, nr, total)
