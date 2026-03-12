@@ -1470,6 +1470,48 @@ func TestParseBogusShortData(t *testing.T) {
 	}
 }
 
+func TestUpdateWithdrawnRouteUnderflow(t *testing.T) {
+	// WithdrawnRoutesLen is 2, but the /32 prefix requires 5 bytes.
+	// Without an underflow guard, routelen wraps from 2 to 65533 and the
+	// loop silently consumes the entire remaining buffer as withdrawn
+	// routes, returning no error (silent data corruption).
+	const underflowed = 65533 // uint16(2 - 5)
+	buf := make([]byte, 2+5+underflowed+2)
+	buf[0], buf[1] = 0x00, 0x02                  // WithdrawnRoutesLen = 2
+	buf[2] = 0x20                                // /32 prefix length
+	buf[3], buf[4], buf[5], buf[6] = 10, 0, 0, 1 // 10.0.0.1
+	// bytes 7..65539: zeros, decoded as 65533 /0 prefixes
+	// bytes 65540..65541: TotalPathAttributeLen = 0
+
+	u := &BGPUpdate{}
+	err := u.DecodeFromBytes(buf)
+	require.Error(t, err)
+}
+
+func TestUpdatePathAttrLenUnderflow(t *testing.T) {
+	// TotalPathAttributeLen is 3, but the ORIGIN attribute is 4 bytes.
+	// Without an underflow guard, pathlen wraps from 3 to 65535 and the
+	// loop silently consumes the filler bytes as path attributes,
+	// returning no error (silent data corruption).
+	// 65535 is divisible by 3 (filler attr size), so the loop exits
+	// cleanly with pathlen=0 instead of hitting the pathlen<3 guard.
+	const underflowed = 65535 // uint16(3 - 4)
+	const fillerAttrLen = 3
+	buf := make([]byte, 2+2+4+underflowed)
+	buf[0], buf[1] = 0x00, 0x00                             // WithdrawnRoutesLen = 0
+	buf[2], buf[3] = 0x00, 0x03                             // TotalPathAttributeLen = 3
+	buf[4], buf[5], buf[6], buf[7] = 0x40, 0x01, 0x01, 0x00 // ORIGIN(IGP)
+	for i := 8; i+2 < len(buf); i += fillerAttrLen {
+		buf[i] = 0xc0   // flags: optional + transitive
+		buf[i+1] = 0xff // type: unknown
+		buf[i+2] = 0x00 // length: 0
+	}
+
+	u := &BGPUpdate{}
+	err := u.DecodeFromBytes(buf)
+	require.Error(t, err)
+}
+
 func TestFuzzCrashers(t *testing.T) {
 	crashers := []string{
 		"000000000000000000\x01",

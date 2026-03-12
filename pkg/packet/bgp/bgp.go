@@ -15703,7 +15703,11 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		if err != nil {
 			return err
 		}
-		routelen -= uint16(w.Len(options...) + addpathLen)
+		wLen := uint16(w.Len(options...) + addpathLen)
+		if wLen > routelen {
+			return NewMessageError(eCode, eSubCode, nil, "Withdrawn route length exceeds withdrawn routes boundary")
+		}
+		routelen -= wLen
 		if len(data) < w.Len(options...) {
 			return NewMessageError(eCode, eSubCode, nil, "Withdrawn route length is short")
 		}
@@ -15758,7 +15762,16 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 				strongestError = e
 			}
 		}
-		pathlen -= uint16(p.Len(options...))
+		pLen := uint16(p.Len(options...))
+		if pLen > pathlen {
+			e = NewMessageErrorWithErrorHandling(
+				eCode, BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, "path attribute length exceeds path attributes boundary")
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
+			return strongestError
+		}
+		pathlen -= pLen
 		if len(data) < p.Len(options...) {
 			e = NewMessageErrorWithErrorHandling(
 				eCode, BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, "attribute length is short")
