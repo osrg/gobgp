@@ -1433,8 +1433,11 @@ func parseBGPUpdates(t *testing.T, raw [][]byte) []*bgp.BGPMessage {
 				t.Fatalf("ParseBGPMessage: %v (buflen=%d)", err, len(buf))
 			}
 			msgs = append(msgs, msg)
-			b, _ := msg.Serialize()
-			buf = buf[len(b):]
+			n := int(msg.Header.Len)
+			if n <= 0 || n > len(buf) {
+				t.Fatalf("invalid message length %d (buflen=%d)", n, len(buf))
+			}
+			buf = buf[n:]
 		}
 	}
 	return msgs
