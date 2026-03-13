@@ -511,14 +511,10 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path,
 	})
-<<<<<<< tkjaer/enable-multi-nlri-update-messages
 	assert.NoError(err)
 	if err != nil {
 		return
 	}
-=======
-	require.NoError(t, err)
->>>>>>> master
 
 	id, err := uuid.FromBytes(resp.Uuid)
 	assert.NoError(err)
