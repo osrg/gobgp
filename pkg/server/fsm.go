@@ -1764,6 +1764,12 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 
 	var pending any
 	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
 		var o any
 		if pending != nil {
 			o = pending
