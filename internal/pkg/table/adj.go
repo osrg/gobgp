@@ -38,7 +38,7 @@ func (rtc *rtCounter) add(path *Path) {
 	if !ok {
 		return
 	}
-	rtHash, err := nlriRouteTargetKey(nlri)
+	rtHash, err := NlriRouteTargetKey(nlri)
 	if err != nil {
 		return
 	}
@@ -60,7 +60,7 @@ func (rtc *rtCounter) sub(path *Path) {
 	if !ok {
 		return
 	}
-	rtHash, err := nlriRouteTargetKey(nlri)
+	rtHash, err := NlriRouteTargetKey(nlri)
 	if err != nil {
 		return
 	}
