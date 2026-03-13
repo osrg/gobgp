@@ -1828,6 +1828,14 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 			wait:
 				for len(paths) < maxCoalesce {
 					select {
+					case <-ctx.Done():
+						if !timer.Stop() {
+							select {
+							case <-timer.C:
+							default:
+							}
+						}
+						return nil
 					case o2 := <-h.outgoing.Out():
 						if m2, ok := o2.(*fsmOutgoingMsg); ok {
 							if appendPaths(m2) {
