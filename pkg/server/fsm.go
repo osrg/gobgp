@@ -1762,75 +1762,83 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 		return nil
 	}
 
+	var pending any
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case o := <-h.outgoing.Out():
-			switch m := o.(type) {
-			case *fsmOutgoingMsg:
-				// Drain queued messages so CreateUpdateMsgFromPaths
-				// can pack NLRIs with matching attributes into fewer
-				// UPDATEs. Stop draining on non-path messages so
-				// control events (e.g. fsmStateReason) are handled
-				// immediately after sending the coalesced batch.
-				const maxCoalesce = 2048
-				paths := make([]*table.Path, len(m.Paths), len(m.Paths)+16)
-				copy(paths, m.Paths)
-				drained := false
-				stopAfterSend := false
+		var o any
+		if pending != nil {
+			o = pending
+			pending = nil
+		} else {
+			select {
+			case <-ctx.Done():
+				return nil
+			case o = <-h.outgoing.Out():
+			case <-ticker.C:
+				if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
+					return nil
+				}
+				continue
+			}
+		}
 
-			drain:
+		switch m := o.(type) {
+		case *fsmOutgoingMsg:
+			// Drain queued messages so CreateUpdateMsgFromPaths
+			// can pack NLRIs with matching attributes into fewer
+			// UPDATEs. Stop draining on non-path messages so
+			// control events (e.g. fsmStateReason) are handled
+			// immediately after sending the coalesced batch.
+			const maxCoalesce = 2048
+			paths := make([]*table.Path, len(m.Paths), len(m.Paths)+16)
+			copy(paths, m.Paths)
+			drained := false
+
+		drain:
+			for len(paths) < maxCoalesce {
+				select {
+				case o2 := <-h.outgoing.Out():
+					if m2, ok := o2.(*fsmOutgoingMsg); ok {
+						paths = append(paths, m2.Paths...)
+						drained = true
+					} else {
+						pending = o2
+						break drain
+					}
+				default:
+					break drain
+				}
+			}
+
+			if pending == nil && len(paths) < maxCoalesce && (drained || h.outgoing.Len() > 0) {
+				timer := time.NewTimer(time.Millisecond)
+			wait:
 				for len(paths) < maxCoalesce {
 					select {
 					case o2 := <-h.outgoing.Out():
 						if m2, ok := o2.(*fsmOutgoingMsg); ok {
 							paths = append(paths, m2.Paths...)
-							drained = true
 						} else {
-							stopAfterSend = true
-							break drain
-						}
-					default:
-						break drain
-					}
-				}
-
-				if !stopAfterSend && drained && len(paths) < maxCoalesce {
-					timer := time.NewTimer(time.Millisecond)
-				wait:
-					for len(paths) < maxCoalesce {
-						select {
-						case o2 := <-h.outgoing.Out():
-							if m2, ok := o2.(*fsmOutgoingMsg); ok {
-								paths = append(paths, m2.Paths...)
-							} else {
-								stopAfterSend = true
-								break wait
-							}
-						case <-timer.C:
+							pending = o2
 							break wait
 						}
+					case <-timer.C:
+						break wait
 					}
-					timer.Stop()
 				}
+				timer.Stop()
+			}
 
-				options := &bgp.MarshallingOption{AddPath: fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)}
-				for _, msg := range table.CreateUpdateMsgFromPaths(paths, options) {
-					if err := send(msg); err != nil {
-						return nil
-					}
-				}
-				if stopAfterSend {
+			options := &bgp.MarshallingOption{AddPath: fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)}
+			for _, msg := range table.CreateUpdateMsgFromPaths(paths, options) {
+				if err := send(msg); err != nil {
 					return nil
 				}
-			default:
-				return nil
 			}
-		case <-ticker.C:
-			if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
-				return nil
+			if pending != nil {
+				continue
 			}
+		default:
+			return nil
 		}
 	}
 }

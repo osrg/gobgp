@@ -1249,6 +1249,54 @@ func TestAtomicCountersConcurrentAccess(t *testing.T) {
 		"Total message count should be sum of all messages")
 }
 
+func TestSendMessageLoop_CoalescesQueuedUpdatesAndPreservesControlMessage(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	makePath := func(prefix string) *table.Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		assert.NoError(err)
+		nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+		assert.NoError(err)
+		return table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nextHop,
+		}, time.Now(), false)
+	}
+
+	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{makePath("10.0.0.0/24")}}
+	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{makePath("10.0.1.0/24")}}
+	h.outgoing.In() <- *newfsmStateReason(fsmAdminDown, nil, nil)
+
+	stateReasonCh := make(chan fsmStateReason, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	done := make(chan error, 1)
+	go func() {
+		done <- h.sendMessageloop(t.Context(), m.Conn, stateReasonCh, &wg)
+	}()
+
+	select {
+	case err := <-done:
+		assert.NoError(err)
+	case <-time.After(time.Second):
+		t.Fatal("sendMessageloop did not exit after queued control message")
+	}
+	wg.Wait()
+
+	messages := m.GetSentMessages()
+	assert.Len(messages, 1)
+
+	sent, err := bgp.ParseBGPMessage(messages[0])
+	assert.NoError(err)
+	assert.Equal(uint8(bgp.BGP_MSG_UPDATE), sent.Header.Type)
+	assert.Len(sent.Body.(*bgp.BGPUpdate).NLRI, 2)
+	assert.Empty(stateReasonCh)
+}
+
 // TestRecvMessageWithError_MalformedNextHop verifies that recvMessageWithError
 // handles a malformed NEXT_HOP attribute (length < 4) without panicking.
 // This is a regression test for https://github.com/osrg/gobgp/issues/3305.
