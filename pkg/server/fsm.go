@@ -1789,17 +1789,31 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 			// control events (e.g. fsmStateReason) are handled
 			// immediately after sending the coalesced batch.
 			const maxCoalesce = 2048
-			paths := make([]*table.Path, len(m.Paths), len(m.Paths)+16)
-			copy(paths, m.Paths)
+			paths, overflow := splitFSMOutgoingPaths(m.Paths, maxCoalesce)
+			if overflow != nil {
+				pending = overflow
+			}
 			drained := false
+			appendPaths := func(msg *fsmOutgoingMsg) bool {
+				taken, overflow := splitFSMOutgoingPaths(msg.Paths, maxCoalesce-len(paths))
+				paths = append(paths, taken...)
+				if overflow != nil {
+					pending = overflow
+					return false
+				}
+				return true
+			}
 
 		drain:
 			for len(paths) < maxCoalesce {
 				select {
 				case o2 := <-h.outgoing.Out():
 					if m2, ok := o2.(*fsmOutgoingMsg); ok {
-						paths = append(paths, m2.Paths...)
 						drained = true
+						if appendPaths(m2) {
+							continue
+						}
+						break drain
 					} else {
 						pending = o2
 						break drain
@@ -1816,7 +1830,10 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 					select {
 					case o2 := <-h.outgoing.Out():
 						if m2, ok := o2.(*fsmOutgoingMsg); ok {
-							paths = append(paths, m2.Paths...)
+							if appendPaths(m2) {
+								continue
+							}
+							break wait
 						} else {
 							pending = o2
 							break wait
@@ -1841,6 +1858,13 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 			return nil
 		}
 	}
+}
+
+func splitFSMOutgoingPaths(paths []*table.Path, limit int) ([]*table.Path, *fsmOutgoingMsg) {
+	if len(paths) <= limit {
+		return paths, nil
+	}
+	return paths[:limit], &fsmOutgoingMsg{Paths: paths[limit:]}
 }
 
 func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtimerResetCh chan<- struct{}, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) {

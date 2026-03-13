@@ -1297,6 +1297,25 @@ func TestSendMessageLoop_CoalescesQueuedUpdatesAndPreservesControlMessage(t *tes
 	assert.Empty(stateReasonCh)
 }
 
+func TestSplitFSMOutgoingPaths(t *testing.T) {
+	assert := assert.New(t)
+	paths := make([]*table.Path, 5)
+
+	t.Run("within limit", func(t *testing.T) {
+		taken, overflow := splitFSMOutgoingPaths(paths[:3], 3)
+		assert.Len(taken, 3)
+		assert.Nil(overflow)
+	})
+
+	t.Run("overflow", func(t *testing.T) {
+		taken, overflow := splitFSMOutgoingPaths(paths, 3)
+		assert.Len(taken, 3)
+		if assert.NotNil(overflow) {
+			assert.Len(overflow.Paths, 2)
+		}
+	})
+}
+
 // TestRecvMessageWithError_MalformedNextHop verifies that recvMessageWithError
 // handles a malformed NEXT_HOP attribute (length < 4) without panicking.
 // This is a regression test for https://github.com/osrg/gobgp/issues/3305.
