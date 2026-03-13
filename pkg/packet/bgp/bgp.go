@@ -1060,7 +1060,7 @@ func (c *CapFQDN) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityFQDN bytes allowed")
 	}
 	c.DomainNameLen = domainNameLen
-	c.DomainName = string(data[hostNameLen+2:])
+	c.DomainName = string(data[hostNameLen+2 : hostNameLen+2+int(domainNameLen)])
 	return nil
 }
 
@@ -1125,7 +1125,7 @@ func (c *CapSoftwareVersion) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "invalid length of software version capablity")
 	}
 	c.SoftwareVersionLen = softwareVersionLen
-	c.SoftwareVersion = string(data[1:c.SoftwareVersionLen])
+	c.SoftwareVersion = string(data[1 : 1+c.SoftwareVersionLen])
 	return nil
 }
 
@@ -12220,7 +12220,7 @@ func (p *PathAttributeMpReachNLRI) Serialize(options ...*MarshallingOption) ([]b
 	nexthopAddrs := make([]net.IP, 0, 2)
 	nexthoplen := 0
 
-	isNexthopIPv6 := afi == AFI_IP6 || p.Nexthop.IsValid() && p.Nexthop.Is6()
+	isNexthopIPv6 := p.Nexthop.IsValid() && (afi == AFI_IP6 || p.Nexthop.Is6())
 	if isNexthopIPv6 {
 		// if nexthop is v4, it needs to be serialized as IPv4-mapped IPv6 address.
 		n := p.Nexthop.As16()
@@ -12326,7 +12326,7 @@ func NewPathAttributeMpReachNLRI(family Family, nlris []PathNLRI, nextHops ...ne
 	nhlen := 0
 
 	if len(nextHops) > 0 {
-		isNexthopIPv6 := afi == AFI_IP6 && nextHops[0].IsValid() && nextHops[0].Is6()
+		isNexthopIPv6 := nextHops[0].IsValid() && (afi == AFI_IP6 || nextHops[0].Is6())
 		if isNexthopIPv6 {
 			nhs = append(nhs, nextHops[0])
 			// if nexthop is v4, it needs to be serialized as IPv4-mapped IPv6 address.
@@ -15084,7 +15084,7 @@ type PathAttributeIP6ExtendedCommunities struct {
 }
 
 func ParseIP6Extended(data []byte) (ExtendedCommunityInterface, error) {
-	if len(data) < 8 {
+	if len(data) < 20 {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all extended community bytes are available")
 	}
 	attrType := ExtendedCommunityAttrType(data[0])
@@ -15703,7 +15703,11 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		if err != nil {
 			return err
 		}
-		routelen -= uint16(w.Len(options...) + addpathLen)
+		wLen := uint16(w.Len(options...) + addpathLen)
+		if wLen > routelen {
+			return NewMessageError(eCode, eSubCode, nil, "Withdrawn route length exceeds withdrawn routes boundary")
+		}
+		routelen -= wLen
 		if len(data) < w.Len(options...) {
 			return NewMessageError(eCode, eSubCode, nil, "Withdrawn route length is short")
 		}
@@ -15758,7 +15762,16 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 				strongestError = e
 			}
 		}
-		pathlen -= uint16(p.Len(options...))
+		pLen := uint16(p.Len(options...))
+		if pLen > pathlen {
+			e = NewMessageErrorWithErrorHandling(
+				eCode, BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, "path attribute length exceeds path attributes boundary")
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
+			return strongestError
+		}
+		pathlen -= pLen
 		if len(data) < p.Len(options...) {
 			e = NewMessageErrorWithErrorHandling(
 				eCode, BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, "attribute length is short")
@@ -16002,6 +16015,12 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	// minimum BGP message length
 	if uint16(len(data)) < BGP_HEADER_LENGTH {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "not all BGP message header")
+	}
+
+	// RFC 4271 Section 6.1: marker must be all ones.
+	if binary.BigEndian.Uint64(data[:8]) != 0xffffffffffffffff ||
+		binary.BigEndian.Uint64(data[8:16]) != 0xffffffffffffffff {
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_CONNECTION_NOT_SYNCHRONIZED, nil, "marker is not all ones")
 	}
 
 	msg.Len = binary.BigEndian.Uint16(data[16:18])

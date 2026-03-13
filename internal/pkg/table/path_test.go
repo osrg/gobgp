@@ -412,6 +412,71 @@ func TestReplaceAS(t *testing.T) {
 	assert.Equal(t, list[3], uint32(2))
 }
 
+func TestUpdatePathAttrsRTCOriginatorIDWithLocalID(t *testing.T) {
+	global := &oc.Global{Config: oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("10.0.0.1")}}
+	clusterID := netip.MustParseAddr("10.0.0.100")
+	info := &PeerInfo{
+		AS:                      65000,
+		LocalAS:                 65000,
+		LocalAddress:            netip.MustParseAddr("192.168.0.1"),
+		RouteReflectorClient:    true,
+		RouteReflectorClusterID: clusterID,
+	}
+	peer := &oc.Neighbor{
+		State: oc.NeighborState{
+			PeerType: oc.PEER_TYPE_INTERNAL,
+		},
+		RouteReflector: oc.RouteReflector{
+			Config: oc.RouteReflectorConfig{
+				RouteReflectorClusterId: clusterID,
+				RouteReflectorClient:    true,
+			},
+			State: oc.RouteReflectorState{
+				RouteReflectorClusterId: clusterID,
+				RouteReflectorClient:    true,
+			},
+		},
+	}
+
+	// Case 1: Source with Address (not local) set - should use LocalID as Originator ID
+	sourceWithLocalID := &PeerInfo{
+		AS:      65000,
+		LocalAS: 65000,
+		ID:      netip.MustParseAddr("10.0.0.2"),
+		LocalID: netip.MustParseAddr("10.0.0.100"), // Different from global RouterId
+		Address: netip.MustParseAddr("10.0.0.2"),   // Not local path (IsLocal() == false)
+	}
+	nlri := bgp.PathNLRI{NLRI: bgp.NewRouteTargetMembershipNLRI(0, nil)}
+	nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_RTC_UC, []bgp.PathNLRI{nlri})
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+		nlriAttr,
+	}
+	pathWithLocalID := NewPath(bgp.RF_RTC_UC, sourceWithLocalID, nlri, false, attrs, time.Now(), false)
+	updatedPath1 := UpdatePathAttrs(logger, global, peer, info, pathWithLocalID)
+
+	attr1 := updatedPath1.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID)
+	originatorID1 := attr1.(*bgp.PathAttributeOriginatorId).Value
+	assert.True(t, originatorID1.IsValid(), "Originator ID attribute should be set for RTC route")
+	assert.Equal(t, "10.0.0.100", originatorID1.String(),
+		"Originator ID should be src.LocalID when path is not local")
+
+	// Case 2: Source with LocalID nil - should fall back to global.Config.RouterId
+	sourceWithoutLocalID := &PeerInfo{
+		AS:      65000,
+		LocalAS: 65000,
+		ID:      netip.MustParseAddr("10.0.0.2"),
+	}
+	pathWithoutLocalID := NewPath(bgp.RF_RTC_UC, sourceWithoutLocalID, nlri, false, attrs, time.Now(), false)
+	updatedPath2 := UpdatePathAttrs(logger, global, peer, info, pathWithoutLocalID)
+
+	attr2 := updatedPath2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID)
+	originatorID2 := attr2.(*bgp.PathAttributeOriginatorId).Value
+	assert.True(t, originatorID2.IsValid(), "Originator ID attribute should be set for RTC route")
+	assert.Equal(t, "10.0.0.1", originatorID2.String(),
+		"Originator ID should be global.Config.RouterId when path is local")
+}
+
 func TestNLRIToIPNet(t *testing.T) {
 	_, n1, _ := net.ParseCIDR("30.30.30.0/24")
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("30.30.30.0/24"))

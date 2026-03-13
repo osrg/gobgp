@@ -303,31 +303,37 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 			// the Originator attribute shall be set to the router-id of the
 			// advertiser, and the Next-hop attribute shall be set of the local
 			// address for that session.
+			var attr *bgp.PathAttributeOriginatorId
 			if path.GetFamily() == bgp.RF_RTC_UC {
 				path.SetNexthop(localAddress)
-				attr, _ := bgp.NewPathAttributeOriginatorId(info.LocalID)
-				path.setPathAttr(attr)
+				if path.IsLocal() {
+					attr, _ = bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
+				} else {
+					attr, _ = bgp.NewPathAttributeOriginatorId(info.LocalID)
+				}
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				if path.IsLocal() {
-					attr, _ := bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
-					path.setPathAttr(attr)
+					attr, _ = bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
 				} else {
-					attr, _ := bgp.NewPathAttributeOriginatorId(info.ID)
-					path.setPathAttr(attr)
+					attr, _ = bgp.NewPathAttributeOriginatorId(info.ID)
 				}
+			}
+
+			if attr != nil {
+				path.setPathAttr(attr)
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
 			// TODO: needs to validated earlier.
 			clusterID := peer.RouteReflector.State.RouteReflectorClusterId
+			var pa *bgp.PathAttributeClusterList
 			if p := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); p == nil {
-				pa, _ := bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
-				path.setPathAttr(pa)
+				pa, _ = bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
 			} else {
 				clusterList := p.(*bgp.PathAttributeClusterList)
-				pa, _ := bgp.NewPathAttributeClusterList(append([]netip.Addr{clusterID}, clusterList.Value...))
-				path.setPathAttr(pa)
+				pa, _ = bgp.NewPathAttributeClusterList(append([]netip.Addr{clusterID}, clusterList.Value...))
 			}
+			path.setPathAttr(pa)
 		}
 	default:
 		logger.Warn("invalid peer type",

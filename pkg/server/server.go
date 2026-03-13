@@ -1107,6 +1107,12 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 		}
 
+		// Strip LOCAL_PREF from eBGP peers on ingress.
+		// RFC 4271: LOCAL_PREF is only used in iBGP.
+		if peer != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
+			path.RemoveLocalPref()
+		}
+
 		policyOptions := &table.PolicyOptions{
 			Validate: s.roaTable.Validate,
 		}
@@ -2130,6 +2136,10 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 			ID:      path.PeerID,
 			Address: path.PeerAddress,
 		}
+	}
+
+	if path.Family == 0 {
+		return nil, fmt.Errorf("address family is not set")
 	}
 
 	// TODO (sbezverk) At this poinnt nlri and path attributes are converted to native mode

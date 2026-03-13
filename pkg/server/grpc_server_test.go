@@ -16,6 +16,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -510,10 +511,14 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 		TableType: api.TableType_TABLE_TYPE_GLOBAL,
 		Path:      path,
 	})
+<<<<<<< tkjaer/enable-multi-nlri-update-messages
 	assert.NoError(err)
 	if err != nil {
 		return
 	}
+=======
+	require.NoError(t, err)
+>>>>>>> master
 
 	id, err := uuid.FromBytes(resp.Uuid)
 	assert.NoError(err)
