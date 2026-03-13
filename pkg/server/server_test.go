@@ -3274,7 +3274,8 @@ func TestEBGPRouteStuck(test *testing.T) {
 		if peer.active() == nil {
 			info, _ = peer.getRibInfo("", bgp.RF_IPv4_UC)
 		} else {
-			info = peer.globalRib.Tables[bgp.RF_IPv4_UC].Info()
+			tbl, _ := peer.globalRib.GetTable(bgp.RF_IPv4_UC)
+			info = tbl.Info()
 		}
 		if assert.NotNil(t, info) {
 			assert.Equal(t, expected, info.NumPath)

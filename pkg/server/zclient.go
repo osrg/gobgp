@@ -326,9 +326,7 @@ type zebraClient struct {
 }
 
 func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody) []*table.Path {
-	rib := &table.TableManager{
-		Tables: make(map[bgp.Family]*table.Table),
-	}
+	rib := table.NewTableManager(z.server.logger, nil)
 
 	var rfList []bgp.Family
 	switch body.Prefix.Family {
@@ -348,7 +346,7 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 			)
 			continue
 		}
-		rib.Tables[rf] = tbl
+		rib.SetTable(rf, tbl)
 	}
 
 	return rib.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix.Prefix)
