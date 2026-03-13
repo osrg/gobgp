@@ -424,7 +424,7 @@ func (t *Table) validatePath(path *Path) {
 }
 
 // getOrCreateDestLocked gets or creates a destination while holding the shard lock.
-// The shard must be locked before calling this.
+// Caller must hold the shard lock before calling this.
 func (t *Table) getOrCreateDestLocked(shard *destinationShard, nlri bgp.NLRI, size int) *destination {
 	key := tableKey(nlri)
 
@@ -446,7 +446,8 @@ func (t *Table) getOrCreateDestLocked(shard *destinationShard, nlri bgp.NLRI, si
 	return dest
 }
 
-// deleteDestLocked removes a destination from the shard. Must be called with shard lock held.
+// deleteDestLocked removes a destination from the shard.
+// Caller must hold the shard lock before calling this.
 func (t *Table) deleteDestLocked(shard *destinationShard, dest *destination) {
 	count := 0
 	for _, v := range dest.localIdMap.bitmap {
@@ -512,6 +513,10 @@ func (t *Table) update(newPath *Path) *Update {
 	return u
 }
 
+// GetDestinations returns snapshots of all destinations in the table.
+// The snapshots are created while holding all shard locks, then the locks are released.
+// The returned snapshots can be safely used without holding locks.
+// This is safe for iteration but may be expensive for large tables.
 func (t *Table) GetDestinations(size ...*int) []*destination {
 	t.destinations.RLock()
 	defer t.destinations.RUnlock()
@@ -523,12 +528,44 @@ func (t *Table) GetDestinations(size ...*int) []*destination {
 	return d
 }
 
+// GetDestination returns a snapshot of the destination for the given NLRI.
+// The snapshot can be safely used without holding locks.
+// Returns nil if the destination doesn't exist.
 func (t *Table) GetDestination(nlri bgp.NLRI) *destination {
 	return t.destinations.Get(nlri)
 }
 
+// SelectDestination returns a selected/filtered destination for the given NLRI,
+// This is a Table-level locked helper that ensures destination methods are called
+// with the shard read lock held, preventing races on active destinations.
+// Returns nil if the destination doesn't exist or selection produces no paths.
+//
+// Use this instead of GetDestination() + Select() when you need to select a single
+// destination and want the locking to be encapsulated in a single call.
+// The shard read lock is held while calling destination.Select().
+func (t *Table) SelectDestination(nlri bgp.NLRI, option DestinationSelectOption) *destination {
+	shard := t.destinations.getShard(nlri)
+	shard.mu.RLock()
+	defer shard.mu.RUnlock()
+
+	key := tableKey(nlri)
+	dests, ok := shard.mp[key]
+	if !ok {
+		return nil
+	}
+
+	for _, dest := range dests {
+		if AddrPrefixOnlyCompare(dest.nlri, nlri) == 0 {
+			// Call Select while holding lock, which returns a new destination
+			return dest.Select(option)
+		}
+	}
+	return nil
+}
+
 func (t *Table) GetLongerPrefixDestinations(key string) ([]*destination, error) {
-	results := make([]*destination, 0, len(t.GetDestinations()))
+	destinations := t.GetDestinations()
+	results := make([]*destination, 0, len(destinations))
 	switch t.Family {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
 		_, prefix, err := net.ParseCIDR(key)
@@ -538,7 +575,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*destination, error) 
 		ones, bits := prefix.Mask.Size()
 
 		r := critbitgo.NewNet()
-		for _, dst := range t.GetDestinations() {
+		for _, dst := range destinations {
 			_ = r.Add(nlriToIPNet(dst.nlri), dst)
 		}
 		p := &net.IPNet{
@@ -572,7 +609,7 @@ func (t *Table) GetLongerPrefixDestinations(key string) ([]*destination, error) 
 		bits := prefix.Addr().BitLen()
 
 		r := critbitgo.NewNet()
-		for _, dst := range t.GetDestinations() {
+		for _, dst := range destinations {
 			dstRD := dst.nlri.(*bgp.LabeledVPNIPAddrPrefix).RD
 			if prefixRd.String() != dstRD.String() {
 				continue
@@ -823,11 +860,9 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				if err != nil {
 					return false, err
 				}
-				if dst := t.GetDestination(nlri); dst != nil {
-					if d := dst.Select(dOption); d != nil {
-						r.setDestination(d)
-						return true, nil
-					}
+				if d := t.SelectDestination(nlri, dOption); d != nil {
+					r.setDestination(d)
+					return true, nil
 				}
 				return false, nil
 			}
@@ -893,10 +928,8 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				}
 
 				nlri, _ := bgp.NewLabeledVPNIPAddrPrefix(p, *bgp.NewMPLSLabelStack(), rd)
-				if dst := t.GetDestination(nlri); dst != nil {
-					if d := dst.Select(dOption); d != nil {
-						r.setDestination(d)
-					}
+				if d := t.SelectDestination(nlri, dOption); d != nil {
+					r.setDestination(d)
 				}
 				return nil
 			}
@@ -1010,10 +1043,21 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 			return nil, fmt.Errorf("route filtering is not supported for this family")
 		}
 	} else {
-		for _, dst := range t.GetDestinations() {
-			if d := dst.Select(dOption); d != nil {
-				r.setDestination(d)
+		// Iterate with shard-level locking to ensure destination methods
+		// are called while holding the appropriate lock
+		for _, shard := range t.destinations.shards {
+			shard.mu.RLock()
+			for _, dests := range shard.mp {
+				for _, dest := range dests {
+					if d := dest.Select(dOption); d != nil {
+						// setDestination expects to receive destinations that can be
+						// safely stored (snapshots or newly created). Since Select()
+						// returns a new destination, this is safe.
+						r.setDestination(d)
+					}
+				}
 			}
+			shard.mu.RUnlock()
 		}
 	}
 	return r, nil
