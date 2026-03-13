@@ -324,7 +324,9 @@ func TestTableManager_UpdateAndReadRace(t *testing.T) {
 
 					nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 					assert.NoError(t, err)
-					_, err = manager.Tables[bgp.RF_IPv4_UC].Select(TableSelectOption{
+					tbl, ok := manager.GetTable(bgp.RF_IPv4_UC)
+					assert.True(t, ok)
+					_, err = tbl.Select(TableSelectOption{
 						LookupPrefixes: []*apiutil.LookupPrefix{
 							{
 								Prefix: "10.0.0.0/24",
