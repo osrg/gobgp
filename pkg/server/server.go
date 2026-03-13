@@ -2138,6 +2138,10 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 		}
 	}
 
+	if path.Family == 0 {
+		return nil, fmt.Errorf("address family is not set")
+	}
+
 	// TODO (sbezverk) At this poinnt nlri and path attributes are converted to native mode
 	// need to check if update with SR Policy nlri comes with mandatory route distinguisher
 	// extended community or NO_ADVERTISE community, with Tunnel Encapsulation Attribute 23
