@@ -719,3 +719,112 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 	assert.Equal(t, "13.2.5.0/24", update.KnownPathList[2].GetNlri().String())
 	assert.Equal(t, "13.2.8.0/24", update.KnownPathList[3].GetNlri().String())
 }
+
+// TestNHT_InvalidateNewPathWithoutMED reproduces the zebra-nht flaky failure:
+// a locally-added path (no MED) whose nexthop is already unreachable must
+// produce a withdrawal when the nexthop-invalidated clone is fed back through
+// Calculate/GetChanges.
+func TestNHT_InvalidateNewPathWithoutMED(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.2.0/24"))
+
+	// Step 1: local path added via CLI — no MED, no source (nil → localSource)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+	}
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs = append(attrs, nh)
+
+	original := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	// Step 2: path is added to destination (first time — no old entry)
+	d := &destination{nlri: nlri, localIdMap: NewBitmap(64)}
+	d.localIdMap.Flag(0)
+	update1 := d.Calculate(logger, original)
+
+	best1, old1, _ := update1.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	assert.NotNil(t, best1, "new path should become best")
+	assert.Nil(t, old1, "no old path expected")
+	assert.False(t, best1.IsWithdraw, "new path should not be a withdrawal")
+	assert.False(t, best1.IsNexthopInvalid, "new path should be valid")
+
+	// Step 3: clone with IsNexthopInvalid=true (what applyToPathList does)
+	invalidClone := original.Clone(false)
+	invalidClone.IsNexthopInvalid = true
+
+	// Step 4: feed the invalidated clone into Calculate (what updatePath does)
+	update2 := d.Calculate(logger, invalidClone)
+
+	best2, old2, _ := update2.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	assert.NotNil(t, best2, "invalidation should produce a change")
+	assert.NotNil(t, old2, "old path should exist")
+	assert.True(t, best2.IsWithdraw, "invalidated path must produce a withdrawal")
+}
+
+// TestNHT_InvalidateExistingPathWithMED tests the case where a path that
+// already has a MED (from a previous NHT metric) becomes unreachable.
+func TestNHT_InvalidateExistingPathWithMED(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		bgp.NewPathAttributeMultiExitDisc(20),
+	}
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs = append(attrs, nh)
+
+	original := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	d := &destination{nlri: nlri, localIdMap: NewBitmap(64)}
+	d.localIdMap.Flag(0)
+	d.Calculate(logger, original)
+
+	// Invalidate
+	invalidClone := original.Clone(false)
+	invalidClone.IsNexthopInvalid = true
+
+	update := d.Calculate(logger, invalidClone)
+	best, old, _ := update.GetChanges(GLOBAL_RIB_NAME, 0, false)
+
+	assert.NotNil(t, best, "invalidation should produce a change")
+	assert.NotNil(t, old, "old path should exist")
+	assert.True(t, best.IsWithdraw, "invalidated path must produce a withdrawal")
+}
+
+// TestNHT_RevalidatePath tests that a path that was invalid becomes valid
+// again when the nexthop is restored.
+func TestNHT_RevalidatePath(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		bgp.NewPathAttributeMultiExitDisc(20),
+	}
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs = append(attrs, nh)
+
+	original := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	d := &destination{nlri: nlri, localIdMap: NewBitmap(64)}
+	d.localIdMap.Flag(0)
+	d.Calculate(logger, original)
+
+	// Invalidate
+	invalidClone := original.Clone(false)
+	invalidClone.IsNexthopInvalid = true
+	d.Calculate(logger, invalidClone)
+
+	// Revalidate with new MED
+	validClone := invalidClone.Clone(false)
+	validClone.IsNexthopInvalid = false
+	validClone.SetMed(30, true)
+
+	update := d.Calculate(logger, validClone)
+	best, _, _ := update.GetChanges(GLOBAL_RIB_NAME, 0, false)
+
+	assert.NotNil(t, best, "revalidation should produce a change")
+	assert.False(t, best.IsWithdraw, "revalidated path should not be a withdrawal")
+	assert.False(t, best.IsNexthopInvalid, "revalidated path should be valid")
+	med, err := best.GetMed()
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(30), med)
+}
