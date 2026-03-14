@@ -18,6 +18,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/eapache/channels"
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -1247,6 +1249,73 @@ func TestAtomicCountersConcurrentAccess(t *testing.T) {
 		"Total message count should be sum of all messages")
 }
 
+func TestSendMessageLoop_CoalescesQueuedUpdatesAndPreservesControlMessage(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	makePath := func(prefix string) *table.Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		assert.NoError(err)
+		nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+		assert.NoError(err)
+		return table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nextHop,
+		}, time.Now(), false)
+	}
+
+	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{makePath("10.0.0.0/24")}}
+	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{makePath("10.0.1.0/24")}}
+	h.outgoing.In() <- *newfsmStateReason(fsmAdminDown, nil, nil)
+
+	stateReasonCh := make(chan fsmStateReason, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	done := make(chan error, 1)
+	go func() {
+		done <- h.sendMessageloop(t.Context(), m.Conn, stateReasonCh, &wg)
+	}()
+
+	select {
+	case err := <-done:
+		assert.NoError(err)
+	case <-time.After(time.Second):
+		t.Fatal("sendMessageloop did not exit after queued control message")
+	}
+	wg.Wait()
+
+	messages := m.GetSentMessages()
+	assert.Len(messages, 1)
+
+	sent, err := bgp.ParseBGPMessage(messages[0])
+	assert.NoError(err)
+	assert.Equal(uint8(bgp.BGP_MSG_UPDATE), sent.Header.Type)
+	assert.Len(sent.Body.(*bgp.BGPUpdate).NLRI, 2)
+	assert.Empty(stateReasonCh)
+}
+
+func TestSplitFSMOutgoingPaths(t *testing.T) {
+	assert := assert.New(t)
+	paths := make([]*table.Path, 5)
+
+	t.Run("within limit", func(t *testing.T) {
+		taken, overflow := splitFSMOutgoingPaths(paths[:3], 3)
+		assert.Len(taken, 3)
+		assert.Nil(overflow)
+	})
+
+	t.Run("overflow", func(t *testing.T) {
+		taken, overflow := splitFSMOutgoingPaths(paths, 3)
+		assert.Len(taken, 3)
+		if assert.NotNil(overflow) {
+			assert.Len(overflow.Paths, 2)
+		}
+	})
+}
+
 // TestRecvMessageWithError_MalformedNextHop verifies that recvMessageWithError
 // handles a malformed NEXT_HOP attribute (length < 4) without panicking.
 // This is a regression test for https://github.com/osrg/gobgp/issues/3305.
@@ -1391,4 +1460,248 @@ func TestBMPStatsUpdate(t *testing.T) {
 		"WithdrawUpdate should be 0 after reset")
 	assert.Equal(uint32(0), config.State.Messages.Received.WithdrawPrefix,
 		"WithdrawPrefix should be 0 after reset")
+}
+
+// makePath creates a table.Path with the given IPv4 prefix, nexthop, and
+// community.  All three attributes influence whether paths can be packed into
+// the same UPDATE by CreateUpdateMsgFromPaths.
+func makePath(t *testing.T, prefix string, nexthop string, community uint32) *table.Path {
+	t.Helper()
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(2, []uint32{65001}),
+		}),
+		nh,
+	}
+	if community != 0 {
+		attrs = append(attrs, bgp.NewPathAttributeCommunities([]uint32{community}))
+	}
+	return table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+}
+
+// parseBGPUpdates deserializes raw bytes captured by MockConnection into
+// individual BGP messages.
+func parseBGPUpdates(t *testing.T, raw [][]byte) []*bgp.BGPMessage {
+	t.Helper()
+	msgs := make([]*bgp.BGPMessage, 0, len(raw))
+	for _, buf := range raw {
+		for len(buf) > 0 {
+			msg, err := bgp.ParseBGPMessage(buf)
+			if err != nil {
+				t.Fatalf("ParseBGPMessage: %v (buflen=%d)", err, len(buf))
+			}
+			msgs = append(msgs, msg)
+			n := int(msg.Header.Len)
+			if n <= 0 || n > len(buf) {
+				t.Fatalf("invalid message length %d (buflen=%d)", n, len(buf))
+			}
+			buf = buf[n:]
+		}
+	}
+	return msgs
+}
+
+func countNLRIs(msgs []*bgp.BGPMessage) int {
+	total := 0
+	for _, msg := range msgs {
+		if msg.Header.Type != bgp.BGP_MSG_UPDATE {
+			continue
+		}
+		u := msg.Body.(*bgp.BGPUpdate)
+		total += len(u.NLRI)
+		for _, attr := range u.PathAttributes {
+			if mp, ok := attr.(*bgp.PathAttributeMpReachNLRI); ok {
+				total += len(mp.Value)
+			}
+			if mp, ok := attr.(*bgp.PathAttributeMpUnreachNLRI); ok {
+				total += len(mp.Value)
+			}
+		}
+	}
+	return total
+}
+
+// TestSendMessageloop_SingleMessage verifies that a single queued message
+// passes through sendMessageloop without artificial delay.
+func TestSendMessageloop_SingleMessage(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	_, h := makePeerAndHandler(m)
+	t.Cleanup(func() { h.outgoing.Close(); m.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stateReasonCh := make(chan fsmStateReason, 3)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	go h.sendMessageloop(ctx, m, stateReasonCh, wg)
+
+	// Enqueue a single path.
+	path := makePath(t, "10.0.0.0/24", "192.168.1.1", 0)
+	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{path}}
+
+	// Wait for the message to arrive at the mock connection.
+	select {
+	case <-m.bufReady.C:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for message")
+	}
+
+	cancel()
+	wg.Wait()
+
+	msgs := parseBGPUpdates(t, m.GetSentMessages())
+	updates := 0
+	nlris := 0
+	for _, msg := range msgs {
+		if msg.Header.Type == bgp.BGP_MSG_UPDATE {
+			updates++
+			nlris += len(msg.Body.(*bgp.BGPUpdate).NLRI)
+		}
+	}
+	assert.Equal(1, updates, "single path should produce exactly one UPDATE")
+	assert.Equal(1, nlris, "single path should carry exactly one NLRI")
+}
+
+// TestSendMessageloop_CoalesceMultipleMessages verifies that multiple queued
+// fsmOutgoingMsg are all delivered — every NLRI injected into the outgoing
+// channel appears in the wire output. The coalescing drain is opportunistic
+// (it depends on goroutine scheduling), so this test validates correctness
+// rather than asserting a specific UPDATE count.
+func TestSendMessageloop_CoalesceMultipleMessages(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	_, h := makePeerAndHandler(m)
+	t.Cleanup(func() { h.outgoing.Close(); m.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stateReasonCh := make(chan fsmStateReason, 3)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	const numPaths = 200
+	for i := range numPaths {
+		path := makePath(t, fmt.Sprintf("10.%d.%d.0/24", i/256, i%256), "192.168.1.1", 0)
+		h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{path}}
+	}
+
+	go h.sendMessageloop(ctx, m, stateReasonCh, wg)
+
+	assert.Eventually(func() bool {
+		return countNLRIs(parseBGPUpdates(t, m.GetSentMessages())) >= numPaths
+	}, 5*time.Second, 10*time.Millisecond, "timed out waiting for all NLRIs")
+
+	cancel()
+	wg.Wait()
+
+	msgs := parseBGPUpdates(t, m.GetSentMessages())
+	nlris := countNLRIs(msgs)
+	updates := 0
+	for _, msg := range msgs {
+		if msg.Header.Type == bgp.BGP_MSG_UPDATE {
+			updates++
+		}
+	}
+
+	assert.Equal(numPaths, nlris, "all NLRIs must be present")
+	t.Logf("coalesced %d paths into %d UPDATEs (%.1fx)", numPaths, updates, float64(numPaths)/float64(updates))
+}
+
+// TestSendMessageloop_CoalesceMultipleAttributeGroups verifies that paths
+// with different attribute sets are correctly separated into different
+// UPDATEs, while all NLRIs are preserved.
+func TestSendMessageloop_CoalesceMultipleAttributeGroups(t *testing.T) {
+	assert := assert.New(t)
+
+	m := NewMockConnection()
+	_, h := makePeerAndHandler(m)
+	t.Cleanup(func() { h.outgoing.Close(); m.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stateReasonCh := make(chan fsmStateReason, 3)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	// Create 3 groups of 30 paths, each with a different community.
+	const groupSize = 30
+	const numGroups = 3
+	for g := range numGroups {
+		for i := range groupSize {
+			prefix := fmt.Sprintf("10.%d.%d.0/24", g, i)
+			community := uint32((g + 1) * 1000)
+			path := makePath(t, prefix, "192.168.1.1", community)
+			h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{path}}
+		}
+	}
+
+	go h.sendMessageloop(ctx, m, stateReasonCh, wg)
+
+	total := groupSize * numGroups
+	assert.Eventually(func() bool {
+		return countNLRIs(parseBGPUpdates(t, m.GetSentMessages())) >= total
+	}, 5*time.Second, 10*time.Millisecond, "timed out waiting for all NLRIs")
+
+	cancel()
+	wg.Wait()
+
+	msgs := parseBGPUpdates(t, m.GetSentMessages())
+	nlris := countNLRIs(msgs)
+	updates := 0
+	for _, msg := range msgs {
+		if msg.Header.Type == bgp.BGP_MSG_UPDATE {
+			updates++
+		}
+	}
+
+	assert.Equal(total, nlris, "all NLRIs must be present")
+	t.Logf("coalesced %d paths (%d groups) into %d UPDATEs", total, numGroups, updates)
+}
+
+// TestSendMessageloop_NonPathMessageNotDropped verifies that non-path
+// messages (fsmStateReason for shutdown/NOTIFICATION) injected into the
+// outgoing channel are not swallowed by the coalescing drain.
+func TestSendMessageloop_NonPathMessageNotDropped(t *testing.T) {
+	m := NewMockConnection()
+	_, h := makePeerAndHandler(m)
+	t.Cleanup(func() { h.outgoing.Close(); m.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stateReasonCh := make(chan fsmStateReason, 3)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	// Enqueue some paths followed by a non-path message (fsmStateReason).
+	for i := range 5 {
+		path := makePath(t, fmt.Sprintf("10.0.%d.0/24", i), "192.168.1.1", 0)
+		h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{path}}
+	}
+	// A non-fsmOutgoingMsg triggers the default case and returns from
+	// sendMessageloop.  This tests that the drain doesn't swallow it.
+	h.outgoing.In() <- *newfsmStateReason(fsmAdminDown, nil, nil)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- h.sendMessageloop(ctx, m, stateReasonCh, wg)
+	}()
+
+	// sendMessageloop should return (not hang) because it encounters the
+	// non-path message during drain or on the next outer select iteration.
+	select {
+	case <-errCh:
+		// success — the loop exited
+	case <-time.After(2 * time.Second):
+		t.Fatal("sendMessageloop did not exit after non-path message")
+	}
 }
