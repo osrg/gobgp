@@ -17,6 +17,7 @@ package server
 
 import (
 	"log/slog"
+	"math"
 	"net/netip"
 	"testing"
 	"time"
@@ -137,4 +138,79 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		assert.True(pp.IsFromExternal())
 		assert.True(pp.IsWithdraw)
 	}
+}
+
+func TestApplyToPathList_UnreachableNoMED(t *testing.T) {
+	// Simulates the zebra-nht scenario: a path with no MED and an
+	// unreachable nexthop should get IsNexthopInvalid=true.
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.2.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	cache := nexthopStateCache{
+		"10.3.1.1": math.MaxUint32, // unreachable
+	}
+
+	updated := cache.applyToPathList([]*table.Path{path})
+	assert.Len(updated, 1)
+	assert.True(updated[0].IsNexthopInvalid)
+	assert.False(updated[0].IsWithdraw)
+
+	// Applying again should produce no updates (idempotent)
+	updated2 := cache.applyToPathList(updated)
+	assert.Len(updated2, 0, "applying to already-invalid path should be a no-op")
+}
+
+func TestApplyToPathList_ReachableSetsMED(t *testing.T) {
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	cache := nexthopStateCache{
+		"10.3.1.1": 20, // reachable, metric=20
+	}
+
+	updated := cache.applyToPathList([]*table.Path{path})
+	assert.Len(updated, 1)
+	assert.False(updated[0].IsNexthopInvalid)
+	med, err := updated[0].GetMed()
+	assert.NoError(err)
+	assert.Equal(uint32(20), med)
+
+	// Applying again should be a no-op
+	updated2 := cache.applyToPathList(updated)
+	assert.Len(updated2, 0, "applying same metric should be a no-op")
+}
+
+func TestApplyToPathList_TransitionReachableToUnreachable(t *testing.T) {
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		bgp.NewPathAttributeMultiExitDisc(20),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	cache := nexthopStateCache{
+		"10.3.1.1": math.MaxUint32, // now unreachable
+	}
+
+	updated := cache.applyToPathList([]*table.Path{path})
+	assert.Len(updated, 1)
+	assert.True(updated[0].IsNexthopInvalid)
 }

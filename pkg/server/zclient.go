@@ -47,10 +47,13 @@ func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 			continue
 		}
 		isNexthopInvalid := metric == math.MaxUint32
+		if isNexthopInvalid && path.IsNexthopInvalid {
+			// Path is already correctly marked as invalid; nothing to do.
+			continue
+		}
 		med, err := path.GetMed()
-		if err == nil && med == metric && path.IsNexthopInvalid == isNexthopInvalid {
-			// If the nexthop state of the given path is already up to date,
-			// skips this path.
+		if !isNexthopInvalid && err == nil && med == metric && !path.IsNexthopInvalid {
+			// Path MED already reflects the current nexthop metric; nothing to do.
 			continue
 		}
 		newPath := path.Clone(false)
