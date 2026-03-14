@@ -816,7 +816,8 @@ func TestNHT_RevalidatePath(t *testing.T) {
 	// Revalidate with new MED
 	validClone := invalidClone.Clone(false)
 	validClone.IsNexthopInvalid = false
-	validClone.SetMed(30, true)
+	err := validClone.SetMed(30, true)
+	assert.NoError(t, err)
 
 	update := d.Calculate(logger, validClone)
 	best, _, _ := update.GetChanges(GLOBAL_RIB_NAME, 0, false)
