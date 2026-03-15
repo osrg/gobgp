@@ -136,8 +136,20 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 	}
 }
 
+// destination represents a BGP destination (prefix) and its associated paths.
+//
+// LOCKING STRATEGY:
+//   - Active destinations (stored in table shards) require the appropriate shard lock
+//     to be held when accessing or modifying knownPathList or localIdMap.
+//   - Snapshot destinations (created via snapshot()) are immutable copies that can be
+//     safely used without locks. They are created while holding the shard lock and
+//     contain a copied knownPathList.
+//   - Methods document whether they require locks for active destinations. All methods
+//     that read knownPathList are safe on snapshots without locks.
+//   - Methods that modify state (e.g., Calculate) must NEVER be called on snapshots
+//     and ALWAYS require the caller to hold the shard lock.
 type destination struct {
-	nlri          bgp.NLRI
+	nlri          bgp.NLRI // not mutable
 	knownPathList []*Path
 	localIdMap    *Bitmap
 }
@@ -155,12 +167,25 @@ func newDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *destination {
 	return d
 }
 
+// no need to lock here as nlri is not mutable
 func (dd *destination) GetNlri() bgp.NLRI {
 	return dd.nlri
 }
 
+// snapshot returns a stable copy of the destination state.
+// Caller must hold the appropriate shard lock when calling this on an active destination.
+// The returned snapshot can be used safely without locks.
+func (dd *destination) snapshot() *destination {
+	return newDestination(dd.nlri, 0, dd.GetAllKnownPathList()...)
+}
+
+// GetAllKnownPathList returns a copy of the known path list.
+// When called on an active (non-snapshot) destination, caller must hold the appropriate shard lock.
+// When called on a snapshot destination, no lock is required as the data is already a stable copy.
 func (dd *destination) GetAllKnownPathList() []*Path {
-	return dd.knownPathList
+	l := make([]*Path, len(dd.knownPathList))
+	copy(l, dd.knownPathList)
+	return l
 }
 
 func rsFilter(id string, as uint32, path *Path) bool {
@@ -171,6 +196,9 @@ func rsFilter(id string, as uint32, path *Path) bool {
 	return id != GLOBAL_RIB_NAME && (path.GetSource().Address.String() == id || isASLoop(as, path))
 }
 
+// GetKnownPathList returns filtered path list.
+// When called on an active (non-snapshot) destination, caller must hold the appropriate shard lock.
+// When called on a snapshot destination, no lock is required as the data is already a stable copy.
 func (dd *destination) GetKnownPathList(id string, as uint32) []*Path {
 	list := make([]*Path, 0, len(dd.knownPathList))
 	for _, p := range dd.knownPathList {
@@ -180,6 +208,13 @@ func (dd *destination) GetKnownPathList(id string, as uint32) []*Path {
 		list = append(list, p)
 	}
 	return list
+}
+
+// GetKnownPathListLength returns the count of known paths.
+// When called on an active (non-snapshot) destination, caller must hold the appropriate shard lock.
+// When called on a snapshot destination, no lock is required as the data is already a stable copy.
+func (dd *destination) GetKnownPathListLength() int {
+	return len(dd.knownPathList)
 }
 
 func getBestPath(id string, as uint32, pathList []*Path) *Path {
@@ -192,6 +227,9 @@ func getBestPath(id string, as uint32, pathList []*Path) *Path {
 	return nil
 }
 
+// GetBestPath returns the best path for the given ID and AS.
+// When called on an active (non-snapshot) destination, caller must hold the appropriate shard lock.
+// When called on a snapshot destination, no lock is required as the data is already a stable copy.
 func (dd *destination) GetBestPath(id string, as uint32) *Path {
 	p := getBestPath(id, as, dd.knownPathList)
 	if p == nil || p.IsNexthopInvalid {
@@ -200,14 +238,18 @@ func (dd *destination) GetBestPath(id string, as uint32) *Path {
 	return p
 }
 
+// GetMultiBestPath returns multiple best paths.
+// When called on an active (non-snapshot) destination, caller must hold the appropriate shard lock.
+// When called on a snapshot destination, no lock is required as the data is already a stable copy.
 func (dd *destination) GetMultiBestPath(id string) []*Path {
 	return getMultiBestPath(id, dd.knownPathList)
 }
 
-// Calculates best-path among known paths for this destination.
-//
+// Calculate computes best-path among known paths for this destination.
 // Modifies destination's state related to stored paths. Removes withdrawn
 // paths from known paths. Also, adds new paths to known paths.
+// INTERNAL USE ONLY: Caller MUST hold the appropriate shard lock.
+// This method must NEVER be called on snapshot destinations.
 func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
 	oldKnownPathList := make([]*Path, len(dest.knownPathList))
 	copy(oldKnownPathList, dest.knownPathList)
@@ -816,6 +858,10 @@ func (d *destination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.GetAllKnownPathList())
 }
 
+// Select filters and returns a new destination with selected paths based on the given options.
+// When called on an active (non-snapshot) destination, caller must hold the appropriate shard lock.
+// When called on a snapshot destination, no lock is required as the data is already a stable copy.
+// Returns a newly created destination, never modifies the receiver.
 func (d *destination) Select(option ...DestinationSelectOption) *destination {
 	id := GLOBAL_RIB_NAME
 	var vrf *Vrf
@@ -837,6 +883,7 @@ func (d *destination) Select(option ...DestinationSelectOption) *destination {
 	}
 	var paths []*Path
 	if adj {
+		// adj mode: caller must hold lock if this is an active destination
 		paths = make([]*Path, len(d.knownPathList))
 		copy(paths, d.knownPathList)
 	} else {

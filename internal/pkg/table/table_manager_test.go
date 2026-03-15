@@ -1925,7 +1925,8 @@ func TestProcessBGPUpdate_multiple_nlri_ipv4(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check table
-	table := tm.Tables[bgp.RF_IPv4_UC]
+	table, ok := tm.GetTable(bgp.RF_IPv4_UC)
+	assert.True(t, ok)
 	assert.Equal(t, 13, len(table.GetDestinations()))
 }
 
@@ -2074,7 +2075,8 @@ func TestProcessBGPUpdate_multiple_nlri_ipv6(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check table
-	table := tm.Tables[bgp.RF_IPv6_UC]
+	table, ok := tm.GetTable(bgp.RF_IPv6_UC)
+	assert.True(t, ok)
 	assert.Equal(t, 13, len(table.GetDestinations()))
 }
 
@@ -2363,7 +2365,8 @@ func addVrf(t *testing.T, tm *TableManager, peerInfo *PeerInfo, vrfName, rdStr s
 		tm.Update(outputRt)
 	}
 
-	return tm.Vrfs[vrfName]
+	vrf, _ := tm.GetVrf(vrfName)
+	return vrf
 }
 
 func TestVRF(t *testing.T) {
