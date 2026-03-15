@@ -67,7 +67,8 @@ func TestTableDeleteDest(t *testing.T) {
 	}
 	dest := newDestination(pathT[0].GetNlri(), 0)
 	ipv4t.setDestination(dest)
-	ipv4t.deleteDest(dest)
+	// Test deletion by removing directly
+	ipv4t.destinations.Remove(pathT[0].GetNlri())
 	gdest := ipv4t.GetDestination(pathT[0].GetNlri())
 	assert.Nil(t, gdest)
 }
@@ -83,9 +84,13 @@ func TestTableDestinationsCollision(t *testing.T) {
 	pathT := TableCreatePath(peerT)
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 
+	// Fake a collision by inserting a destination with different NLRI but same hash key
 	k := tableKey(pathT[0].GetNlri())
-	// fake an entry
-	ipv4t.destinations[k] = []*destination{{nlri: pathT[1].GetNlri()}}
+	shard := ipv4t.destinations.getShard(pathT[0].GetNlri())
+	shard.mu.Lock()
+	shard.mp[k] = []*destination{newDestination(pathT[1].GetNlri(), 0)}
+	shard.mu.Unlock()
+
 	for _, path := range pathT {
 		dest := newDestination(path.GetNlri(), 0)
 		ipv4t.setDestination(dest)
