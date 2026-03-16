@@ -218,6 +218,34 @@ func (adj *AdjRib) walk(families []bgp.Family, fn func(*destination) bool) {
 	}
 }
 
+func (adj *AdjRib) walkActive(families []bgp.Family, fn func(*destination) bool) {
+	for _, f := range families {
+		t, ok := adj.table[f]
+		if !ok {
+			continue
+		}
+		for _, shard := range t.destinations.shards {
+			shard.mu.Lock()
+			stop := false
+			for _, dests := range shard.mp {
+				for _, d := range dests {
+					if fn(d) {
+						stop = true
+						break
+					}
+				}
+				if stop {
+					break
+				}
+			}
+			shard.mu.Unlock()
+			if stop {
+				return
+			}
+		}
+	}
+}
+
 func (adj *AdjRib) PathList(rfList []bgp.Family, accepted bool) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	adj.walk(rfList, func(d *destination) bool {
@@ -286,7 +314,7 @@ func (adj *AdjRib) DropStale(rfList []bgp.Family) []*Path {
 
 func (adj *AdjRib) StaleAll(rfList []bgp.Family) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
-	adj.walk(rfList, func(d *destination) bool {
+	adj.walkActive(rfList, func(d *destination) bool {
 		for i, p := range d.knownPathList {
 			n := p.Clone(false)
 			n.MarkStale(true)
@@ -303,7 +331,7 @@ func (adj *AdjRib) StaleAll(rfList []bgp.Family) []*Path {
 
 func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.Family) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
-	adj.walk(rfList, func(d *destination) bool {
+	adj.walkActive(rfList, func(d *destination) bool {
 		for i, p := range d.knownPathList {
 			if p.HasNoLLGR() {
 				n := p.Clone(true)

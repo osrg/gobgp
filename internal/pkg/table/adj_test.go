@@ -24,6 +24,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateAdjTable(t *testing.T) {
@@ -172,6 +173,18 @@ func TestLLGRStale(t *testing.T) {
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
 	assert.Equal(t, adj.Accepted([]bgp.Family{family}), 1)
 	assert.Equal(t, 2, len(adj.table[family].GetDestinations()))
+
+	retained := adj.PathList([]bgp.Family{family}, false)
+	require.Len(t, retained, 2)
+	var retainedRejected *Path
+	for _, p := range retained {
+		if p.IsRejected() {
+			retainedRejected = p
+			break
+		}
+	}
+	require.NotNil(t, retainedRejected)
+	assert.Contains(t, retainedRejected.GetCommunities(), uint32(bgp.COMMUNITY_LLGR_STALE))
 }
 
 func TestAdjRTC(t *testing.T) {
