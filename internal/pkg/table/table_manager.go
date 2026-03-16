@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dgryski/go-farm"
@@ -142,11 +143,12 @@ func makeAttributeList(
 }
 
 type TableManager struct {
-	mu     sync.RWMutex // protects tables and vrfs maps
-	tables map[bgp.Family]*Table
-	vrfs   map[string]*Vrf
-	rfList []bgp.Family
-	logger *slog.Logger
+	mu             sync.RWMutex // protects tables and vrfs maps
+	tables         map[bgp.Family]*Table
+	vrfs           map[string]*Vrf
+	rfList         []bgp.Family
+	maxPathCounted atomic.Uint64
+	logger         *slog.Logger
 }
 
 func NewTableManager(logger *slog.Logger, rfList []bgp.Family) *TableManager {
@@ -337,14 +339,19 @@ func (manager *TableManager) getTables(list ...bgp.Family) []*Table {
 	return l
 }
 
-// getDestinationCount returns the total number of destinations in the tables for the given routing families.
-// must be called under read lock
-func (manager *TableManager) getDestinationCount(rfList []bgp.Family) int {
-	count := 0
-	for _, t := range manager.getTables(rfList...) {
-		count += len(t.GetDestinations())
+// updateMaxPathCounted updates the estimated maximum number of paths counted.
+func (manager *TableManager) updateMaxPathCounted(pathCount int) {
+	count := manager.maxPathCounted.Load()
+	if count < uint64(pathCount) {
+		manager.maxPathCounted.Store(uint64(pathCount))
+		return
 	}
-	return count
+	// save half of the last maximum counted number of paths as the new limit
+	// to avoid unlimited maximum path count growth for life time of the process
+	if uint64(pathCount) < count/2 {
+		manager.maxPathCounted.Store(count / 2)
+		return
+	}
 }
 
 func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.Family) []*Path {
@@ -356,10 +363,11 @@ func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.
 	manager.mu.RLock()
 	defer manager.mu.RUnlock()
 
-	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	paths := make([]*Path, 0, manager.maxPathCounted.Load())
 	for _, t := range manager.getTables(rfList...) {
 		paths = append(paths, t.Bests(id, as)...)
 	}
+	manager.updateMaxPathCounted(len(paths))
 	return paths
 }
 
@@ -373,10 +381,11 @@ func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.Family
 	manager.mu.RLock()
 	defer manager.mu.RUnlock()
 
-	paths := make([][]*Path, 0, manager.getDestinationCount(rfList))
+	paths := make([][]*Path, 0, manager.maxPathCounted.Load())
 	for _, t := range manager.getTables(rfList...) {
 		paths = append(paths, t.MultiBests(id)...)
 	}
+	manager.updateMaxPathCounted(len(paths))
 	return paths
 }
 
@@ -384,10 +393,11 @@ func (manager *TableManager) GetPathList(id string, as uint32, rfList []bgp.Fami
 	manager.mu.RLock()
 	defer manager.mu.RUnlock()
 
-	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	paths := make([]*Path, 0, manager.maxPathCounted.Load())
 	for _, t := range manager.getTables(rfList...) {
 		paths = append(paths, t.GetKnownPathList(id, as)...)
 	}
+	manager.updateMaxPathCounted(len(paths))
 	return paths
 }
 
@@ -395,10 +405,11 @@ func (manager *TableManager) GetPathListWithMac(id string, as uint32, rfList []b
 	manager.mu.RLock()
 	defer manager.mu.RUnlock()
 
-	var paths []*Path
+	paths := make([]*Path, 0, manager.maxPathCounted.Load())
 	for _, t := range manager.getTables(rfList...) {
 		paths = append(paths, t.GetKnownPathListWithMac(id, as, rt, mac, false)...)
 	}
+	manager.updateMaxPathCounted(len(paths))
 	return paths
 }
 
@@ -406,7 +417,7 @@ func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Fami
 	manager.mu.RLock()
 	defer manager.mu.RUnlock()
 
-	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	paths := make([]*Path, 0, manager.maxPathCounted.Load())
 	for _, rf := range rfList {
 		if t, ok := manager.tables[rf]; ok {
 			for _, path := range t.GetKnownPathList(id, 0) {
@@ -416,6 +427,7 @@ func (manager *TableManager) GetPathListWithNexthop(id string, rfList []bgp.Fami
 			}
 		}
 	}
+	manager.updateMaxPathCounted(len(paths))
 	return paths
 }
 
@@ -423,7 +435,7 @@ func (manager *TableManager) GetPathListWithSource(id string, rfList []bgp.Famil
 	manager.mu.RLock()
 	defer manager.mu.RUnlock()
 
-	paths := make([]*Path, 0, manager.getDestinationCount(rfList))
+	paths := make([]*Path, 0, manager.maxPathCounted.Load())
 	for _, rf := range rfList {
 		if t, ok := manager.tables[rf]; ok {
 			for _, path := range t.GetKnownPathList(id, 0) {
@@ -433,6 +445,7 @@ func (manager *TableManager) GetPathListWithSource(id string, rfList []bgp.Famil
 			}
 		}
 	}
+	manager.updateMaxPathCounted(len(paths))
 	return paths
 }
 

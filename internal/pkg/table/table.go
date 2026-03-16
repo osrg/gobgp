@@ -161,19 +161,23 @@ func (d *Destinations) iterateAllDestinations(fn func(*destination)) {
 }
 
 // getAllDestinations returns all destinations across all shards.
-// Returns the total count and a slice of destinations.
-func (d *Destinations) getAllDestinations() ([]*destination, int) {
-	count := 0
-	result := make([]*destination, 0, count)
+// Returns a slice of destinations.
+func (d *Destinations) getAllDestinations() []*destination {
+	destCount := 0
 	for _, shard := range d.shards {
 		for _, dests := range shard.mp {
-			count += len(dests)
+			destCount += len(dests)
+		}
+	}
+	result := make([]*destination, 0, destCount)
+	for _, shard := range d.shards {
+		for _, dests := range shard.mp {
 			for _, dest := range dests {
 				result = append(result, dest.snapshot())
 			}
 		}
 	}
-	return result, count
+	return result
 }
 
 func (d *Destinations) Get(nlri bgp.NLRI) *destination {
@@ -517,15 +521,11 @@ func (t *Table) update(newPath *Path) *Update {
 // The snapshots are created while holding all shard locks, then the locks are released.
 // The returned snapshots can be safely used without holding locks.
 // This is safe for iteration but may be expensive for large tables.
-func (t *Table) GetDestinations(size ...*int) []*destination {
+func (t *Table) GetDestinations() []*destination {
 	t.destinations.RLock()
 	defer t.destinations.RUnlock()
 
-	d, count := t.destinations.getAllDestinations()
-	if len(size) > 0 {
-		*size[0] = count
-	}
-	return d
+	return t.destinations.getAllDestinations()
 }
 
 // GetDestination returns a snapshot of the destination for the given NLRI.
