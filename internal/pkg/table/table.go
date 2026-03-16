@@ -123,61 +123,18 @@ func (d *Destinations) getShard(nlri bgp.NLRI) *destinationShard {
 	return d.shards[uint32(key)&(destinationShardCount-1)]
 }
 
-// Legacy lock methods for operations that need to lock all shards (e.g., iteration)
-func (d *Destinations) Lock() {
-	for _, shard := range d.shards {
-		shard.mu.Lock()
-	}
-}
-
-func (d *Destinations) Unlock() {
-	for _, shard := range d.shards {
-		shard.mu.Unlock()
-	}
-}
-
-func (d *Destinations) RLock() {
-	for _, shard := range d.shards {
-		shard.mu.RLock()
-	}
-}
-
-func (d *Destinations) RUnlock() {
-	for _, shard := range d.shards {
-		shard.mu.RUnlock()
-	}
-}
-
 // iterateAllDestinations calls fn for each destination across all shards.
-// Caller must hold appropriate locks (RLock for all shards).
+// Rlock will be hold per shard during the call of fn callback.
 func (d *Destinations) iterateAllDestinations(fn func(*destination)) {
 	for _, shard := range d.shards {
+		shard.mu.RLock()
 		for _, dests := range shard.mp {
 			for _, dest := range dests {
 				fn(dest)
 			}
 		}
+		shard.mu.RUnlock()
 	}
-}
-
-// getAllDestinations returns all destinations across all shards.
-// Returns a slice of destinations.
-func (d *Destinations) getAllDestinations() []*destination {
-	destCount := 0
-	for _, shard := range d.shards {
-		for _, dests := range shard.mp {
-			destCount += len(dests)
-		}
-	}
-	result := make([]*destination, 0, destCount)
-	for _, shard := range d.shards {
-		for _, dests := range shard.mp {
-			for _, dest := range dests {
-				result = append(result, dest.snapshot())
-			}
-		}
-	}
-	return result
 }
 
 func (d *Destinations) Get(nlri bgp.NLRI) *destination {
@@ -333,9 +290,6 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 		return nil
 	}
 
-	t.destinations.RLock()
-	defer t.destinations.RUnlock()
-
 	pathList := make([]*Path, 0)
 	t.destinations.iterateAllDestinations(func(dest *destination) {
 		for _, p := range dest.knownPathList {
@@ -361,9 +315,6 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 }
 
 func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
-	t.destinations.RLock()
-	defer t.destinations.RUnlock()
-
 	pathList := make([]*Path, 0)
 	if t.Family != bgp.RF_RTC_UC {
 		return pathList
@@ -518,14 +469,15 @@ func (t *Table) update(newPath *Path) *Update {
 }
 
 // GetDestinations returns snapshots of all destinations in the table.
-// The snapshots are created while holding all shard locks, then the locks are released.
+// The snapshots are created while holding shard lock, then the locks are released.
 // The returned snapshots can be safely used without holding locks.
 // This is safe for iteration but may be expensive for large tables.
 func (t *Table) GetDestinations() []*destination {
-	t.destinations.RLock()
-	defer t.destinations.RUnlock()
-
-	return t.destinations.getAllDestinations()
+	destinations := make([]*destination, 0)
+	t.destinations.iterateAllDestinations(func(dest *destination) {
+		destinations = append(destinations, dest.snapshot())
+	})
+	return destinations
 }
 
 // GetDestination returns a snapshot of the destination for the given NLRI.
@@ -1093,10 +1045,8 @@ func (t *Table) Info(option ...TableInfoOptions) *TableInfo {
 		as = o.AS
 	}
 
-	t.destinations.RLock()
-	defer t.destinations.RUnlock()
-
 	for _, shard := range t.destinations.shards {
+		shard.mu.RLock()
 		for _, dests := range shard.mp {
 			if len(dests) > 1 {
 				numC += len(dests) - 1
@@ -1120,6 +1070,7 @@ func (t *Table) Info(option ...TableInfoOptions) *TableInfo {
 				}
 			}
 		}
+		shard.mu.RUnlock()
 	}
 	return &TableInfo{
 		NumDestination: numD,
