@@ -378,9 +378,9 @@ func (t *Table) validatePath(path *Path) {
 	}
 }
 
-// getOrCreateDestLocked gets or creates a destination while holding the shard lock.
+// getOrCreateDest gets or creates a destination while holding the shard lock.
 // Caller must hold the shard lock before calling this.
-func (t *Table) getOrCreateDestLocked(shard *destinationShard, nlri bgp.NLRI, size int) *destination {
+func (t *Table) getOrCreateDest(shard *destinationShard, nlri bgp.NLRI, size int) *destination {
 	key := tableKey(nlri)
 
 	// Check if destination already exists
@@ -401,9 +401,9 @@ func (t *Table) getOrCreateDestLocked(shard *destinationShard, nlri bgp.NLRI, si
 	return dest
 }
 
-// deleteDestLocked removes a destination from the shard.
+// deleteDest removes a destination from the shard.
 // Caller must hold the shard lock before calling this.
-func (t *Table) deleteDestLocked(shard *destinationShard, dest *destination) {
+func (t *Table) deleteDest(shard *destinationShard, dest *destination) {
 	count := 0
 	for _, v := range dest.localIdMap.bitmap {
 		count += bits.OnesCount64(v)
@@ -449,11 +449,11 @@ func (t *Table) update(newPath *Path) *Update {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
-	dst := t.getOrCreateDestLocked(shard, nlri, 64)
+	dst := t.getOrCreateDest(shard, nlri, 64)
 	u := dst.Calculate(t.logger, newPath)
 
 	if len(dst.knownPathList) == 0 {
-		t.deleteDestLocked(shard, dst)
+		t.deleteDest(shard, dst)
 		return u
 	}
 

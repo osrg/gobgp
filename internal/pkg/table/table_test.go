@@ -70,7 +70,7 @@ func TestTableDeleteDest(t *testing.T) {
 	// Test deletion by removing directly
 	shard := ipv4t.destinations.getShard(pathT[0].GetNlri())
 	shard.mu.Lock()
-	ipv4t.deleteDestLocked(shard, dest)
+	ipv4t.deleteDest(shard, dest)
 	shard.mu.Unlock()
 	gdest := ipv4t.GetDestination(pathT[0].GetNlri())
 	assert.Nil(t, gdest)
@@ -86,7 +86,7 @@ func TestTableDeleteDestKeepsDestinationWhilePathIDsReserved(t *testing.T) {
 
 	shard := ipv4t.destinations.getShard(nlri)
 	shard.mu.Lock()
-	ipv4t.deleteDestLocked(shard, dest)
+	ipv4t.deleteDest(shard, dest)
 	shard.mu.Unlock()
 
 	gdest := ipv4t.GetDestination(nlri)
