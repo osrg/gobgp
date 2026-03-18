@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -3122,12 +3123,12 @@ func TestWatchEvent(test *testing.T) {
 	assert.NoError(err)
 	watchers.Wait(test, 10*time.Second)
 
-	count := 0
+	var count atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	tableCh := make(chan struct{})
 	f := func(paths []*apiutil.Path, _ time.Time) {
-		count += len(paths)
-		if len(paths) > 0 && count == 2 {
+		count.Add(int32(len(paths)))
+		if len(paths) > 0 && count.Load() == 2 {
 			cancel()
 			close(tableCh)
 		}
@@ -3139,7 +3140,7 @@ func TestWatchEvent(test *testing.T) {
 	}, opts...)
 	assert.NoError(err)
 	<-tableCh
-	assert.Equal(2, count)
+	assert.Equal(int32(2), count.Load())
 }
 
 func TestAddDefinedSetReplace(t *testing.T) {
