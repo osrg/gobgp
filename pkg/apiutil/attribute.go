@@ -1142,11 +1142,14 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		}
 		var linkReservableBandwidth *float32
 		if a.Link.ReservableBandwidth != 0 {
-			linkBandwidth = &a.Link.ReservableBandwidth
+			rb := a.Link.ReservableBandwidth
+			linkReservableBandwidth = &rb
 		}
 		var unreservedBandwidth *[8]float32
-		if a.Link.UnreservedBandwidth != nil {
-			copy(unreservedBandwidth[:], a.Link.UnreservedBandwidth)
+		if len(a.Link.UnreservedBandwidth) > 0 {
+			var ub [8]float32
+			copy(ub[:], a.Link.UnreservedBandwidth)
+			unreservedBandwidth = &ub
 		}
 		var linkSrlgs *[]uint32
 		if a.Link.Srlgs != nil {
