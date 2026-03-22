@@ -1813,19 +1813,21 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 					handling := fmsg.handling
 					useRevisedError := h.fsm.isTreatAsWithdraw
 
+					var validationErr error
 					if handling == bgp.ERROR_HANDLING_NONE {
-						ok, err := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)
+						ok, ve := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)
 						if !ok {
-							handling = h.handlingError(m, err, useRevisedError)
+							validationErr = ve
+							handling = h.handlingError(m, ve, useRevisedError)
 							fmsg.handling = handling
 						}
 					}
 					if handling == bgp.ERROR_HANDLING_SESSION_RESET {
 						h.fsm.logger.Warn("Session will be reset due to malformed BGP update message",
 							slog.String("State", h.fsm.state.String()),
-							slog.String("Error", err.Error()))
-						fmsg.MsgData = err
-						m := err.(*bgp.MessageError)
+							slog.String("Error", validationErr.Error()))
+						fmsg.MsgData = validationErr
+						m := validationErr.(*bgp.MessageError)
 						nonblockSendChannel(h.fsm.notification, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
 						return
 					}
@@ -1958,7 +1960,7 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 		case <-ctx.Done():
 			var m *bgp.BGPMessage
 			select {
-			case m := <-fsm.deconfiguredNotification:
+			case m = <-fsm.deconfiguredNotification:
 				m = convertNotification(m)
 				_ = fsm.sendNotification(fsm.conn, m)
 			default:
