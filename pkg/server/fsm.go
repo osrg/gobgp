@@ -1664,9 +1664,11 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 		case <-ticker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
-			// TODO: check error
 			fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
-			fsm.conn.Write(b)
+			if _, err := fsm.conn.Write(b); err != nil {
+				fsm.conn.Close()
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
+			}
 			fsm.bgpMessageStateUpdate(m.Header.Type, false)
 		case e := <-recvChan:
 			switch m := e.MsgData.(type) {
