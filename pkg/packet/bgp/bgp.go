@@ -5161,6 +5161,9 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVIPv6NeighborAddr{}
 
 		default:
+			if uint16(sub.Len()) > l.Length {
+				return malformedAttrListErr("sub-TLV length exceeds parent TLV length")
+			}
 			tlv = tlv[sub.Len():]
 			l.Length -= uint16(sub.Len())
 			continue
@@ -5307,6 +5310,9 @@ func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVIPReachability{}
 
 		default:
+			if uint16(sub.Len()) > l.Length {
+				return malformedAttrListErr("sub-TLV length exceeds parent TLV length")
+			}
 			tlv = tlv[sub.Len():]
 			l.Length -= uint16(sub.Len())
 			continue
@@ -5480,6 +5486,9 @@ func (l *LsPrefixV6NLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVIPReachability{}
 
 		default:
+			if uint16(sub.Len()) > l.Length {
+				return malformedAttrListErr("sub-TLV length exceeds parent TLV length")
+			}
 			tlv = tlv[sub.Len():]
 			l.Length -= uint16(sub.Len())
 			continue
@@ -9812,6 +9821,9 @@ func (l *LsTLVNodeDescriptor) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVBgpConfederationMember{}
 
 		default:
+			if uint16(sub.Len()) > l.Length {
+				return malformedAttrListErr("sub-TLV length exceeds parent TLV length")
+			}
 			tlv = tlv[sub.Len():]
 			l.Length -= uint16(sub.Len())
 			continue
