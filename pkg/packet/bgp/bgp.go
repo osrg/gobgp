@@ -15279,6 +15279,7 @@ func (p *PathAttributeAigp) DecodeFromBytes(data []byte, options ...*Marshalling
 	if err != nil {
 		return err
 	}
+	var values []AigpTLVInterface
 	for len(value) > 3 {
 		typ := value[0]
 		length := binary.BigEndian.Uint16(value[1:3])
@@ -15286,18 +15287,18 @@ func (p *PathAttributeAigp) DecodeFromBytes(data []byte, options ...*Marshalling
 			return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Malformed BGP message")
 		}
 		if len(value) < int(length) {
-			break
+			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Aigp TLV length exceeds remaining data")
 		}
 		v := value[3:length]
 		switch AigpTLVType(typ) {
 		case AIGP_TLV_IGP_METRIC:
 			if len(v) < 8 {
-				break
+				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Aigp IGP Metric TLV is too short")
 			}
 			metric := binary.BigEndian.Uint64(v)
-			p.Values = append(p.Values, NewAigpTLVIgpMetric(metric))
+			values = append(values, NewAigpTLVIgpMetric(metric))
 		default:
-			p.Values = append(p.Values, NewAigpTLVDefault(AigpTLVType(typ), v))
+			values = append(values, NewAigpTLVDefault(AigpTLVType(typ), v))
 		}
 		value = value[length:]
 	}
@@ -15306,6 +15307,7 @@ func (p *PathAttributeAigp) DecodeFromBytes(data []byte, options ...*Marshalling
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 		return NewMessageError(eCode, eSubCode, nil, "Aigp length is incorrect")
 	}
+	p.Values = values
 	return nil
 }
 
