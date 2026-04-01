@@ -797,8 +797,7 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 	// Skip reserved byte to access inner SubTLV type
 	value = value[1:]
 	var segments []TunnelEncapSubTLVInterface
-	p := 0
-	for p < t.Len()-4 {
+	for len(value) > 0 {
 		var segment TunnelEncapSubTLVInterface
 		switch SegmentType(value[0]) {
 		case SegmentListSubTLVWeight:
@@ -806,7 +805,6 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 			if err := t.Weight.DecodeFromBytes(value); err != nil {
 				return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, err.Error())
 			}
-			p += t.Weight.Len()
 			value = value[t.Weight.Len():]
 			continue
 		case TypeA:
@@ -843,7 +841,6 @@ func (t *TunnelEncapSubTLVSRSegmentList) DecodeFromBytes(data []byte) error {
 			return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, msg)
 		}
 		segments = append(segments, segment)
-		p += segment.Len()
 		value = value[segment.Len():]
 	}
 	if len(segments) == 0 {
