@@ -413,6 +413,9 @@ func parseRibEntry(data []byte, family bgp.Family, isAddPath bool, prefix ...bgp
 	}
 	totalLen := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
+	if len(data) < int(totalLen) {
+		return nil, nil, errNotAllRibEntryBytesAvailable
+	}
 	options := &bgp.MarshallingOption{
 		MRT: true,
 	}
@@ -441,10 +444,11 @@ func parseRibEntry(data []byte, family bgp.Family, isAddPath bool, prefix ...bgp
 			mp.Value = []bgp.PathNLRI{{NLRI: prefix[0], ID: e.PathIdentifier}}
 		}
 
-		attrLen -= uint16(p.Len())
-		if len(data) < p.Len() {
-			return nil, nil, errNotAllRibEntryBytesAvailable
+		pLen := uint16(p.Len())
+		if pLen > attrLen {
+			return nil, nil, fmt.Errorf("path attribute length %d exceeds remaining attribute length %d", pLen, attrLen)
 		}
+		attrLen -= pLen
 		data = data[p.Len():]
 		e.PathAttributes = append(e.PathAttributes, p)
 	}
