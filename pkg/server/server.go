@@ -1902,8 +1902,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 			c := &oc.Neighbor{Config: oc.NeighborConfig{
 				NeighborAddress: address,
 			}}
-			nconf := neighbor.fsm.pConf.ReadOnly()
-			sendNotification := !r.AllowGracefulRestart || !nconf.GracefulRestart.Config.Enabled
+			sendNotification := !r.AllowGracefulRestart || !neighbor.isGracefulRestartEnabled()
 			if err := s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, sendNotification); err != nil {
 				return err
 			}
