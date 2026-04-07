@@ -167,6 +167,55 @@ func TestModPolicyAssign(t *testing.T) {
 	assert.Equal(len(ps), 2)
 }
 
+func TestBMPMonitoringPolicyFromAPI(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  api.AddBmpRequest_MonitoringPolicy
+		expect oc.BmpRouteMonitoringPolicyType
+	}{
+		{
+			name:   "unspecified defaults to pre-policy",
+			input:  api.AddBmpRequest_MONITORING_POLICY_UNSPECIFIED,
+			expect: oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY,
+		},
+		{
+			name:   "pre",
+			input:  api.AddBmpRequest_MONITORING_POLICY_PRE,
+			expect: oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY,
+		},
+		{
+			name:   "post",
+			input:  api.AddBmpRequest_MONITORING_POLICY_POST,
+			expect: oc.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY,
+		},
+		{
+			name:   "both",
+			input:  api.AddBmpRequest_MONITORING_POLICY_BOTH,
+			expect: oc.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH,
+		},
+		{
+			name:   "local",
+			input:  api.AddBmpRequest_MONITORING_POLICY_LOCAL,
+			expect: oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB,
+		},
+		{
+			name:   "all",
+			input:  api.AddBmpRequest_MONITORING_POLICY_ALL,
+			expect: oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := bmpMonitoringPolicyFromAPI(tt.input)
+			assert.Equal(t, tt.expect, got)
+		})
+	}
+}
+
 func TestListPolicyAssignment(t *testing.T) {
 	assert := assert.New(t)
 
