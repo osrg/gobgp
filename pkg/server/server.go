@@ -1807,6 +1807,26 @@ func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) 
 	}, false)
 }
 
+// bmpMonitoringPolicyFromAPI maps gRPC enum values to OpenConfig string policies.
+// Do not use oc.IntToBmpRouteMonitoringPolicyTypeMap[int(policy)]: protobuf assigns
+// MONITORING_POLICY_PRE=1..ALL=5 with UNSPECIFIED=0, while the OC map uses 0..4 only.
+func bmpMonitoringPolicyFromAPI(p api.AddBmpRequest_MonitoringPolicy) oc.BmpRouteMonitoringPolicyType {
+	switch p {
+	case api.AddBmpRequest_MONITORING_POLICY_PRE:
+		return oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY
+	case api.AddBmpRequest_MONITORING_POLICY_POST:
+		return oc.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY
+	case api.AddBmpRequest_MONITORING_POLICY_BOTH:
+		return oc.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH
+	case api.AddBmpRequest_MONITORING_POLICY_LOCAL:
+		return oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB
+	case api.AddBmpRequest_MONITORING_POLICY_ALL:
+		return oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL
+	default:
+		return oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY
+	}
+}
+
 func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
@@ -1839,7 +1859,7 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 			Port:                  port,
 			SysName:               sysname,
 			SysDescr:              sysDescr,
-			RouteMonitoringPolicy: oc.IntToBmpRouteMonitoringPolicyTypeMap[int(r.Policy)],
+			RouteMonitoringPolicy: bmpMonitoringPolicyFromAPI(r.Policy),
 			StatisticsTimeout:     uint16(r.StatisticsTimeout),
 		})
 	}, true)

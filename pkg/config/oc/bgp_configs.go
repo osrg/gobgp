@@ -875,6 +875,8 @@ var BmpRouteMonitoringPolicyTypeToIntMap = map[BmpRouteMonitoringPolicyType]int{
 	BMP_ROUTE_MONITORING_POLICY_TYPE_ALL:         4,
 }
 
+// IntToBmpRouteMonitoringPolicyTypeMap indexes policies 0..4 (no UNSPECIFIED).
+// It does not match api.AddBmpRequest_MonitoringPolicy numeric values (PRE=1..ALL=5, UNSPECIFIED=0).
 var IntToBmpRouteMonitoringPolicyTypeMap = map[int]BmpRouteMonitoringPolicyType{
 	0: BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY,
 	1: BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY,
