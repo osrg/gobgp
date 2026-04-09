@@ -469,14 +469,22 @@ func (peer *peer) stopPeerRestarting() {
 	peer.longLivedRunning.Store(false)
 }
 
+func (peer *peer) HasRT(rtHash uint64) bool {
+	return peer.localRib.PeerHasRT(peer.ID(), rtHash)
+}
+
 // Returns true if the peer is interested in this path according to BGP RTC
-// (i.e., has advertised the relevant RT).
+// (i.e., has advertised the relevant RT via UpdateRTC).
 func (peer *peer) interestedIn(path *table.Path) bool {
-	if peer.adjRibIn.HasDefaultRT() {
+	if peer.HasRT(table.DefaultRT) {
 		return true
 	}
 	for _, ext := range path.GetExtCommunities() {
-		if peer.adjRibIn.HasRTinRtcTable(ext) {
+		key, err := table.ExtCommRouteTargetKey(ext)
+		if err != nil {
+			continue
+		}
+		if peer.HasRT(key) {
 			return true
 		}
 	}

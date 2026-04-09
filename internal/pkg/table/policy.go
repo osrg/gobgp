@@ -4098,7 +4098,7 @@ func CanImportToVrf(v *Vrf, path *Path) bool {
 		if !isTransitiveType(x) {
 			continue
 		}
-		key, err := extCommRouteTargetKey(x)
+		key, err := ExtCommRouteTargetKey(x)
 		if err != nil {
 			continue
 		}

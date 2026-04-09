@@ -146,6 +146,7 @@ type TableManager struct {
 	mu             sync.RWMutex // protects tables and vrfs maps
 	tables         map[bgp.Family]*Table
 	vrfs           map[string]*Vrf
+	peerRTM        peerRTMIndex // RT membership per peer; replaces per-table peersRTMMap
 	rfList         []bgp.Family
 	maxPathCounted atomic.Uint64
 	logger         *slog.Logger
@@ -153,11 +154,12 @@ type TableManager struct {
 
 func NewTableManager(logger *slog.Logger, rfList []bgp.Family) *TableManager {
 	t := &TableManager{
-		mu:     sync.RWMutex{},
-		tables: make(map[bgp.Family]*Table),
-		vrfs:   make(map[string]*Vrf),
-		rfList: rfList,
-		logger: logger,
+		mu:      sync.RWMutex{},
+		tables:  make(map[bgp.Family]*Table),
+		vrfs:    make(map[string]*Vrf),
+		peerRTM: newPeerRTMIndex(),
+		rfList:  rfList,
+		logger:  logger,
 	}
 	for _, rf := range rfList {
 		t.tables[rf] = NewTable(logger, rf)
@@ -369,6 +371,63 @@ func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.
 	}
 	manager.updateMaxPathCounted(len(paths))
 	return paths
+}
+
+// UpdateRTC registers or unregisters a peer's RT membership interest and returns the VPN paths
+// that need to be advertised or withdrawn as a result. It replaces the combination of
+// adjRibIn.UpdateRTC + GetBestPathListForAdded/WithdrawnRT that was previously spread across
+// server.go. For DefaultRT (rtHash==0) the returned path slices are always empty — the caller
+// is responsible for sending all VPN routes in that case.
+func (manager *TableManager) UpdateRTC(peerID, tableID string, path *Path, rfList []bgp.Family) ([]*Path, []*Path) {
+	nlri, ok := path.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+	if !ok {
+		return nil, nil
+	}
+	rtHash, err := NlriRouteTargetKey(nlri)
+	if err != nil {
+		return nil, nil
+	}
+
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
+	tables := manager.getTables(rfList...)
+
+	if path.IsWithdraw {
+		if !manager.peerRTM.deleteRTM(rtHash, peerID, nlri, path.RemoteID()) {
+			// Not the last RTM for this peer+RT: peer still interested, nothing to withdraw.
+			return nil, nil
+		}
+		maxLen := 0
+		for _, t := range tables {
+			maxLen += t.bestPathListForRTMaxLen(rtHash)
+		}
+		withdrawals := make([]*Path, 0, maxLen)
+		for _, t := range tables {
+			withdrawals = t.appendBestsForRT(withdrawals, rtHash, tableID, nlri.AS, true)
+		}
+		return nil, withdrawals
+	}
+
+	if !manager.peerRTM.addRTM(rtHash, peerID, nlri, path.RemoteID()) {
+		// Not the first RTM for this peer+RT: paths already sent, nothing new.
+		return nil, nil
+	}
+	maxLen := 0
+	for _, t := range tables {
+		maxLen += t.bestPathListForRTMaxLen(rtHash)
+	}
+	newPaths := make([]*Path, 0, maxLen)
+	for _, t := range tables {
+		newPaths = t.appendBestsForRT(newPaths, rtHash, tableID, nlri.AS, false)
+	}
+	return newPaths, nil
+}
+
+// PeerHasRT reports whether the given peer has advertised RT membership interest for rtHash.
+// O(1) lookup via the TableManager-level peerRTMIndex.
+func (manager *TableManager) PeerHasRT(peerID string, rtHash uint64) bool {
+	return manager.peerRTM.hasPeer(rtHash, peerID)
 }
 
 func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.Family) [][]*Path {

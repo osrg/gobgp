@@ -240,9 +240,9 @@ type Table struct {
 	Family       bgp.Family
 	destinations *Destinations
 	logger       *slog.Logger
-	// adjRts is an RT->count map (reference count of RTC paths per RT).
-	// It is used only for Adj-RIB tables with RF_RTC_UC.
-	adjRts *rtCounter
+	// rtc tracks VPN paths per RT for global VPN tables, enabling O(1) lookup.
+	// nil for Adj-RIB and non-VPN tables.
+	rtc *rtcHandler
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
@@ -254,12 +254,8 @@ func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*de
 		Family:       rf,
 		destinations: NewDestinations(),
 		logger:       logger,
+		rtc:          newRTCPart(rf, isAdj),
 		macIndex:     NewEVPNMacNLRIs(),
-	}
-	if isAdj && rf == bgp.RF_RTC_UC {
-		t.adjRts = &rtCounter{
-			rts: make(map[uint64]int),
-		}
 	}
 	for _, dst := range dsts {
 		t.setDestination(dst)
@@ -322,7 +318,11 @@ func (t *Table) deleteRTCPathsByVrf(vrf *Vrf, vrfs map[string]*Vrf) []*Path {
 	for lhs := range vrf.ImportRt {
 		t.destinations.iterateAllDestinations(func(dest *destination) {
 			nlri := dest.GetNlri().(*bgp.RouteTargetMembershipNLRI)
-			rhs, _ := extCommRouteTargetKey(nlri.RouteTarget)
+			// default can not be in vrf imports.
+			if nlri.RouteTarget == nil {
+				return
+			}
+			rhs, _ := ExtCommRouteTargetKey(nlri.RouteTarget)
 			if lhs == rhs && isLastTargetUser(vrfs, lhs) {
 				for _, p := range dest.knownPathList {
 					if p.IsLocal() {
@@ -452,6 +452,21 @@ func (t *Table) update(newPath *Path) *Update {
 	dst := t.getOrCreateDest(shard, nlri, 64)
 	u := dst.Calculate(t.logger, newPath)
 
+	if t.rtc != nil {
+		var oldBest *Path
+		if len(u.OldKnownPathList) > 0 {
+			oldBest = u.OldKnownPathList[0]
+		}
+		var newBest *Path
+		if len(dst.knownPathList) > 0 {
+			newBest = dst.knownPathList[0]
+		}
+		if oldBest != newBest {
+			t.rtc.unregister(oldBest, newBest == nil)
+			t.rtc.register(newBest)
+		}
+	}
+
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(shard, dst)
 		return u
@@ -466,6 +481,37 @@ func (t *Table) update(newPath *Path) *Update {
 	}
 
 	return u
+}
+
+func appendBestPathListForRT(outPaths []*Path, id string, as uint32, withdraw bool, inPaths map[*Path]struct{}) []*Path {
+	for p := range inPaths {
+		if p.IsNexthopInvalid || rsFilter(id, as, p) {
+			continue
+		}
+		if !p.IsWithdraw && withdraw {
+			p = p.Clone(true)
+		}
+		outPaths = append(outPaths, p)
+	}
+	return outPaths
+}
+
+func (t *Table) bestPathListForRTMaxLen(rt uint64) int {
+	if t.rtc == nil || rt == DefaultRT {
+		return 0
+	}
+	return t.rtc.maxLen(rt)
+}
+
+// appendBestsForRT appends paths for the given RT from this table.
+// isWithdraw=true clones each path as a withdrawal.
+// Peer membership tracking (idempotency) is handled by TableManager.peerRTM.
+// DefaultRT (rt==0) is not supported: caller handles path distribution for that case.
+func (t *Table) appendBestsForRT(paths []*Path, rt uint64, tableId string, as uint32, isWithdraw bool) []*Path {
+	if t.rtc == nil || rt == DefaultRT {
+		return paths
+	}
+	return t.rtc.appendBests(paths, rt, tableId, as, isWithdraw)
 }
 
 // GetDestinations returns snapshots of all destinations in the table.
@@ -1045,7 +1091,10 @@ var (
 	ErrNilCommunity       error = errors.New("RouteTarget could not be nil")
 )
 
-func extCommRouteTargetKey(routeTarget bgp.ExtendedCommunityInterface) (uint64, error) {
+// ExtCommRouteTargetKey computes a uint64 hash key for the given Route Target
+// extended community, used to index VPN paths by RT.
+// Returns ErrNilCommunity if routeTarget is nil, ErrInvalidRouteTarget for unsupported types.
+func ExtCommRouteTargetKey(routeTarget bgp.ExtendedCommunityInterface) (uint64, error) {
 	if routeTarget == nil {
 		return 0, ErrNilCommunity
 	}
@@ -1061,11 +1110,13 @@ func extCommRouteTargetKey(routeTarget bgp.ExtendedCommunityInterface) (uint64, 
 	}
 }
 
-func nlriRouteTargetKey(nlri *bgp.RouteTargetMembershipNLRI) (uint64, error) {
+// NlriRouteTargetKey computes a uint64 hash key for a RouteTargetMembershipNLRI.
+// A nil RouteTarget (wildcard / default) maps to DefaultRT (0).
+func NlriRouteTargetKey(nlri *bgp.RouteTargetMembershipNLRI) (uint64, error) {
 	if nlri.RouteTarget == nil {
 		return DefaultRT, nil
 	}
-	return extCommRouteTargetKey(nlri.RouteTarget)
+	return ExtCommRouteTargetKey(nlri.RouteTarget)
 }
 
 type routeTargetMap map[uint64]bgp.ExtendedCommunityInterface
@@ -1089,7 +1140,7 @@ func (rtm routeTargetMap) Clone() routeTargetMap {
 func newRouteTargetMap(s []bgp.ExtendedCommunityInterface) (routeTargetMap, error) {
 	m := make(routeTargetMap, len(s))
 	for _, rt := range s {
-		key, err := extCommRouteTargetKey(rt)
+		key, err := ExtCommRouteTargetKey(rt)
 		if err != nil {
 			return nil, err
 		}

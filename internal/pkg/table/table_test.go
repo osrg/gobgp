@@ -765,7 +765,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[9:], 0x15161718)
 	r, err := bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err := nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
+	key, err := NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x0002131415161718), key)
 
@@ -780,7 +780,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint16(buf[11:], 0x1314)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err = nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
+	key, err = NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x01020a0102031314), key)
 
@@ -794,7 +794,7 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint16(buf[11:], 0x1314)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	key, err = nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
+	key, err = NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(uint64(0x0202151617181314), key)
 
@@ -806,15 +806,15 @@ func Test_RouteTargetKey(t *testing.T) {
 	binary.BigEndian.PutUint32(buf[9:], 1000000)
 	r, err = bgp.NLRIFromSlice(bgp.RF_RTC_UC, buf)
 	assert.NoError(err)
-	_, err = nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
+	_, err = NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NotNil(err)
 
 	r = &bgp.RouteTargetMembershipNLRI{}
-	key, err = nlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
+	key, err = NlriRouteTargetKey(r.(*bgp.RouteTargetMembershipNLRI))
 	assert.NoError(err)
 	assert.Equal(DefaultRT, key)
 
-	_, err = extCommRouteTargetKey(nil)
+	_, err = ExtCommRouteTargetKey(nil)
 	assert.Equal(ErrNilCommunity, err)
 }
 
@@ -884,4 +884,150 @@ func TestContainsCIDR(t *testing.T) {
 			assert.Equal(t, tt.result, result)
 		})
 	}
+}
+
+type testPathWithRTs struct {
+	prefix string // VPN prefix string, e.g. "100:100:10.10.10.10/32"
+	rts    []bgp.ExtendedCommunityInterface
+}
+
+func makeTableWithRT(t *testing.T, tbl *Table, declarations []testPathWithRTs, rf bgp.Family) (*Table, []*Path) {
+	t.Helper()
+	if tbl == nil {
+		tbl = NewTable(logger, rf)
+	}
+	paths := make([]*Path, 0, len(declarations))
+	for _, item := range declarations {
+		rd, prefix, err := bgp.ParseVPNPrefix(item.prefix)
+		if err != nil {
+			t.Fatalf("ParseVPNPrefix(%q): %v", item.prefix, err)
+		}
+		label := *bgp.NewMPLSLabelStack()
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(prefix, label, rd)
+		if err != nil {
+			t.Fatalf("NewLabeledVPNIPAddrPrefix: %v", err)
+		}
+		var pattr *bgp.PathAttributeExtendedCommunities
+		if len(item.rts) > 0 {
+			pattr = bgp.NewPathAttributeExtendedCommunities(item.rts)
+		}
+		path := NewPath(rf, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{pattr}, time.Now(), false)
+
+		update := tbl.update(path)
+		assert.Equal(t, 1, len(update.KnownPathList))
+		assert.Equal(t, 0, len(update.OldKnownPathList))
+		assert.True(t, update.KnownPathList[0].Equal(path))
+		paths = append(paths, path)
+	}
+	return tbl, paths
+}
+
+func equalPaths(paths1, paths2 []*Path) bool {
+	if len(paths1) != len(paths2) {
+		return false
+	}
+	cp2 := make([]*Path, len(paths2))
+	copy(cp2, paths2)
+	for _, p1 := range paths1 {
+		found := false
+		for i2, p2 := range cp2 {
+			if p1.Equal(p2) {
+				found = true
+				cp2 = append(cp2[:i2], cp2[i2+1:]...)
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return len(cp2) == 0
+}
+
+func TestTableRTC(t *testing.T) {
+	rtStrings := []string{"100:100", "100:200", "100:300"}
+	rts := make([]bgp.ExtendedCommunityInterface, 0, len(rtStrings))
+	for _, strRT := range rtStrings {
+		rt, err := bgp.ParseRouteTarget(strRT)
+		assert.NoError(t, err)
+		rts = append(rts, rt)
+	}
+	assert.Equal(t, 3, len(rts))
+	nlris := make([]*bgp.RouteTargetMembershipNLRI, 0, len(rts))
+	for _, rt := range rts {
+		nlris = append(nlris, bgp.NewRouteTargetMembershipNLRI(0, rt))
+	}
+	declarations := []testPathWithRTs{
+		{
+			prefix: "100:100:10.10.10.10/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[0]},
+		},
+		{
+			prefix: "101:100:10.10.10.11/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[0], rts[1]},
+		},
+		{
+			prefix: "100:200:10.10.10.12/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[1]},
+		},
+		{
+			prefix: "100:300:10.10.10.13/32",
+			rts:    []bgp.ExtendedCommunityInterface{rts[2]},
+		},
+	}
+	tbl, paths := makeTableWithRT(t, nil, declarations, bgp.RF_IPv4_VPN)
+	assert.Equal(t, 4, len(tbl.GetDestinations()))
+
+	hash0, err := ExtCommRouteTargetKey(rts[0])
+	assert.NoError(t, err)
+	// appendBestsForRT returns paths for an RT from the table.
+	// Idempotency (per-peer deduplication) is handled by TableManager.peerRTM, not here.
+	pathsRT := tbl.appendBestsForRT(nil, hash0, "global", nlris[0].AS, false)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1]}))
+
+	hash1, err := ExtCommRouteTargetKey(rts[1])
+	assert.NoError(t, err)
+
+	pathsRT = tbl.appendBestsForRT(nil, hash1, "global", nlris[1].AS, false)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1], paths[2]}))
+
+	hash2, err := ExtCommRouteTargetKey(rts[2])
+	assert.NoError(t, err)
+
+	// Accumulate paths from multiple RTs.
+	pathsRT = tbl.appendBestsForRT(pathsRT, hash2, "global", nlris[2].AS, false)
+	assert.Equal(t, 3, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1], paths[2], paths[3]}))
+
+	// appendBestsForRT is not idempotent at the table level — always returns paths.
+	pathsRT = tbl.appendBestsForRT(nil, hash1, "global", nlris[1].AS, false)
+	assert.Equal(t, 2, len(pathsRT))
+
+	update := tbl.update(paths[2].Clone(true))
+	assert.Equal(t, 0, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths[2]))
+
+	update = tbl.update(paths[1].Clone(false))
+	assert.Equal(t, 1, len(update.KnownPathList))
+	assert.Equal(t, 1, len(update.OldKnownPathList))
+	assert.True(t, update.KnownPathList[0].Equal(paths[1]))
+	assert.True(t, update.OldKnownPathList[0].Equal(paths[1]))
+
+	// After removing paths[2] (withdrawn) and refreshing paths[1], only paths[1] remains for RT1.
+	pathsRT = tbl.appendBestsForRT(nil, hash1, "global", nlris[1].AS, false)
+	assert.Equal(t, 1, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[1]}))
+
+	// Withdrawal: isWithdraw=true clones paths as withdrawals.
+	pathsRT = tbl.appendBestsForRT(nil, hash0, "global", nlris[0].AS, true)
+	assert.Equal(t, 2, len(pathsRT))
+	assert.True(t, pathsRT[0].IsWithdraw)
+	assert.True(t, pathsRT[1].IsWithdraw)
+
+	pathsRT = tbl.appendBestsForRT(pathsRT, hash2, "global", nlris[2].AS, true)
+	assert.Equal(t, 3, len(pathsRT))
+	assert.True(t, equalPaths(pathsRT, []*Path{paths[0], paths[1], paths[3]}))
 }
