@@ -64,3 +64,14 @@ func Test_buildTcpMD5Sigv6(t *testing.T) {
 		t.Error("Something wrong v6")
 	}
 }
+
+func Test_buildTcpMD5Sigv6Zone(t *testing.T) {
+	s := buildTcpMD5Sig("fe80::4850:31ff:fe01:fc55%123", "helloworld")
+	if s == nil {
+		t.Fatal("gen sig failed")
+	}
+
+	if s.Ifindex != 123 {
+		t.Error("bad ipv6 if index")
+	}
+}
