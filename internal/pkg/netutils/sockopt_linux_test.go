@@ -64,3 +64,45 @@ func Test_buildTcpMD5Sigv6(t *testing.T) {
 		t.Error("Something wrong v6")
 	}
 }
+
+func Test_buildTcpMD5Sig_v6Zone(t *testing.T) {
+	s := buildTcpMD5Sig("fe80::4850:31ff:fe01:fc55%123", "helloworld")
+	if s == nil {
+		t.Fatal("Gen md5 sig failed")
+	}
+
+	if s.Ifindex != 123 {
+		t.Error("Bad ipv6 if index")
+	}
+}
+
+func Test_buildTcpMD5Sig_CIDR(t *testing.T) {
+	v4buff := [216]uint8{2, 0, 0, 0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 24, 5, 0, 0, 0, 0, 0, 104, 101, 108, 108, 111, 0}
+	v6buff := [216]uint8{10, 0, 0, 0, 0, 0, 0, 0, 254, 128, 0, 0, 0, 0, 0, 0, 72, 80, 49, 255, 254, 1, 252, 85, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 64, 5, 0, 0, 0, 0, 0, 104, 101, 108, 108, 111, 0}
+	tests := []struct {
+		name     string
+		addr     string
+		expected []byte
+	}{
+		{"v4", "1.2.3.0/24", v4buff[:]},
+		{"v6", "fe80::4850:31ff:fe01:fc55/64", v6buff[:]},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sig := buildTcpMD5Sig(tt.addr, "hello")
+			if sig == nil {
+				t.Fatal("Gen md5 sig failed")
+			}
+			got := new(bytes.Buffer)
+			if err := binary.Write(got, binary.LittleEndian, sig); err != nil {
+				t.Error(err)
+			}
+			if bytes.Equal(got.Bytes(), tt.expected) {
+				t.Log("OK")
+			} else {
+				t.Error("Something wrong with cidr")
+			}
+		})
+	}
+}

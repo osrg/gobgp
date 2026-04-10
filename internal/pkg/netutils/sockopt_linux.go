@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -35,33 +37,61 @@ const (
 func buildTcpMD5Sig(address, key string) *unix.TCPMD5Sig {
 	t := unix.TCPMD5Sig{}
 
-	var addr net.IP
+	var addr netip.Addr
+	var err error
 	if strings.Contains(address, "/") {
-		var err error
-		var ipnet *net.IPNet
-		addr, ipnet, err = net.ParseCIDR(address)
+		prefix, err := netip.ParsePrefix(address)
 		if err != nil {
 			return nil
 		}
-		prefixlen, _ := ipnet.Mask.Size()
-		t.Prefixlen = uint8(prefixlen)
+		addr = prefix.Addr()
+		t.Prefixlen = uint8(prefix.Bits())
 		t.Flags = unix.TCP_MD5SIG_FLAG_PREFIX
 	} else {
-		addr = net.ParseIP(address)
+		addr, err = netip.ParseAddr(address)
+		if err != nil {
+			return nil
+		}
 	}
 
-	if addr.To4() != nil {
+	if addr.Is4() {
 		t.Addr.Family = unix.AF_INET
-		copy(t.Addr.Data[2:], addr.To4())
-	} else {
+		bits := addr.As4()
+		copy(t.Addr.Data[2:], bits[:])
+	} else if addr.Is6() {
 		t.Addr.Family = unix.AF_INET6
-		copy(t.Addr.Data[6:], addr.To16())
+		bits := addr.As16()
+		copy(t.Addr.Data[6:], bits[:])
+		if addr.IsLinkLocalUnicast() {
+			t.Ifindex, err = zoneToID(addr.Zone())
+			if err != nil {
+				return nil
+			}
+		}
+	} else {
+		return nil
 	}
 
 	t.Keylen = uint16(len(key))
 	copy(t.Key[0:], []byte(key))
 
 	return &t
+}
+
+func zoneToID(zone string) (int32, error) {
+	if zone == "" {
+		return 0, nil
+	}
+
+	if id, err := strconv.ParseInt(zone, 10, 32); err == nil {
+		return int32(id), nil
+	}
+
+	iface, err := net.InterfaceByName(zone)
+	if err != nil {
+		return 0, fmt.Errorf("interface %q not found: %w", zone, err)
+	}
+	return int32(iface.Index), nil
 }
 
 func SetTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
