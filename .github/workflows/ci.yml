@@ -11,8 +11,8 @@ jobs:
         GOARCH: ["amd64"]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - run: |
@@ -27,8 +27,8 @@ jobs:
     name: unit
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - run: |
@@ -42,8 +42,8 @@ jobs:
       GOARCH: 386
       CGO_ENABLED: 1
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - run: |
@@ -56,7 +56,7 @@ jobs:
     name: protobuf lint and format check
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: latest
@@ -76,12 +76,12 @@ jobs:
     name: lint
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           skip-cache: true
 
@@ -89,8 +89,8 @@ jobs:
     name: embedded
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - run: |
@@ -101,7 +101,7 @@ jobs:
     name: lintdoc
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - run: |
           npm install markdownlint-cli
           ./node_modules/.bin/markdownlint $(find . -type d -name 'node_modules' -prune -o -type f -name '*.md' -print)
@@ -114,8 +114,8 @@ jobs:
     name: build container image
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - name: container image
@@ -128,7 +128,7 @@ jobs:
           docker save gobgp-oq > gobgp-oq.tar
 
       - name: upload image file
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: artifact
           path: |
@@ -140,8 +140,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -154,8 +156,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -168,8 +172,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -182,8 +188,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -196,8 +204,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -210,8 +220,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -224,8 +236,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -238,8 +252,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -252,8 +268,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
@@ -269,8 +287,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -283,8 +303,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -297,8 +319,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -311,8 +335,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -325,8 +351,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -339,8 +367,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -353,8 +383,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -367,8 +399,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -381,8 +415,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -395,8 +431,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -409,8 +447,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
@@ -430,8 +470,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -444,8 +486,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -458,8 +502,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -472,8 +518,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -486,8 +534,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
@@ -500,8 +550,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -514,8 +566,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -528,8 +582,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
@@ -542,8 +598,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
