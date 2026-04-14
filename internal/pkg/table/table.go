@@ -242,7 +242,7 @@ type Table struct {
 	logger       *slog.Logger
 	// adjRts tracks RT membership keys in Adj-RIB tables with RF_RTC_UC.
 	// nil for non-RTC and global tables.
-	adjRts *adjRTSet
+	adjRts *rtmSet
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
@@ -257,7 +257,7 @@ func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*de
 		macIndex:     NewEVPNMacNLRIs(),
 	}
 	if isAdj && rf == bgp.RF_RTC_UC {
-		t.adjRts = newAdjRTSet()
+		t.adjRts = newRtmSet()
 	}
 	for _, dst := range dsts {
 		t.setDestination(dst)

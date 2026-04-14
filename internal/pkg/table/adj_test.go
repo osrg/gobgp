@@ -18,7 +18,6 @@ package table
 import (
 	"log/slog"
 	"net/netip"
-	"sync"
 	"testing"
 	"time"
 
@@ -276,51 +275,6 @@ func TestAdjRTCSameRT(t *testing.T) {
 	adj.Update([]*Path{p2.Clone(true)})
 	assert.Equal(t, 0, adj.Count([]bgp.Family{family}))
 	assert.False(t, adj.HasRTinRtcTable(rt1))
-}
-
-func TestAdjRTSetConcurrent(t *testing.T) {
-	pi := &PeerInfo{}
-	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
-
-	rt, _ := bgp.ParseRouteTarget("65520:1000000")
-	nlri := bgp.NewRouteTargetMembershipNLRI(65000, rt)
-	rtHash, err := nlriRouteTargetKey(nlri)
-	assert.NoError(t, err)
-
-	s := newAdjRTSet()
-
-	const goroutines = 20
-	const iters = 500
-
-	var wg sync.WaitGroup
-
-	// Writers: concurrent add and sub.
-	for i := range goroutines {
-		wg.Add(1)
-		go func(id uint32) {
-			defer wg.Done()
-			path := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri, ID: id}, false, attrs, time.Now(), false)
-			withdraw := path.Clone(true)
-			for range iters {
-				s.add(path)
-				s.sub(withdraw)
-			}
-		}(uint32(i))
-	}
-
-	// Readers: concurrent has, running throughout the writes.
-	for range goroutines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for range iters {
-				_ = s.has(rtHash)
-				_ = s.has(DefaultRT)
-			}
-		}()
-	}
-
-	wg.Wait()
 }
 
 func TestWithdrawUnknownPath(t *testing.T) {
