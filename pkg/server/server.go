@@ -118,6 +118,7 @@ type BgpServer struct {
 	bgpConfig    oc.Bgp
 	acceptCh     chan net.Conn
 	mgmtCh       chan *mgmtOp
+	closeCh      chan struct{}
 	policy       *table.RoutingPolicy
 	listeners    []*netutils.TCPListener
 	neighborMap  map[netip.Addr]*peer
@@ -163,6 +164,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		peerGroupMap: make(map[string]*peerGroup),
 		policy:       table.NewRoutingPolicy(logger),
 		mgmtCh:       make(chan *mgmtOp, 1),
+		closeCh:      make(chan struct{}),
 		watcherMap:   make(map[watchEventType][]*watcher),
 		uuidMap:      make(map[string]uuid.UUID),
 		roaManager:   newROAManager(roaTable, logger),
@@ -236,16 +238,20 @@ func (s *BgpServer) handleMGMTOp(op *mgmtOp) {
 	op.errCh <- op.f()
 }
 
-func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) (err error) {
+func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) error {
 	ch := make(chan error)
-	defer func() { err = <-ch }()
-	s.mgmtCh <- &mgmtOp{
+	op := &mgmtOp{
 		f:           f,
 		errCh:       ch,
 		checkActive: checkActive,
 		timestamp:   time.Now(),
 	}
-	return err
+	select {
+	case s.mgmtCh <- op:
+		return <-ch
+	case <-s.closeCh:
+		return fmt.Errorf("server stopped")
+	}
 }
 
 func (s *BgpServer) startFsmHandler(peer *peer) {
@@ -361,6 +367,7 @@ func (s *BgpServer) Serve() {
 	s.listeners = make([]*netutils.TCPListener, 0, 2)
 
 	defer func() {
+		close(s.closeCh)
 		s.shutdownWG.Done()
 		s.isServing.Store(false)
 	}()
