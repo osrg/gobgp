@@ -57,9 +57,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
-      - uses: bufbuild/buf-setup-action@v1
+      - uses: actions/setup-go@v6
         with:
-          version: latest
+          go-version: "stable"
+      - run: go install github.com/bufbuild/buf/cmd/buf@latest
 
       - name: buf lint
         run: buf lint proto/
