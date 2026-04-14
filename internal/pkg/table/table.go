@@ -240,9 +240,9 @@ type Table struct {
 	Family       bgp.Family
 	destinations *Destinations
 	logger       *slog.Logger
-	// adjRts is an RT->count map (reference count of RTC paths per RT).
-	// It is used only for Adj-RIB tables with RF_RTC_UC.
-	adjRts *rtCounter
+	// adjRts tracks RT membership keys in Adj-RIB tables with RF_RTC_UC.
+	// nil for non-RTC and global tables.
+	adjRts *adjRTSet
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
@@ -257,9 +257,7 @@ func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*de
 		macIndex:     NewEVPNMacNLRIs(),
 	}
 	if isAdj && rf == bgp.RF_RTC_UC {
-		t.adjRts = &rtCounter{
-			rts: make(map[uint64]int),
-		}
+		t.adjRts = newAdjRTSet()
 	}
 	for _, dst := range dsts {
 		t.setDestination(dst)

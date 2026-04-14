@@ -18,6 +18,7 @@ package table
 import (
 	"log/slog"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -233,6 +234,93 @@ func TestAdjRTC(t *testing.T) {
 	adj.Update([]*Path{p2.Clone(true)})
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 0)
 	assert.True(t, !adj.HasRTinRtcTable(rt2))
+}
+
+func TestAdjRTCSameRT(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+
+	rt1, _ := bgp.ParseRouteTarget("65520:1000000")
+	nlri1a := bgp.NewRouteTargetMembershipNLRI(65000, rt1)
+	nlri1b := bgp.NewRouteTargetMembershipNLRI(65001, rt1) // same RT, different AS
+
+	// Two ADD-PATH paths for the same (AS=65000, RT=rt1) NLRI, different path IDs.
+	p1 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1a, ID: 1}, false, attrs, time.Now(), false)
+	p2 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1a, ID: 2}, false, attrs, time.Now(), false)
+	// Different AS, same RT.
+	p3 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1b, ID: 1}, false, attrs, time.Now(), false)
+
+	family := bgp.RF_RTC_UC
+	adj := NewAdjRib(logger, []bgp.Family{family})
+
+	adj.Update([]*Path{p1, p2, p3})
+	assert.Equal(t, 3, adj.Count([]bgp.Family{family}))
+	assert.True(t, adj.HasRTinRtcTable(rt1))
+
+	// Withdraw p1 — p2 and p3 still hold rt1 interest.
+	adj.Update([]*Path{p1.Clone(true)})
+	assert.Equal(t, 2, adj.Count([]bgp.Family{family}))
+	assert.True(t, adj.HasRTinRtcTable(rt1), "peer still has rt1 via p2 and p3")
+
+	// Withdraw p3 — p2 still holds rt1 interest.
+	adj.Update([]*Path{p3.Clone(true)})
+	assert.Equal(t, 1, adj.Count([]bgp.Family{family}))
+	assert.True(t, adj.HasRTinRtcTable(rt1), "peer still has rt1 via p2")
+
+	// Spurious withdraw: same NLRI as p2 but unknown pathID — must be a no-op.
+	pSpurious := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1a, ID: 99}, true, attrs, time.Now(), false)
+	adj.Update([]*Path{pSpurious})
+	assert.True(t, adj.HasRTinRtcTable(rt1), "spurious withdraw must not remove rt1 interest")
+
+	// Withdraw p2 — no more rt1 interest.
+	adj.Update([]*Path{p2.Clone(true)})
+	assert.Equal(t, 0, adj.Count([]bgp.Family{family}))
+	assert.False(t, adj.HasRTinRtcTable(rt1))
+}
+
+func TestAdjRTSetConcurrent(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+
+	rt, _ := bgp.ParseRouteTarget("65520:1000000")
+	nlri := bgp.NewRouteTargetMembershipNLRI(65000, rt)
+	rtHash, err := nlriRouteTargetKey(nlri)
+	assert.NoError(t, err)
+
+	s := newAdjRTSet()
+
+	const goroutines = 20
+	const iters = 500
+
+	var wg sync.WaitGroup
+
+	// Writers: concurrent add and sub.
+	for i := range goroutines {
+		wg.Add(1)
+		go func(id uint32) {
+			defer wg.Done()
+			path := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri, ID: id}, false, attrs, time.Now(), false)
+			withdraw := path.Clone(true)
+			for range iters {
+				s.add(path)
+				s.sub(withdraw)
+			}
+		}(uint32(i))
+	}
+
+	// Readers: concurrent has, running throughout the writes.
+	for range goroutines {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range iters {
+				_ = s.has(rtHash)
+				_ = s.has(DefaultRT)
+			}
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestWithdrawUnknownPath(t *testing.T) {
