@@ -44,6 +44,7 @@ func buildTcpMD5Sig(address, key string) *unix.TCPMD5Sig {
 		if err != nil {
 			return nil
 		}
+		addr = prefix.Addr()
 		t.Prefixlen = uint8(prefix.Bits())
 		t.Flags = unix.TCP_MD5SIG_FLAG_PREFIX
 	} else {
