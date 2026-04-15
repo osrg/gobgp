@@ -1163,6 +1163,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			// between the previous and current state of the route distribution
 			// graph that is derived from Route Target membership information.
 			if peer != nil && path != nil && path.GetFamily() == bgp.RF_RTC_UC {
+				peer.rtmHandler.SyncAfterImport(path)
 				rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
 				fs := make([]bgp.Family, 0, len(peer.negotiatedRFList()))
 				for _, f := range peer.negotiatedRFList() {
@@ -1173,7 +1174,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				var candidates []*table.Path
 				if path.IsWithdraw {
 					// Note: The paths to be withdrawn are filtered because the
-					// given RT on RTM NLRI is already removed from adj-RIB-in.
+					// given RT on RTM NLRI is already removed from the peer RTC index.
 					_, candidates = s.getBestFromLocal(peer, fs, true)
 				} else {
 					// https://github.com/osrg/gobgp/issues/1777

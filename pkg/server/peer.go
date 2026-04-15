@@ -109,6 +109,8 @@ type peer struct {
 	sendMaxPathFiltered map[table.PathLocalKey]struct{}
 	llgrEndChs          []chan struct{} // protected by fsm.lock
 	longLivedRunning    atomic.Bool
+	// Route Target Membership handler after import policy (for constrained VPN distribution).
+	rtmHandler *table.RouteTargetMembershipHandler
 }
 
 func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.TableManager, policy *table.RoutingPolicy, logger *slog.Logger) *peer {
@@ -127,6 +129,7 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.Tab
 	}
 	rfs, _ := oc.AfiSafis(conf.AfiSafis).ToRfList()
 	peer.adjRibIn = table.NewAdjRib(logger, rfs)
+	peer.rtmHandler = table.NewRouteTargetMembershipHandler()
 	return peer
 }
 
@@ -472,11 +475,11 @@ func (peer *peer) stopPeerRestarting() {
 // Returns true if the peer is interested in this path according to BGP RTC
 // (i.e., has advertised the relevant RT).
 func (peer *peer) interestedIn(path *table.Path) bool {
-	if peer.adjRibIn.HasDefaultRT() {
+	if peer.rtmHandler.HasDefaultRouteTarget() {
 		return true
 	}
 	for _, ext := range path.GetExtCommunities() {
-		if peer.adjRibIn.HasRTinRtcTable(ext) {
+		if peer.rtmHandler.HasRouteTarget(ext) {
 			return true
 		}
 	}
@@ -694,5 +697,11 @@ func (peer *peer) PassConn(conn net.Conn) {
 }
 
 func (peer *peer) DropAll(rfList []bgp.Family) []*table.Path {
+	for _, rf := range rfList {
+		if rf == bgp.RF_RTC_UC {
+			peer.rtmHandler.Reset()
+			break
+		}
+	}
 	return peer.adjRibIn.Drop(rfList)
 }

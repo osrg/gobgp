@@ -88,3 +88,65 @@ func (s *rtmSet) has(rtHash uint64) bool {
 	defer s.mu.RUnlock()
 	return len(s.m[rtHash]) > 0
 }
+
+func (s *rtmSet) reset() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m = make(map[uint64]map[rtmKey]struct{})
+}
+
+// RouteTargetMembershipHandler tracks Route Target membership NLRI keys learned from a
+// peer that count for RTC constrained route distribution, after import policy.
+type RouteTargetMembershipHandler struct {
+	s *rtmSet
+}
+
+func NewRouteTargetMembershipHandler() *RouteTargetMembershipHandler {
+	return &RouteTargetMembershipHandler{s: newRtmSet()}
+}
+
+// SyncAfterImport updates the set from the RTC path as seen after import policy:
+// accepted advertisements add membership; withdrawals (including import rejects
+// represented as withdrawals) remove it.
+func (handler *RouteTargetMembershipHandler) SyncAfterImport(path *Path) {
+	if handler == nil || handler.s == nil {
+		return
+	}
+	if path == nil || path.IsEOR() || path.GetFamily() != bgp.RF_RTC_UC {
+		return
+	}
+	if path.IsWithdraw {
+		handler.s.sub(path)
+	} else {
+		handler.s.add(path)
+	}
+}
+
+func (handler *RouteTargetMembershipHandler) HasRouteTarget(routeTarget bgp.ExtendedCommunityInterface) bool {
+	if handler == nil || handler.s == nil {
+		return false
+	}
+	key, err := extCommRouteTargetKey(routeTarget)
+	if err != nil {
+		return false
+	}
+	return handler.s.has(key)
+}
+
+func (handler *RouteTargetMembershipHandler) HasDefaultRouteTarget() bool {
+	if handler == nil || handler.s == nil {
+		return false
+	}
+	return handler.s.has(DefaultRT)
+}
+
+// Reset clears all tracked memberships (e.g. when Adj-RIB-In for RTC is dropped).
+func (handler *RouteTargetMembershipHandler) Reset() {
+	if handler == nil || handler.s == nil {
+		return
+	}
+	handler.s.reset()
+}

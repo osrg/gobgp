@@ -3862,3 +3862,187 @@ func TestStartBgp_RouterIdValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestRTCImplicitWithdrawForAcceptedPathWillWithdrawVPNPaths(t *testing.T) {
+	ctx := context.Background()
+
+	s1 := runNewServer(t, 1, "1.1.1.1", 22179)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s2 := runNewServer(t, 1, "2.2.2.2", 33179)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
+		t.Fatal(err)
+	}
+	wgEstablished.Wait(t, 10*time.Second)
+	// Add import policy on s1: reject RTC routes with AS_PATH length >= 1.
+	stmt := &api.Statement{
+		Name: "reject_as_path",
+		Conditions: &api.Conditions{
+			AfiSafiIn: []*api.Family{
+				{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_ROUTE_TARGET_CONSTRAINTS},
+			},
+			AsPathLength: &api.AsPathLength{
+				Type:   api.Comparison_COMPARISON_GE,
+				Length: 1,
+			},
+		},
+		Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_REJECT},
+	}
+	policy := &api.Policy{Name: "import_policy", Statements: []*api.Statement{stmt}}
+	require.NoError(t, s1.AddPolicy(ctx, &api.AddPolicyRequest{Policy: policy}))
+	require.NoError(t, s1.AddPolicyAssignment(ctx, &api.AddPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			Policies:      []*api.Policy{policy},
+			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+		},
+	}))
+
+	expectVpnRouteCountS2AdjIn := func(expected int) bool {
+		count := 0
+		_ = s2.ListPath(apiutil.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_ADJ_IN,
+			Family:    bgp.RF_IPv4_VPN,
+			Name:      "127.0.0.1",
+		}, func(_ bgp.NLRI, _ []*apiutil.Path) { count++ })
+		return count == expected
+	}
+
+	rt100 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("3.3.3.3"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh,
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt100}),
+	}
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"), *labels, rd)
+	path, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix, false, attrs, time.Now())
+	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// pathRtc1 — no AS_PATH, passes import policy on s1.
+	panh1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("1.1.1.1"))
+	attrsRtc1 := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh1,
+	}
+	pathRtc1, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt100), false, attrsRtc1, time.Now())
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc1)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	require.Eventually(t, func() bool {
+		return expectVpnRouteCountS2AdjIn(1)
+	}, 10*time.Second, 100*time.Millisecond, "timeout waiting for VPN path at s2 adj-in from s1")
+
+	// pathRtc2 — has AS_PATH length 1, rejected by import policy on s1.
+	// This implicitly withdraws pathRtc1 for the same (AS=1, RT=100:100) NLRI.
+	attrsRtc2 := append(attrsRtc1, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{2}),
+	}))
+	pathRtc2, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt100), false, attrsRtc2, time.Now())
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc2)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	require.Eventually(t, func() bool {
+		return expectVpnRouteCountS2AdjIn(0)
+	}, 10*time.Second, 100*time.Millisecond, "timeout waiting for VPN path to withdraw at s2 adj-in from s1")
+}
+
+func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.T) {
+	ctx := context.Background()
+
+	s1 := runNewServer(t, 1, "1.1.1.1", 44179)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s2 := runNewServer(t, 1, "2.2.2.2", 55179)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
+		t.Fatal(err)
+	}
+	wgEstablished.Wait(t, 10*time.Second)
+	// Add import policy on s1: reject RTC routes with AS_PATH length >= 1.
+	stmt := &api.Statement{
+		Name: "reject_as_path",
+		Conditions: &api.Conditions{
+			AfiSafiIn: []*api.Family{
+				{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_ROUTE_TARGET_CONSTRAINTS},
+			},
+			AsPathLength: &api.AsPathLength{
+				Type:   api.Comparison_COMPARISON_GE,
+				Length: 1,
+			},
+		},
+		Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_REJECT},
+	}
+	policy := &api.Policy{Name: "import_policy", Statements: []*api.Statement{stmt}}
+	require.NoError(t, s1.AddPolicy(ctx, &api.AddPolicyRequest{Policy: policy}))
+	require.NoError(t, s1.AddPolicyAssignment(ctx, &api.AddPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			Policies:      []*api.Policy{policy},
+			DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+		},
+	}))
+
+	vpnPresentAtS2AdjIn := func() bool {
+		count := 0
+		_ = s2.ListPath(apiutil.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_ADJ_IN,
+			Family:    bgp.RF_IPv4_VPN,
+			Name:      "127.0.0.1",
+		}, func(_ bgp.NLRI, _ []*apiutil.Path) { count++ })
+		return count > 0
+	}
+
+	rt100 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("3.3.3.3"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh,
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt100}),
+	}
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	prefix1, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"), *labels, rd)
+	prefix2, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.30.3.0/24"), *labels, rd)
+	path1, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix1, false, attrs, time.Now())
+	path2, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix2, false, attrs, time.Now())
+
+	panh2, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("1.1.1.1"))
+	attrsRtc := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh2,
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{2}),
+		}),
+	}
+
+	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path1)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	pathRtc, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt100), false, attrsRtc, time.Now())
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	require.Never(t, vpnPresentAtS2AdjIn, 10*time.Second, 100*time.Millisecond,
+		"VPN route should not appear at s2 adj-in from s1 while RTC fails import policy")
+
+	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path2)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	require.Never(t, vpnPresentAtS2AdjIn, 10*time.Second, 100*time.Millisecond,
+		"VPN route should not appear at s2 adj-in from s1 after second VPN prefix is added")
+}
