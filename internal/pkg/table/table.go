@@ -240,24 +240,18 @@ type Table struct {
 	Family       bgp.Family
 	destinations *Destinations
 	logger       *slog.Logger
-	// adjRts tracks RT membership keys in Adj-RIB tables with RF_RTC_UC.
-	// nil for non-RTC and global tables.
-	adjRts *rtmSet
 	// index of evpn prefixes with paths to a specific MAC in a MAC-VRF
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
 	macIndex *EVPNMacNLRIs
 }
 
-func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*destination) *Table {
+func NewTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
 	t := &Table{
 		Family:       rf,
 		destinations: NewDestinations(),
 		logger:       logger,
 		macIndex:     NewEVPNMacNLRIs(),
-	}
-	if isAdj && rf == bgp.RF_RTC_UC {
-		t.adjRts = newRtmSet()
 	}
 	for _, dst := range dsts {
 		t.setDestination(dst)
@@ -267,14 +261,6 @@ func newTablePartial(logger *slog.Logger, rf bgp.Family, isAdj bool, dsts ...*de
 
 func (t *Table) GetFamily() bgp.Family {
 	return t.Family
-}
-
-func NewTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
-	return newTablePartial(logger, rf, false, dsts...)
-}
-
-func NewAdjTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
-	return newTablePartial(logger, rf, true, dsts...)
 }
 
 func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {

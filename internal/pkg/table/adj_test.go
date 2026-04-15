@@ -28,11 +28,11 @@ import (
 )
 
 func TestCreateAdjTable(t *testing.T) {
-	table := NewAdjTable(logger, bgp.RF_RTC_UC)
-	assert.NotNil(t, table.adjRts)
+	table := NewTable(logger, bgp.RF_RTC_UC)
+	assert.Equal(t, bgp.RF_RTC_UC, table.GetFamily())
 
-	table = NewAdjTable(logger, bgp.RF_FS_IPv4_VPN)
-	assert.Nil(t, table.adjRts)
+	table = NewTable(logger, bgp.RF_FS_IPv4_VPN)
+	assert.Equal(t, bgp.RF_FS_IPv4_VPN, table.GetFamily())
 }
 
 func TestAddPath(t *testing.T) {
@@ -185,96 +185,6 @@ func TestLLGRStale(t *testing.T) {
 	}
 	require.NotNil(t, retainedRejected)
 	assert.Contains(t, retainedRejected.GetCommunities(), uint32(bgp.COMMUNITY_LLGR_STALE))
-}
-
-func TestAdjRTC(t *testing.T) {
-	pi := &PeerInfo{}
-	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
-
-	rt1, _ := bgp.ParseRouteTarget("65520:1000000")
-	_, err := extCommRouteTargetKey(rt1)
-	assert.NoError(t, err)
-	nlri1 := bgp.NewRouteTargetMembershipNLRI(65000, rt1)
-	p1 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
-	p1.remoteID = 1
-
-	rt2, _ := bgp.ParseRouteTarget("65520:1000001")
-	nlri2 := bgp.NewRouteTargetMembershipNLRI(65000, rt2)
-	p2 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri2}, false, attrs, time.Now(), false)
-	p2.remoteID = 2
-
-	nlri3 := bgp.NewRouteTargetMembershipNLRI(0, nil)
-	p3 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri3}, false, attrs, time.Now(), false)
-	p3.remoteID = 3
-
-	family := p1.GetFamily()
-	assert.Equal(t, family, bgp.RF_RTC_UC)
-	families := []bgp.Family{family}
-	adj := NewAdjRib(logger, families)
-
-	adj.Update([]*Path{p1, p2, p3})
-	assert.Equal(t, adj.Count([]bgp.Family{family}), 3)
-
-	assert.True(t, adj.HasDefaultRT())
-	assert.True(t, adj.HasRTinRtcTable(rt1))
-	assert.True(t, adj.HasRTinRtcTable(rt2))
-
-	adj.Update([]*Path{p1.Clone(true)})
-	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
-	assert.True(t, adj.HasDefaultRT())
-	assert.True(t, !adj.HasRTinRtcTable(rt1))
-	assert.True(t, adj.HasRTinRtcTable(rt2))
-
-	adj.Update([]*Path{p3.Clone(true)})
-	assert.Equal(t, adj.Count([]bgp.Family{family}), 1)
-	assert.False(t, adj.HasDefaultRT())
-	assert.True(t, adj.HasRTinRtcTable(rt2))
-
-	adj.Update([]*Path{p2.Clone(true)})
-	assert.Equal(t, adj.Count([]bgp.Family{family}), 0)
-	assert.True(t, !adj.HasRTinRtcTable(rt2))
-}
-
-func TestAdjRTCSameRT(t *testing.T) {
-	pi := &PeerInfo{}
-	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
-
-	rt1, _ := bgp.ParseRouteTarget("65520:1000000")
-	nlri1a := bgp.NewRouteTargetMembershipNLRI(65000, rt1)
-	nlri1b := bgp.NewRouteTargetMembershipNLRI(65001, rt1) // same RT, different AS
-
-	// Two ADD-PATH paths for the same (AS=65000, RT=rt1) NLRI, different path IDs.
-	p1 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1a, ID: 1}, false, attrs, time.Now(), false)
-	p2 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1a, ID: 2}, false, attrs, time.Now(), false)
-	// Different AS, same RT.
-	p3 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1b, ID: 1}, false, attrs, time.Now(), false)
-
-	family := bgp.RF_RTC_UC
-	adj := NewAdjRib(logger, []bgp.Family{family})
-
-	adj.Update([]*Path{p1, p2, p3})
-	assert.Equal(t, 3, adj.Count([]bgp.Family{family}))
-	assert.True(t, adj.HasRTinRtcTable(rt1))
-
-	// Withdraw p1 — p2 and p3 still hold rt1 interest.
-	adj.Update([]*Path{p1.Clone(true)})
-	assert.Equal(t, 2, adj.Count([]bgp.Family{family}))
-	assert.True(t, adj.HasRTinRtcTable(rt1), "peer still has rt1 via p2 and p3")
-
-	// Withdraw p3 — p2 still holds rt1 interest.
-	adj.Update([]*Path{p3.Clone(true)})
-	assert.Equal(t, 1, adj.Count([]bgp.Family{family}))
-	assert.True(t, adj.HasRTinRtcTable(rt1), "peer still has rt1 via p2")
-
-	// Spurious withdraw: same NLRI as p2 but unknown pathID — must be a no-op.
-	pSpurious := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1a, ID: 99}, true, attrs, time.Now(), false)
-	adj.Update([]*Path{pSpurious})
-	assert.True(t, adj.HasRTinRtcTable(rt1), "spurious withdraw must not remove rt1 interest")
-
-	// Withdraw p2 — no more rt1 interest.
-	adj.Update([]*Path{p2.Clone(true)})
-	assert.Equal(t, 0, adj.Count([]bgp.Family{family}))
-	assert.False(t, adj.HasRTinRtcTable(rt1))
 }
 
 func TestWithdrawUnknownPath(t *testing.T) {
