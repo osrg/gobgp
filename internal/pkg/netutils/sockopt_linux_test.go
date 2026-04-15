@@ -68,11 +68,11 @@ func Test_buildTcpMD5Sigv6(t *testing.T) {
 func Test_buildTcpMD5Sigv6Zone(t *testing.T) {
 	s := buildTcpMD5Sig("fe80::4850:31ff:fe01:fc55%123", "helloworld")
 	if s == nil {
-		t.Fatal("gen sig failed")
+		t.Fatal("Gen md5 sig failed")
 	}
 
 	if s.Ifindex != 123 {
-		t.Error("bad ipv6 if index")
+		t.Error("Bad ipv6 if index")
 	}
 }
 
@@ -92,7 +92,7 @@ func Test_buildTcpMD5_CIDR(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sig := buildTcpMD5Sig(tt.addr, "hello")
 			if sig == nil {
-				t.Fatal("gen v4 sig failed")
+				t.Fatal("Gen md5 sig failed")
 			}
 			got := new(bytes.Buffer)
 			if err := binary.Write(got, binary.LittleEndian, sig); err != nil {
@@ -101,7 +101,7 @@ func Test_buildTcpMD5_CIDR(t *testing.T) {
 			if bytes.Equal(got.Bytes(), tt.expected) {
 				t.Log("OK")
 			} else {
-				t.Error("Something wrong cidr")
+				t.Error("Something wrong with cidr")
 			}
 		})
 	}
