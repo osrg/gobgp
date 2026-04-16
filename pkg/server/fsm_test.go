@@ -1249,7 +1249,7 @@ func TestAtomicCountersConcurrentAccess(t *testing.T) {
 		"Total message count should be sum of all messages")
 }
 
-func TestSendMessageLoop_CoalescesQueuedUpdatesAndPreservesControlMessage(t *testing.T) {
+func TestSendMessageLoop_KillSignal(t *testing.T) {
 	assert := assert.New(t)
 
 	m := NewMockConnection()
@@ -1281,39 +1281,13 @@ func TestSendMessageLoop_CoalescesQueuedUpdatesAndPreservesControlMessage(t *tes
 
 	select {
 	case err := <-done:
-		assert.NoError(err)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("sendMessageloop did not exit after queued control message")
 	}
 	wg.Wait()
-
-	messages := m.GetSentMessages()
-	assert.Len(messages, 1)
-
-	sent, err := bgp.ParseBGPMessage(messages[0])
-	assert.NoError(err)
-	assert.Equal(uint8(bgp.BGP_MSG_UPDATE), sent.Header.Type)
-	assert.Len(sent.Body.(*bgp.BGPUpdate).NLRI, 2)
-	assert.Empty(stateReasonCh)
-}
-
-func TestSplitFSMOutgoingPaths(t *testing.T) {
-	assert := assert.New(t)
-	paths := make([]*table.Path, 5)
-
-	t.Run("within limit", func(t *testing.T) {
-		taken, overflow := splitFSMOutgoingPaths(paths[:3], 3)
-		assert.Len(taken, 3)
-		assert.Nil(overflow)
-	})
-
-	t.Run("overflow", func(t *testing.T) {
-		taken, overflow := splitFSMOutgoingPaths(paths, 3)
-		assert.Len(taken, 3)
-		if assert.NotNil(overflow) {
-			assert.Len(overflow.Paths, 2)
-		}
-	})
 }
 
 // TestRecvMessageWithError_MalformedNextHop verifies that recvMessageWithError

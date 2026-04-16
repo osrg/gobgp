@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -1762,123 +1763,57 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 		return nil
 	}
 
-	var pending any
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		default:
-		}
-
-		var o any
-		if pending != nil {
-			o = pending
-			pending = nil
-		} else {
-			select {
-			case <-ctx.Done():
-				return nil
-			case o = <-h.outgoing.Out():
-			case <-ticker.C:
-				if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
-					return nil
-				}
-				continue
-			}
-		}
-
-		switch m := o.(type) {
-		case *fsmOutgoingMsg:
-			// Drain queued messages so CreateUpdateMsgFromPaths
-			// can pack NLRIs with matching attributes into fewer
-			// UPDATEs. Stop draining on non-path messages so
-			// control events (e.g. fsmStateReason) are handled
-			// immediately after sending the coalesced batch.
-			const maxCoalesce = 2048
-			paths, overflow := splitFSMOutgoingPaths(m.Paths, maxCoalesce)
-			if overflow != nil {
-				pending = overflow
-			}
-			drained := false
-			appendPaths := func(msg *fsmOutgoingMsg) bool {
-				taken, overflow := splitFSMOutgoingPaths(msg.Paths, maxCoalesce-len(paths))
-				paths = append(paths, taken...)
-				if overflow != nil {
-					pending = overflow
-					return false
-				}
-				return true
-			}
-
-		drain:
-			for len(paths) < maxCoalesce {
-				select {
-				case o2 := <-h.outgoing.Out():
-					if m2, ok := o2.(*fsmOutgoingMsg); ok {
-						drained = true
-						if appendPaths(m2) {
-							continue
-						}
-						break drain
-					} else {
-						pending = o2
-						break drain
-					}
-				default:
-					break drain
-				}
-			}
-
-			if pending == nil && len(paths) < maxCoalesce && (drained || h.outgoing.Len() > 0) {
-				timer := time.NewTimer(time.Millisecond)
-			wait:
-				for len(paths) < maxCoalesce {
+		case o := <-h.outgoing.Out():
+			switch m := o.(type) {
+			case *fsmOutgoingMsg:
+				paths := m.Paths
+				// Non-blocking drain: coalesce queued messages so
+				// CreateUpdateMsgFromPaths can pack NLRIs with
+				// matching attributes into fewer UPDATEs.
+				for {
 					select {
-					case <-ctx.Done():
-						if !timer.Stop() {
-							select {
-							case <-timer.C:
-							default:
-							}
-						}
-						return nil
 					case o2 := <-h.outgoing.Out():
 						if m2, ok := o2.(*fsmOutgoingMsg); ok {
-							if appendPaths(m2) {
-								continue
-							}
-							break wait
-						} else {
-							pending = o2
-							break wait
+							paths = append(paths, m2.Paths...)
+							continue
 						}
-					case <-timer.C:
-						break wait
+						// Non-path message means the session is
+						// being torn down (conn already closed).
+						return nil
+					default:
+					}
+					// InfiniteChannel uses an internal goroutine to
+					// pump from its buffer to Out(). Len() > 0 means
+					// data is buffered but not yet readable on Out().
+					// Yield so the pump goroutine can run, then retry.
+					// This is best-effort; Gosched does not guarantee
+					// the pump runs, but in practice it is effective.
+					if h.outgoing.Len() > 0 {
+						runtime.Gosched()
+						continue
+					}
+					break
+				}
+
+				options := &bgp.MarshallingOption{AddPath: fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)}
+				for _, msg := range table.CreateUpdateMsgFromPaths(paths, options) {
+					if err := send(msg); err != nil {
+						return nil
 					}
 				}
-				timer.Stop()
+			default:
+				return nil
 			}
-
-			options := &bgp.MarshallingOption{AddPath: fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)}
-			for _, msg := range table.CreateUpdateMsgFromPaths(paths, options) {
-				if err := send(msg); err != nil {
-					return nil
-				}
+		case <-ticker.C:
+			if err := send(bgp.NewBGPKeepAliveMessage()); err != nil {
+				return nil
 			}
-			if pending != nil {
-				continue
-			}
-		default:
-			return nil
 		}
 	}
-}
-
-func splitFSMOutgoingPaths(paths []*table.Path, limit int) ([]*table.Path, *fsmOutgoingMsg) {
-	if len(paths) <= limit {
-		return paths, nil
-	}
-	return paths[:limit], &fsmOutgoingMsg{Paths: paths[limit:]}
 }
 
 func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtimerResetCh chan<- struct{}, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) {
