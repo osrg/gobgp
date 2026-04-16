@@ -1774,10 +1774,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 				paths := m.Paths
 				coalescedMsgs := 1
 				// coalesce queued messages for more efficient UPDATE packing
-				for {
-					if coalescedMsgs >= maxCoalesceMsgs {
-						break
-					}
+				for coalescedMsgs < maxCoalesceMsgs {
 					select {
 					case <-ctx.Done():
 						return nil
