@@ -1790,17 +1790,10 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 							coalescedMsgs++
 							continue
 						}
-						// Non-path message means the session is
-						// being torn down (conn already closed).
 						return nil
 					default:
 					}
-					// InfiniteChannel uses an internal goroutine to
-					// pump from its buffer to Out(). Len() > 0 means
-					// data is buffered but not yet readable on Out().
-					// Yield so the pump goroutine can run, then retry.
-					// This is best-effort; Gosched does not guarantee
-					// the pump runs, but in practice it is effective.
+					// yield for InfiniteChannel's pump goroutine
 					if h.outgoing.Len() > 0 {
 						runtime.Gosched()
 						continue
