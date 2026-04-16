@@ -1770,11 +1770,14 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 		case o := <-h.outgoing.Out():
 			switch m := o.(type) {
 			case *fsmOutgoingMsg:
+				const maxCoalesceMsgs = 2048 // safety cap
 				paths := m.Paths
-				// Non-blocking drain: coalesce queued messages so
-				// CreateUpdateMsgFromPaths can pack NLRIs with
-				// matching attributes into fewer UPDATEs.
+				coalescedMsgs := 1
+				// coalesce queued messages for more efficient UPDATE packing
 				for {
+					if coalescedMsgs >= maxCoalesceMsgs {
+						break
+					}
 					select {
 					case <-ctx.Done():
 						return nil
@@ -1784,6 +1787,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 					case o2 := <-h.outgoing.Out():
 						if m2, ok := o2.(*fsmOutgoingMsg); ok {
 							paths = append(paths, m2.Paths...)
+							coalescedMsgs++
 							continue
 						}
 						// Non-path message means the session is
