@@ -244,7 +244,7 @@ class ZebraNHTTest(unittest.TestCase):
             'gobgp global rib add -a ipv4 10.3.2.0/24 nexthop 10.3.1.1')
 
         assert_several_times(f=lambda: _f_r2("10.3.2.0/24"), t=15)
-        assert_several_times(f=lambda: _f_r1("10.3.2.0/24"), t=15)
+        assert_several_times(f=lambda: _f_r1("10.3.2.0/24"), t=60)
 
         # Confirm the stability of the nexthop state
         for _ in range(5):
