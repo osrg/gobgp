@@ -532,8 +532,8 @@ func (u *Update) GetChanges(id string, as uint32, peerDown bool) (*Path, *Path, 
 			}
 			return nil, old
 		}
-		if best == nil {
-			if old == nil {
+		if best == nil || best.IsNexthopInvalid {
+			if old == nil || old.IsNexthopInvalid {
 				return nil, nil
 			}
 			if peerDown {
