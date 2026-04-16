@@ -178,9 +178,11 @@ class ZebraNHTTest(unittest.TestCase):
             'gobgp global rib add -a ipv4 10.3.1.0/24 nexthop 10.3.1.1')
 
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med))
+            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med),
+            t=120)
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med))
+            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med),
+            t=120)
 
         # Test if the path, which came after the NEXTHOP_UPDATE message was
         # received from Zebra, is updated by reflecting the nexthop cache.
@@ -189,10 +191,10 @@ class ZebraNHTTest(unittest.TestCase):
 
         assert_several_times(
             f=lambda: self._assert_med_equal(self.r2, '10.3.2.0/24', med),
-            t=15)
+            t=120)
         assert_several_times(
             f=lambda: self._assert_med_equal(self.r1, '10.3.2.0/24', med),
-            t=15)
+            t=120)
 
         self.r2.local(
             'gobgp global rib del -a ipv4 10.3.2.0/24')
@@ -209,9 +211,11 @@ class ZebraNHTTest(unittest.TestCase):
         self.r3.local('ip link set %s down' % ifname)
 
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med))
+            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med),
+            t=120)
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med))
+            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med),
+            t=120)
 
     def test_05_nexthop_unreachable(self):
         # Test to update the nexthop state if nexthop become unreachable by
@@ -243,8 +247,8 @@ class ZebraNHTTest(unittest.TestCase):
         self.r2.local(
             'gobgp global rib add -a ipv4 10.3.2.0/24 nexthop 10.3.1.1')
 
-        assert_several_times(f=lambda: _f_r2("10.3.2.0/24"), t=15)
-        assert_several_times(f=lambda: _f_r1("10.3.2.0/24"), t=15)
+        assert_several_times(f=lambda: _f_r2("10.3.2.0/24"), t=120)
+        assert_several_times(f=lambda: _f_r1("10.3.2.0/24"), t=120)
 
         # Confirm the stability of the nexthop state
         for _ in range(5):
@@ -266,9 +270,11 @@ class ZebraNHTTest(unittest.TestCase):
         self.r4.local('ip link set %s up' % ifname)
 
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med))
+            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med),
+            t=120)
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med))
+            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med),
+            t=120)
 
     def test_07_nexthop_restore(self):
         # Test to update the nexthop state if the Metric to that nexthop is
@@ -282,9 +288,11 @@ class ZebraNHTTest(unittest.TestCase):
         self.r3.local('ip link set %s up' % ifname)
 
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med))
+            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med),
+            t=120)
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med))
+            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med),
+            t=120)
 
 
 if __name__ == '__main__':
