@@ -474,6 +474,9 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
+	if err != nil {
+		return
+	}
 	if !assert.Eventually(func() bool {
 		_, statErr := os.Stat(socketName + "/gobgp.sock")
 		return statErr == nil
