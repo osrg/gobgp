@@ -1776,6 +1776,11 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 				// matching attributes into fewer UPDATEs.
 				for {
 					select {
+					case <-ctx.Done():
+						return nil
+					default:
+					}
+					select {
 					case o2 := <-h.outgoing.Out():
 						if m2, ok := o2.(*fsmOutgoingMsg); ok {
 							paths = append(paths, m2.Paths...)
