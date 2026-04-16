@@ -616,6 +616,9 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 	}
 
 	peerInfo := peer.peerInfo.Load()
+	if peerInfo == nil {
+		return nil, nil, true
+	}
 
 	options := &table.PolicyOptions{
 		Info: peerInfo,
