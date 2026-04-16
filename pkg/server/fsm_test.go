@@ -1601,10 +1601,10 @@ func TestSendMessageloop_CoalesceMultipleAttributeGroups(t *testing.T) {
 	t.Logf("coalesced %d paths (%d groups) into %d UPDATEs", total, numGroups, updates)
 }
 
-// TestSendMessageloop_NonPathMessageNotDropped verifies that non-path
-// messages (fsmStateReason for shutdown/NOTIFICATION) injected into the
-// outgoing channel are not swallowed by the coalescing drain.
-func TestSendMessageloop_NonPathMessageNotDropped(t *testing.T) {
+// TestSendMessageloop_KillSignal verifies that a non-path message causes
+// sendMessageloop to exit promptly. This test checks timely termination,
+// not preservation or forwarding of the non-path payload.
+func TestSendMessageloop_KillSignal(t *testing.T) {
 	m := NewMockConnection()
 	_, h := makePeerAndHandler(m)
 	t.Cleanup(func() { h.outgoing.Close(); m.Close() })
@@ -1620,8 +1620,8 @@ func TestSendMessageloop_NonPathMessageNotDropped(t *testing.T) {
 		path := makePath(t, fmt.Sprintf("10.0.%d.0/24", i), "192.168.1.1", 0)
 		h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{path}}
 	}
-	// A non-fsmOutgoingMsg triggers the default case and returns from
-	// sendMessageloop.  This tests that the drain doesn't swallow it.
+	// A non-fsmOutgoingMsg acts as a kill signal and should cause the loop
+	// to return promptly.
 	h.outgoing.In() <- *newfsmStateReason(fsmAdminDown, nil, nil)
 
 	errCh := make(chan error, 1)
@@ -1629,7 +1629,7 @@ func TestSendMessageloop_NonPathMessageNotDropped(t *testing.T) {
 		errCh <- h.sendMessageloop(ctx, m, stateReasonCh, wg)
 	}()
 
-	// sendMessageloop should return (not hang) because it encounters the
+	// sendMessageloop should return (not hang) when it encounters the
 	// non-path message during drain or on the next outer select iteration.
 	select {
 	case <-errCh:
