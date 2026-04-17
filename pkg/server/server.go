@@ -1163,63 +1163,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			// between the previous and current state of the route distribution
 			// graph that is derived from Route Target membership information.
 			if peer != nil && path != nil && path.GetFamily() == bgp.RF_RTC_UC {
-				peer.rtmHandler.SyncAfterImport(path)
-				rt := path.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-				fs := make([]bgp.Family, 0, len(peer.negotiatedRFList()))
-				for _, f := range peer.negotiatedRFList() {
-					if f != bgp.RF_RTC_UC {
-						fs = append(fs, f)
-					}
-				}
-				var candidates []*table.Path
-				if path.IsWithdraw {
-					// Note: The paths to be withdrawn are filtered because the
-					// given RT on RTM NLRI is already removed from the peer RTC index.
-					_, candidates = s.getBestFromLocal(peer, fs, true)
-				} else {
-					// https://github.com/osrg/gobgp/issues/1777
-					// Ignore duplicate Membership announcements
-					membershipsForSource := s.globalRib.GetPathListWithSource(table.GLOBAL_RIB_NAME, []bgp.Family{bgp.RF_RTC_UC}, path.GetSource())
-					found := false
-					equalRT := func(a, b bgp.ExtendedCommunityInterface) bool {
-						if a == nil && b == nil {
-							return true
-						}
-						return a != nil && b != nil && a.String() == b.String()
-					}
-					for _, membership := range membershipsForSource {
-						mrt := membership.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTarget
-						if equalRT(mrt, rt) {
-							found = true
-							break
-						}
-					}
-					if !found {
-						candidates = s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
-					}
-				}
-				paths := make([]*table.Path, 0, len(candidates))
-				for _, p := range candidates {
-					for _, ext := range p.GetExtCommunities() {
-						if rt == nil || ext.String() == rt.String() {
-							if path.IsWithdraw {
-								p = p.Clone(true)
-							}
-							paths = append(paths, p)
-							break
-						}
-					}
-				}
-				if path.IsWithdraw {
-					// Skips filtering because the paths are already filtered
-					// and the withdrawal does not need the path attributes.
-					sendfsmOutgoingMsg(peer, paths)
-				} else if !peer.getRtcEORWait() {
-					paths = s.processOutgoingPaths(peer, paths, nil)
-					sendfsmOutgoingMsg(peer, paths)
-				} else {
-					peer.fsm.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.", slog.Any("Path", path))
-				}
+				s.processRTCMembership(peer, path)
 			}
 		}
 
@@ -1227,6 +1171,86 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			s.propagateUpdateToNeighbors(rib, peer, path, dsts, true)
 		}
 	}
+}
+
+// processRTCMembership handles a single RTC NLRI path (announce or withdraw) received
+// from peer, updating the membership index and sending the minimum necessary VPN route
+// updates to the peer.
+//
+// RFC4684 §6: re-evaluate RIB-OUTs for VPN NLRIs matching the Route Target.
+func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
+	nlri, ok := path.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+	if !ok {
+		peer.fsm.logger.Warn("Path is not a Route Target Membership NLRI", slog.Any("Path", path))
+		return
+	}
+	rt := nlri.RouteTarget
+	hasRt := func(rt bgp.ExtendedCommunityInterface) bool {
+		if rt == nil {
+			return peer.rtmHandler.HasDefaultRouteTarget()
+		}
+		return peer.rtmHandler.HasRouteTarget(rt)
+	}
+
+	rtKnownBefore := hasRt(rt)
+
+	peer.rtmHandler.SyncAfterImport(path)
+
+	rtKnownAfter := hasRt(rt)
+
+	if !path.IsWithdraw && rtKnownBefore || path.IsWithdraw && rtKnownAfter {
+		return
+	}
+
+	fs := peerNonRTCFamilies(peer)
+	paths := s.rtcVPNCandidates(peer, path, rt, fs)
+
+	if path.IsWithdraw {
+		// Skips filtering: paths are already scoped to this RT and withdrawals
+		// do not need path attributes.
+		sendfsmOutgoingMsg(peer, paths)
+		return
+	}
+	if peer.getRtcEORWait() {
+		peer.fsm.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.", slog.Any("Path", path))
+		return
+	}
+	paths = s.processOutgoingPaths(peer, paths, nil)
+	sendfsmOutgoingMsg(peer, paths)
+}
+
+// peerNonRTCFamilies returns the peer's negotiated families excluding RF_RTC_UC.
+func peerNonRTCFamilies(peer *peer) []bgp.Family {
+	negotiated := peer.negotiatedRFList()
+	fs := make([]bgp.Family, 0, len(negotiated))
+	for _, f := range negotiated {
+		if f != bgp.RF_RTC_UC {
+			fs = append(fs, f)
+		}
+	}
+	return fs
+}
+
+// rtcVPNCandidates returns VPN paths to announce or withdraw in response to an RTC update.
+// For a specific rt it uses the VPN path index (O(1)); for the wildcard (nil rt) it falls
+// back to a full RIB scan because all VPN families are in scope.
+func (s *BgpServer) rtcVPNCandidates(peer *peer, path *table.Path, rt bgp.ExtendedCommunityInterface, fs []bgp.Family) []*table.Path {
+	if rt != nil {
+		raw := s.globalRib.GetPathsByRT(rt, fs)
+		paths := make([]*table.Path, 0, len(raw))
+		for _, p := range raw {
+			if path.IsWithdraw {
+				p = p.Clone(true)
+			}
+			paths = append(paths, p)
+		}
+		return paths
+	}
+	if path.IsWithdraw {
+		_, paths := s.getBestFromLocal(peer, fs, false)
+		return paths
+	}
+	return s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
 }
 
 func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*table.Path, [][]*table.Path) {

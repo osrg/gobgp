@@ -98,6 +98,109 @@ func (s *rtmSet) reset() {
 	s.m = make(map[uint64]map[rtmKey]struct{})
 }
 
+// vpnPathKey identifies a VPN path without relying on *Path pointer identity.
+// info points to the root originInfo shared by a path and all its clones, so
+// Register/Unregister match even when the path was cloned in the pipeline.
+type vpnPathKey struct {
+	info   *originInfo
+	pathID uint32
+}
+
+func makeVPNPathKey(path *Path) vpnPathKey {
+	return vpnPathKey{info: path.OriginInfo(), pathID: path.remoteID}
+}
+
+// vpnRTEntry holds the set of paths indexed under a single RT hash.
+type vpnRTEntry struct {
+	paths map[vpnPathKey]*Path
+}
+
+func newVPNRTEntry() *vpnRTEntry {
+	return &vpnRTEntry{paths: make(map[vpnPathKey]*Path)}
+}
+
+// VPNPathIndex is a standalone thread-safe index of VPN (and similar) paths by Route Target.
+// It lives inside each VPN-family Table and is maintained as paths enter or leave the table,
+// enabling O(1) RT-based candidate lookup during RTC processing instead of a linear scan.
+//
+// Thread-safe: all operations are protected by an internal RWMutex.
+type VPNPathIndex struct {
+	mu  sync.RWMutex
+	rts map[uint64]*vpnRTEntry // rtHash → entry
+}
+
+func NewVPNPathIndex() *VPNPathIndex {
+	return &VPNPathIndex{rts: make(map[uint64]*vpnRTEntry)}
+}
+
+// RegisterPath indexes path under each of its RT extended communities.
+// No-op for nil, EOR, or withdraw paths and for paths with no RT ext comms.
+func (idx *VPNPathIndex) RegisterPath(path *Path) {
+	if idx == nil || path == nil || path.IsEOR() || path.IsWithdraw {
+		return
+	}
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+	for _, ext := range path.GetExtCommunities() {
+		rtHash, err := extCommRouteTargetKey(ext)
+		if err != nil {
+			continue
+		}
+		entry, ok := idx.rts[rtHash]
+		if !ok {
+			entry = newVPNRTEntry()
+			idx.rts[rtHash] = entry
+		}
+		entry.paths[makeVPNPathKey(path)] = path
+	}
+}
+
+// UnregisterPath removes path from the index. Spurious removes are no-ops.
+func (idx *VPNPathIndex) UnregisterPath(path *Path) {
+	if idx == nil || path == nil || path.IsEOR() {
+		return
+	}
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+	for _, ext := range path.GetExtCommunities() {
+		rtHash, err := extCommRouteTargetKey(ext)
+		if err != nil {
+			continue
+		}
+		entry, ok := idx.rts[rtHash]
+		if !ok {
+			continue
+		}
+		delete(entry.paths, makeVPNPathKey(path))
+		if len(entry.paths) == 0 {
+			delete(idx.rts, rtHash)
+		}
+	}
+}
+
+// GetPathsByRT returns all indexed paths whose extended communities include rt.
+// If rt is nil (wildcard), returns nil.
+func (idx *VPNPathIndex) GetPathsByRT(rt bgp.ExtendedCommunityInterface) []*Path {
+	if idx == nil || rt == nil {
+		return nil
+	}
+	rtHash, err := extCommRouteTargetKey(rt)
+	if err != nil {
+		return nil
+	}
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
+	entry, ok := idx.rts[rtHash]
+	if !ok {
+		return nil
+	}
+	paths := make([]*Path, 0, len(entry.paths))
+	for _, p := range entry.paths {
+		paths = append(paths, p)
+	}
+	return paths
+}
+
 // RouteTargetMembershipHandler tracks Route Target membership NLRI keys learned from a
 // peer that count for RTC constrained route distribution, after import policy.
 type RouteTargetMembershipHandler struct {

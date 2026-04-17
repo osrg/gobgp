@@ -1,6 +1,8 @@
 package table
 
 import (
+	"net/netip"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -10,7 +12,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-func TestAdjRTSetAddSubHas(t *testing.T) {
+func TestRTMSetAddSubHas(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
 
@@ -79,7 +81,7 @@ func TestAdjRTSetAddSubHas(t *testing.T) {
 	assert.False(t, s.has(rtHash))
 }
 
-func TestAdjRTSetConcurrent(t *testing.T) {
+func TestRTMSetConcurrent(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
 
@@ -202,4 +204,173 @@ func TestRouteTargetMembershipHandlerSameRTAddPath(t *testing.T) {
 	// Withdraw p2 — no more rt1 interest.
 	rtc.SyncAfterImport(p2.Clone(true))
 	assert.False(t, rtc.HasRouteTarget(rt1))
+}
+
+func makeVPNNLRI(t *testing.T, prefix string, rdAS, rdVal uint16) bgp.PathNLRI {
+	t.Helper()
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(rdAS, uint32(rdVal))
+	nlri, err := bgp.NewLabeledVPNIPAddrPrefix(
+		netip.MustParsePrefix(prefix),
+		*bgp.NewMPLSLabelStack(100),
+		rd,
+	)
+	if err != nil {
+		t.Fatalf("NewLabeledVPNIPAddrPrefix: %v", err)
+	}
+	return bgp.PathNLRI{NLRI: nlri}
+}
+
+func makeVPNPath(t *testing.T, pi *PeerInfo, rts []bgp.ExtendedCommunityInterface, prefix string) *Path {
+	t.Helper()
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeExtendedCommunities(rts),
+	}
+	return NewPath(bgp.RF_IPv4_VPN, pi, makeVPNNLRI(t, prefix, 65000, 1), false, attrs, time.Now(), false)
+}
+
+func TestVPNPathIndexRegisterUnregister(t *testing.T) {
+	pi := &PeerInfo{}
+	rt1, _ := bgp.ParseRouteTarget("65000:1")
+	rt2, _ := bgp.ParseRouteTarget("65000:2")
+
+	p1 := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt1}, "10.1.0.0/24")
+	p2 := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt2}, "10.2.0.0/24")
+
+	idx := NewVPNPathIndex()
+
+	// Empty index returns nothing.
+	assert.Empty(t, idx.GetPathsByRT(rt1))
+	assert.Empty(t, idx.GetPathsByRT(nil))
+
+	// Register p1 under rt1.
+	idx.RegisterPath(p1)
+	assert.Equal(t, []*Path{p1}, idx.GetPathsByRT(rt1))
+	assert.Empty(t, idx.GetPathsByRT(rt2))
+
+	// Register p2 under rt2.
+	idx.RegisterPath(p2)
+	assert.Equal(t, []*Path{p2}, idx.GetPathsByRT(rt2))
+
+	// Nil rt is not a wildcard here: RTC wildcard handling uses a full RIB scan
+	// (see TableManager.GetPathsByRT, rtcVPNCandidates), not the per-table index.
+	assert.Nil(t, idx.GetPathsByRT(nil))
+
+	// Unregister p1; rt1 bucket should disappear.
+	idx.UnregisterPath(p1)
+	assert.Empty(t, idx.GetPathsByRT(rt1))
+	assert.Equal(t, []*Path{p2}, idx.GetPathsByRT(rt2))
+
+	// Spurious unregister is a no-op.
+	idx.UnregisterPath(p1)
+	assert.Equal(t, []*Path{p2}, idx.GetPathsByRT(rt2))
+
+	// Withdraw-flagged path is ignored by RegisterPath.
+	idx.RegisterPath(p1.Clone(true))
+	assert.Empty(t, idx.GetPathsByRT(rt1))
+}
+
+func TestVPNPathIndexMultipleRTsPerPath(t *testing.T) {
+	pi := &PeerInfo{}
+	rt1, _ := bgp.ParseRouteTarget("65000:1")
+	rt2, _ := bgp.ParseRouteTarget("65000:2")
+
+	// Single path carrying both RTs.
+	p := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt1, rt2}, "10.3.0.0/24")
+
+	idx := NewVPNPathIndex()
+	idx.RegisterPath(p)
+
+	assert.Equal(t, []*Path{p}, idx.GetPathsByRT(rt1))
+	assert.Equal(t, []*Path{p}, idx.GetPathsByRT(rt2))
+
+	// Unregistering removes p from both RT buckets.
+	idx.UnregisterPath(p)
+	assert.Empty(t, idx.GetPathsByRT(rt1))
+	assert.Empty(t, idx.GetPathsByRT(rt2))
+}
+
+func TestVPNPathIndexNilInputs(t *testing.T) {
+	var nilIdx *VPNPathIndex
+	// All methods must be no-ops on a nil receiver.
+	nilIdx.RegisterPath(nil)
+	nilIdx.UnregisterPath(nil)
+	assert.Nil(t, nilIdx.GetPathsByRT(nil))
+
+	// Non-nil index, nil / withdraw paths must not be indexed.
+	idx := NewVPNPathIndex()
+	idx.RegisterPath(nil)
+
+	pi := &PeerInfo{}
+	rt1, _ := bgp.ParseRouteTarget("65000:1")
+	withdraw := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt1}, "10.4.0.0/24").Clone(true)
+	idx.RegisterPath(withdraw)
+	assert.Empty(t, idx.GetPathsByRT(nil))
+}
+
+// TestVPNPathIndexCloneUnregister verifies that unregistering a clone of a registered
+// path correctly removes it. With pointer-based keys this would be a silent no-op,
+// leaving a dangling entry. With vpnPathKey it must succeed.
+func TestVPNPathIndexCloneUnregister(t *testing.T) {
+	pi := &PeerInfo{}
+	rt1, _ := bgp.ParseRouteTarget("65000:1")
+
+	original := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt1}, "10.5.0.0/24")
+
+	idx := NewVPNPathIndex()
+	idx.RegisterPath(original)
+	assert.Len(t, idx.GetPathsByRT(rt1), 1)
+
+	// Clone(false) produces a new *Path with the same NLRI and pathID but a different address.
+	clone := original.Clone(false)
+	assert.NotSame(t, original, clone, "clone must be a distinct pointer")
+
+	idx.UnregisterPath(clone)
+	assert.Empty(t, idx.GetPathsByRT(rt1), "unregistering a clone must remove the original entry")
+}
+
+func TestVPNPathIndexConcurrent(t *testing.T) {
+	pi := &PeerInfo{}
+	rt1, _ := bgp.ParseRouteTarget("65000:1")
+	rt2, _ := bgp.ParseRouteTarget("65000:2")
+
+	idx := NewVPNPathIndex()
+
+	const goroutines = 20
+	const iters = 200
+
+	var wg sync.WaitGroup
+
+	// Concurrent writers: each goroutine registers then unregisters its own paths.
+	for i := range goroutines {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			// Unique prefixes per goroutine to avoid pointer aliasing between goroutines.
+			p1 := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt1},
+				"10."+strconv.Itoa(i)+".1.0/24")
+			p2 := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt2},
+				"10."+strconv.Itoa(i)+".2.0/24")
+			for range iters {
+				idx.RegisterPath(p1)
+				idx.RegisterPath(p2)
+				idx.UnregisterPath(p1)
+				idx.UnregisterPath(p2)
+			}
+		}(i)
+	}
+
+	// Concurrent readers running throughout the writes.
+	for range goroutines {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range iters {
+				_ = idx.GetPathsByRT(rt1)
+				_ = idx.GetPathsByRT(nil)
+			}
+		}()
+	}
+
+	wg.Wait()
 }
