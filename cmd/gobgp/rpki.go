@@ -143,6 +143,7 @@ func newRPKICmd() *cobra.Command {
 				if err != nil {
 					exitWithError(err)
 				}
+				return
 			} else if len(args) != 2 {
 				exitWithError(fmt.Errorf("usage: gobgp rpki server <ip address> [reset|softreset|enable]"))
 			}
