@@ -24,6 +24,7 @@ import (
 	"math/bits"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -244,19 +245,47 @@ type Table struct {
 	// this is a map[rt, MAC address]map[addrPrefixKey][]nlri
 	// this holds a map for a set of prefixes.
 	macIndex *EVPNMacNLRIs
+	// vpnIdx indexes all known paths by Route Target for O(1) RT-based lookup.
+	// Non-nil only for families that carry RT extended communities (VPNV4-6, EVPN, …).
+	vpnIdx *VPNPathIndex
+}
+
+// vpnFamilies lists the route families whose paths carry RT extended communities
+// and should therefore be indexed in VPNPathIndex.
+func isVPNFamily(rf bgp.Family) bool {
+	switch rf {
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN,
+		bgp.RF_IPv4_VPN_MC, bgp.RF_IPv6_VPN_MC,
+		bgp.RF_EVPN,
+		bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN,
+		bgp.RF_MUP_IPv4, bgp.RF_MUP_IPv6:
+		return true
+	}
+	return false
 }
 
 func NewTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
+	var vpnIdx *VPNPathIndex
+	if isVPNFamily(rf) {
+		vpnIdx = NewVPNPathIndex()
+	}
 	t := &Table{
 		Family:       rf,
 		destinations: NewDestinations(),
 		logger:       logger,
 		macIndex:     NewEVPNMacNLRIs(),
+		vpnIdx:       vpnIdx,
 	}
 	for _, dst := range dsts {
 		t.setDestination(dst)
 	}
 	return t
+}
+
+// GetVPNIndex returns the RT-keyed path index for this table, or nil if the
+// table's family does not carry RT extended communities.
+func (t *Table) GetVPNIndex() *VPNPathIndex {
+	return t.vpnIdx
 }
 
 func (t *Table) GetFamily() bgp.Family {
@@ -438,7 +467,6 @@ func (t *Table) update(newPath *Path) *Update {
 
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(shard, dst)
-		return u
 	}
 
 	if evpnNlri, ok := nlri.(*bgp.EVPNNLRI); ok {
@@ -449,7 +477,27 @@ func (t *Table) update(newPath *Path) *Update {
 		}
 	}
 
+	if t.vpnIdx != nil {
+		syncVPNIndex(t.vpnIdx, u.KnownPathList, u.OldKnownPathList)
+	}
+
 	return u
+}
+
+// syncVPNIndex unregisters paths removed from the known list and registers paths added.
+// Both lists are small (typically ≤ a handful of paths per destination), so the O(n²)
+// pointer scan is negligible in practice.
+func syncVPNIndex(idx *VPNPathIndex, after, before []*Path) {
+	for _, old := range before {
+		if !slices.Contains(after, old) {
+			idx.UnregisterPath(old)
+		}
+	}
+	for _, p := range after {
+		if !slices.Contains(before, p) {
+			idx.RegisterPath(p)
+		}
+	}
 }
 
 // GetDestinations returns snapshots of all destinations in the table.

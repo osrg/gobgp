@@ -354,6 +354,25 @@ func (manager *TableManager) updateMaxPathCounted(pathCount int) {
 	}
 }
 
+// GetPathsByRT returns all paths indexed under rt across all tables in rfList.
+// If rt is nil, returns nil.
+// Only tables with a VPNPathIndex (VPN, EVPN, …) contribute results.
+func (manager *TableManager) GetPathsByRT(rt bgp.ExtendedCommunityInterface, rfList []bgp.Family) []*Path {
+	if rt == nil {
+		return nil
+	}
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+
+	var paths []*Path
+	for _, t := range manager.getTables(rfList...) {
+		if idx := t.GetVPNIndex(); idx != nil {
+			paths = append(paths, idx.GetPathsByRT(rt)...)
+		}
+	}
+	return paths
+}
+
 func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.Family) []*Path {
 	if SelectionOptions.DisableBestPathSelection {
 		// Note: If best path selection disabled, there is no best path.
