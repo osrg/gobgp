@@ -34,7 +34,7 @@ import (
 
 // nexthopStateCache stores a map of nexthop IP to metric value. Especially,
 // the metric value of math.MaxUint32 means the nexthop is unreachable.
-type nexthopStateCache map[string]uint32
+type nexthopStateCache map[netip.Addr]uint32
 
 // applyToNewPathList applies cached nexthop state to newly added paths
 // in-place. This is called before propagateUpdate so that paths with
@@ -44,7 +44,7 @@ func (m nexthopStateCache) applyToNewPathList(paths []*table.Path) {
 		if path == nil || path.IsWithdraw {
 			continue
 		}
-		metric, ok := m[path.GetNexthop().String()]
+		metric, ok := m[path.GetNexthop()]
 		if !ok {
 			continue
 		}
@@ -62,7 +62,7 @@ func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 		if path == nil || path.IsWithdraw {
 			continue
 		}
-		metric, ok := m[path.GetNexthop().String()]
+		metric, ok := m[path.GetNexthop()]
 		if !ok {
 			continue
 		}
@@ -94,14 +94,14 @@ func (m nexthopStateCache) updateByNexthopUpdate(body *zebra.NexthopUpdateBody) 
 	if len(body.Nexthops) == 0 {
 		// If NEXTHOP_UPDATE message does not contain any nexthop, the given
 		// nexthop is unreachable.
-		if _, ok := m[body.Prefix.Prefix.String()]; !ok {
+		if _, ok := m[body.Prefix.Prefix]; !ok {
 			// Zebra will send an empty NEXTHOP_UPDATE message as the fist
 			// response for the NEXTHOP_REGISTER message. Here ignores it.
 			return false
 		}
-		m[body.Prefix.Prefix.String()] = math.MaxUint32 // means unreachable
+		m[body.Prefix.Prefix] = math.MaxUint32 // means unreachable
 	} else {
-		m[body.Prefix.Prefix.String()] = body.Metric
+		m[body.Prefix.Prefix] = body.Metric
 	}
 	return true
 }
@@ -119,7 +119,7 @@ func (m nexthopStateCache) filterPathToRegister(paths []*table.Path) []*table.Pa
 			continue
 		} else if nexthop := path.GetNexthop(); nexthop.IsUnspecified() {
 			continue
-		} else if _, ok := m[nexthop.String()]; ok {
+		} else if _, ok := m[nexthop]; ok {
 			continue
 		}
 		filteredPaths = append(filteredPaths, path)
@@ -426,7 +426,7 @@ func (z *zebraClient) loop() {
 							slog.String("Error", err.Error()),
 						)
 					}
-					delete(z.nexthopCache, body.Prefix.Prefix.String())
+					delete(z.nexthopCache, body.Prefix.Prefix)
 				}
 				z.updatePathByNexthopCache(paths)
 			case *zebra.GetLabelChunkBody:
