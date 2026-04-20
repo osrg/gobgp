@@ -32,52 +32,71 @@ from lib.base import (
     local,
 )
 from lib.gobgp import GoBGPContainer
-from lib.quagga import QuaggaOSPFContainer
-
-
-def get_ifname_with_prefix(prefix, f=local):
-    command = (
-        "ip addr show to %s"
-        " | head -n1 | cut -d'@' -f1 | cut -d' ' -f2") % prefix
-
-    return f(command, capture=True)
 
 
 class ZebraNHTTest(unittest.TestCase):
     """
-    Test case for Next-Hop Tracking with Zebra integration.
+    Test case for Next-Hop Tracking (NHT) with Zebra integration.
+
+    Verifies that GoBGP correctly reacts to NEXTHOP_UPDATE messages from
+    zebra by marking paths as reachable or unreachable, and propagates
+    the resulting advertise/withdraw to BGP peers.
+
+    OSPF is intentionally not used: nexthop reachability is driven by
+    adding or removing a static route in r2's zebra, which is
+    deterministic and keeps the test free of IGP convergence timing.
+
+    Note: Quagga static routes always carry metric=0, so MED values are
+    not validated here; MED handling is covered by unit tests.
     """
 
-    def _assert_med_equal(self, rt, prefix, med):
-        rib = rt.get_global_rib(prefix=prefix)
-        self.assertEqual(len(rib), 1)
-        self.assertEqual(len(rib[0]['paths']), 1)
-        self.assertEqual(rib[0]['paths'][0]['med'], med)
-
     # R1: GoBGP
-    # R2: GoBGP + Zebra + OSPFd
-    # R3: Zebra + OSPFd
-    # R4: Zebra + OSPFd
+    # R2: GoBGP + Zebra (static routes)
     #
-    #       +----+
-    #       | R3 |... has loopback 10.3.1.1/32
-    #       +----+
-    #        /  |
-    #       /   |
-    #      /   +----+
-    #     /    | R4 |
-    #    /     +----+
-    # +----+      |
-    # | R2 |------+
-    # +----+
-    #   | 192.168.0.2/24
-    #   |
-    #   | 192.168.0.0/24
-    #   |
-    #   | 192.168.0.1/24
-    # +----+
-    # | R1 |
-    # +----+
+    # +----+      +----+
+    # | R1 |------| R2 |
+    # +----+      +----+
+
+    NEXTHOP = '10.3.1.1'
+    PREFIX = '10.3.1.0/24'
+
+    def _set_static_nexthop(self):
+        # Point the static route at the r1-r2 bridge so zebra treats
+        # the nexthop as reachable.
+        self.r2.local(
+            "vtysh -c 'configure terminal'"
+            " -c 'ip route %s/32 192.168.12.1'"
+            % self.NEXTHOP)
+
+    def _remove_static_nexthop(self):
+        self.r2.local(
+            "vtysh -c 'configure terminal'"
+            " -c 'no ip route %s/32 192.168.12.1'"
+            % self.NEXTHOP)
+
+    def _assert_best(self, rt, prefix):
+        # Path is present and best ("*>").
+        self.assertEqual(rt.local(
+            "gobgp global rib -a ipv4 %s"
+            " | grep '^\\*>' > /dev/null"
+            " && echo OK || echo NG" % prefix,
+            capture=True), 'OK')
+
+    def _assert_not_best(self, rt, prefix):
+        # Path is present but not best ("* ", not "*>").
+        self.assertEqual(rt.local(
+            "gobgp global rib -a ipv4 %s"
+            " | grep '^\\* ' > /dev/null"
+            " && echo OK || echo NG" % prefix,
+            capture=True), 'OK')
+
+    def _assert_no_prefix(self, rt, prefix):
+        # Prefix is not in the table at all.
+        self.assertEqual(rt.local(
+            "gobgp global rib -a ipv4 %s"
+            " | grep 'Network not in table' > /dev/null"
+            " && echo OK || echo NG" % prefix,
+            capture=True), 'OK')
 
     @classmethod
     def setUpClass(cls):
@@ -94,58 +113,14 @@ class ZebraNHTTest(unittest.TestCase):
             ctn_image_name=gobgp_ctn_image_name,
             log_level=parser_option.gobgp_log_level,
             zebra=True,
-            zapi_version=3,
-            ospfd_config={
-                'networks': {
-                    '192.168.23.0/24': '0.0.0.0',
-                    '192.168.24.0/24': '0.0.0.0',
-                },
-            })
+            zapi_version=3)
 
-        cls.r3 = QuaggaOSPFContainer(
-            name='r3',
-            zebra_config={
-                'interfaces': {
-                    'lo': [
-                        'ip address 10.3.1.1/32',
-                    ],
-                },
-            },
-            ospfd_config={
-                'networks': {
-                    '10.3.1.1/32': '0.0.0.0',
-                    '192.168.23.0/24': '0.0.0.0',
-                    '192.168.34.0/24': '0.0.0.0',
-                },
-            })
-
-        cls.r4 = QuaggaOSPFContainer(
-            name='r4',
-            ospfd_config={
-                'networks': {
-                    '192.168.34.0/24': '0.0.0.0',
-                    '192.168.24.0/24': '0.0.0.0',
-                },
-            })
-
-        wait_time = max(ctn.run() for ctn in [cls.r1, cls.r2, cls.r3, cls.r4])
+        wait_time = max(ctn.run() for ctn in [cls.r1, cls.r2])
         time.sleep(wait_time)
 
         cls.br_r1_r2 = Bridge(name='br_r1_r2', subnet='192.168.12.0/24')
         for ctn in (cls.r1, cls.r2):
             cls.br_r1_r2.addif(ctn)
-
-        cls.br_r2_r3 = Bridge(name='br_r2_r3', subnet='192.168.23.0/24')
-        for ctn in (cls.r2, cls.r3):
-            cls.br_r2_r3.addif(ctn)
-
-        cls.br_r2_r4 = Bridge(name='br_r2_r4', subnet='192.168.24.0/24')
-        for ctn in (cls.r2, cls.r4):
-            cls.br_r2_r4.addif(ctn)
-
-        cls.br_r3_r4 = Bridge(name='br_r3_r4', subnet='192.168.34.0/24')
-        for ctn in (cls.r3, cls.r4):
-            cls.br_r3_r4.addif(ctn)
 
     def test_01_BGP_neighbor_established(self):
         # Test to start BGP connection up between r1-r2.
@@ -155,144 +130,72 @@ class ZebraNHTTest(unittest.TestCase):
 
         self.r1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.r2)
 
-    def test_02_OSPF_established(self):
-        # Test to start OSPF connection up between r2-r3 and receive the route
-        # to r3's loopback '10.3.1.1'.
-        def _f():
-            self.assertEqual(self.r2.local(
-                "vtysh -c 'show ip ospf route'"
-                " | grep '10.3.1.1/32' > /dev/null"
-                " && echo OK || echo NG",
-                capture=True), 'OK')
-
-        assert_several_times(f=_f, t=120)
-
-    def test_03_add_ipv4_route(self):
-        # Test to add IPv4 route to '10.3.1.0/24' whose nexthop is r3's
-        # loopback '10.3.1.1'. Also, test to receive the initial MED/Metric.
-
-        # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
-        med = 20
+    def test_02_reachable_nexthop(self):
+        # With the nexthop reachable via a static route, adding a BGP
+        # path with that nexthop must result in the path being best on
+        # r2 and reaching r1.
+        self._set_static_nexthop()
 
         self.r2.local(
-            'gobgp global rib add -a ipv4 10.3.1.0/24 nexthop 10.3.1.1')
+            'gobgp global rib add -a ipv4 %s nexthop %s'
+            % (self.PREFIX, self.NEXTHOP))
 
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med),
-            t=120)
+            f=lambda: self._assert_best(self.r2, self.PREFIX), t=60)
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med),
-            t=120)
+            f=lambda: self._assert_best(self.r1, self.PREFIX), t=60)
 
-        # Test if the path, which came after the NEXTHOP_UPDATE message was
-        # received from Zebra, is updated by reflecting the nexthop cache.
+    def test_03_nexthop_unreachable(self):
+        # Remove the static route: nexthop becomes unreachable.
+        # The existing path must transition from best to not-best on r2
+        # and be withdrawn from r1. This exercises the
+        # valid -> invalid transition path in GetChanges.
+        self._remove_static_nexthop()
+
+        assert_several_times(
+            f=lambda: self._assert_not_best(self.r2, self.PREFIX), t=60)
+        assert_several_times(
+            f=lambda: self._assert_no_prefix(self.r1, self.PREFIX), t=60)
+
+    def test_04_nexthop_restore(self):
+        # Re-add the static route. The existing path must become best
+        # again on r2 and be re-advertised to r1. This exercises the
+        # invalid -> valid revalidation path.
+        self._set_static_nexthop()
+
+        assert_several_times(
+            f=lambda: self._assert_best(self.r2, self.PREFIX), t=60)
+        assert_several_times(
+            f=lambda: self._assert_best(self.r1, self.PREFIX), t=60)
+
+    def test_05_add_path_while_unreachable(self):
+        # Make the nexthop unreachable again, then add a brand-new
+        # path. The new path must be tracked as not-best on r2 and
+        # must never be advertised to r1. This exercises the separate
+        # code path where nexthop cache is applied to a newly added
+        # path before propagation.
+        self._remove_static_nexthop()
+
+        prefix = '10.3.2.0/24'
         self.r2.local(
-            'gobgp global rib add -a ipv4 10.3.2.0/24 nexthop 10.3.1.1')
+            'gobgp global rib add -a ipv4 %s nexthop %s'
+            % (prefix, self.NEXTHOP))
 
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.2.0/24', med),
-            t=120)
+            f=lambda: self._assert_not_best(self.r2, prefix), t=60)
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.2.0/24', med),
-            t=120)
+            f=lambda: self._assert_no_prefix(self.r1, prefix), t=60)
 
-        self.r2.local(
-            'gobgp global rib del -a ipv4 10.3.2.0/24')
-
-    def test_04_link_r2_r3_down(self):
-        # Test to update MED to the nexthop if the Metric to that nexthop is
-        # changed by the link down. If the link r2-r3 goes down, MED/Metric
-        # should be increased.
-
-        # MED/Metric = 10(r2 to r4) + 10(r4 to r3) + 10(r3-ethX to r3-lo)
-        med = 30
-
-        ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
-        self.r3.local('ip link set %s down' % ifname)
+    def test_06_restore_revalidates_new_path(self):
+        # Re-add the static route. The new path added while unreachable
+        # must now become best and be advertised to r1, confirming the
+        # newly-added-invalid path can be revalidated.
+        self._set_static_nexthop()
 
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med),
-            t=120)
+            f=lambda: self._assert_best(self.r2, '10.3.2.0/24'), t=60)
         assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med),
-            t=120)
-
-    def test_05_nexthop_unreachable(self):
-        # Test to update the nexthop state if nexthop become unreachable by
-        # link down. If the link r2-r3 and r2-r4 goes down, there is no route
-        # to r3.
-
-        def _f_r2(prefix):
-            self.assertEqual(self.r2.local(
-                "gobgp global rib -a ipv4 %s"
-                " | grep '^* ' > /dev/null"  # not best "*>"
-                " && echo OK || echo NG" % prefix,
-                capture=True), 'OK')
-
-        def _f_r1(prefix):
-            self.assertEqual(self.r1.local(
-                "gobgp global rib -a ipv4 %s"
-                "| grep 'Network not in table' > /dev/null"
-                " && echo OK || echo NG" % prefix,
-                capture=True), 'OK')
-
-        ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
-        self.r4.local('ip link set %s down' % ifname)
-
-        assert_several_times(f=lambda: _f_r2("10.3.1.0/24"), t=120)
-        assert_several_times(f=lambda: _f_r1("10.3.1.0/24"), t=120)
-
-        # Test if the path, which came after the NEXTHOP_UPDATE message was
-        # received from Zebra, is updated by reflecting the nexthop cache.
-        self.r2.local(
-            'gobgp global rib add -a ipv4 10.3.2.0/24 nexthop 10.3.1.1')
-
-        assert_several_times(f=lambda: _f_r2("10.3.2.0/24"), t=120)
-        assert_several_times(f=lambda: _f_r1("10.3.2.0/24"), t=120)
-
-        # Confirm the stability of the nexthop state
-        for _ in range(5):
-            time.sleep(1)
-            _f_r2("10.3.1.0/24")
-            _f_r1("10.3.1.0/24")
-            _f_r2("10.3.2.0/24")
-            _f_r1("10.3.2.0/24")
-
-    def test_06_link_r2_r4_restore(self):
-        # Test to update the nexthop state if nexthop become reachable again.
-        # If the link r2-r4 goes up again, MED/Metric should be the value of
-        # the path going through r4.
-
-        # MED/Metric = 10(r2 to r4) + 10(r4 to r3) + 10(r3-ethX to r3-lo)
-        med = 30
-
-        ifname = get_ifname_with_prefix('192.168.24.4/24', f=self.r4.local)
-        self.r4.local('ip link set %s up' % ifname)
-
-        assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med),
-            t=120)
-        assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med),
-            t=120)
-
-    def test_07_nexthop_restore(self):
-        # Test to update the nexthop state if the Metric to that nexthop is
-        # changed. If the link r2-r3 goes up again, MED/Metric should be update
-        # with the initial value.
-
-        # MED/Metric = 10(r2 to r3) + 10(r3-ethX to r3-lo)
-        med = 20
-
-        ifname = get_ifname_with_prefix('192.168.23.3/24', f=self.r3.local)
-        self.r3.local('ip link set %s up' % ifname)
-
-        assert_several_times(
-            f=lambda: self._assert_med_equal(self.r2, '10.3.1.0/24', med),
-            t=120)
-        assert_several_times(
-            f=lambda: self._assert_med_equal(self.r1, '10.3.1.0/24', med),
-            t=120)
+            f=lambda: self._assert_best(self.r1, '10.3.2.0/24'), t=60)
 
 
 if __name__ == '__main__':

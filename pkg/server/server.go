@@ -2185,6 +2185,9 @@ func pathTokey(path *table.Path) string {
 func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	err := s.fixupApiPath(vrfId, pathList)
 	if err == nil {
+		if s.zclient != nil {
+			s.zclient.nexthopCache.applyToNewPathList(pathList)
+		}
 		s.propagateUpdate(nil, pathList)
 	}
 	return err

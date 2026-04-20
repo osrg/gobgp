@@ -36,6 +36,26 @@ import (
 // the metric value of math.MaxUint32 means the nexthop is unreachable.
 type nexthopStateCache map[string]uint32
 
+// applyToNewPathList applies cached nexthop state to newly added paths
+// in-place. This is called before propagateUpdate so that paths with
+// unreachable nexthops are marked invalid before being advertised.
+func (m nexthopStateCache) applyToNewPathList(paths []*table.Path) {
+	for _, path := range paths {
+		if path == nil || path.IsWithdraw {
+			continue
+		}
+		metric, ok := m[path.GetNexthop().String()]
+		if !ok {
+			continue
+		}
+		if metric == math.MaxUint32 {
+			path.IsNexthopInvalid = true
+		} else {
+			_ = path.SetMed(int64(metric), true)
+		}
+	}
+}
+
 func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 	updated := make([]*table.Path, 0, len(paths))
 	for _, path := range paths {
