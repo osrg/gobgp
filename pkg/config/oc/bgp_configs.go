@@ -1918,6 +1918,9 @@ type PeerGroup struct {
 	// original -> gobgp:ttl-security
 	// Configure TTL Security feature.
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
+	// original -> gobgp:bfd
+	// BFD parameters.
+	Bfd Bfd `mapstructure:"bfd" json:"bfd,omitempty"`
 }
 
 func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
@@ -1972,6 +1975,9 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 		return false
 	}
 	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
+		return false
+	}
+	if !lhs.Bfd.Equal(&(rhs.Bfd)) {
 		return false
 	}
 	return true
@@ -2814,6 +2820,28 @@ func (lhs *Timers) Equal(rhs *Timers) bool {
 	return true
 }
 
+// struct for container gobgp:bfd-state.
+// BFD state and stats.
+type BfdState struct {
+	// original -> gobgp:bfd-state-state
+	// gobgp:bfd-state-state's original type is boolean.
+	State bool `mapstructure:"bfd-state-state" json:"bfd-state-state,omitempty"`
+	// original -> gobgp:received-packet
+	ReceivedPacket uint64 `mapstructure:"received-packet" json:"received-packet,omitempty"`
+	// original -> gobgp:sent-packet
+	SentPacket uint64 `mapstructure:"sent-packet" json:"sent-packet,omitempty"`
+	// original -> gobgp:sent-drop
+	SentDrop uint64 `mapstructure:"sent-drop" json:"sent-drop,omitempty"`
+	// original -> gobgp:sent-error
+	SentError uint64 `mapstructure:"sent-error" json:"sent-error,omitempty"`
+	// original -> gobgp:invalid-discriminator
+	InvalidDiscriminator uint64 `mapstructure:"invalid-discriminator" json:"invalid-discriminator,omitempty"`
+	// original -> gobgp:expired
+	Expired uint64 `mapstructure:"expired" json:"expired,omitempty"`
+	// original -> gobgp:bad-init-packet
+	BadInitPacket uint64 `mapstructure:"bad-init-packet" json:"bad-init-packet,omitempty"`
+}
+
 // struct for container gobgp:adj-table.
 type AdjTable struct {
 	// original -> gobgp:ADVERTISED
@@ -3145,6 +3173,9 @@ type NeighborState struct {
 	// original -> gobgp:remote-router-id
 	// gobgp:remote-router-id's original type is inet:ipv4-address.
 	RemoteRouterId netip.Addr `mapstructure:"remote-router-id" json:"remote-router-id,omitempty"`
+	// original -> gobgp:bfd-state
+	// BFD state and stats.
+	BfdState BfdState `mapstructure:"bfd-state" json:"bfd-state,omitempty"`
 }
 
 // struct for container bgp:config.
@@ -3318,6 +3349,9 @@ type Neighbor struct {
 	// original -> gobgp:ttl-security
 	// Configure TTL Security feature.
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
+	// original -> gobgp:bfd
+	// BFD parameters.
+	Bfd Bfd `mapstructure:"bfd" json:"bfd,omitempty"`
 }
 
 func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
@@ -3372,6 +3406,67 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 		return false
 	}
 	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
+		return false
+	}
+	if !lhs.Bfd.Equal(&(rhs.Bfd)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:config.
+// Configuration parameters relating to BFD.
+type BfdConfig struct {
+	// original -> gobgp:port
+	Port uint16 `mapstructure:"port" json:"port,omitempty"`
+	// original -> gobgp:enabled
+	// gobgp:enabled's original type is boolean.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+	// original -> gobgp:multiplier
+	Multiplier uint8 `mapstructure:"multiplier" json:"multiplier,omitempty"`
+	// original -> gobgp:rx-interval
+	// BFD Control Packet receive interval in milliseconds.
+	RxInterval uint32 `mapstructure:"rx-interval" json:"rx-interval,omitempty"`
+	// original -> gobgp:tx-interval
+	// BFD Control Packet sent interval in milliseconds.
+	TxInterval uint32 `mapstructure:"tx-interval" json:"tx-interval,omitempty"`
+}
+
+func (lhs *BfdConfig) Equal(rhs *BfdConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Port != rhs.Port {
+		return false
+	}
+	if lhs.Enabled != rhs.Enabled {
+		return false
+	}
+	if lhs.Multiplier != rhs.Multiplier {
+		return false
+	}
+	if lhs.RxInterval != rhs.RxInterval {
+		return false
+	}
+	if lhs.TxInterval != rhs.TxInterval {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:bfd.
+// BFD parameters.
+type Bfd struct {
+	// original -> gobgp:bfd-config
+	// Configuration parameters relating to BFD.
+	Config BfdConfig `mapstructure:"config" json:"config,omitempty"`
+}
+
+func (lhs *Bfd) Equal(rhs *Bfd) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
 	return true
@@ -4913,6 +5008,9 @@ type Global struct {
 	// routing table, i.e., export (send) and import (receive),
 	// depending on the context.
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy,omitempty"`
+	// original -> gobgp:bfd
+	// BFD parameters.
+	Bfd Bfd `mapstructure:"bfd" json:"bfd,omitempty"`
 }
 
 func (lhs *Global) Equal(rhs *Global) bool {
@@ -4946,6 +5044,9 @@ func (lhs *Global) Equal(rhs *Global) bool {
 		}
 	}
 	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
+		return false
+	}
+	if !lhs.Bfd.Equal(&(rhs.Bfd)) {
 		return false
 	}
 	return true

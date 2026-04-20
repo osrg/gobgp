@@ -119,6 +119,18 @@ func SetTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
 	return sockerr
 }
 
+func setSockOptString(sc syscall.RawConn, level int, opt int, str string) error {
+	var opterr error
+	fn := func(s uintptr) {
+		opterr = syscall.SetsockoptString(int(s), level, opt, str)
+	}
+	err := sc.Control(fn)
+	if opterr == nil {
+		return err
+	}
+	return opterr
+}
+
 func SetBindToDevSockopt(sc syscall.RawConn, device string) error {
 	return setSockOptString(sc, syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, device)
 }
@@ -163,6 +175,19 @@ func SetIPTOSSockopt(conn net.Conn, tos uint8) error {
 		return err
 	}
 	return setSockOptIpTos(sc, family, tos)
+}
+
+func SetUDPTTLSockopt(conn net.Conn, ttl int) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setSockOptIpTtl(sc, family, ttl)
+}
+
+func SetReuseAddrSockopt(sc syscall.RawConn) error {
+	return setSockOptInt(sc, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
 }
 
 func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string, tos uint8) error {

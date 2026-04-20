@@ -16,10 +16,16 @@
 package server
 
 import (
+	"math/rand/v2"
+
 	"github.com/eapache/channels"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
+
+func randRange(min int, max int) int {
+	return min + rand.IntN(max-min+1)
+}
 
 func nonblockSendChannel[T any](ch chan<- T, item T) bool {
 	select {

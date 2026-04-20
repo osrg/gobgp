@@ -39,6 +39,7 @@ pmsi
 prepend
 reachability
 reservable
+reuseaddr
 rpki
 sadb
 safi
