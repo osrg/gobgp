@@ -829,3 +829,31 @@ func TestNHT_RevalidatePath(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(30), med)
 }
+
+// TestNHT_NewPathWithInvalidNexthop tests that a newly added path with
+// IsNexthopInvalid=true is not treated as the best path. This covers the
+// scenario where a path is added via API while its nexthop is already
+// unreachable in the nexthop cache.
+func TestNHT_NewPathWithInvalidNexthop(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.2.0/24"))
+
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+	}
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs = append(attrs, nh)
+
+	// First-time path that is already nexthop-invalid.
+	newPath := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	newPath.IsNexthopInvalid = true
+
+	d := &destination{nlri: nlri, localIdMap: NewBitmap(64)}
+	d.localIdMap.Flag(0)
+
+	update := d.Calculate(logger, newPath)
+	best, old, _ := update.GetChanges(GLOBAL_RIB_NAME, 0, false)
+
+	// No old path, new path is invalid -> no change should be emitted.
+	assert.Nil(t, best, "invalid new path must not be advertised as best")
+	assert.Nil(t, old, "no old path expected")
+}
