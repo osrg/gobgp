@@ -214,3 +214,177 @@ func TestApplyToPathList_TransitionReachableToUnreachable(t *testing.T) {
 	assert.Len(updated, 1)
 	assert.True(updated[0].IsNexthopInvalid)
 }
+
+// TestUpdateByNexthopUpdate_Reachable verifies that a NEXTHOP_UPDATE with
+// nexthops records the metric in the cache.
+func TestUpdateByNexthopUpdate_Reachable(t *testing.T) {
+	assert := assert.New(t)
+
+	cache := nexthopStateCache{}
+	body := &zebra.NexthopUpdateBody{
+		Prefix: zebra.Prefix{
+			Prefix:    netip.MustParseAddr("10.3.1.1"),
+			PrefixLen: 32,
+		},
+		Metric:   20,
+		Nexthops: []zebra.Nexthop{{Gate: netip.MustParseAddr("192.168.23.3")}},
+	}
+
+	updated := cache.updateByNexthopUpdate(body)
+	assert.True(updated)
+	assert.Equal(uint32(20), cache["10.3.1.1"])
+}
+
+// TestUpdateByNexthopUpdate_UnreachableAfterReachable verifies that an empty
+// NEXTHOP_UPDATE transitions an existing entry to unreachable (MaxUint32).
+func TestUpdateByNexthopUpdate_UnreachableAfterReachable(t *testing.T) {
+	assert := assert.New(t)
+
+	cache := nexthopStateCache{
+		"10.3.1.1": 20,
+	}
+	body := &zebra.NexthopUpdateBody{
+		Prefix: zebra.Prefix{
+			Prefix:    netip.MustParseAddr("10.3.1.1"),
+			PrefixLen: 32,
+		},
+		// No Nexthops => unreachable
+	}
+
+	updated := cache.updateByNexthopUpdate(body)
+	assert.True(updated)
+	assert.Equal(uint32(math.MaxUint32), cache["10.3.1.1"])
+}
+
+// TestUpdateByNexthopUpdate_InitialEmptyIgnored verifies that the initial empty
+// NEXTHOP_UPDATE (sent by zebra as the first response to NEXTHOP_REGISTER) is
+// ignored when there is no existing entry in the cache.
+func TestUpdateByNexthopUpdate_InitialEmptyIgnored(t *testing.T) {
+	assert := assert.New(t)
+
+	cache := nexthopStateCache{}
+	body := &zebra.NexthopUpdateBody{
+		Prefix: zebra.Prefix{
+			Prefix:    netip.MustParseAddr("10.3.1.1"),
+			PrefixLen: 32,
+		},
+	}
+
+	updated := cache.updateByNexthopUpdate(body)
+	assert.False(updated, "initial empty NEXTHOP_UPDATE must be ignored")
+	_, ok := cache["10.3.1.1"]
+	assert.False(ok, "cache must remain empty")
+}
+
+// TestUpdateByNexthopUpdate_MetricChange verifies that a NEXTHOP_UPDATE with
+// a different metric updates the cache.
+func TestUpdateByNexthopUpdate_MetricChange(t *testing.T) {
+	assert := assert.New(t)
+
+	cache := nexthopStateCache{
+		"10.3.1.1": 20,
+	}
+	body := &zebra.NexthopUpdateBody{
+		Prefix: zebra.Prefix{
+			Prefix:    netip.MustParseAddr("10.3.1.1"),
+			PrefixLen: 32,
+		},
+		Metric:   30,
+		Nexthops: []zebra.Nexthop{{Gate: netip.MustParseAddr("192.168.24.4")}},
+	}
+
+	updated := cache.updateByNexthopUpdate(body)
+	assert.True(updated)
+	assert.Equal(uint32(30), cache["10.3.1.1"])
+}
+
+// TestApplyToPathList_UnreachableToReachable verifies that an invalid path
+// becomes valid and gets a MED when the nexthop becomes reachable.
+func TestApplyToPathList_UnreachableToReachable(t *testing.T) {
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	path.IsNexthopInvalid = true
+
+	cache := nexthopStateCache{
+		"10.3.1.1": 30,
+	}
+
+	updated := cache.applyToPathList([]*table.Path{path})
+	assert.Len(updated, 1)
+	assert.False(updated[0].IsNexthopInvalid)
+	med, err := updated[0].GetMed()
+	assert.NoError(err)
+	assert.Equal(uint32(30), med)
+}
+
+// TestApplyToPathList_MetricChange verifies that a path MED is updated when
+// the cached metric for its nexthop changes.
+func TestApplyToPathList_MetricChange(t *testing.T) {
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		bgp.NewPathAttributeMultiExitDisc(20),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	cache := nexthopStateCache{
+		"10.3.1.1": 30, // different from current MED (20)
+	}
+
+	updated := cache.applyToPathList([]*table.Path{path})
+	assert.Len(updated, 1)
+	assert.False(updated[0].IsNexthopInvalid)
+	med, err := updated[0].GetMed()
+	assert.NoError(err)
+	assert.Equal(uint32(30), med)
+}
+
+// TestApplyToPathList_UnknownNexthop verifies that paths whose nexthop is not
+// in the cache are skipped.
+func TestApplyToPathList_UnknownNexthop(t *testing.T) {
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	cache := nexthopStateCache{} // empty
+
+	updated := cache.applyToPathList([]*table.Path{path})
+	assert.Empty(updated, "paths with unknown nexthop must not be updated")
+}
+
+// TestApplyToPathList_WithdrawIgnored verifies that withdraw paths are skipped.
+func TestApplyToPathList_WithdrawIgnored(t *testing.T) {
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.3.1.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, true, attrs, time.Now(), false)
+
+	cache := nexthopStateCache{
+		"10.3.1.1": 20,
+	}
+
+	updated := cache.applyToPathList([]*table.Path{path})
+	assert.Empty(updated, "withdraw paths must be skipped")
+}
