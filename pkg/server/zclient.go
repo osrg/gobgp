@@ -23,6 +23,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -183,14 +184,18 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 		return nil, false
 	}
 	nhVrfID := uint32(zebra.DefaultVrf)
-	for vrfPath, pathVrfID := range z.pathVrfMap {
-		if path.Equal(vrfPath) {
-			nhVrfID = pathVrfID
-			break
-		} else {
-			continue
+	func() {
+		z.pathVrfMu.RLock()
+		defer z.pathVrfMu.RUnlock()
+		for vrfPath, pathVrfID := range z.pathVrfMap {
+			if path.Equal(vrfPath) {
+				nhVrfID = pathVrfID
+				break
+			} else {
+				continue
+			}
 		}
-	}
+	}()
 	for _, p := range paths {
 		nexthop.Gate = p.GetNexthop()
 		nexthop.VrfID = nhVrfID
@@ -340,7 +345,9 @@ type zebraClient struct {
 	client       *zebra.Client
 	server       *BgpServer
 	nexthopCache nexthopStateCache
+	cacheLock    sync.Mutex
 	pathVrfMap   map[*table.Path]uint32 // vpn paths and nexthop vpn id
+	pathVrfMu    sync.RWMutex
 	mplsLabel    mplsLabelParameter
 	dead         chan struct{}
 }
@@ -373,7 +380,9 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 }
 
 func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
+	z.cacheLock.Lock()
 	paths = z.nexthopCache.applyToPathList(paths)
+	z.cacheLock.Unlock()
 	if len(paths) > 0 {
 		if err := z.server.updatePath("", paths); err != nil {
 			z.server.logger.Error("failed to update nexthop reachability",
@@ -412,13 +421,19 @@ func (z *zebraClient) loop() {
 					}
 				}
 			case *zebra.NexthopUpdateBody:
-				if updated := z.nexthopCache.updateByNexthopUpdate(body); !updated {
+				z.cacheLock.Lock()
+				updated := z.nexthopCache.updateByNexthopUpdate(body)
+				z.cacheLock.Unlock()
+				if !updated {
 					continue
 				}
 				paths := z.getPathListWithNexthopUpdate(body)
 				if len(paths) == 0 {
 					// If there is no path bound for the given nexthop, send
 					// NEXTHOP_UNREGISTER message.
+					z.cacheLock.Lock()
+					delete(z.nexthopCache, body.Prefix.Prefix)
+					z.cacheLock.Unlock()
 					err := z.client.SendNexthopRegister(msg.Header.VrfID, newNexthopUnregisterBody(uint16(body.Prefix.Family), body.Prefix.Prefix), true)
 					if err != nil {
 						z.server.logger.Error("failed to send nexthop unregister",
@@ -426,7 +441,7 @@ func (z *zebraClient) loop() {
 							slog.String("Error", err.Error()),
 						)
 					}
-					delete(z.nexthopCache, body.Prefix.Prefix)
+					continue
 				}
 				z.updatePathByNexthopCache(paths)
 			case *zebra.GetLabelChunkBody:
@@ -464,7 +479,10 @@ func (z *zebraClient) loop() {
 									continue
 								}
 							}
-							if body := newNexthopRegisterBody(paths, z.nexthopCache); body != nil {
+							z.cacheLock.Lock()
+							body := newNexthopRegisterBody(paths, z.nexthopCache)
+							z.cacheLock.Unlock()
+							if body != nil {
 								err := z.client.SendNexthopRegister(i, body, false)
 								if err != nil {
 									z.server.logger.Error("failed to send nexthop register",
@@ -490,7 +508,10 @@ func (z *zebraClient) loop() {
 									continue
 								}
 							}
-							if body := newNexthopRegisterBody([]*table.Path{path}, z.nexthopCache); body != nil {
+							z.cacheLock.Lock()
+							body := newNexthopRegisterBody([]*table.Path{path}, z.nexthopCache)
+							z.cacheLock.Unlock()
+							if body != nil {
 								err := z.client.SendNexthopRegister(i, body, false)
 								if err != nil {
 									z.server.logger.Error("failed to send nexthop register",
@@ -504,7 +525,10 @@ func (z *zebraClient) loop() {
 					}
 				}
 			case *watchEventUpdate:
-				if body := newNexthopRegisterBody(msg.PathList, z.nexthopCache); body != nil {
+				z.cacheLock.Lock()
+				body := newNexthopRegisterBody(msg.PathList, z.nexthopCache)
+				z.cacheLock.Unlock()
+				if body != nil {
 					vrfID := uint32(0)
 					err := z.server.ListVrf(context.Background(), &api.ListVrfRequest{Name: msg.Neighbor.Config.Vrf}, func(v *api.Vrf) {
 						vrfID = v.Id

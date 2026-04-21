@@ -1144,7 +1144,9 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 			path = path.ToGlobal(vrfObj)
 			if s.zclient != nil {
+				s.zclient.pathVrfMu.Lock()
 				s.zclient.pathVrfMap[path] = vrfObj.Id
+				s.zclient.pathVrfMu.Unlock()
 			}
 		}
 
@@ -2233,7 +2235,9 @@ func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	err := s.fixupApiPath(vrfId, pathList)
 	if err == nil {
 		if s.zclient != nil {
+			s.zclient.cacheLock.Lock()
 			s.zclient.nexthopCache.applyToNewPathList(pathList)
+			s.zclient.cacheLock.Unlock()
 		}
 		s.propagateUpdate(nil, pathList)
 	}
