@@ -949,7 +949,19 @@ func (s *BgpServer) getPossibleBest(peer *peer, family bgp.Family) []*table.Path
 	return peer.localRib.GetBestPathList(peer.TableID(), peer.AS(), []bgp.Family{family})
 }
 
-func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.Family, addEOR bool) ([]*table.Path, []*table.Path) {
+func (s *BgpServer) getBestFromLocalCallback(peer *peer, rfList []bgp.Family, addEOR bool, routeRefresh bool, fn func([]*table.Path, []*table.Path)) {
+	if routeRefresh {
+		peer.routeRefreshInProgress.Lock()
+		defer peer.routeRefreshInProgress.Unlock()
+	} else {
+		peer.routeRefreshInProgress.RLock()
+		defer peer.routeRefreshInProgress.RUnlock()
+	}
+
+	s.getBestFromLocalCallbackLocked(peer, rfList, addEOR, fn)
+}
+
+func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Family, addEOR bool, fn func([]*table.Path, []*table.Path)) {
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
 
@@ -972,7 +984,8 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.Family, addEOR boo
 			}
 			pathList = append(pathList, s.sendSecondaryRoutes(peer, nil, dl)...)
 		}
-		return pathList, filtered
+		fn(pathList, filtered)
+		return
 	}
 
 	for _, family := range peer.toGlobalFamilies(rfList) {
@@ -997,7 +1010,7 @@ func (s *BgpServer) getBestFromLocal(peer *peer, rfList []bgp.Family, addEOR boo
 			}
 		}
 	}
-	return pathList, filtered
+	fn(pathList, filtered)
 }
 
 func needToAdvertise(peer *peer) bool {
@@ -1079,14 +1092,14 @@ func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) 
 	return outgoing
 }
 
-func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
+func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	rr := m.Body.(*bgp.BGPRouteRefresh)
 	rf := bgp.NewFamily(rr.AFI, rr.SAFI)
 
 	if y := peer.IsFamilyEnabled(rf); !y {
 		peer.fsm.logger.Warn("Route family isn't supported", slog.String("Family", rf.String()))
-		return nil
+		return
 	}
 
 	peer.fsm.lock.Lock()
@@ -1094,11 +1107,14 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 	peer.fsm.lock.Unlock()
 	if !ok {
 		peer.fsm.logger.Warn("ROUTE_REFRESH received but the capability wasn't advertised")
-		return nil
+		return
 	}
 	rfList := []bgp.Family{rf}
-	accepted, _ := s.getBestFromLocal(peer, rfList, true)
-	return accepted
+	s.getBestFromLocalCallback(peer, rfList, true, true, func(paths []*table.Path, filtered []*table.Path) {
+		if len(paths) > 0 {
+			sendfsmOutgoingMsg(peer, paths)
+		}
+	})
 }
 
 func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
@@ -1188,6 +1204,10 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 		peer.fsm.logger.Warn("Path is not a Route Target Membership NLRI", slog.Any("Path", path))
 		return
 	}
+
+	peer.routeRefreshInProgress.RLock()
+	defer peer.routeRefreshInProgress.RUnlock()
+
 	rt := nlri.RouteTarget
 	hasRt := func(rt bgp.ExtendedCommunityInterface) bool {
 		if rt == nil {
@@ -1207,20 +1227,20 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 	}
 
 	fs := peerNonRTCFamilies(peer)
-	paths := s.rtcVPNCandidates(peer, path.IsWithdraw, rt, fs)
-
-	if path.IsWithdraw {
-		// Skips filtering: paths are already scoped to this RT and withdrawals
-		// do not need path attributes.
-		sendfsmOutgoingMsg(peer, paths)
-		return
-	}
-	if peer.getRtcEORWait() {
-		peer.fsm.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.", slog.Any("Path", path))
-		return
-	}
-	paths = s.processOutgoingPaths(peer, paths, nil)
-	sendfsmOutgoingMsg(peer, paths)
+	s.rtcVPNCandidates(peer, path.IsWithdraw, rt, fs, func(paths []*table.Path, filtered []*table.Path) {
+		if path.IsWithdraw {
+			// Skips filtering: paths are already scoped to this RT and withdrawals
+			// do not need path attributes.
+			sendfsmOutgoingMsg(peer, filtered)
+			return
+		}
+		if peer.getRtcEORWait() {
+			peer.fsm.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.", slog.Any("Path", path))
+			return
+		}
+		filtered = s.processOutgoingPaths(peer, filtered, nil)
+		sendfsmOutgoingMsg(peer, filtered)
+	})
 }
 
 // peerNonRTCFamilies returns the peer's negotiated families excluding RF_RTC_UC.
@@ -1238,7 +1258,7 @@ func peerNonRTCFamilies(peer *peer) []bgp.Family {
 // rtcVPNCandidates returns VPN paths to announce or withdraw in response to an RTC update.
 // For a specific rt it uses the VPN path index (O(1)); for the wildcard (nil rt) it falls
 // back to a full RIB scan because all VPN families are in scope.
-func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, rt bgp.ExtendedCommunityInterface, fs []bgp.Family) []*table.Path {
+func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, rt bgp.ExtendedCommunityInterface, fs []bgp.Family, fn func([]*table.Path, []*table.Path)) {
 	if rt != nil {
 		raw := s.globalRib.GetPathsByRT(rt, fs)
 		paths := make([]*table.Path, 0, len(raw))
@@ -1248,13 +1268,14 @@ func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, rt bgp.Extende
 			}
 			paths = append(paths, p)
 		}
-		return paths
+		fn(nil, paths)
+		return
 	}
 	if isWithdraw {
-		_, paths := s.getBestFromLocal(peer, fs, false)
-		return paths
+		s.getBestFromLocalCallbackLocked(peer, fs, false, fn)
+		return
 	}
-	return s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
+	fn(nil, s.globalRib.GetBestPathList(peer.TableID(), 0, fs))
 }
 
 func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*table.Path, [][]*table.Path) {
@@ -1277,7 +1298,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 	if table.SelectionOptions.DisableBestPathSelection {
 		return
 	}
-	var gBestList, gOldList, bestList, oldList []*table.Path
+	var gBestList, gOldList []*table.Path
 	var mpathList [][]*table.Path
 	if source == nil || !source.isRouteServerClient() {
 		gBestList, gOldList, mpathList = dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
@@ -1305,109 +1326,115 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			}
 			return family
 		}()
-		if targetPeer.isAddPathSendEnabled(f) {
-			// in case of multiple paths to the same destination, we need to
-			// filter the paths before counting the number of paths to be sent.
-			if newPath.IsWithdraw {
-				bestList = func() []*table.Path {
-					l := []*table.Path{}
-					for _, d := range dsts {
-						toDelete := d.GetWithdrawnPath()
-						toActuallyDelete := make([]*table.Path, 0, len(toDelete))
-						for _, p := range toDelete {
-							// if the path is filtered, there is no need to send the withdrawal
-							p := s.filterpath(targetPeer, p, nil)
-							// the path was never advertized to the peer
-							if p == nil || targetPeer.unsetPathSendMaxFiltered(p) {
+
+		func() {
+			targetPeer.routeRefreshInProgress.RLock()
+			defer targetPeer.routeRefreshInProgress.RUnlock()
+			var bestList, oldList []*table.Path
+			if targetPeer.isAddPathSendEnabled(f) {
+				// in case of multiple paths to the same destination, we need to
+				// filter the paths before counting the number of paths to be sent.
+				if newPath.IsWithdraw {
+					bestList = func() []*table.Path {
+						l := []*table.Path{}
+						for _, d := range dsts {
+							toDelete := d.GetWithdrawnPath()
+							toActuallyDelete := make([]*table.Path, 0, len(toDelete))
+							for _, p := range toDelete {
+								// if the path is filtered, there is no need to send the withdrawal
+								p := s.filterpath(targetPeer, p, nil)
+								// the path was never advertized to the peer
+								if p == nil || targetPeer.unsetPathSendMaxFiltered(p) {
+									continue
+								}
+								toActuallyDelete = append(toActuallyDelete, p)
+							}
+
+							if len(toActuallyDelete) == 0 {
 								continue
 							}
-							toActuallyDelete = append(toActuallyDelete, p)
-						}
 
-						if len(toActuallyDelete) == 0 {
-							continue
-						}
+							destination := rib.GetDestination(toActuallyDelete[0])
+							l = append(l, toActuallyDelete...)
 
-						destination := rib.GetDestination(toActuallyDelete[0])
-						l = append(l, toActuallyDelete...)
-
-						// the destination has been removed from the table
-						// e.g. no more paths to it
-						if destination == nil {
-							continue
-						}
-
-						knownPathList := destination.GetKnownPathList(targetPeer.TableID(), targetPeer.AS())
-						toAdd := make([]*table.Path, 0, len(knownPathList))
-						for _, p := range knownPathList {
-							// If the path is filtered by policies, there is no need to send the path
-							// Otherwise, we send only paths that were previously filtered because of the max path limit
-							p := s.filterpath(targetPeer, p, nil)
-							if p == nil || !targetPeer.isPathSendMaxFiltered(p) {
+							// the destination has been removed from the table
+							// e.g. no more paths to it
+							if destination == nil {
 								continue
 							}
-							// We unset the flag as the path is not filtered anymore
-							targetPeer.unsetPathSendMaxFiltered(p)
-							toAdd = append(toAdd, p)
-							if len(toAdd) == len(toActuallyDelete) {
-								break
+
+							knownPathList := destination.GetKnownPathList(targetPeer.TableID(), targetPeer.AS())
+							toAdd := make([]*table.Path, 0, len(knownPathList))
+							for _, p := range knownPathList {
+								// If the path is filtered by policies, there is no need to send the path
+								// Otherwise, we send only paths that were previously filtered because of the max path limit
+								p := s.filterpath(targetPeer, p, nil)
+								if p == nil || !targetPeer.isPathSendMaxFiltered(p) {
+									continue
+								}
+								// We unset the flag as the path is not filtered anymore
+								targetPeer.unsetPathSendMaxFiltered(p)
+								toAdd = append(toAdd, p)
+								if len(toAdd) == len(toActuallyDelete) {
+									break
+								}
 							}
+							l = append(l, toAdd...)
 						}
-						l = append(l, toAdd...)
-					}
-					targetPeer.updateRoutes(l...)
-					return l
-				}()
-			} else {
-				alreadySent := targetPeer.hasPathAlreadyBeenSent(newPath)
-				newPath := s.filterpath(targetPeer, newPath, nil)
-				// if the path is not filtered and the path has already been sent or land in the limit, we can send it
-				if newPath == nil {
-					bestList = []*table.Path{}
-				} else if alreadySent || targetPeer.getRoutesCount(f, newPath.GetPrefix()) < targetPeer.getAddPathSendMax(f) {
-					bestList = []*table.Path{newPath}
-					if !alreadySent {
-						targetPeer.updateRoutes(newPath)
-					}
-					if newPath.GetFamily() == bgp.RF_RTC_UC {
-						// we assumes that new "path" nlri was already sent before. This assumption avoids the
-						// infinite UPDATE loop between Route Reflector and its clients.
-						for _, old := range dsts[0].OldKnownPathList {
-							if old.IsLocal() {
-								bestList = []*table.Path{}
-								break
-							}
-						}
-					}
+						targetPeer.updateRoutes(l...)
+						return l
+					}()
 				} else {
-					bestList = []*table.Path{}
-					targetPeer.sendMaxPathFiltered[newPath.GetLocalKey()] = struct{}{}
-					targetPeer.fsm.logger.Warn("exceeding max routes for prefix", slog.String("Prefix", newPath.GetPrefix()))
-				}
-			}
-			if needToAdvertise(targetPeer) && len(bestList) > 0 {
-				sendfsmOutgoingMsg(targetPeer, bestList)
-			}
-		} else {
-			if targetPeer.isRouteServerClient() {
-				if targetPeer.isSecondaryRouteEnabled() {
-					if paths := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
-						sendfsmOutgoingMsg(targetPeer, paths)
+					alreadySent := targetPeer.hasPathAlreadyBeenSent(newPath)
+					newPath := s.filterpath(targetPeer, newPath, nil)
+					// if the path is not filtered and the path has already been sent or land in the limit, we can send it
+					if newPath == nil {
+						bestList = []*table.Path{}
+					} else if alreadySent || targetPeer.getRoutesCount(f, newPath.GetPrefix()) < targetPeer.getAddPathSendMax(f) {
+						bestList = []*table.Path{newPath}
+						if !alreadySent {
+							targetPeer.updateRoutes(newPath)
+						}
+						if newPath.GetFamily() == bgp.RF_RTC_UC {
+							// we assumes that new "path" nlri was already sent before. This assumption avoids the
+							// infinite UPDATE loop between Route Reflector and its clients.
+							for _, old := range dsts[0].OldKnownPathList {
+								if old.IsLocal() {
+									bestList = []*table.Path{}
+									break
+								}
+							}
+						}
+					} else {
+						bestList = []*table.Path{}
+						targetPeer.sendMaxPathFiltered[newPath.GetLocalKey()] = struct{}{}
+						targetPeer.fsm.logger.Warn("exceeding max routes for prefix", slog.String("Prefix", newPath.GetPrefix()))
 					}
-					continue
 				}
-				bestList, oldList, _ = dstsToPaths(targetPeer.TableID(), targetPeer.AS(), dsts)
+				if needToAdvertise(targetPeer) && len(bestList) > 0 {
+					sendfsmOutgoingMsg(targetPeer, bestList)
+				}
 			} else {
-				bestList = gBestList
-				oldList = gOldList
+				if targetPeer.isRouteServerClient() {
+					if targetPeer.isSecondaryRouteEnabled() {
+						if paths := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
+							sendfsmOutgoingMsg(targetPeer, paths)
+						}
+						return
+					}
+					bestList, oldList, _ = dstsToPaths(targetPeer.TableID(), targetPeer.AS(), dsts)
+				} else {
+					bestList = gBestList
+					oldList = gOldList
+				}
+				if !needOld {
+					oldList = nil
+				}
+				if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
+					sendfsmOutgoingMsg(targetPeer, paths)
+				}
 			}
-			if !needOld {
-				oldList = nil
-			}
-			if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
-				sendfsmOutgoingMsg(targetPeer, paths)
-			}
-		}
+		}()
 	}
 }
 
@@ -1611,20 +1638,23 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				// However, when the peer is graceful restarting, give up
 				// waiting sending non-route-target NLRIs since the peer won't send
 				// any routes (and EORs) before we send ours (or deferral-timer expires).
-				var pathList []*table.Path
 				c := conf.GetAfiSafi(bgp.RF_RTC_UC)
 				notPeerRestarting := !conf.GracefulRestart.State.PeerRestarting
 				if y := peer.IsFamilyEnabled(bgp.RF_RTC_UC); y && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
 					peer.setRtcEORWait(true)
-					pathList, _ = s.getBestFromLocal(peer, []bgp.Family{bgp.RF_RTC_UC}, true)
+					s.getBestFromLocalCallback(peer, []bgp.Family{bgp.RF_RTC_UC}, true, true, func(paths []*table.Path, filtered []*table.Path) {
+						if len(paths) > 0 {
+							sendfsmOutgoingMsg(peer, paths)
+						}
+					})
 					t := c.RouteTargetMembership.Config.DeferralTime
 					time.AfterFunc(time.Second*time.Duration(t), deferralExpiredFunc(bgp.Family(0), time.Second*time.Duration(t)))
 				} else {
-					pathList, _ = s.getBestFromLocal(peer, peer.negotiatedRFList(), true)
-				}
-
-				if len(pathList) > 0 {
-					sendfsmOutgoingMsg(peer, pathList)
+					s.getBestFromLocalCallback(peer, peer.negotiatedRFList(), true, true, func(paths []*table.Path, filtered []*table.Path) {
+						if len(paths) > 0 {
+							sendfsmOutgoingMsg(peer, paths)
+						}
+					})
 				}
 			} else {
 				// RFC 4724 4.1
@@ -1654,10 +1684,11 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						if !p.isGracefulRestartEnabled() && !peerLocalRestarting {
 							continue
 						}
-						paths, _ := s.getBestFromLocal(p, p.configuredRFlist(), true)
-						if len(paths) > 0 {
-							sendfsmOutgoingMsg(p, paths)
-						}
+						s.getBestFromLocalCallback(p, p.configuredRFlist(), true, true, func(paths []*table.Path, filtered []*table.Path) {
+							if len(paths) > 0 {
+								sendfsmOutgoingMsg(p, paths)
+							}
+						})
 					}
 					peer.fsm.logger.Info("sync finished")
 				} else {
@@ -1700,9 +1731,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		}
 		switch m.Header.Type {
 		case bgp.BGP_MSG_ROUTE_REFRESH:
-			if paths := s.handleRouteRefresh(peer, e); len(paths) > 0 {
-				sendfsmOutgoingMsg(peer, paths)
-			}
+			s.handleRouteRefresh(peer, e)
 		case bgp.BGP_MSG_UPDATE:
 			pathList, eor, isLimit := peer.handleUpdate(e)
 			if isLimit {
@@ -1771,10 +1800,11 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 							if !p.isGracefulRestartEnabled() && !peerLocalRestarting {
 								continue
 							}
-							paths, _ := s.getBestFromLocal(p, p.negotiatedRFList(), true)
-							if len(paths) > 0 {
-								sendfsmOutgoingMsg(p, paths)
-							}
+							s.getBestFromLocalCallback(p, p.negotiatedRFList(), true, true, func(paths []*table.Path, filtered []*table.Path) {
+								if len(paths) > 0 {
+									sendfsmOutgoingMsg(p, paths)
+								}
+							})
 						}
 						s.logger.Info("sync finished",
 							slog.String("Topic", "Server"),
@@ -1811,9 +1841,11 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 							families = append(families, f)
 						}
 					}
-					if paths, _ := s.getBestFromLocal(peer, families, true); len(paths) > 0 {
-						sendfsmOutgoingMsg(peer, paths)
-					}
+					s.getBestFromLocalCallback(peer, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
+						if len(paths) > 0 {
+							sendfsmOutgoingMsg(peer, paths)
+						}
+					})
 				}
 			}
 		}
@@ -2627,21 +2659,22 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 			}
 		}
 
-		pathList, _ := s.getBestFromLocal(peer, families, true)
-		if len(pathList) > 0 {
-			if deferral {
-				pathList = func() []*table.Path {
-					l := make([]*table.Path, 0, len(pathList))
-					for _, p := range pathList {
-						if !p.IsWithdraw {
-							l = append(l, p)
+		s.getBestFromLocalCallback(peer, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
+			if len(paths) > 0 {
+				if deferral {
+					paths = func() []*table.Path {
+						l := make([]*table.Path, 0, len(paths))
+						for _, p := range paths {
+							if !p.IsWithdraw {
+								l = append(l, p)
+							}
 						}
-					}
-					return l
-				}()
+						return l
+					}()
+				}
+				sendfsmOutgoingMsg(peer, paths)
 			}
-			sendfsmOutgoingMsg(peer, pathList)
-		}
+		})
 	}
 	return nil
 }
@@ -2785,6 +2818,19 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 		} else {
 			adjRib = table.NewAdjRib(s.logger, peer.configuredRFlist())
 			pathList := []*table.Path{}
+			pathListToUpdate := func(pathList []*table.Path) {
+				toUpdate = make([]*table.Path, 0, len(pathList))
+				for _, path := range pathList {
+					if path.IsEOR() {
+						continue
+					}
+					pathLocalKey := path.GetLocalKey()
+					if peer.isPathSendMaxFiltered(path) {
+						filtered[pathLocalKey] = filtered[pathLocalKey] | table.SendMaxFiltered
+					}
+					toUpdate = append(toUpdate, path)
+				}
+			}
 			if enableFiltered {
 				for _, path := range s.getPossibleBest(peer, family) {
 					pathLocalKey := path.GetLocalKey()
@@ -2798,19 +2844,11 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 					}
 					pathList = append(pathList, path)
 				}
+				pathListToUpdate(pathList)
 			} else {
-				pathList, _ = s.getBestFromLocal(peer, peer.configuredRFlist(), true)
-			}
-			toUpdate = make([]*table.Path, 0, len(pathList))
-			for _, path := range pathList {
-				if path.IsEOR() {
-					continue
-				}
-				pathLocalKey := path.GetLocalKey()
-				if peer.isPathSendMaxFiltered(path) {
-					filtered[pathLocalKey] = filtered[pathLocalKey] | table.SendMaxFiltered
-				}
-				toUpdate = append(toUpdate, path)
+				s.getBestFromLocalCallback(peer, peer.configuredRFlist(), true, false, func(paths []*table.Path, filtered []*table.Path) {
+					pathListToUpdate(paths)
+				})
 			}
 		}
 		adjRib.Update(toUpdate)
@@ -2938,8 +2976,9 @@ func (s *BgpServer) getAdjRibInfo(addr string, family bgp.Family, in bool) (info
 			adjRib = peer.adjRibIn
 		} else {
 			adjRib = table.NewAdjRib(s.logger, peer.configuredRFlist())
-			accepted, _ := s.getBestFromLocal(peer, peer.configuredRFlist(), false)
-			adjRib.UpdateAdjRibOut(accepted)
+			s.getBestFromLocalCallback(peer, peer.configuredRFlist(), false, false, func(paths []*table.Path, filtered []*table.Path) {
+				adjRib.UpdateAdjRibOut(paths)
+			})
 		}
 		info, err = adjRib.TableInfo(family)
 		return err
@@ -3141,8 +3180,9 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 							received = uint64(peer.adjRibIn.Count(flist))
 							accepted = uint64(peer.adjRibIn.Accepted(flist))
 							if getAdvertised {
-								pathList, _ := s.getBestFromLocal(peer, flist, false)
-								advertised = uint64(len(pathList))
+								s.getBestFromLocalCallback(peer, flist, false, false, func(paths []*table.Path, filtered []*table.Path) {
+									advertised = uint64(len(paths))
+								})
 							}
 						}
 						p.AfiSafis[i].State = &api.AfiSafiState{

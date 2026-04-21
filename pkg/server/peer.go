@@ -111,6 +111,8 @@ type peer struct {
 	longLivedRunning    atomic.Bool
 	// Route Target Membership handler after import policy (for constrained VPN distribution).
 	rtmHandler *table.RouteTargetMembershipHandler
+	// Route refresh in progress, during an established session or route refresh, this need to be atomic to avoid out of order updates
+	routeRefreshInProgress sync.RWMutex
 }
 
 func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.TableManager, policy *table.RoutingPolicy, logger *slog.Logger) *peer {

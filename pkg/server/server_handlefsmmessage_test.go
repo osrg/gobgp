@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -138,6 +139,142 @@ func TestHandleFSMMessage_PrefixLimitWarnedRace(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestSoftResetOutSerializesNormalReset(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	err = s.mgmtOperation(func() error {
+		s.neighborMap[peerAddr] = p
+		return nil
+	}, true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := s.mgmtOperation(func() error {
+			delete(s.neighborMap, peerAddr)
+			return nil
+		}, false)
+		require.NoError(t, err)
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+
+	p.routeRefreshInProgress.RLock()
+	locked := true
+	defer func() {
+		if locked {
+			p.routeRefreshInProgress.RUnlock()
+		}
+	}()
+
+	started := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		close(started)
+		done <- s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false)
+	}()
+	<-started
+
+	select {
+	case err := <-done:
+		p.routeRefreshInProgress.RUnlock()
+		locked = false
+		require.NoError(t, err)
+		t.Fatal("normal soft reset out completed while live propagation held the route-refresh read lock")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	p.routeRefreshInProgress.RUnlock()
+	locked = false
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("normal soft reset out did not complete after the route-refresh read lock was released")
+	}
+}
+
+func TestRTCMembershipSerializesTriggeredVPNUpdates(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_RTC_UC:      bgp.BGP_ADD_PATH_NONE,
+		bgp.RF_IPv4_VPN:    bgp.BGP_ADD_PATH_NONE,
+		bgp.RF_IPv6_VPN:    bgp.BGP_ADD_PATH_NONE,
+		bgp.RF_FS_IPv4_VPN: bgp.BGP_ADD_PATH_NONE,
+		bgp.RF_FS_IPv6_VPN: bgp.BGP_ADD_PATH_NONE,
+	})
+	t.Cleanup(func() {
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+
+	_, rt, err := parseRDRT("65001:100")
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	rtcPath := table.NewPath(bgp.RF_RTC_UC, p.peerInfo.Load(), bgp.PathNLRI{
+		NLRI: bgp.NewRouteTargetMembershipNLRI(65001, rt),
+	}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		nh,
+	}, time.Now(), false)
+	require.NotNil(t, rtcPath)
+
+	p.routeRefreshInProgress.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			p.routeRefreshInProgress.Unlock()
+		}
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		s.processRTCMembership(p, rtcPath)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("RTC-triggered VPN update completed while route refresh was in progress")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	p.routeRefreshInProgress.Unlock()
+	locked = false
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("RTC-triggered VPN update did not complete after route refresh finished")
+	}
 }
 
 // TestHandleFSMMessage_LLGREndChsRace tests concurrent append and reset of llgrEndChs slice
