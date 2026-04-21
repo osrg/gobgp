@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"log/slog"
-	"math"
 	"net"
 	"sync/atomic"
 	"time"
@@ -69,7 +68,7 @@ func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress string, config oc
 		peerAddress: peerAddress,
 		peerPort:    int(config.Port),
 
-		myDiscriminator: uint32(randRange(1, math.MaxUint32)),
+		myDiscriminator: randomBFDMyDiscriminator(),
 		multiplier:      defaultMultiplier,
 		rxInterval:      defaultRxInterval,
 		txInterval:      defaultTxInterval,

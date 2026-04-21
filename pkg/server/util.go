@@ -27,6 +27,18 @@ func randRange(min int, max int) int {
 	return min + rand.IntN(max-min+1)
 }
 
+// randomBFDMyDiscriminator returns a non-zero 32-bit value for RFC 5880
+// My Discriminator. It does not use randRange with MaxUint32 because int
+// on 32-bit architectures cannot represent that upper bound.
+func randomBFDMyDiscriminator() uint32 {
+	for {
+		v := rand.Uint32()
+		if v != 0 {
+			return v
+		}
+	}
+}
+
 func nonblockSendChannel[T any](ch chan<- T, item T) bool {
 	select {
 	case ch <- item:
