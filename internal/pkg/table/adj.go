@@ -46,7 +46,10 @@ func (adj *AdjRib) Update(pathList []*Path) {
 			continue
 		}
 		rf := path.GetFamily()
-		t := adj.table[path.GetFamily()]
+		t := adj.table[rf]
+		if t == nil {
+			continue
+		}
 		nlri := path.GetNlri()
 		shard := t.destinations.getShard(nlri)
 
@@ -113,6 +116,9 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 			continue
 		}
 		t := adj.table[path.GetFamily()]
+		if t == nil {
+			continue
+		}
 		nlri := path.GetNlri()
 		shard := t.destinations.getShard(nlri)
 
