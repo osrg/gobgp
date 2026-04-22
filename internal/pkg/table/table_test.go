@@ -33,6 +33,42 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSelectLongerShorterIPv4UC(t *testing.T) {
+	tbl := NewTable(logger, bgp.RF_IPv4_UC)
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+
+	for _, s := range []string{"14.0.0.0/8", "14.14.0.0/16", "14.14.14.0/24"} {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(s))
+		p := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+		tbl.setDestination(newDestination(nlri, 0, p))
+	}
+
+	tests := []struct {
+		name   string
+		prefix string
+		option apiutil.LookupOption
+		want   int
+	}{
+		{"longer from /8 returns all 3", "14.0.0.0/8", apiutil.LOOKUP_LONGER, 3},
+		{"longer from /16 returns /16 and /24", "14.14.0.0/16", apiutil.LOOKUP_LONGER, 2},
+		{"shorter from /24 returns all 3", "14.14.14.0/24", apiutil.LOOKUP_SHORTER, 3},
+		{"shorter from /16 returns /8 and /16", "14.14.0.0/16", apiutil.LOOKUP_SHORTER, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := tbl.Select(TableSelectOption{
+				LookupPrefixes: []*apiutil.LookupPrefix{{
+					Prefix:       tt.prefix,
+					LookupOption: tt.option,
+				}},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, len(result.GetDestinations()))
+		})
+	}
+}
+
 func TestLookupLonger(t *testing.T) {
 	tbl := NewTable(logger, bgp.RF_IPv4_UC)
 

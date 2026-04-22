@@ -828,12 +828,8 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 					ones, _ := prefix.Mask.Size()
 					for i := ones; i >= 0; i-- {
 						_, prefix, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", addr.String(), i))
-						ret, err := f(prefix.String())
-						if err != nil {
+						if _, err := f(prefix.String()); err != nil {
 							return nil, err
-						}
-						if ret {
-							break
 						}
 					}
 				default:
