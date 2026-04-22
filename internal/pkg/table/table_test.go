@@ -33,6 +33,90 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSelectExactAndHostIPv4UC(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	addPath := func(tbl *Table, s string) {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(s))
+		p := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+		tbl.setDestination(newDestination(nlri, 0, p))
+	}
+
+	t.Run("CIDR exact match found", func(t *testing.T) {
+		tbl := NewTable(logger, bgp.RF_IPv4_UC)
+		addPath(tbl, "14.0.0.0/8")
+		addPath(tbl, "14.14.0.0/16")
+		result, err := tbl.Select(TableSelectOption{
+			LookupPrefixes: []*apiutil.LookupPrefix{{Prefix: "14.0.0.0/8"}},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(result.GetDestinations()))
+	})
+
+	t.Run("CIDR exact match not found", func(t *testing.T) {
+		tbl := NewTable(logger, bgp.RF_IPv4_UC)
+		addPath(tbl, "14.14.0.0/16")
+		result, err := tbl.Select(TableSelectOption{
+			LookupPrefixes: []*apiutil.LookupPrefix{{Prefix: "14.0.0.0/8"}},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(result.GetDestinations()))
+	})
+
+	t.Run("host IP longest prefix match found", func(t *testing.T) {
+		tbl := NewTable(logger, bgp.RF_IPv4_UC)
+		addPath(tbl, "14.0.0.0/8")
+		addPath(tbl, "14.14.0.0/16")
+		// "14.14.14.14" is a bare host address — should match 14.14.0.0/16 (longest)
+		result, err := tbl.Select(TableSelectOption{
+			LookupPrefixes: []*apiutil.LookupPrefix{{Prefix: "14.14.14.14"}},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(result.GetDestinations()))
+	})
+
+	t.Run("host IP longest prefix match not found", func(t *testing.T) {
+		tbl := NewTable(logger, bgp.RF_IPv4_UC)
+		addPath(tbl, "10.0.0.0/8")
+		result, err := tbl.Select(TableSelectOption{
+			LookupPrefixes: []*apiutil.LookupPrefix{{Prefix: "14.14.14.14"}},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(result.GetDestinations()))
+	})
+}
+
+func TestSelectExactAndHostIPv6UC(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	addPath := func(tbl *Table, s string) {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(s))
+		p := NewPath(bgp.RF_IPv6_UC, pi, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+		tbl.setDestination(newDestination(nlri, 0, p))
+	}
+
+	t.Run("host IPv6 longest prefix match found", func(t *testing.T) {
+		tbl := NewTable(logger, bgp.RF_IPv6_UC)
+		addPath(tbl, "2001:db8::/32")
+		addPath(tbl, "2001:db8:1::/48")
+		result, err := tbl.Select(TableSelectOption{
+			LookupPrefixes: []*apiutil.LookupPrefix{{Prefix: "2001:db8:1::1"}},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(result.GetDestinations()))
+	})
+
+	t.Run("host IPv6 longest prefix match not found", func(t *testing.T) {
+		tbl := NewTable(logger, bgp.RF_IPv6_UC)
+		addPath(tbl, "2001:db8::/32")
+		result, err := tbl.Select(TableSelectOption{
+			LookupPrefixes: []*apiutil.LookupPrefix{{Prefix: "2001:db9::1"}},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(result.GetDestinations()))
+	})
+}
+
 func TestSelectLongerShorterIPv4UC(t *testing.T) {
 	tbl := NewTable(logger, bgp.RF_IPv4_UC)
 	pi := &PeerInfo{}
@@ -269,6 +353,18 @@ func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 			name:   "exact match with RD and prefix that does not exist",
 			prefix: "foo",
 			option: apiutil.LOOKUP_EXACT,
+			found:  0,
+		},
+		{
+			name:   "malformed prefix with LOOKUP_LONGER",
+			prefix: "foo",
+			option: apiutil.LOOKUP_LONGER,
+			found:  0,
+		},
+		{
+			name:   "malformed prefix with LOOKUP_SHORTER",
+			prefix: "foo",
+			option: apiutil.LOOKUP_SHORTER,
 			found:  0,
 		},
 	}

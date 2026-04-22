@@ -757,6 +757,17 @@ func (t *Table) GetKnownPathListWithMac(id string, as uint32, rt bgp.ExtendedCom
 	return paths
 }
 
+// mustIPAddrPrefix constructs an IPAddrPrefix from a netip.Prefix that is
+// guaranteed to be valid by the caller. It panics if prefix is not valid,
+// which indicates a programming error in the caller.
+func mustIPAddrPrefix(prefix netip.Prefix) *bgp.IPAddrPrefix {
+	nlri, err := bgp.NewIPAddrPrefix(prefix)
+	if err != nil {
+		panic("mustIPAddrPrefix called with invalid prefix: " + err.Error())
+	}
+	return nlri
+}
+
 // ContainsCIDR checks if one IPNet is a subnet of another.
 func containsCIDR(n1, n2 *net.IPNet) bool {
 	ones1, _ := n1.Mask.Size()
@@ -791,22 +802,6 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	if len(prefixes) != 0 {
 		switch t.Family {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
-			f := func(prefixStr string) (bool, error) {
-				prefix, err := netip.ParsePrefix(prefixStr)
-				if err != nil {
-					return false, err
-				}
-				nlri, err := bgp.NewIPAddrPrefix(prefix)
-				if err != nil {
-					return false, err
-				}
-				if d := t.SelectDestination(nlri, dOption); d != nil {
-					r.setDestination(d)
-					return true, nil
-				}
-				return false, nil
-			}
-
 			for _, p := range prefixes {
 				key := p.Prefix
 				switch p.LookupOption {
@@ -821,38 +816,38 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						}
 					}
 				case apiutil.LOOKUP_SHORTER:
-					addr, prefix, err := net.ParseCIDR(key)
+					prefix, err := netip.ParsePrefix(key)
 					if err != nil {
 						return nil, err
 					}
-					ones, _ := prefix.Mask.Size()
-					for i := ones; i >= 0; i-- {
-						_, prefix, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", addr.String(), i))
-						if _, err := f(prefix.String()); err != nil {
-							return nil, err
+					for i := prefix.Bits(); i >= 0; i-- {
+						nlri := mustIPAddrPrefix(netip.PrefixFrom(prefix.Addr(), i))
+						if d := t.SelectDestination(nlri, dOption); d != nil {
+							r.setDestination(d)
 						}
 					}
 				default:
-					if host := net.ParseIP(key); host != nil {
+					if addr, err := netip.ParseAddr(key); err == nil {
 						masklen := 32
 						if t.Family == bgp.RF_IPv6_UC {
 							masklen = 128
 						}
 						for i := masklen; i >= 0; i-- {
-							_, prefix, err := net.ParseCIDR(fmt.Sprintf("%s/%d", key, i))
-							if err != nil {
-								return nil, err
-							}
-							ret, err := f(prefix.String())
-							if err != nil {
-								return nil, err
-							}
-							if ret {
+							nlri := mustIPAddrPrefix(netip.PrefixFrom(addr, i))
+							if d := t.SelectDestination(nlri, dOption); d != nil {
+								r.setDestination(d)
 								break
 							}
 						}
-					} else if _, err := f(key); err != nil {
-						return nil, err
+					} else {
+						prefix, err := netip.ParsePrefix(key)
+						if err != nil {
+							return nil, err
+						}
+						nlri := mustIPAddrPrefix(prefix)
+						if d := t.SelectDestination(nlri, dOption); d != nil {
+							r.setDestination(d)
+						}
 					}
 				}
 			}
