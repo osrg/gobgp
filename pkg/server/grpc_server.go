@@ -299,7 +299,7 @@ func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*
 			req.Prefixes = append(req.Prefixes, &apiutil.LookupPrefix{
 				Prefix:       p.Prefix,
 				RD:           p.Rd,
-				LookupOption: apiutil.LookupOption(p.Type),
+				LookupOption: apiutil.LookupOptionFromAPI(p.Type),
 			})
 		}
 	}
