@@ -77,3 +77,16 @@ func SetIpTOSSockopt(conn net.Conn, tos uint8) error {
 	}
 	return setSockOptIpTos(sc, family, tos)
 }
+
+func SetUdpTTLSockopt(conn net.Conn, ttl int) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setSockOptIpTtl(sc, family, ttl)
+}
+
+func SetReuseAddrSockoptImpl(sc syscall.RawConn) error {
+	return setSockOptInt(sc, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+}
