@@ -2414,3 +2414,78 @@ func TestVRF(t *testing.T) {
 		assert.Contains(t, deletedRTsStr, importRTStr)
 	}
 }
+
+func TestTableVPNPathIndexPathCount(t *testing.T) {
+	rt, err := bgp.ParseRouteTarget("100:100")
+	assert.NoError(t, err)
+
+	pi1 := &PeerInfo{Address: netip.AddrFrom4([4]byte{1, 1, 1, 1}), ID: netip.AddrFrom4([4]byte{1, 1, 1, 1})}
+	pi2 := &PeerInfo{Address: netip.AddrFrom4([4]byte{2, 2, 2, 2}), ID: netip.AddrFrom4([4]byte{2, 2, 2, 2})}
+	rf := bgp.RF_IPv4_VPN
+	extComm := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+	}
+
+	rdVPN, err := bgp.ParseRouteDistinguisher("100:1")
+	assert.NoError(t, err)
+	labels := bgp.NewMPLSLabelStack()
+	ipPrefix := netip.MustParsePrefix("10.10.10.10/32")
+
+	newVPNPath := func(t *testing.T, pi *PeerInfo, pathID uint32) *Path {
+		t.Helper()
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(ipPrefix, *labels, rdVPN)
+		assert.NoError(t, err)
+		return NewPath(rf, pi, bgp.PathNLRI{NLRI: nlri, ID: pathID}, false, extComm, time.Now(), false)
+	}
+
+	// Without add-path two peers advertise the same NLRI — only the best must be
+	// in vpnIdx, not both
+	t.Run("no-add-path: only best path stored per NLRI", func(t *testing.T) {
+		globalRib := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_VPN, bgp.RF_RTC_UC})
+
+		path1 := newVPNPath(t, pi1, 0) // pi1 is best: lower router-id
+		path2 := newVPNPath(t, pi2, 0)
+		globalRib.Update(path1)
+		globalRib.Update(path2)
+		assert.Equal(t, 1, len(globalRib.GetPathsByRT(rt, []bgp.Family{bgp.RF_IPv4_VPN})),
+			"vpnIdx must hold only the best path, not one per peer")
+
+		// Non-best (path2) withdrawn: best unchanged, vpnIdx unchanged.
+		globalRib.Update(path2.Clone(true))
+		assert.Equal(t, 1, len(globalRib.GetPathsByRT(rt, []bgp.Family{bgp.RF_IPv4_VPN})),
+			"vpnIdx must hold only the best path, not one per peer")
+
+		// Best (path1) withdrawn: path2 already gone, vpnIdx empty.
+		globalRib.Update(path1.Clone(true))
+		assert.Equal(t, 0, len(globalRib.GetPathsByRT(rt, []bgp.Family{bgp.RF_IPv4_VPN})),
+			"vpnIdx must be empty")
+	})
+
+	// With add-path each path-ID is a distinct path and all must be in vpnIdx
+	// so that RTC redistribution delivers every path to subscribing peers.
+	t.Run("add-path: all path-IDs stored per NLRI", func(t *testing.T) {
+		globalRib := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_VPN, bgp.RF_RTC_UC})
+
+		path1 := newVPNPath(t, pi1, 1)
+		path2 := newVPNPath(t, pi1, 2)
+		path3 := newVPNPath(t, pi1, 1)
+		globalRib.Update(path1)
+		globalRib.Update(path2)
+		assert.Equal(t, 2, len(globalRib.GetPathsByRT(rt, []bgp.Family{bgp.RF_IPv4_VPN})),
+			"vpnIdx must hold all add-path entries")
+
+		// Withdraw one path-ID: only that one is removed.
+		globalRib.Update(path2.Clone(true))
+		assert.Equal(t, 1, len(globalRib.GetPathsByRT(rt, []bgp.Family{bgp.RF_IPv4_VPN})),
+			"vpnIdx must hold only the best path, not one per peer")
+
+		// Add a new path with the same path-ID: no-op
+		globalRib.Update(path3)
+		assert.Equal(t, 1, len(globalRib.GetPathsByRT(rt, []bgp.Family{bgp.RF_IPv4_VPN})),
+			"vpnIdx must hold only the best path, not one per peer")
+
+		globalRib.Update(path1.Clone(true))
+		assert.Equal(t, 0, len(globalRib.GetPathsByRT(rt, []bgp.Family{bgp.RF_IPv4_VPN})),
+			"vpnIdx must be empty")
+	})
+}

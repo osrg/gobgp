@@ -1206,7 +1206,7 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 	}
 
 	fs := peerNonRTCFamilies(peer)
-	paths := s.rtcVPNCandidates(peer, path, rt, fs)
+	paths := s.rtcVPNCandidates(peer, path.IsWithdraw, rt, fs)
 
 	if path.IsWithdraw {
 		// Skips filtering: paths are already scoped to this RT and withdrawals
@@ -1237,19 +1237,19 @@ func peerNonRTCFamilies(peer *peer) []bgp.Family {
 // rtcVPNCandidates returns VPN paths to announce or withdraw in response to an RTC update.
 // For a specific rt it uses the VPN path index (O(1)); for the wildcard (nil rt) it falls
 // back to a full RIB scan because all VPN families are in scope.
-func (s *BgpServer) rtcVPNCandidates(peer *peer, path *table.Path, rt bgp.ExtendedCommunityInterface, fs []bgp.Family) []*table.Path {
+func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, rt bgp.ExtendedCommunityInterface, fs []bgp.Family) []*table.Path {
 	if rt != nil {
 		raw := s.globalRib.GetPathsByRT(rt, fs)
 		paths := make([]*table.Path, 0, len(raw))
 		for _, p := range raw {
-			if path.IsWithdraw {
+			if isWithdraw {
 				p = p.Clone(true)
 			}
 			paths = append(paths, p)
 		}
 		return paths
 	}
-	if path.IsWithdraw {
+	if isWithdraw {
 		_, paths := s.getBestFromLocal(peer, fs, false)
 		return paths
 	}

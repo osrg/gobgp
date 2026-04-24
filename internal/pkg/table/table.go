@@ -24,7 +24,6 @@ import (
 	"math/bits"
 	"net"
 	"net/netip"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -463,7 +462,7 @@ func (t *Table) update(newPath *Path) *Update {
 	defer shard.mu.Unlock()
 
 	dst := t.getOrCreateDest(shard, nlri, 64)
-	u := dst.Calculate(t.logger, newPath)
+	u, oldPath := dst.Calculate(t.logger, newPath)
 
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(shard, dst)
@@ -477,26 +476,42 @@ func (t *Table) update(newPath *Path) *Update {
 		}
 	}
 
-	if t.vpnIdx != nil {
-		syncVPNIndex(t.vpnIdx, u.KnownPathList, u.OldKnownPathList)
-	}
-
+	t.updateVPNIdx(u, newPath, oldPath)
 	return u
 }
 
-// syncVPNIndex unregisters paths removed from the known list and registers paths added.
-// Both lists are small (typically ≤ a handful of paths per destination), so the O(n²)
-// pointer scan is negligible in practice.
-func syncVPNIndex(idx *VPNPathIndex, after, before []*Path) {
-	for _, old := range before {
-		if !slices.Contains(after, old) {
-			idx.UnregisterPath(old)
-		}
+// updateVPNIdx keeps the vpnIdx in sync with the VPN path table after each
+// update. It must be called immediately after dst.Calculate so that
+// OldKnownPathList and KnownPathList reflect the state before and after the
+// change respectively.
+func (t *Table) updateVPNIdx(u *Update, newPath, oldPath *Path) {
+	if t.vpnIdx == nil {
+		return
 	}
-	for _, p := range after {
-		if !slices.Contains(before, p) {
-			idx.RegisterPath(p)
+	if newPath.RemoteID() != 0 {
+		// ADD-PATH: each (source, path-ID) pair is a distinct entry.
+		// oldPath is the previous path with the same source×pathID returned by
+		// implicitWithdraw (non-withdrawal) or explicitWithdraw (withdrawal).
+		if newPath.IsWithdraw {
+			t.vpnIdx.UnregisterPath(oldPath)
+		} else {
+			t.vpnIdx.UnregisterPath(oldPath)
+			t.vpnIdx.RegisterPath(newPath)
 		}
+		return
+	}
+	// No-add-path: track only the best path per NLRI.
+	// KnownPathList is sorted by computeKnownBestPath, so [0] is the best.
+	var oldBest, newBest *Path
+	if len(u.OldKnownPathList) > 0 {
+		oldBest = u.OldKnownPathList[0]
+	}
+	if len(u.KnownPathList) > 0 {
+		newBest = u.KnownPathList[0]
+	}
+	if oldBest != newBest {
+		t.vpnIdx.UnregisterPath(oldBest)
+		t.vpnIdx.RegisterPath(newBest)
 	}
 }
 
