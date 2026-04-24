@@ -127,6 +127,7 @@ type BgpServer struct {
 	rsRib        *table.TableManager
 	roaManager   *roaManager
 	watcherMap   map[watchEventType][]*watcher
+	watcherMu    sync.RWMutex
 	zclient      *zebraClient
 	bmpManager   *bmpClientManager
 	mrtManager   *mrtManager
@@ -4673,6 +4674,7 @@ func (w *watcher) loop() {
 //nolint:errcheck // we don't care about the error here.
 func (w *watcher) Stop() {
 	w.s.mgmtOperation(func() error {
+		w.s.watcherMu.Lock()
 		for k, l := range w.s.watcherMap {
 			for i, v := range l {
 				if w == v {
@@ -4681,6 +4683,7 @@ func (w *watcher) Stop() {
 				}
 			}
 		}
+		w.s.watcherMu.Unlock()
 
 		cleanInfiniteChannel(w.ch)
 		// the loop function goroutine might be blocked for
@@ -4692,6 +4695,8 @@ func (w *watcher) Stop() {
 }
 
 func (s *BgpServer) isWatched(typ watchEventType) bool {
+	s.watcherMu.RLock()
+	defer s.watcherMu.RUnlock()
 	return len(s.watcherMap[typ]) != 0
 }
 
@@ -4699,6 +4704,7 @@ func (s *BgpServer) isWatched(typ watchEventType) bool {
 // If the filter is set(and not nil) for the watchEventType, it will be used for filtering.
 // Otherwise, all events will be processed without any filtering.
 func (s *BgpServer) notifyWatcher(typ watchEventType, ev watchEvent) {
+	s.watcherMu.RLock()
 	for _, w := range s.watcherMap[typ] {
 		if f := w.filters[typ]; f != nil && !f(ev) {
 			// Filter is set and the event doesn't pass it.
@@ -4706,6 +4712,7 @@ func (s *BgpServer) notifyWatcher(typ watchEventType, ev watchEvent) {
 		}
 		w.notify(ev)
 	}
+	s.watcherMu.RUnlock()
 }
 
 func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
@@ -4722,27 +4729,22 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 			opt(&w.opts)
 		}
 
+		s.watcherMu.Lock()
+		defer s.watcherMu.Unlock()
+
 		register := func(t watchEventType, w *watcher) {
 			s.watcherMap[t] = append(s.watcherMap[t], w)
 		}
 
-		if w.opts.bestPath {
-			register(watchEventTypeBestPath, w)
-		}
 		if w.opts.preUpdate {
 			if w.opts.preUpdateFilter != nil {
 				w.filters[watchEventTypePreUpdate] = w.opts.preUpdateFilter
 			}
-			register(watchEventTypePreUpdate, w)
 		}
 		if w.opts.postUpdate {
 			if w.opts.postUpdateFilter != nil {
 				w.filters[watchEventTypePostUpdate] = w.opts.postUpdateFilter
 			}
-			register(watchEventTypePostUpdate, w)
-		}
-		if w.opts.eor {
-			register(watchEventTypeEor, w)
 		}
 		if w.opts.peerState {
 			for _, p := range s.neighborMap {
@@ -4750,8 +4752,6 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 				w.notify(newWatchEventPeer(p, nil, state, state, apiutil.PEER_EVENT_INIT))
 			}
 			w.notify(&watchEventPeer{Type: apiutil.PEER_EVENT_END_OF_INIT})
-
-			register(watchEventTypePeerState, w)
 		}
 
 		if w.opts.initBest && s.active() == nil {
@@ -4881,6 +4881,21 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 					})
 				}
 			}
+		}
+		if w.opts.bestPath {
+			register(watchEventTypeBestPath, w)
+		}
+		if w.opts.preUpdate {
+			register(watchEventTypePreUpdate, w)
+		}
+		if w.opts.postUpdate {
+			register(watchEventTypePostUpdate, w)
+		}
+		if w.opts.eor {
+			register(watchEventTypeEor, w)
+		}
+		if w.opts.peerState {
+			register(watchEventTypePeerState, w)
 		}
 		if w.opts.recvMessage {
 			register(watchEventTypeRecvMsg, w)

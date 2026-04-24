@@ -92,6 +92,123 @@ func TestStop(t *testing.T) {
 	assert.Error(err)
 }
 
+func TestWatchUpdateCurrentDeliversInitBeforeLiveEvents(t *testing.T) {
+	ctx := context.Background()
+	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	established := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
+	err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_IPV4_UNICAST})
+	require.NoError(t, err)
+	established.Wait(t, 10*time.Second)
+
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh,
+	}
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+	path, _ := apiutil.NewPath(bgp.RF_IPv4_UC, nlri, false, attrs, time.Now())
+	_, err = s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		found := false
+		_ = s1.mgmtOperation(func() error {
+			for _, peer := range s1.neighborMap {
+				if peer.adjRibIn.Count([]bgp.Family{bgp.RF_IPv4_UC}) > 0 {
+					found = true
+					break
+				}
+			}
+			return nil
+		}, true)
+		return found
+	}, 10*time.Second, 100*time.Millisecond)
+
+	enterFilter := make(chan struct{})
+	releaseFilter := make(chan struct{})
+	var filterBlocked atomic.Bool
+	var watcher *watcher
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		watcher = s1.watch(func(o *watchOptions) {
+			o.preUpdate = true
+			o.initUpdate = true
+			o.preUpdateFilter = func(w watchEvent) bool {
+				if filterBlocked.CompareAndSwap(false, true) {
+					close(enterFilter)
+					<-releaseFilter
+				}
+				return true
+			}
+		})
+	}()
+
+	select {
+	case <-enterFilter:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for watch() to enter initial update filter")
+	}
+
+	liveUpdate := &watchEventUpdate{
+		PeerAS:      1,
+		PeerAddress: netip.MustParseAddr("127.0.0.1"),
+		PeerID:      netip.MustParseAddr("2.2.2.2"),
+		PostPolicy:  false,
+		Init:        false,
+		PathList: []*table.Path{
+			table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, true, nil, time.Now(), false),
+		},
+	}
+	liveDone := make(chan struct{})
+	go func() {
+		defer close(liveDone)
+		s1.notifyWatcher(watchEventTypePreUpdate, liveUpdate)
+	}()
+
+	close(releaseFilter)
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for watch() to finish")
+	}
+
+	require.NotNil(t, watcher)
+	defer watcher.Stop()
+
+	select {
+	case <-liveDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for live update notification")
+	}
+
+	ev := <-watcher.Event()
+	initUpdate, ok := ev.(*watchEventUpdate)
+	require.True(t, ok)
+	assert.True(t, initUpdate.Init)
+	assert.Len(t, initUpdate.PathList, 1)
+	assert.Equal(t, "10.10.0.0/24", initUpdate.PathList[0].GetNlri().String())
+
+	ev = <-watcher.Event()
+	initEOR, ok := ev.(*watchEventUpdate)
+	require.True(t, ok)
+	assert.True(t, initEOR.Init)
+	assert.Empty(t, initEOR.PathList)
+
+	ev = <-watcher.Event()
+	live, ok := ev.(*watchEventUpdate)
+	require.True(t, ok)
+	assert.False(t, live.Init)
+	assert.Len(t, live.PathList, 1)
+	assert.True(t, live.PathList[0].IsWithdraw)
+}
+
 func TestModPolicyAssign(t *testing.T) {
 	assert := assert.New(t)
 	s := NewBgpServer()
