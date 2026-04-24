@@ -124,6 +124,7 @@ func (b *bmpClient) loop() {
 		if func() bool {
 			defer func() {
 				atomic.StoreInt64(&b.downtime, time.Now().Unix())
+				conn.Close()
 			}()
 			ops := []WatchOption{WatchPeer()}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
@@ -261,7 +262,7 @@ func (b *bmpClient) loop() {
 								err = write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, time.Now().Unix(), peer))
 							}
 						})
-					if listErr != nil && err != nil {
+					if listErr != nil || err != nil {
 						return false
 					}
 				case <-b.dead:
@@ -275,7 +276,6 @@ func (b *bmpClient) loop() {
 					if err := write(term); err != nil {
 						return false
 					}
-					conn.Close()
 					return true
 				}
 			}
