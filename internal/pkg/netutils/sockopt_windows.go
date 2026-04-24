@@ -81,6 +81,19 @@ func SetIPTOSSockopt(conn net.Conn, tos uint8) error {
 	return fmt.Errorf("setting ip tos is not supported")
 }
 
+func SetUDPTTLSockopt(conn net.Conn, ttl int) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setSockOptIpTtl(sc, family, ttl)
+}
+
+func SetReuseAddrSockopt(sc syscall.RawConn) error {
+	return setSockOptInt(sc, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+}
+
 func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, ttlMin uint8, mss uint16, password string, bindInterface string, tos uint8) error {
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",

@@ -48,6 +48,14 @@ func SetIPTOSSockopt(conn net.Conn, tos uint8) error {
 	return SetIpTOSSockopt(conn, tos)
 }
 
+func SetUDPTTLSockopt(conn net.Conn, ttl int) error {
+	return SetUdpTTLSockopt(conn, ttl)
+}
+
+func SetReuseAddrSockopt(sc syscall.RawConn) error {
+	return SetReuseAddrSockoptImpl(sc)
+}
+
 func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string, tos uint8) error {
 	if password != "" {
 		logger.Warn("setting md5 for active connection is not supported",
