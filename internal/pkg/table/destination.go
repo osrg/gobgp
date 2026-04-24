@@ -250,19 +250,20 @@ func (dd *destination) GetMultiBestPath(id string) []*Path {
 // paths from known paths. Also, adds new paths to known paths.
 // INTERNAL USE ONLY: Caller MUST hold the appropriate shard lock.
 // This method must NEVER be called on snapshot destinations.
-func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
+func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) (*Update, *Path) {
 	oldKnownPathList := make([]*Path, len(dest.knownPathList))
 	copy(oldKnownPathList, dest.knownPathList)
 
+	var oldPath *Path
 	if newPath.IsWithdraw {
-		p := dest.explicitWithdraw(logger, newPath)
-		if p != nil && newPath.IsDropped() {
-			if id := p.localID; id != 0 {
+		oldPath = dest.explicitWithdraw(logger, newPath)
+		if oldPath != nil && newPath.IsDropped() {
+			if id := oldPath.localID; id != 0 {
 				dest.localIdMap.Unflag(uint(id))
 			}
 		}
 	} else {
-		dest.implicitWithdraw(logger, newPath)
+		oldPath = dest.implicitWithdraw(logger, newPath)
 		dest.insertSort(newPath)
 	}
 
@@ -282,7 +283,7 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
 	return &Update{
 		KnownPathList:    l,
 		OldKnownPathList: oldKnownPathList,
-	}
+	}, oldPath
 }
 
 // Removes withdrawn paths.
@@ -292,6 +293,7 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path) *Update {
 // since not all paths get installed into the table due to bgp policy and
 // we can receive withdraws for such paths and withdrawals may not be
 // stopped by the same policies.
+// Returns the old path that was withdrawn.
 func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *Path {
 	logger.Debug("Removing withdrawals",
 		slog.String("Topic", "Table"),
@@ -334,7 +336,8 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 //
 // Known paths will no longer have paths whose new version is present in
 // new paths.
-func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) {
+// Returns the old path that was withdrawn.
+func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) *Path {
 	found := -1
 	for i, path := range dest.knownPathList {
 		if path.NoImplicitWithdraw() {
@@ -356,8 +359,11 @@ func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) {
 		}
 	}
 	if found != -1 {
+		withdrawnPath := dest.knownPathList[found]
 		dest.knownPathList = append(dest.knownPathList[:found], dest.knownPathList[found+1:]...)
+		return withdrawnPath
 	}
+	return nil
 }
 
 func (dest *destination) insertSort(newPath *Path) {
