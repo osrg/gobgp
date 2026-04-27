@@ -6,29 +6,35 @@ import (
 	"errors"
 )
 
+//go:generate stringer -type=DiagnosticType,StateType -linecomment -output=bfd_types_string.go
+
 type StateType uint8
 
+type DiagnosticType uint8
+
+// A diagnostic code specifying the local system's reason for the
+// last change in session state.
 const (
-	StateAdminDown StateType = iota
-	StateDown
-	StateInit
-	StateUp
+	DiagnosticNoDiagnostic                DiagnosticType = iota // no diagnostic
+	DiagnosticControlDetectionTimeExpired                       // control detection time expired
+	DiagnosticEchoFunctionFailed                                // echo function failed
+	DiagnosticNeighborSignaledSessionDown                       // neighbor signaled session down
+	DiagnosticForwardingPlaneReset                              // forwarding plane reset
+	DiagnosticPathDown                                          // path down
+	DiagnosticConcatenatedPathDown                              // concatenated path down
+	DiagnosticAdministrativelyDown                              // administratively down
+	DiagnosticReverseConcatenatedPathDown                       // reverse concatenated path down
+
+	DiagnosticReservedStart DiagnosticType = 9  // reserved (9-31)
+	DiagnosticReservedEnd   DiagnosticType = 31 // reserved (9-31)
 )
 
-func (s StateType) String() string {
-	switch s {
-	case StateDown:
-		return "Down"
-	case StateInit:
-		return "Init"
-	case StateUp:
-		return "Up"
-	case StateAdminDown:
-		return "Admin Down"
-	default:
-		return "unknown"
-	}
-}
+const (
+	StateAdminDown StateType = iota // admin down
+	StateDown                       // down
+	StateInit                       // init
+	StateUp                         // up
+)
 
 const (
 	packetSizeMin = 24
@@ -37,10 +43,14 @@ const (
 var (
 	ErrInvalidPacketLength = errors.New("invalid packet length")
 	ErrInvalidHeader       = errors.New("invalid header")
+	ErrInvalidVersion      = errors.New("invalid version")
+	ErrInvalidDiagnostic   = errors.New("invalid diagnostic")
+	ErrInvalidState        = errors.New("invalid state")
 )
 
 type BFDHeader struct {
 	Version               uint8
+	Diagnostic            DiagnosticType
 	State                 StateType
 	Poll                  bool
 	Final                 bool
@@ -49,6 +59,19 @@ type BFDHeader struct {
 	YourDiscriminator     uint32
 	DesiredMinTxInterval  uint32
 	RequiredMinRxInterval uint32
+}
+
+func (h *BFDHeader) Validate() error {
+	if h.Version > 7 {
+		return ErrInvalidVersion
+	}
+	if h.Diagnostic > 31 {
+		return ErrInvalidDiagnostic
+	}
+	if h.State > 3 {
+		return ErrInvalidState
+	}
+	return nil
 }
 
 var (
@@ -95,6 +118,7 @@ func (h *BFDHeader) UnmarshalBinary(buf []byte) error {
 	}
 
 	h.Version = buf[0] >> 5
+	h.Diagnostic = DiagnosticType(buf[0] & 0x1f)
 	h.State = StateType(buf[1] >> 6)
 	h.Poll = byteToBool(buf[1] >> 5 & 1)
 	h.Final = byteToBool(buf[1] >> 4 & 1)
@@ -114,7 +138,11 @@ func (h *BFDHeader) UnmarshalBinary(buf []byte) error {
 func (h *BFDHeader) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, packetSizeMin)
 
-	buf[0] = h.Version << 5
+	if err := h.Validate(); err != nil {
+		return nil, err
+	}
+
+	buf[0] = h.Version<<5 | byte(h.Diagnostic)&0x1f
 	buf[1] = byte(h.State)<<6 | boolToByte(h.Poll)<<5 | boolToByte(h.Final)<<4
 	buf[2] = h.DetectTimeMultiplier
 	buf[3] = byte(packetSizeMin)
