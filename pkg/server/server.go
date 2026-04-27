@@ -102,14 +102,27 @@ func TimingHookOption(hook FSMTimingHook) ServerOption {
 	}
 }
 
+const propagateBucketCount = 2048
+
 type sharedData struct {
-	mu sync.RWMutex
+	mu               sync.RWMutex
+	propagateBuckets [propagateBucketCount]sync.Mutex
 }
 
 func newSharedData() *sharedData {
 	return &sharedData{
 		mu: sync.RWMutex{},
 	}
+}
+
+func (d *sharedData) propagateBucket(path *table.Path) *sync.Mutex {
+	if path == nil {
+		return &d.propagateBuckets[0]
+	}
+	// note: we can't use path.GetNlri().Serialize() here as peer.sentPaths is indexed by destLocalKey
+	destLocalKey := path.GetDestLocalKey()
+	idx := farm.Hash64([]byte(destLocalKey.Family.String()+destLocalKey.Prefix)) % uint64(len(d.propagateBuckets))
+	return &d.propagateBuckets[idx]
 }
 
 type BgpServer struct {
@@ -1150,48 +1163,54 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 		}
 
-		// Strip LOCAL_PREF from eBGP peers on ingress.
-		// RFC 4271: LOCAL_PREF is only used in iBGP.
-		if peer != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
-			path.RemoveLocalPref()
-		}
+		func(path *table.Path) {
+			bucket := s.shared.propagateBucket(path)
+			bucket.Lock()
+			defer bucket.Unlock()
 
-		policyOptions := &table.PolicyOptions{
-			Validate: s.roaTable.Validate,
-		}
-
-		if !rs && peer != nil {
-			policyOptions.Info = peer.peerInfo.Load()
-		}
-
-		if p := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
-			path = p
-		} else {
-			path = path.Clone(true)
-		}
-
-		if !rs {
-			s.notifyPostPolicyUpdateWatcher(peer, []*table.Path{path})
-
-			// RFC4684 Constrained Route Distribution 6. Operation
-			//
-			// When a BGP speaker receives a BGP UPDATE that advertises or withdraws
-			// a given Route Target membership NLRI, it should examine the RIB-OUTs
-			// of VPN NLRIs and re-evaluate the advertisement status of routes that
-			// match the Route Target in question.
-			//
-			// A BGP speaker should generate the minimum set of BGP VPN route
-			// updates (advertisements and/or withdraws) necessary to transition
-			// between the previous and current state of the route distribution
-			// graph that is derived from Route Target membership information.
-			if peer != nil && path != nil && path.GetFamily() == bgp.RF_RTC_UC {
-				s.processRTCMembership(peer, path)
+			// Strip LOCAL_PREF from eBGP peers on ingress.
+			// RFC 4271: LOCAL_PREF is only used in iBGP.
+			if peer != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
+				path.RemoveLocalPref()
 			}
-		}
 
-		if dsts := rib.Update(path); len(dsts) > 0 {
-			s.propagateUpdateToNeighbors(rib, peer, path, dsts, true)
-		}
+			policyOptions := &table.PolicyOptions{
+				Validate: s.roaTable.Validate,
+			}
+
+			if !rs && peer != nil {
+				policyOptions.Info = peer.peerInfo.Load()
+			}
+
+			if p := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
+				path = p
+			} else {
+				path = path.Clone(true)
+			}
+
+			if !rs {
+				s.notifyPostPolicyUpdateWatcher(peer, []*table.Path{path})
+
+				// RFC4684 Constrained Route Distribution 6. Operation
+				//
+				// When a BGP speaker receives a BGP UPDATE that advertises or withdraws
+				// a given Route Target membership NLRI, it should examine the RIB-OUTs
+				// of VPN NLRIs and re-evaluate the advertisement status of routes that
+				// match the Route Target in question.
+				//
+				// A BGP speaker should generate the minimum set of BGP VPN route
+				// updates (advertisements and/or withdraws) necessary to transition
+				// between the previous and current state of the route distribution
+				// graph that is derived from Route Target membership information.
+				if peer != nil && path != nil && path.GetFamily() == bgp.RF_RTC_UC {
+					s.processRTCMembership(peer, path)
+				}
+			}
+
+			if dsts := rib.Update(path); len(dsts) > 0 {
+				s.propagateUpdateToNeighbors(rib, peer, path, dsts, true)
+			}
+		}(path)
 	}
 }
 
@@ -1409,7 +1428,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 						}
 					} else {
 						bestList = []*table.Path{}
-						targetPeer.sendMaxPathFiltered[newPath.GetLocalKey()] = struct{}{}
+						targetPeer.setPathSendMaxFiltered(newPath)
 						targetPeer.fsm.logger.Warn("exceeding max routes for prefix", slog.String("Prefix", newPath.GetPrefix()))
 					}
 				}

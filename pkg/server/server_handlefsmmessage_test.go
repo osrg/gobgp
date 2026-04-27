@@ -278,6 +278,149 @@ func TestRTCMembershipSerializesTriggeredVPNUpdates(t *testing.T) {
 	}
 }
 
+func TestPropagateUpdateUsesPrefixBuckets(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	blockedPath := makePath(t, "192.0.2.0/32", "192.0.2.254", 0)
+	blockedBucket := s.shared.propagateBucket(blockedPath)
+	var differentBucketPath *table.Path
+	for i := 1; i < 255; i++ {
+		prefix := netip.PrefixFrom(netip.AddrFrom4([4]byte{198, 51, 100, byte(i)}), 32).String()
+		path := makePath(t, prefix, "192.0.2.254", 0)
+		if s.shared.propagateBucket(path) != blockedBucket {
+			differentBucketPath = path
+			break
+		}
+	}
+	require.NotNil(t, differentBucketPath)
+
+	blockedBucket.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			blockedBucket.Unlock()
+		}
+	}()
+
+	samePrefixDone := make(chan struct{})
+	go func() {
+		s.propagateUpdate(nil, []*table.Path{blockedPath})
+		close(samePrefixDone)
+	}()
+
+	select {
+	case <-samePrefixDone:
+		t.Fatal("same-prefix propagation completed while its bucket was held")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	differentPrefixDone := make(chan struct{})
+	go func() {
+		s.propagateUpdate(nil, []*table.Path{differentBucketPath})
+		close(differentPrefixDone)
+	}()
+
+	select {
+	case <-differentPrefixDone:
+	case <-time.After(time.Second):
+		t.Fatal("different-prefix propagation did not complete while another bucket was held")
+	}
+
+	blockedBucket.Unlock()
+	locked = false
+
+	select {
+	case <-samePrefixDone:
+	case <-time.After(time.Second):
+		t.Fatal("same-prefix propagation did not complete after its bucket was released")
+	}
+}
+
+func TestPropagateUpdateSerializesConcurrentLiveDeltas(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	target := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	target.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	target.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_SEND,
+	})
+
+	const pathCount = 64
+	target.fsm.lock.Lock()
+	conf := target.fsm.pConf.ReadCopy()
+	foundFamily := false
+	for i := range conf.AfiSafis {
+		if conf.AfiSafis[i].State.Family != bgp.RF_IPv4_UC {
+			continue
+		}
+		conf.AfiSafis[i].AddPaths.Config.SendMax = pathCount
+		conf.AfiSafis[i].AddPaths.State.SendMax = pathCount
+		foundFamily = true
+	}
+	target.fsm.pConf.Update(&conf)
+	target.fsm.lock.Unlock()
+	require.True(t, foundFamily)
+
+	err = s.mgmtOperation(func() error {
+		s.neighborMap[peerAddr] = target
+		return nil
+	}, true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := s.mgmtOperation(func() error {
+			delete(s.neighborMap, peerAddr)
+			return nil
+		}, false)
+		require.NoError(t, err)
+		cleanInfiniteChannel(target.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range pathCount {
+		prefix := netip.PrefixFrom(netip.AddrFrom4([4]byte{192, 0, 2, byte(i)}), 32).String()
+		path := makePath(t, prefix, "192.0.2.254", 0)
+		wg.Add(1)
+		go func(path *table.Path) {
+			defer wg.Done()
+			<-start
+			s.propagateUpdate(nil, []*table.Path{path})
+		}(path)
+	}
+	close(start)
+	wg.Wait()
+
+	sentPathCount := 0
+	target.sentPaths.Range(func(_, _ any) bool {
+		sentPathCount++
+		return true
+	})
+	require.Equal(t, pathCount, sentPathCount)
+}
+
 // TestHandleFSMMessage_LLGREndChsRace tests concurrent append and reset of llgrEndChs slice
 func TestHandleFSMMessage_LLGREndChsRace(t *testing.T) {
 	s := NewBgpServer()

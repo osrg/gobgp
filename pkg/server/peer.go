@@ -96,6 +96,11 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 	return newPeer(g, &conf, bgp.BGP_FSM_ACTIVE, loc, policy, logger)
 }
 
+// pathIDSet is the set of add-path local identifiers advertised for a destination.
+// Values of this type are stored in peer.sentPaths and MUST only be accessed
+// under the propagation bucket lock for the corresponding prefix.
+type pathIDSet map[uint32]struct{}
+
 type peer struct {
 	tableId           string
 	fsm               *fsm
@@ -104,9 +109,14 @@ type peer struct {
 	localRib          *table.TableManager
 	peerInfo          atomic.Pointer[table.PeerInfo]
 	prefixLimitWarned map[bgp.Family]bool // protected by fsm.lock
-	// map of path local identifiers sent for that prefix
-	sentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
-	sendMaxPathFiltered map[table.PathLocalKey]struct{}
+	// map[table.PathDestLocalKey]pathIDSet, with inner pathIDSets protected
+	// by the matching server propagation bucket for the route prefix.
+	// All methods that read or mutate a pathIDSet value (updateRoutes,
+	// getRoutesCount, hasPathAlreadyBeenSent) MUST be called under the
+	// bucket lock for that prefix (sharedData.propagateBucket).
+	sentPaths sync.Map
+	// map[table.PathLocalKey]struct{}
+	sendMaxPathFiltered sync.Map
 	llgrEndChs          []chan struct{} // protected by fsm.lock
 	longLivedRunning    atomic.Bool
 	// Route Target Membership handler after import policy (for constrained VPN distribution).
@@ -117,12 +127,10 @@ type peer struct {
 
 func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.TableManager, policy *table.RoutingPolicy, logger *slog.Logger) *peer {
 	peer := &peer{
-		localRib:            loc,
-		policy:              policy,
-		fsm:                 newFSM(g, conf, state, logger.With(slog.String("Topic", "Peer"), slog.String("Key", conf.State.NeighborAddress.String()))),
-		prefixLimitWarned:   make(map[bgp.Family]bool),
-		sentPaths:           make(map[table.PathDestLocalKey]map[uint32]struct{}),
-		sendMaxPathFiltered: make(map[table.PathLocalKey]struct{}),
+		localRib:          loc,
+		policy:            policy,
+		fsm:               newFSM(g, conf, state, logger.With(slog.String("Topic", "Peer"), slog.String("Key", conf.State.NeighborAddress.String()))),
+		prefixLimitWarned: make(map[bgp.Family]bool),
 	}
 	if peer.isRouteServerClient() {
 		peer.tableId = conf.State.NeighborAddress.String()
@@ -229,8 +237,8 @@ func (peer *peer) getAddPathSendMax(family bgp.Family) uint8 {
 
 func (peer *peer) getRoutesCount(family bgp.Family, dstPrefix string) uint8 {
 	destLocalKey := table.NewPathDestLocalKey(family, dstPrefix)
-	if identifiers, ok := peer.sentPaths[*destLocalKey]; ok {
-		count := len(identifiers)
+	if identifiers, ok := peer.sentPaths.Load(*destLocalKey); ok {
+		count := len(identifiers.(pathIDSet))
 		// the send-max config is uint8, so we need to check for overflow
 		if count > int(^uint8(0)) {
 			return ^uint8(0)
@@ -247,16 +255,26 @@ func (peer *peer) updateRoutes(paths ...*table.Path) {
 	for _, path := range paths {
 		localKey := path.GetLocalKey()
 		destLocalKey := localKey.PathDestLocalKey
-		identifiers, destExists := peer.sentPaths[destLocalKey]
+		identifiersValue, destExists := peer.sentPaths.Load(destLocalKey)
 		if path.IsWithdraw && destExists {
+			identifiers := identifiersValue.(pathIDSet)
 			delete(identifiers, path.LocalID())
-		} else if !path.IsWithdraw {
-			if !destExists {
-				peer.sentPaths[destLocalKey] = make(map[uint32]struct{})
+			if len(identifiers) == 0 {
+				peer.sentPaths.Delete(destLocalKey)
 			}
-			identifiers := peer.sentPaths[destLocalKey]
+		} else if !path.IsWithdraw {
+			var identifiers pathIDSet
+			if destExists {
+				identifiers = identifiersValue.(pathIDSet)
+			} else {
+				identifiers = make(pathIDSet)
+			}
 			if len(identifiers) < int(peer.getAddPathSendMax(destLocalKey.Family)) {
 				identifiers[localKey.Id] = struct{}{}
+				if !destExists {
+					// store only the first insert, mutations are inplace
+					peer.sentPaths.Store(destLocalKey, identifiers)
+				}
 			}
 		}
 	}
@@ -266,18 +284,25 @@ func (peer *peer) isPathSendMaxFiltered(path *table.Path) bool {
 	if path == nil {
 		return false
 	}
-	_, found := peer.sendMaxPathFiltered[path.GetLocalKey()]
+	_, found := peer.sendMaxPathFiltered.Load(path.GetLocalKey())
 	return found
+}
+
+func (peer *peer) setPathSendMaxFiltered(path *table.Path) {
+	if path == nil {
+		return
+	}
+	peer.sendMaxPathFiltered.Store(path.GetLocalKey(), struct{}{})
 }
 
 func (peer *peer) unsetPathSendMaxFiltered(path *table.Path) bool {
 	if path == nil {
 		return false
 	}
-	if _, ok := peer.sendMaxPathFiltered[path.GetLocalKey()]; !ok {
+	if _, ok := peer.sendMaxPathFiltered.Load(path.GetLocalKey()); !ok {
 		return false
 	}
-	delete(peer.sendMaxPathFiltered, path.GetLocalKey())
+	peer.sendMaxPathFiltered.Delete(path.GetLocalKey())
 	return true
 }
 
@@ -286,10 +311,11 @@ func (peer *peer) hasPathAlreadyBeenSent(path *table.Path) bool {
 		return false
 	}
 	destLocalKey := path.GetDestLocalKey()
-	if _, dstExist := peer.sentPaths[destLocalKey]; !dstExist {
+	identifiers, dstExist := peer.sentPaths.Load(destLocalKey)
+	if !dstExist {
 		return false
 	}
-	_, pathExist := peer.sentPaths[destLocalKey][path.LocalID()]
+	_, pathExist := identifiers.(pathIDSet)[path.LocalID()]
 	return pathExist
 }
 
