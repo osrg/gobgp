@@ -1449,4 +1449,219 @@ module gobgp {
         are still checked for as-path loops.";
     }
   }
+
+  typedef bfd-session-state {
+    type enumeration {
+      enum UP {
+        description "BFD session is up.";
+      }
+      enum DOWN {
+        description "BFD session is down.";
+      }
+      enum ADMIN_DOWN {
+        description "BFD session is administratively down.";
+      }
+      enum INIT {
+        description "BFD session is in the INIT state.";
+      }
+    }
+  }
+
+  typedef bfd-diagnostic-code {
+    type enumeration {
+      enum NO_DIAGNOSTIC {
+        description "No diagnostic.";
+      }
+      enum DETECTION_TIMEOUT {
+        description "Control detection time expired.";
+      }
+      enum ECHO_FAILED {
+        description "Echo function failed.";
+      }
+      enum NEIGHBOR_SIGNALED_SESSION_DOWN {
+        description "Neighbor signaled session down.";
+      }
+      enum FORWARDING_PLANE_RESET {
+        description "Forwarding plane reset.";
+      }
+      enum PATH_DOWN {
+        description "Path down.";
+      }
+      enum CONCATENATED_PATH_DOWN {
+        description "Concatenated path down.";
+      }
+      enum ADMINISTRATIVELY_DOWN {
+        description "Administratively down.";
+      }
+      enum REVERSE_CONCATENATED_PATH_DOWN {
+        description "Reverse concatenated path down.";
+      }
+    }
+    reference "RFC 5880 §4.1";
+  }
+
+  grouping gobgp-bfd-config {
+    description
+      "Per-neighbor BFD session parameters (RFC 5880).";
+
+    leaf enabled {
+      type boolean;
+      default "false";
+      description
+        "Enable BFD liveness detection for this BGP neighbor.";
+    }
+
+    leaf port {
+      type uint16;
+      default 3784;
+      description
+        "Destination UDP port for BFD control packets.
+        Using a non-default port deviates from RFC 5881, 
+        which explicitly mandates destination UDP port 3784.";
+      reference "RFC 5881 §4";
+    }
+
+    leaf desired-minimum-tx-interval {
+      type uint32;
+      units microseconds;
+      default 1000000;
+      description
+        "Desired minimum transmission interval for BFD control packets.";
+      reference "RFC 5880 §6.8.7";
+    }
+
+    leaf required-minimum-receive {
+      type uint32;
+      units microseconds;
+      default 1000000;
+      description
+        "Required minimum receive interval for BFD control packets.";
+      reference "RFC 5880 §6.8.8";
+    }
+
+    leaf detection-multiplier {
+      type uint8 {
+        range "1..255";
+      }
+      default 3;
+      description
+        "Detection time multiplier.";
+      reference "RFC 5880 §6.8.5";
+    }
+  }
+
+  grouping gobgp-bfd-state {
+    description
+      "Operational state leaves for a BFD session.";
+
+    leaf session-state {
+      type bfd-session-state;
+      description "Local view of the BFD session state.";
+    }
+
+    leaf remote-session-state {
+      type bfd-session-state;
+      description "Remote view of the BFD session state.";
+    }
+
+    leaf last-failure-time {
+      type uint64;
+      units nanoseconds;
+      description
+        "Nanoseconds since the Unix epoch at which the last session failure occurred.";
+    }
+
+    leaf failure-transitions {
+      type uint64;
+      description "Number of UP-to-DOWN transitions.";
+    }
+
+    leaf local-discriminator {
+      type uint32;
+      description "Unique local discriminator for this BFD session.";
+      reference "RFC 5880 §4.1";
+    }
+
+    leaf remote-discriminator {
+      type uint32;
+      description "Discriminator received from the remote system.";
+      reference "RFC 5880 §4.1";
+    }
+
+    leaf local-diagnostic-code {
+      type bfd-diagnostic-code;
+      description "Diagnostic code for the last local session failure.";
+    }
+
+    leaf remote-diagnostic-code {
+      type bfd-diagnostic-code;
+      description "Diagnostic code received from the remote system.";
+    }
+
+    leaf remote-minimum-receive-interval {
+      type uint32;
+      units microseconds;
+      description "Required minimum receive interval advertised by the remote system.";
+    }
+
+    container bfd-async {
+      description "Counters for BFD asynchronous-mode control packets.";
+
+      leaf last-packet-transmitted {
+        type uint64;
+        units nanoseconds;
+        description "Nanoseconds since the Unix epoch at which the last BFD packet was transmitted.";
+      }
+
+      leaf last-packet-received {
+        type uint64;
+        units nanoseconds;
+        description "Nanoseconds since the Unix epoch at which the last BFD packet was received.";
+      }
+
+      leaf transmitted-packets {
+        type uint64;
+        description "Total number of BFD control packets transmitted.";
+      }
+
+      leaf received-packets {
+        type uint64;
+        description "Total number of BFD control packets received.";
+      }
+    }
+  }
+
+  grouping gobgp-bfd-config-set {
+    description
+      "BFD configuration and state for a BGP neighbor or peer-group.";
+
+    container bfd {
+      description
+        "Configure BFD liveness detection for this BGP neighbor.";
+
+      container config {
+        description
+          "BFD configuration parameters.";
+        uses gobgp-bfd-config;
+      }
+
+      container state {
+        config false;
+        description
+          "BFD configuration and operational state.";
+        uses gobgp-bfd-config;
+        uses gobgp-bfd-state;
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+    description "BFD configuration for peer-group";
+    uses gobgp-bfd-config-set;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+    description "BFD configuration for neighbor";
+    uses gobgp-bfd-config-set;
+  }
 }
