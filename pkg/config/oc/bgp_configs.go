@@ -971,6 +971,99 @@ func (v MrtType) ToInt() int {
 	return i
 }
 
+// typedef for identity gobgp:bfd-session-state.
+type BfdSessionState string
+
+const (
+	BFD_SESSION_STATE_UP         BfdSessionState = "up"
+	BFD_SESSION_STATE_DOWN       BfdSessionState = "down"
+	BFD_SESSION_STATE_ADMIN_DOWN BfdSessionState = "admin_down"
+	BFD_SESSION_STATE_INIT       BfdSessionState = "init"
+)
+
+var BfdSessionStateToIntMap = map[BfdSessionState]int{
+	BFD_SESSION_STATE_UP:         0,
+	BFD_SESSION_STATE_DOWN:       1,
+	BFD_SESSION_STATE_ADMIN_DOWN: 2,
+	BFD_SESSION_STATE_INIT:       3,
+}
+
+var IntToBfdSessionStateMap = map[int]BfdSessionState{
+	0: BFD_SESSION_STATE_UP,
+	1: BFD_SESSION_STATE_DOWN,
+	2: BFD_SESSION_STATE_ADMIN_DOWN,
+	3: BFD_SESSION_STATE_INIT,
+}
+
+func (v BfdSessionState) Validate() error {
+	if _, ok := BfdSessionStateToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BfdSessionState: %s", v)
+	}
+	return nil
+}
+
+func (v BfdSessionState) ToInt() int {
+	i, ok := BfdSessionStateToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
+// typedef for identity gobgp:bfd-diagnostic-code.
+type BfdDiagnosticCode string
+
+const (
+	BFD_DIAGNOSTIC_CODE_NO_DIAGNOSTIC                  BfdDiagnosticCode = "no_diagnostic"
+	BFD_DIAGNOSTIC_CODE_DETECTION_TIMEOUT              BfdDiagnosticCode = "detection_timeout"
+	BFD_DIAGNOSTIC_CODE_ECHO_FAILED                    BfdDiagnosticCode = "echo_failed"
+	BFD_DIAGNOSTIC_CODE_NEIGHBOR_SIGNALED_SESSION_DOWN BfdDiagnosticCode = "neighbor_signaled_session_down"
+	BFD_DIAGNOSTIC_CODE_FORWARDING_PLANE_RESET         BfdDiagnosticCode = "forwarding_plane_reset"
+	BFD_DIAGNOSTIC_CODE_PATH_DOWN                      BfdDiagnosticCode = "path_down"
+	BFD_DIAGNOSTIC_CODE_CONCATENATED_PATH_DOWN         BfdDiagnosticCode = "concatenated_path_down"
+	BFD_DIAGNOSTIC_CODE_ADMINISTRATIVELY_DOWN          BfdDiagnosticCode = "administratively_down"
+	BFD_DIAGNOSTIC_CODE_REVERSE_CONCATENATED_PATH_DOWN BfdDiagnosticCode = "reverse_concatenated_path_down"
+)
+
+var BfdDiagnosticCodeToIntMap = map[BfdDiagnosticCode]int{
+	BFD_DIAGNOSTIC_CODE_NO_DIAGNOSTIC:                  0,
+	BFD_DIAGNOSTIC_CODE_DETECTION_TIMEOUT:              1,
+	BFD_DIAGNOSTIC_CODE_ECHO_FAILED:                    2,
+	BFD_DIAGNOSTIC_CODE_NEIGHBOR_SIGNALED_SESSION_DOWN: 3,
+	BFD_DIAGNOSTIC_CODE_FORWARDING_PLANE_RESET:         4,
+	BFD_DIAGNOSTIC_CODE_PATH_DOWN:                      5,
+	BFD_DIAGNOSTIC_CODE_CONCATENATED_PATH_DOWN:         6,
+	BFD_DIAGNOSTIC_CODE_ADMINISTRATIVELY_DOWN:          7,
+	BFD_DIAGNOSTIC_CODE_REVERSE_CONCATENATED_PATH_DOWN: 8,
+}
+
+var IntToBfdDiagnosticCodeMap = map[int]BfdDiagnosticCode{
+	0: BFD_DIAGNOSTIC_CODE_NO_DIAGNOSTIC,
+	1: BFD_DIAGNOSTIC_CODE_DETECTION_TIMEOUT,
+	2: BFD_DIAGNOSTIC_CODE_ECHO_FAILED,
+	3: BFD_DIAGNOSTIC_CODE_NEIGHBOR_SIGNALED_SESSION_DOWN,
+	4: BFD_DIAGNOSTIC_CODE_FORWARDING_PLANE_RESET,
+	5: BFD_DIAGNOSTIC_CODE_PATH_DOWN,
+	6: BFD_DIAGNOSTIC_CODE_CONCATENATED_PATH_DOWN,
+	7: BFD_DIAGNOSTIC_CODE_ADMINISTRATIVELY_DOWN,
+	8: BFD_DIAGNOSTIC_CODE_REVERSE_CONCATENATED_PATH_DOWN,
+}
+
+func (v BfdDiagnosticCode) Validate() error {
+	if _, ok := BfdDiagnosticCodeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid BfdDiagnosticCode: %s", v)
+	}
+	return nil
+}
+
+func (v BfdDiagnosticCode) ToInt() int {
+	i, ok := BfdDiagnosticCodeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
 // typedef for typedef bgp-pol:bgp-as-path-prepend-repeat.
 type BgpAsPathPrependRepeat uint8
 
@@ -1918,6 +2011,9 @@ type PeerGroup struct {
 	// original -> gobgp:ttl-security
 	// Configure TTL Security feature.
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
+	// original -> gobgp:bfd
+	// Configure BFD liveness detection for this BGP neighbor.
+	Bfd Bfd `mapstructure:"bfd" json:"bfd,omitempty"`
 }
 
 func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
@@ -1972,6 +2068,164 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 		return false
 	}
 	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
+		return false
+	}
+	if !lhs.Bfd.Equal(&(rhs.Bfd)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:bfd-async.
+// Counters for BFD asynchronous-mode control packets.
+type BfdAsync struct {
+	// original -> gobgp:last-packet-transmitted
+	// Nanoseconds since the Unix epoch at which the last BFD packet was transmitted.
+	LastPacketTransmitted uint64 `mapstructure:"last-packet-transmitted" json:"last-packet-transmitted,omitempty"`
+	// original -> gobgp:last-packet-received
+	// Nanoseconds since the Unix epoch at which the last BFD packet was received.
+	LastPacketReceived uint64 `mapstructure:"last-packet-received" json:"last-packet-received,omitempty"`
+	// original -> gobgp:transmitted-packets
+	// Total number of BFD control packets transmitted.
+	TransmittedPackets uint64 `mapstructure:"transmitted-packets" json:"transmitted-packets,omitempty"`
+	// original -> gobgp:received-packets
+	// Total number of BFD control packets received.
+	ReceivedPackets uint64 `mapstructure:"received-packets" json:"received-packets,omitempty"`
+}
+
+func (lhs *BfdAsync) Equal(rhs *BfdAsync) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.LastPacketTransmitted != rhs.LastPacketTransmitted {
+		return false
+	}
+	if lhs.LastPacketReceived != rhs.LastPacketReceived {
+		return false
+	}
+	if lhs.TransmittedPackets != rhs.TransmittedPackets {
+		return false
+	}
+	if lhs.ReceivedPackets != rhs.ReceivedPackets {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:state.
+// BFD configuration and operational state.
+type BfdState struct {
+	// original -> gobgp:enabled
+	// gobgp:enabled's original type is boolean.
+	// Enable BFD liveness detection for this BGP neighbor.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+	// original -> gobgp:port
+	// Destination UDP port for BFD control packets.
+	// Using a non-default port deviates from RFC 5881,
+	// which explicitly mandates destination UDP port 3784.
+	Port uint16 `mapstructure:"port" json:"port,omitempty"`
+	// original -> gobgp:desired-minimum-tx-interval
+	// Desired minimum transmission interval for BFD control packets.
+	DesiredMinimumTxInterval uint32 `mapstructure:"desired-minimum-tx-interval" json:"desired-minimum-tx-interval,omitempty"`
+	// original -> gobgp:required-minimum-receive
+	// Required minimum receive interval for BFD control packets.
+	RequiredMinimumReceive uint32 `mapstructure:"required-minimum-receive" json:"required-minimum-receive,omitempty"`
+	// original -> gobgp:detection-multiplier
+	// Detection time multiplier.
+	DetectionMultiplier uint8 `mapstructure:"detection-multiplier" json:"detection-multiplier,omitempty"`
+	// original -> gobgp:session-state
+	// Local view of the BFD session state.
+	SessionState BfdSessionState `mapstructure:"session-state" json:"session-state,omitempty"`
+	// original -> gobgp:remote-session-state
+	// Remote view of the BFD session state.
+	RemoteSessionState BfdSessionState `mapstructure:"remote-session-state" json:"remote-session-state,omitempty"`
+	// original -> gobgp:last-failure-time
+	// Nanoseconds since the Unix epoch at which the last session failure occurred.
+	LastFailureTime uint64 `mapstructure:"last-failure-time" json:"last-failure-time,omitempty"`
+	// original -> gobgp:failure-transitions
+	// Number of UP-to-DOWN transitions.
+	FailureTransitions uint64 `mapstructure:"failure-transitions" json:"failure-transitions,omitempty"`
+	// original -> gobgp:local-discriminator
+	// Unique local discriminator for this BFD session.
+	LocalDiscriminator uint32 `mapstructure:"local-discriminator" json:"local-discriminator,omitempty"`
+	// original -> gobgp:remote-discriminator
+	// Discriminator received from the remote system.
+	RemoteDiscriminator uint32 `mapstructure:"remote-discriminator" json:"remote-discriminator,omitempty"`
+	// original -> gobgp:local-diagnostic-code
+	// Diagnostic code for the last local session failure.
+	LocalDiagnosticCode BfdDiagnosticCode `mapstructure:"local-diagnostic-code" json:"local-diagnostic-code,omitempty"`
+	// original -> gobgp:remote-diagnostic-code
+	// Diagnostic code received from the remote system.
+	RemoteDiagnosticCode BfdDiagnosticCode `mapstructure:"remote-diagnostic-code" json:"remote-diagnostic-code,omitempty"`
+	// original -> gobgp:remote-minimum-receive-interval
+	// Required minimum receive interval advertised by the remote system.
+	RemoteMinimumReceiveInterval uint32 `mapstructure:"remote-minimum-receive-interval" json:"remote-minimum-receive-interval,omitempty"`
+	// original -> gobgp:bfd-async
+	// Counters for BFD asynchronous-mode control packets.
+	BfdAsync BfdAsync `mapstructure:"bfd-async" json:"bfd-async,omitempty"`
+}
+
+// struct for container gobgp:config.
+// BFD configuration parameters.
+type BfdConfig struct {
+	// original -> gobgp:enabled
+	// gobgp:enabled's original type is boolean.
+	// Enable BFD liveness detection for this BGP neighbor.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
+	// original -> gobgp:port
+	// Destination UDP port for BFD control packets.
+	// Using a non-default port deviates from RFC 5881,
+	// which explicitly mandates destination UDP port 3784.
+	Port uint16 `mapstructure:"port" json:"port,omitempty"`
+	// original -> gobgp:desired-minimum-tx-interval
+	// Desired minimum transmission interval for BFD control packets.
+	DesiredMinimumTxInterval uint32 `mapstructure:"desired-minimum-tx-interval" json:"desired-minimum-tx-interval,omitempty"`
+	// original -> gobgp:required-minimum-receive
+	// Required minimum receive interval for BFD control packets.
+	RequiredMinimumReceive uint32 `mapstructure:"required-minimum-receive" json:"required-minimum-receive,omitempty"`
+	// original -> gobgp:detection-multiplier
+	// Detection time multiplier.
+	DetectionMultiplier uint8 `mapstructure:"detection-multiplier" json:"detection-multiplier,omitempty"`
+}
+
+func (lhs *BfdConfig) Equal(rhs *BfdConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Enabled != rhs.Enabled {
+		return false
+	}
+	if lhs.Port != rhs.Port {
+		return false
+	}
+	if lhs.DesiredMinimumTxInterval != rhs.DesiredMinimumTxInterval {
+		return false
+	}
+	if lhs.RequiredMinimumReceive != rhs.RequiredMinimumReceive {
+		return false
+	}
+	if lhs.DetectionMultiplier != rhs.DetectionMultiplier {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:bfd.
+// Configure BFD liveness detection for this BGP neighbor.
+type Bfd struct {
+	// original -> gobgp:bfd-config
+	// BFD configuration parameters.
+	Config BfdConfig `mapstructure:"config" json:"config,omitempty"`
+	// original -> gobgp:bfd-state
+	// BFD configuration and operational state.
+	State BfdState `mapstructure:"state" json:"state,omitempty"`
+}
+
+func (lhs *Bfd) Equal(rhs *Bfd) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
 		return false
 	}
 	return true
@@ -3318,6 +3572,9 @@ type Neighbor struct {
 	// original -> gobgp:ttl-security
 	// Configure TTL Security feature.
 	TtlSecurity TtlSecurity `mapstructure:"ttl-security" json:"ttl-security,omitempty"`
+	// original -> gobgp:bfd
+	// Configure BFD liveness detection for this BGP neighbor.
+	Bfd Bfd `mapstructure:"bfd" json:"bfd,omitempty"`
 }
 
 func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
@@ -3372,6 +3629,9 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 		return false
 	}
 	if !lhs.TtlSecurity.Equal(&(rhs.TtlSecurity)) {
+		return false
+	}
+	if !lhs.Bfd.Equal(&(rhs.Bfd)) {
 		return false
 	}
 	return true
