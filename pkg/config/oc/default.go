@@ -256,6 +256,10 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 			n.RouteReflector.State.RouteReflectorClusterId = n.RouteReflector.Config.RouteReflectorClusterId
 		}
 	}
+	if n.Bfd.Config.Port == 0 {
+		// RFC 5881: BFD control packets port
+		n.Bfd.Config.Port = 3784
+	}
 	return nil
 }
 
@@ -500,6 +504,7 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	overwriteConfig(&c.UseMultiplePaths.Config, &pg.UseMultiplePaths.Config, "neighbor.use-multiple-paths.config", v)
 	overwriteConfig(&c.RouteServer.Config, &pg.RouteServer.Config, "neighbor.route-server.config", v)
 	overwriteConfig(&c.TtlSecurity.Config, &pg.TtlSecurity.Config, "neighbor.ttl-security.config", v)
+	overwriteConfig(&c.Bfd.Config, &pg.Bfd.Config, "neighbor.bfd.config", v)
 
 	if !v.IsSet("neighbor.afi-safis") {
 		c.AfiSafis = append([]AfiSafi{}, pg.AfiSafis...)

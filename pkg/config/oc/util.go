@@ -557,6 +557,16 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			LocalCap:        localCap,
 			RouterId:        s.RemoteRouterId.String(),
 			Flops:           s.Flops,
+			BfdState: &api.BfdPeerState{
+				State:                pconf.State.BfdState.State,
+				ReceivedPacket:       pconf.State.BfdState.ReceivedPacket,
+				SentPacket:           pconf.State.BfdState.SentPacket,
+				SentDrop:             pconf.State.BfdState.SentDrop,
+				SentError:            pconf.State.BfdState.SentError,
+				InvalidDiscriminator: pconf.State.BfdState.InvalidDiscriminator,
+				Expired:              pconf.State.BfdState.Expired,
+				BadInitPacket:        pconf.State.BfdState.BadInitPacket,
+			},
 		},
 		EbgpMultihop: &api.EbgpMultihop{
 			Enabled:     pconf.EbgpMultihop.Config.Enabled,
@@ -609,6 +619,13 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			IpTos:         uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
+		Bfd: &api.BfdConfig{
+			Port:       uint32(pconf.Bfd.Config.Port),
+			Enabled:    pconf.Bfd.Config.Enabled,
+			Multiplier: uint32(pconf.Bfd.Config.Multiplier),
+			RxInterval: pconf.Bfd.Config.RxInterval,
+			TxInterval: pconf.Bfd.Config.TxInterval,
+		},
 	}
 }
 
@@ -689,6 +706,13 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			IpTos:        uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
+		Bfd: &api.BfdConfig{
+			Port:       uint32(pconf.Bfd.Config.Port),
+			Enabled:    pconf.Bfd.Config.Enabled,
+			Multiplier: uint32(pconf.Bfd.Config.Multiplier),
+			RxInterval: pconf.Bfd.Config.RxInterval,
+			TxInterval: pconf.Bfd.Config.TxInterval,
+		},
 	}
 }
 
@@ -736,6 +760,9 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 			DeferralTime:        uint32(c.GracefulRestart.Config.DeferralTime),
 			NotificationEnabled: c.GracefulRestart.Config.NotificationEnabled,
 			LonglivedEnabled:    c.GracefulRestart.Config.LongLivedEnabled,
+		},
+		Bfd: &api.BfdConfig{
+			Port: uint32(c.Bfd.Config.Port),
 		},
 	}
 }

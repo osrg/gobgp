@@ -703,6 +703,7 @@ message Peer {
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
+  BfdConfig bfd = 12;
 }
 
 message PeerGroup {
@@ -717,6 +718,7 @@ message PeerGroup {
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
+  BfdConfig bfd = 12;
 }
 
 message DynamicNeighbor {
@@ -863,6 +865,7 @@ message PeerState {
   }
   DisconnectReason disconnect_reason = 21;
   string disconnect_message = 22;
+  BfdPeerState bfd_state = 23;
 }
 
 message Messages {
@@ -1325,6 +1328,7 @@ message Global {
   Confederation confederation = 9;
   GracefulRestart graceful_restart = 10;
   string bind_to_device = 11;
+  BfdConfig bfd = 12;
 }
 
 message Confederation {
@@ -1378,3 +1382,32 @@ message SetLogLevelRequest {
 }
 
 message SetLogLevelResponse {}
+
+// Below are messages that are not planned to be merged to upstream
+
+message BfdServerState {
+  uint64 received_packet = 1;
+  uint64 received_drop = 2;
+  uint64 received_error = 3;
+  uint64 invalid_packet = 4;
+  uint64 unknown_peer = 5;
+}
+
+message BfdPeerState {
+  bool state = 1;
+  uint64 received_packet = 2;
+  uint64 sent_packet = 3;
+  uint64 sent_drop = 4;
+  uint64 sent_error = 5;
+  uint64 invalid_discriminator = 6;
+  uint64 expired = 7;
+  uint64 bad_init_packet = 8;
+}
+
+message BfdConfig {
+  uint32 port = 1;
+  bool enabled = 2;
+  uint32 multiplier = 3;
+  uint32 rx_interval = 4;
+  uint32 tx_interval = 5;
+}

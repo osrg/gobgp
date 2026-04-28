@@ -1449,4 +1449,83 @@ module gobgp {
         are still checked for as-path loops.";
     }
   }
+
+  grouping bfd {
+    container bfd {
+      description
+        "BFD parameters";
+      container config {
+        description
+          "Configuration parameters relating to BFD";
+        leaf port {
+          type uint16;
+          default 3784;
+        }
+        leaf enabled {
+          type boolean;
+          default "false";
+        }
+        leaf multiplier {
+          type uint8;
+        }
+        leaf rx-interval {
+          description
+            "BFD Control Packet receive interval in milliseconds";
+          type uint32;
+        }
+        leaf tx-interval {
+          description
+            "BFD Control Packet sent interval in milliseconds";
+          type uint32;
+        }
+      }
+    }
+  }
+
+  grouping bfd-state {
+    container bfd-state {
+      description
+        "BFD state and stats";
+      leaf state {
+        type boolean;
+      }
+      leaf received-packet {
+        type uint64;
+      }
+      leaf sent-packet {
+        type uint64;
+      }
+      leaf sent-drop {
+        type uint64;
+      }
+      leaf sent-error {
+        type uint64;
+      }
+      leaf invalid-discriminator {
+        type uint64;
+      }
+      leaf expired {
+        type uint64;
+      }
+      leaf bad-init-packet {
+        type uint64;
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global" {
+    uses bfd;
+  }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+    uses bfd;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+    uses bfd;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {
+    uses bfd-state;
+  }
 }
