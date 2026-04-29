@@ -449,6 +449,32 @@ func toPeerType(t PeerType) api.PeerType {
 	}
 }
 
+// bfdSessionStateToAPI maps oc BfdSessionState string values to api.BfdSessionState.
+// Do not cast BfdSessionState.ToInt() to the API enum: YANG-derived indices (0..3) are
+// one less than protobuf values (BFD_SESSION_STATE_UP=1, etc.).
+func bfdSessionStateToAPI(s BfdSessionState) api.BfdSessionState {
+	switch s {
+	case BFD_SESSION_STATE_UP:
+		return api.BfdSessionState_BFD_SESSION_STATE_UP
+	case BFD_SESSION_STATE_DOWN:
+		return api.BfdSessionState_BFD_SESSION_STATE_DOWN
+	case BFD_SESSION_STATE_ADMIN_DOWN:
+		return api.BfdSessionState_BFD_SESSION_STATE_ADMIN_DOWN
+	case BFD_SESSION_STATE_INIT:
+		return api.BfdSessionState_BFD_SESSION_STATE_INIT
+	default:
+		return api.BfdSessionState_BFD_SESSION_STATE_UNSPECIFIED
+	}
+}
+
+func bfdDiagnosticCodeToAPI(d BfdDiagnosticCode) api.BfdDiagnosticCode {
+	i := d.ToInt()
+	if i < 0 || i > int(api.BfdDiagnosticCode_BFD_DIAGNOSTIC_CODE_REVERSE_CONCATENATED_PATH_DOWN) {
+		return api.BfdDiagnosticCode_BFD_DIAGNOSTIC_CODE_NO_DIAGNOSTIC
+	}
+	return api.BfdDiagnosticCode(i)
+}
+
 func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
@@ -558,13 +584,14 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			RouterId:        s.RemoteRouterId.String(),
 			Flops:           s.Flops,
 			BfdState: &api.BfdPeerState{
-				SessionState:                 api.BfdSessionState(pconf.Bfd.State.SessionState.ToInt()),
+				SessionState:                 bfdSessionStateToAPI(pconf.Bfd.State.SessionState),
+				RemoteSessionState:           bfdSessionStateToAPI(pconf.Bfd.State.RemoteSessionState),
 				LastFailureTime:              pconf.Bfd.State.LastFailureTime,
 				FailureTransitions:           pconf.Bfd.State.FailureTransitions,
 				LocalDiscriminator:           pconf.Bfd.State.LocalDiscriminator,
 				RemoteDiscriminator:          pconf.Bfd.State.RemoteDiscriminator,
-				LocalDiagnosticCode:          api.BfdDiagnosticCode(pconf.Bfd.State.LocalDiagnosticCode.ToInt()),
-				RemoteDiagnosticCode:         api.BfdDiagnosticCode(pconf.Bfd.State.RemoteDiagnosticCode.ToInt()),
+				LocalDiagnosticCode:          bfdDiagnosticCodeToAPI(pconf.Bfd.State.LocalDiagnosticCode),
+				RemoteDiagnosticCode:         bfdDiagnosticCodeToAPI(pconf.Bfd.State.RemoteDiagnosticCode),
 				RemoteMinimumReceiveInterval: pconf.Bfd.State.RemoteMinimumReceiveInterval,
 				BfdAsync: &api.BfdAsyncCounters{
 					TransmittedPackets: pconf.Bfd.State.BfdAsync.TransmittedPackets,
