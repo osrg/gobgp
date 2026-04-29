@@ -449,6 +449,32 @@ func toPeerType(t PeerType) api.PeerType {
 	}
 }
 
+// bfdSessionStateToAPI maps oc BfdSessionState string values to api.BfdSessionState.
+// Do not cast BfdSessionState.ToInt() to the API enum: YANG-derived indices (0..3) are
+// one less than protobuf values (BFD_SESSION_STATE_UP=1, etc.).
+func bfdSessionStateToAPI(s BfdSessionState) api.BfdSessionState {
+	switch s {
+	case BFD_SESSION_STATE_UP:
+		return api.BfdSessionState_BFD_SESSION_STATE_UP
+	case BFD_SESSION_STATE_DOWN:
+		return api.BfdSessionState_BFD_SESSION_STATE_DOWN
+	case BFD_SESSION_STATE_ADMIN_DOWN:
+		return api.BfdSessionState_BFD_SESSION_STATE_ADMIN_DOWN
+	case BFD_SESSION_STATE_INIT:
+		return api.BfdSessionState_BFD_SESSION_STATE_INIT
+	default:
+		return api.BfdSessionState_BFD_SESSION_STATE_UNSPECIFIED
+	}
+}
+
+func bfdDiagnosticCodeToAPI(d BfdDiagnosticCode) api.BfdDiagnosticCode {
+	i := d.ToInt()
+	if i < 0 || i > int(api.BfdDiagnosticCode_BFD_DIAGNOSTIC_CODE_REVERSE_CONCATENATED_PATH_DOWN) {
+		return api.BfdDiagnosticCode_BFD_DIAGNOSTIC_CODE_NO_DIAGNOSTIC
+	}
+	return api.BfdDiagnosticCode(i)
+}
+
 func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
@@ -557,6 +583,21 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			LocalCap:        localCap,
 			RouterId:        s.RemoteRouterId.String(),
 			Flops:           s.Flops,
+			BfdState: &api.BfdPeerState{
+				SessionState:                 bfdSessionStateToAPI(pconf.Bfd.State.SessionState),
+				RemoteSessionState:           bfdSessionStateToAPI(pconf.Bfd.State.RemoteSessionState),
+				LastFailureTime:              pconf.Bfd.State.LastFailureTime,
+				FailureTransitions:           pconf.Bfd.State.FailureTransitions,
+				LocalDiscriminator:           pconf.Bfd.State.LocalDiscriminator,
+				RemoteDiscriminator:          pconf.Bfd.State.RemoteDiscriminator,
+				LocalDiagnosticCode:          bfdDiagnosticCodeToAPI(pconf.Bfd.State.LocalDiagnosticCode),
+				RemoteDiagnosticCode:         bfdDiagnosticCodeToAPI(pconf.Bfd.State.RemoteDiagnosticCode),
+				RemoteMinimumReceiveInterval: pconf.Bfd.State.RemoteMinimumReceiveInterval,
+				BfdAsync: &api.BfdAsyncCounters{
+					TransmittedPackets: pconf.Bfd.State.BfdAsync.TransmittedPackets,
+					ReceivedPackets:    pconf.Bfd.State.BfdAsync.ReceivedPackets,
+				},
+			},
 		},
 		EbgpMultihop: &api.EbgpMultihop{
 			Enabled:     pconf.EbgpMultihop.Config.Enabled,
@@ -609,6 +650,13 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			IpTos:         uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
+		Bfd: &api.BfdPeerConfig{
+			Enabled:                  pconf.Bfd.Config.Enabled,
+			Port:                     uint32(pconf.Bfd.Config.Port),
+			DesiredMinimumTxInterval: pconf.Bfd.Config.DesiredMinimumTxInterval,
+			RequiredMinimumReceive:   pconf.Bfd.Config.RequiredMinimumReceive,
+			DetectionMultiplier:      uint32(pconf.Bfd.Config.DetectionMultiplier),
+		},
 	}
 }
 
@@ -689,6 +737,13 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			IpTos:        uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
+		Bfd: &api.BfdPeerConfig{
+			Enabled:                  pconf.Bfd.Config.Enabled,
+			Port:                     uint32(pconf.Bfd.Config.Port),
+			DesiredMinimumTxInterval: pconf.Bfd.Config.DesiredMinimumTxInterval,
+			RequiredMinimumReceive:   pconf.Bfd.Config.RequiredMinimumReceive,
+			DetectionMultiplier:      uint32(pconf.Bfd.Config.DetectionMultiplier),
+		},
 	}
 }
 
