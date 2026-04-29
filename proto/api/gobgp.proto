@@ -703,6 +703,7 @@ message Peer {
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
+  BfdPeerConfig bfd = 12;
 }
 
 message PeerGroup {
@@ -717,6 +718,7 @@ message PeerGroup {
   GracefulRestart graceful_restart = 9;
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
+  BfdPeerConfig bfd = 12;
 }
 
 message DynamicNeighbor {
@@ -863,6 +865,7 @@ message PeerState {
   }
   DisconnectReason disconnect_reason = 21;
   string disconnect_message = 22;
+  BfdPeerState bfd_state = 23;
 }
 
 message Messages {
@@ -1378,3 +1381,61 @@ message SetLogLevelRequest {
 }
 
 message SetLogLevelResponse {}
+
+enum BfdSessionState {
+  BFD_SESSION_STATE_UNSPECIFIED = 0;
+  BFD_SESSION_STATE_UP = 1;
+  BFD_SESSION_STATE_DOWN = 2;
+  BFD_SESSION_STATE_ADMIN_DOWN = 3;
+  BFD_SESSION_STATE_INIT = 4;
+}
+
+// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+// RFC 5880 §4.1 explicitly defines 0 as "No Diagnostic", not an unspecified state.
+enum BfdDiagnosticCode {
+  BFD_DIAGNOSTIC_CODE_NO_DIAGNOSTIC = 0;
+  BFD_DIAGNOSTIC_CODE_DETECTION_TIMEOUT = 1;
+  BFD_DIAGNOSTIC_CODE_ECHO_FAILED = 2;
+  BFD_DIAGNOSTIC_CODE_NEIGHBOR_SIGNALED_SESSION_DOWN = 3;
+  BFD_DIAGNOSTIC_CODE_FORWARDING_PLANE_RESET = 4;
+  BFD_DIAGNOSTIC_CODE_PATH_DOWN = 5;
+  BFD_DIAGNOSTIC_CODE_CONCATENATED_PATH_DOWN = 6;
+  BFD_DIAGNOSTIC_CODE_ADMINISTRATIVELY_DOWN = 7;
+  BFD_DIAGNOSTIC_CODE_REVERSE_CONCATENATED_PATH_DOWN = 8;
+}
+
+message BfdAsyncCounters {
+  uint64 last_packet_transmitted = 1;
+  uint64 last_packet_received = 2;
+  uint64 transmitted_packets = 3;
+  uint64 received_packets = 4;
+}
+
+message BfdPeerState {
+  BfdSessionState session_state = 1;
+  BfdSessionState remote_session_state = 2;
+  uint64 last_failure_time = 3;
+  uint64 failure_transitions = 4;
+  uint32 local_discriminator = 5;
+  uint32 remote_discriminator = 6;
+  BfdDiagnosticCode local_diagnostic_code = 7;
+  BfdDiagnosticCode remote_diagnostic_code = 8;
+  uint32 remote_minimum_receive_interval = 9;
+  BfdAsyncCounters bfd_async = 10;
+}
+
+message BfdPeerConfig {
+  bool enabled = 1;
+  uint32 port = 2;
+  uint32 desired_minimum_tx_interval = 3;
+  uint32 required_minimum_receive = 4;
+  uint32 detection_multiplier = 5;
+}
+
+message BfdState {
+  uint64 received_packet = 1;
+  uint64 received_drop = 2;
+  uint64 received_error = 3;
+  uint64 invalid_packet = 4;
+  uint64 unknown_peer = 5;
+}

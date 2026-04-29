@@ -557,6 +557,20 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			LocalCap:        localCap,
 			RouterId:        s.RemoteRouterId.String(),
 			Flops:           s.Flops,
+			BfdState: &api.BfdPeerState{
+				SessionState:                 api.BfdSessionState(pconf.Bfd.State.SessionState.ToInt()),
+				LastFailureTime:              pconf.Bfd.State.LastFailureTime,
+				FailureTransitions:           pconf.Bfd.State.FailureTransitions,
+				LocalDiscriminator:           pconf.Bfd.State.LocalDiscriminator,
+				RemoteDiscriminator:          pconf.Bfd.State.RemoteDiscriminator,
+				LocalDiagnosticCode:          api.BfdDiagnosticCode(pconf.Bfd.State.LocalDiagnosticCode.ToInt()),
+				RemoteDiagnosticCode:         api.BfdDiagnosticCode(pconf.Bfd.State.RemoteDiagnosticCode.ToInt()),
+				RemoteMinimumReceiveInterval: pconf.Bfd.State.RemoteMinimumReceiveInterval,
+				BfdAsync: &api.BfdAsyncCounters{
+					TransmittedPackets: pconf.Bfd.State.BfdAsync.TransmittedPackets,
+					ReceivedPackets:    pconf.Bfd.State.BfdAsync.ReceivedPackets,
+				},
+			},
 		},
 		EbgpMultihop: &api.EbgpMultihop{
 			Enabled:     pconf.EbgpMultihop.Config.Enabled,
@@ -609,6 +623,13 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			IpTos:         uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
+		Bfd: &api.BfdPeerConfig{
+			Enabled:                  pconf.Bfd.Config.Enabled,
+			Port:                     uint32(pconf.Bfd.Config.Port),
+			DesiredMinimumTxInterval: pconf.Bfd.Config.DesiredMinimumTxInterval,
+			RequiredMinimumReceive:   pconf.Bfd.Config.RequiredMinimumReceive,
+			DetectionMultiplier:      uint32(pconf.Bfd.Config.DetectionMultiplier),
+		},
 	}
 }
 
@@ -689,6 +710,13 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			IpTos:        uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
+		Bfd: &api.BfdPeerConfig{
+			Enabled:                  pconf.Bfd.Config.Enabled,
+			Port:                     uint32(pconf.Bfd.Config.Port),
+			DesiredMinimumTxInterval: pconf.Bfd.Config.DesiredMinimumTxInterval,
+			RequiredMinimumReceive:   pconf.Bfd.Config.RequiredMinimumReceive,
+			DetectionMultiplier:      uint32(pconf.Bfd.Config.DetectionMultiplier),
+		},
 	}
 }
 
