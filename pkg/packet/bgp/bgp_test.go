@@ -4755,3 +4755,240 @@ func TestAsPathDecoding4Byte(t *testing.T) {
 		}
 	}
 }
+
+// --- BGP-LS sub-TLV decoding bugfix tests ---
+//
+// These tests cover the bugfix in the default-branch of the sub-TLV decoder
+// loops in LsTLVNodeDescriptor / LsLinkNLRI / LsPrefixV4NLRI / LsPrefixV6NLRI.
+// The previous implementation mutated the parent Length field as a side
+// effect when skipping unknown sub-TLVs and used a wrong upper bound for the
+// length sanity check (`l.Length` instead of `len(tlv)`). After the fix the
+// parent Length must remain unchanged and unknown sub-TLVs must be silently
+// skipped without affecting the parsing of known sub-TLVs.
+
+func Test_LsTLVNodeDescriptor_UnknownSubTLV(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           []byte
+		wantLength     uint16
+		wantSubTLVsLen int
+	}{
+		{
+			name: "trailing unknown sub-TLV",
+			data: []byte{
+				0x01, 0x00, 0x00, 0x1a, // Local Node Desc TLV, value length=26
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				0x0f, 0xff, 0x00, 0x04, 0xaa, 0xbb, 0xcc, 0xdd, // Unknown sub-TLV (type 0x0fff): must be skipped
+			},
+			wantLength:     26,
+			wantSubTLVsLen: 2,
+		},
+		{
+			// Per RFC 7752 §3.2.1.4 sub-TLVs in a Node Descriptor must be in
+			// ascending order by type and have unique types, so we use two
+			// distinct unknown types in increasing order.
+			name: "two consecutive unknown sub-TLVs",
+			data: []byte{
+				0x01, 0x00, 0x00, 0x20, // Local Node Desc TLV, value length=32
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				0x0f, 0xfe, 0x00, 0x02, 0x01, 0x02, // Unknown sub-TLV #1 (type 0x0ffe): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0x03, 0x04, 0x05, 0x06, // Unknown sub-TLV #2 (type 0x0fff): must be skipped
+			},
+			wantLength:     32,
+			wantSubTLVsLen: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			tlv := &LsTLVNodeDescriptor{}
+			assert.NoError(tlv.DecodeFromBytes(tt.data))
+			// unknown sub-TLVs in the default branch.
+			assert.Equal(tt.wantLength, tlv.Length,
+				"parent TLV Length must not be mutated when skipping unknown sub-TLVs")
+			// Known sub-TLVs must still be captured.
+			assert.Len(tlv.SubTLVs, tt.wantSubTLVsLen)
+		})
+	}
+}
+
+func Test_LsLinkNLRI_UnknownSubTLV(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "trailing unknown sub-TLV",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// Remote Node Descriptor, value length=18
+				0x01, 0x01, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, // TLV IGP Router ID: 0a0b.0c0d.0e0f
+				// Unknown sub-TLV (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+			},
+		},
+		{
+			name: "two consecutive unknown sub-TLVs",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// Remote Node Descriptor, value length=18
+				0x01, 0x01, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, // TLV IGP Router ID: 0a0b.0c0d.0e0f
+				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			nlri := &LsLinkNLRI{}
+			// LsAddrPrefix.DecodeFromBytes normally sets Length to the full body size.
+			nlri.Length = uint16(len(tt.data))
+			originalLength := nlri.Length
+			assert.NoError(nlri.DecodeFromBytes(tt.data))
+			assert.Equal(originalLength, nlri.Length,
+				"LsLinkNLRI.Length must not be mutated by unknown sub-TLV skipping")
+			// Required known sub-TLVs must still be parsed.
+			assert.NotNil(nlri.LocalNodeDesc)
+			assert.NotNil(nlri.RemoteNodeDesc)
+		})
+	}
+}
+
+func Test_LsPrefixV4NLRI_UnknownSubTLV(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "trailing unknown sub-TLV",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// IP Reachability Info, value length=4: prefix-len=24, prefix=10.0.0
+				0x01, 0x09, 0x00, 0x04, 0x18, 0x0a, 0x00, 0x00,
+				// Unknown sub-TLV (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+			},
+		},
+		{
+			name: "two consecutive unknown sub-TLVs",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// IP Reachability Info, value length=4: prefix-len=24, prefix=10.0.0
+				0x01, 0x09, 0x00, 0x04, 0x18, 0x0a, 0x00, 0x00,
+				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			nlri := &LsPrefixV4NLRI{}
+			nlri.Length = uint16(len(tt.data))
+			originalLength := nlri.Length
+			assert.NoError(nlri.DecodeFromBytes(tt.data))
+			assert.Equal(originalLength, nlri.Length,
+				"LsPrefixV4NLRI.Length must not be mutated by unknown sub-TLV skipping")
+			assert.NotNil(nlri.LocalNodeDesc)
+			assert.NotEmpty(nlri.PrefixDesc)
+		})
+	}
+}
+
+func Test_LsPrefixV6NLRI_UnknownSubTLV(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "trailing unknown sub-TLV",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// IP Reachability Info, value length=9: prefix-len=64, prefix=2001:db8::/64
+				0x01, 0x09, 0x00, 0x09,
+				0x40,
+				0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+				// Unknown sub-TLV (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+			},
+		},
+		{
+			name: "two consecutive unknown sub-TLVs",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// IP Reachability Info, value length=9: prefix-len=64, prefix=2001:db8::/64
+				0x01, 0x09, 0x00, 0x09,
+				0x40,
+				0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			nlri := &LsPrefixV6NLRI{}
+			nlri.Length = uint16(len(tt.data))
+			originalLength := nlri.Length
+			assert.NoError(nlri.DecodeFromBytes(tt.data))
+			assert.Equal(originalLength, nlri.Length,
+				"LsPrefixV6NLRI.Length must not be mutated by unknown sub-TLV skipping")
+			assert.NotNil(nlri.LocalNodeDesc)
+			assert.NotEmpty(nlri.PrefixDesc)
+		})
+	}
+}
