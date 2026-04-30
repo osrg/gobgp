@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"net/netip"
 	"sync/atomic"
 	"time"
 
@@ -38,7 +39,7 @@ type bfdPeerStats struct {
 type bfdPeer struct {
 	peerState   peerState
 	logger      *slog.Logger
-	peerAddress string
+	peerAddress netip.Addr
 	peerPort    int
 
 	udpClient *net.UDPConn
@@ -61,7 +62,7 @@ type bfdPeer struct {
 	stats bfdPeerStats
 }
 
-func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress string, config oc.BfdConfig) *bfdPeer {
+func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig) *bfdPeer {
 	p := &bfdPeer{
 		peerState:   ps,
 		logger:      logger,
@@ -153,7 +154,7 @@ func (p *bfdPeer) stop() {
 	if err != nil {
 		p.logger.Warn("Can't close UDP",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", p.peerAddress),
+			slog.String("Peer", p.peerAddress.String()),
 		)
 	}
 
@@ -161,7 +162,7 @@ func (p *bfdPeer) stop() {
 
 	p.logger.Debug("BFD client is stopped",
 		slog.String("Topic", "bfd"),
-		slog.String("Peer", p.peerAddress),
+		slog.String("Peer", p.peerAddress.String()),
 	)
 }
 
@@ -171,7 +172,7 @@ func (p *bfdPeer) startClient() {
 	}
 
 	remoteAddress := &net.UDPAddr{
-		IP:   net.ParseIP(p.peerAddress),
+		IP:   p.peerAddress.AsSlice(),
 		Port: p.peerPort,
 	}
 
@@ -180,7 +181,7 @@ func (p *bfdPeer) startClient() {
 	if err != nil {
 		p.logger.Warn("Can't dial UDP",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", p.peerAddress),
+			slog.String("Peer", p.peerAddress.String()),
 			slog.String("LocalAddress", localAddress.String()),
 			slog.String("RemoteAddress", remoteAddress.String()),
 			slog.Any("Error", err),
@@ -197,7 +198,7 @@ func (p *bfdPeer) startClient() {
 	if err != nil {
 		p.logger.Error("Can't set TTL to 255",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", p.peerAddress),
+			slog.String("Peer", p.peerAddress.String()),
 			slog.String("LocalAddress", localAddress.String()),
 			slog.String("RemoteAddress", remoteAddress.String()),
 			slog.Any("Error", err),
@@ -207,7 +208,7 @@ func (p *bfdPeer) startClient() {
 		if err != nil {
 			p.logger.Warn("Can't close UDP",
 				slog.String("Topic", "bfd"),
-				slog.String("Peer", p.peerAddress),
+				slog.String("Peer", p.peerAddress.String()),
 			)
 		}
 
@@ -217,7 +218,7 @@ func (p *bfdPeer) startClient() {
 
 	p.logger.Debug("BFD client is started",
 		slog.String("Topic", "bfd"),
-		slog.String("Peer", p.peerAddress),
+		slog.String("Peer", p.peerAddress.String()),
 		slog.String("LocalAddress", localAddress.String()),
 		slog.String("RemoteAddress", remoteAddress.String()),
 	)
@@ -268,17 +269,17 @@ func (p *bfdPeer) tx() {
 func (p *bfdPeer) expiry() {
 	p.logger.Warn("Expired",
 		slog.String("Topic", "bfd"),
-		slog.String("Peer", p.peerAddress),
+		slog.String("Peer", p.peerAddress.String()),
 	)
 
 	if err := p.peerState.ResetPeer(context.Background(), &api.ResetPeerRequest{
-		Address:       p.peerAddress,
+		Address:       p.peerAddress.String(),
 		Communication: "BFD is down",
 		Soft:          false,
 	}); err != nil {
 		p.logger.Warn("ResetPeer failed",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", p.peerAddress),
+			slog.String("Peer", p.peerAddress.String()),
 			slog.String("Err", err.Error()),
 		)
 	}
@@ -317,7 +318,7 @@ func (p *bfdPeer) sendPacket(state bfd.StateType, poll bool, final bool, yourDis
 		// should never happen
 		p.logger.Error("MarshalBinary",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", p.peerAddress),
+			slog.String("Peer", p.peerAddress.String()),
 		)
 		return
 	}
@@ -326,7 +327,7 @@ func (p *bfdPeer) sendPacket(state bfd.StateType, poll bool, final bool, yourDis
 	if err != nil {
 		p.logger.Debug("Can't send UDP packet",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", p.peerAddress),
+			slog.String("Peer", p.peerAddress.String()),
 		)
 
 		p.stats.txError.Add(1)
@@ -339,7 +340,7 @@ func (p *bfdPeer) sendPacket(state bfd.StateType, poll bool, final bool, yourDis
 func (p *bfdPeer) setStateDown() {
 	p.logger.Debug("Set state to DOWN",
 		slog.String("Topic", "bfd"),
-		slog.String("Peer", p.peerAddress),
+		slog.String("Peer", p.peerAddress.String()),
 	)
 
 	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_DOWN))
@@ -351,7 +352,7 @@ func (p *bfdPeer) setStateDown() {
 func (p *bfdPeer) setStateUp(yourDiscriminator uint32) {
 	p.logger.Debug("Set state to UP",
 		slog.String("Topic", "bfd"),
-		slog.String("Peer", p.peerAddress),
+		slog.String("Peer", p.peerAddress.String()),
 	)
 
 	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))

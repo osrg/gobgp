@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ func Test_NewBfdPeer(t *testing.T) {
 	assert := assert.New(t)
 
 	ps := &mockPeerState{}
-	p := NewBfdPeer(ps, slog.Default(), "127.0.0.1", oc.BfdConfig{
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
 		Port:                     13784,
 		Enabled:                  true,
 		DetectionMultiplier:      5,
@@ -31,7 +32,7 @@ func Test_RxPacket(t *testing.T) {
 	assert := assert.New(t)
 
 	ps := &mockPeerState{}
-	p := NewBfdPeer(ps, slog.Default(), "127.0.0.1", oc.BfdConfig{
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
 		Port:                     13784,
 		Enabled:                  true,
 		DetectionMultiplier:      5,
@@ -53,7 +54,7 @@ func Test_TxPacket(t *testing.T) {
 	assert := assert.New(t)
 
 	ps := &mockPeerState{}
-	p := NewBfdPeer(ps, slog.Default(), "127.0.0.1", oc.BfdConfig{
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
 		Port:                     13784,
 		Enabled:                  true,
 		DetectionMultiplier:      5,

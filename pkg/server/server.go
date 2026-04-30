@@ -219,6 +219,10 @@ func (s *BgpServer) Stop() {
 		)
 	}
 
+	if s.bfdServer != nil {
+		s.bfdServer.Stop()
+	}
+
 	if s.apiServer != nil {
 		s.apiServer.grpcServer.Stop()
 	}
@@ -823,7 +827,7 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	conf.Timers.State.UpdateRecvTime = atomic.LoadInt64(&peer.fsm.timerStats.State.UpdateRecvTime)
 
 	if s.bfdServer != nil {
-		bfdPeer, err := s.bfdServer.GetPeerState(context.Background(), conf.State.NeighborAddress.String())
+		bfdPeer, err := s.bfdServer.GetPeerState(conf.State.NeighborAddress)
 		if err == nil {
 			st := &bfdPeer.state
 			conf.Bfd.State.SessionState = oc.IntToBfdSessionStateMap[int(st.SessionState)]
@@ -2536,7 +2540,9 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
 		if s.bfdServer != nil {
-			s.bfdServer.Start(oc.BfdConfig{Port: BfdServerPort})
+			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort}); err != nil {
+				return err
+			}
 		}
 		return nil
 	}, false)
@@ -3362,7 +3368,11 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		s.peerGroupMap[name].AddMember(*c)
 	}
 	if s.bfdServer != nil {
-		if err := s.bfdServer.AddPeer(addr, c.Bfd.Config); err != nil {
+		ipAddr, err := netip.ParseAddr(addr)
+		if err != nil {
+			return fmt.Errorf("failed to parse IP address: %v", err)
+		}
+		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, c.Bfd.Config); err != nil {
 			s.logger.Warn("failed to add BFD peer",
 				slog.String("Topic", "Peer"),
 				slog.String("Key", addr),
@@ -3486,7 +3496,11 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 	n.fsm.logger.Info("Delete a peer configuration")
 
 	if s.bfdServer != nil {
-		if err := s.bfdServer.DeletePeer(addr); err != nil {
+		ipAddr, err := netip.ParseAddr(addr)
+		if err != nil {
+			return fmt.Errorf("failed to parse IP address: %v", err)
+		}
+		if err := s.bfdServer.DeletePeer(context.Background(), ipAddr); err != nil {
 			s.logger.Warn("failed to delete BFD peer",
 				slog.String("Topic", "Peer"),
 				slog.String("Key", addr),
@@ -5038,15 +5052,8 @@ func (s *BgpServer) ListBfdPeer(ctx context.Context, fn func(string, *api.BfdPee
 	if s.bfdServer == nil {
 		return
 	}
-	list, err := s.bfdServer.GetPeerStateList(ctx)
-	if err != nil {
-		s.logger.Debug("GetPeerStateList",
-			slog.String("Topic", "bfd"),
-			slog.Any("Error", err),
-		)
-		return
-	}
+	list := s.bfdServer.GetPeerStateList()
 	for _, state := range list {
-		fn(state.peerAddress, &state.state)
+		fn(state.peerAddress.String(), &state.state)
 	}
 }
