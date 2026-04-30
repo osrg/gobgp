@@ -30,23 +30,13 @@ type bfdServerStats struct {
 
 type bfdEventPeerUpdate struct {
 	isAdd       bool
-	peerAddress string
-	address     netip.Addr
+	peerAddress netip.Addr
 	config      oc.BfdConfig
 }
 
 type bfdPeerState struct {
-	peerAddress string
+	peerAddress netip.Addr
 	state       api.BfdPeerState
-}
-
-type bfdEventGetPeerState struct {
-	in  netip.Addr
-	out chan *bfdPeerState
-}
-
-type bfdEventGetPeerStateList struct {
-	out chan []*bfdPeerState
 }
 
 type peerState interface {
@@ -64,12 +54,10 @@ type bfdServer struct {
 	peersMutex sync.RWMutex
 	peers      map[netip.Addr]*bfdPeer
 
-	eventStartStop   *time.Ticker
-	eventConfig      chan *oc.BfdConfig
-	eventPeerUpdate  chan *bfdEventPeerUpdate
-	eventGetPeer     chan *bfdEventGetPeerState
-	eventGetPeerList chan *bfdEventGetPeerStateList
-	eventShutdown    chan struct{}
+	eventStartStop  *time.Ticker
+	eventConfig     chan *oc.BfdConfig
+	eventPeerUpdate chan *bfdEventPeerUpdate
+	eventShutdown   chan struct{}
 
 	shutdownWait sync.WaitGroup
 
@@ -86,12 +74,10 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 
 		peers: make(map[netip.Addr]*bfdPeer),
 
-		eventStartStop:   time.NewTicker(time.Second),
-		eventConfig:      make(chan *oc.BfdConfig, 1),
-		eventPeerUpdate:  make(chan *bfdEventPeerUpdate, 1),
-		eventGetPeer:     make(chan *bfdEventGetPeerState, 1),
-		eventGetPeerList: make(chan *bfdEventGetPeerStateList, 1),
-		eventShutdown:    make(chan struct{}),
+		eventStartStop:  time.NewTicker(time.Second),
+		eventConfig:     make(chan *oc.BfdConfig, 1),
+		eventPeerUpdate: make(chan *bfdEventPeerUpdate, 1),
+		eventShutdown:   make(chan struct{}),
 	}
 
 	s.shutdownWait.Add(1)
@@ -99,8 +85,15 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 	return s
 }
 
-func (s *bfdServer) Start(config oc.BfdConfig) {
-	s.eventConfig <- &config
+func (s *bfdServer) Start(ctx context.Context, config oc.BfdConfig) error {
+	select {
+	case s.eventConfig <- &config:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.eventShutdown:
+		return errors.New("bfd server stopped")
+	}
 }
 
 func (s *bfdServer) Stop() {
@@ -108,97 +101,42 @@ func (s *bfdServer) Stop() {
 	s.shutdownWait.Wait()
 }
 
-func (s *bfdServer) AddPeer(peerAddress string, config oc.BfdConfig) error {
+func (s *bfdServer) AddPeer(ctx context.Context, peerAddress netip.Addr, config oc.BfdConfig) error {
 	if !config.Enabled {
 		return nil
 	}
 
-	address, err := convertToIPAddress(peerAddress)
-	if err != nil {
-		s.logger.Warn("Can't parse peer address",
-			slog.String("Topic", "bfd"),
-			slog.String("Peer", peerAddress),
-		)
-
-		return err
-	}
-
-	s.eventPeerUpdate <- &bfdEventPeerUpdate{
-		isAdd:       true,
-		peerAddress: peerAddress,
-		address:     address,
-		config:      config,
-	}
-
-	return nil
-}
-
-func (s *bfdServer) DeletePeer(peerAddress string) error {
-	address, err := convertToIPAddress(peerAddress)
-	if err != nil {
-		s.logger.Warn("Can't parse peer address",
-			slog.String("Topic", "bfd"),
-			slog.String("Peer", peerAddress),
-		)
-
-		return err
-	}
-
-	s.eventPeerUpdate <- &bfdEventPeerUpdate{
-		isAdd:       false,
-		peerAddress: peerAddress,
-		address:     address,
-	}
-
-	return nil
-}
-
-func (s *bfdServer) GetPeerState(ctx context.Context, peerAddress string) (*bfdPeerState, error) {
-	address, err := convertToIPAddress(peerAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	list := &bfdEventGetPeerState{
-		in:  address,
-		out: make(chan *bfdPeerState),
-	}
-
-	s.eventGetPeer <- list
-
 	select {
-	case out, ok := <-list.out:
-		if !ok {
-			return nil, errors.New("channel is closed")
-		}
-
-		if out == nil {
-			return nil, errors.New("peer not found")
-		}
-
-		return out, nil
+	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: true, peerAddress: peerAddress, config: config}:
+		return nil
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return ctx.Err()
+	case <-s.eventShutdown:
+		return errors.New("bfd server stopped")
 	}
 }
 
-func (s *bfdServer) GetPeerStateList(ctx context.Context) ([]*bfdPeerState, error) {
-	list := &bfdEventGetPeerStateList{
-		out: make(chan []*bfdPeerState),
-	}
-
-	s.eventGetPeerList <- list
-
+func (s *bfdServer) DeletePeer(ctx context.Context, peerAddress netip.Addr) error {
 	select {
-	case out, ok := <-list.out:
-		if !ok {
-			return nil, errors.New("channel is closed")
-		}
-
-		return out, nil
+	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: false, peerAddress: peerAddress}:
+		return nil
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return ctx.Err()
+	case <-s.eventShutdown:
+		return errors.New("bfd server stopped")
 	}
+}
+
+func (s *bfdServer) GetPeerState(peerAddress netip.Addr) (*bfdPeerState, error) {
+	state := s.getPeerState(peerAddress)
+	if state == nil {
+		return nil, errors.New("peer not found")
+	}
+	return state, nil
+}
+
+func (s *bfdServer) GetPeerStateList() []*bfdPeerState {
+	return s.getPeerStateList()
 }
 
 func (s *bfdServer) GetServerStats() *api.BfdState {
@@ -209,17 +147,6 @@ func (s *bfdServer) GetServerStats() *api.BfdState {
 		InvalidPacket:  s.stats.invalidPacket.Load(),
 		UnknownPeer:    s.stats.unknownPeer.Load(),
 	}
-}
-
-func convertToIPAddress(stringAddress string) (netip.Addr, error) {
-	address, err := netip.ParseAddr(stringAddress)
-	if err != nil {
-		return netip.IPv4Unspecified(), err
-	}
-
-	// ReadFromUDP() return address in format '::ffff:1.2.3.4'
-	// Fill peers map in a similar way
-	return netip.AddrFrom16(address.As16()), nil
 }
 
 func (s *bfdServer) loop() {
@@ -247,18 +174,12 @@ func (s *bfdServer) loop() {
 			s.config = ev
 		case ev := <-s.eventPeerUpdate:
 			if ev.isAdd {
-				s.addBfdPeer(ev.peerAddress, ev.address, ev.config)
+				s.addBfdPeer(ev.peerAddress, ev.config)
 			} else {
-				s.deleteBfdPeer(ev.peerAddress, ev.address)
+				s.deleteBfdPeer(ev.peerAddress)
 			}
 
 			s.eventStartStop.Reset(time.Second)
-		case ev := <-s.eventGetPeer:
-			ev.out <- s.getPeerState(ev.in)
-			close(ev.out)
-		case ev := <-s.eventGetPeerList:
-			ev.out <- s.getPeerStateList()
-			close(ev.out)
 		case <-s.eventShutdown:
 			s.shutdown()
 			return
@@ -333,15 +254,15 @@ func (s *bfdServer) stop() {
 	)
 }
 
-func (s *bfdServer) addBfdPeer(peerAddress string, address netip.Addr, config oc.BfdConfig) {
+func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig) {
 	s.peersMutex.RLock()
-	_, ok := s.peers[address]
+	_, ok := s.peers[peerAddress]
 	s.peersMutex.RUnlock()
 
 	if ok {
 		s.logger.Debug("BFD peer already exist",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", peerAddress),
+			slog.String("Peer", peerAddress.String()),
 		)
 
 		return
@@ -351,37 +272,37 @@ func (s *bfdServer) addBfdPeer(peerAddress string, address netip.Addr, config oc
 	if bfdPeer != nil {
 		s.logger.Info("Insert BFD peer",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", peerAddress),
+			slog.String("Peer", peerAddress.String()),
 		)
 
 		s.peersMutex.Lock()
-		s.peers[address] = bfdPeer
+		s.peers[peerAddress] = bfdPeer
 		s.peersMutex.Unlock()
 	}
 }
 
-func (s *bfdServer) deleteBfdPeer(peerAddress string, address netip.Addr) {
+func (s *bfdServer) deleteBfdPeer(peerAddress netip.Addr) {
 	s.peersMutex.RLock()
-	peer, ok := s.peers[address]
+	peer, ok := s.peers[peerAddress]
 	s.peersMutex.RUnlock()
 
 	if !ok {
 		s.logger.Debug("Unknown BFD peer",
 			slog.String("Topic", "bfd"),
-			slog.String("Peer", peerAddress),
+			slog.String("Peer", peerAddress.String()),
 		)
 
 		return
 	}
 
 	s.peersMutex.Lock()
-	delete(s.peers, address)
+	delete(s.peers, peerAddress)
 	s.peersMutex.Unlock()
 	peer.Stop()
 
 	s.logger.Info("Remove BFD peer",
 		slog.String("Topic", "bfd"),
-		slog.String("Peer", peerAddress),
+		slog.String("Peer", peerAddress.String()),
 	)
 }
 
@@ -478,7 +399,7 @@ func (s *bfdServer) serverLoop() {
 }
 
 func (s *bfdServer) rxPacket(address *net.UDPAddr, packet *bfd.BFDHeader) {
-	addr := address.AddrPort().Addr()
+	addr := address.AddrPort().Addr().Unmap()
 
 	s.peersMutex.RLock()
 	peer, ok := s.peers[addr]
