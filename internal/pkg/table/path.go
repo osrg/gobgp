@@ -259,7 +259,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 		path.RemovePrivateAS(peer.Config.LocalAs, peer.State.RemovePrivateAs)
 
 		// AS_PATH handling
-		confed := peer.IsConfederationMember(global)
+		confed := global.IsConfederationMember(peer.Config.PeerAs)
 		path.PrependAsn(peer.Config.LocalAs, 1, confed)
 		if !confed {
 			path.removeConfedAs()

@@ -113,15 +113,15 @@ func (d *DynamicNeighbor) validate(b *BgpConfigSet) error {
 	return nil
 }
 
-func (n *Neighbor) IsConfederationMember(g *Global) bool {
-	return slices.Contains(g.Confederation.Config.MemberAsList, n.Config.PeerAs)
+func (g *Global) IsConfederationMember(peerAS uint32) bool {
+	return slices.Contains(g.Confederation.Config.MemberAsList, peerAS)
 }
 
-func (n *Neighbor) IsConfederation(g *Global) bool {
-	if n.Config.PeerAs == g.Config.As {
+func (g *Global) IsConfederation(peerAS uint32) bool {
+	if peerAS == g.Config.As {
 		return true
 	}
-	return n.IsConfederationMember(g)
+	return g.IsConfederationMember(peerAS)
 }
 
 func (n *Neighbor) IsEBGPPeer(g *Global) bool {

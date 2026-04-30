@@ -132,7 +132,7 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 		RouteReflectorClusterID: p.RouteReflector.State.RouteReflectorClusterId,
 		RouteReflectorClient:    p.RouteReflector.Config.RouteReflectorClient,
 		MultihopTtl:             p.EbgpMultihop.Config.MultihopTtl,
-		Confederation:           p.IsConfederationMember(g),
+		Confederation:           g.IsConfederationMember(p.Config.PeerAs),
 	}
 }
 

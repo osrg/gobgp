@@ -79,7 +79,7 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 
 	if n.Config.LocalAs == 0 {
 		n.Config.LocalAs = g.Config.As
-		if !g.Confederation.Config.Enabled || n.IsConfederation(g) {
+		if !g.Confederation.Config.Enabled || g.IsConfederation(n.Config.PeerAs) {
 			n.Config.LocalAs = g.Config.As
 		} else {
 			n.Config.LocalAs = g.Confederation.Config.Identifier
