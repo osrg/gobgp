@@ -27,6 +27,7 @@ import (
 	"net/netip"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -4992,6 +4993,7 @@ type LsLinkDescriptor struct {
 	NeighborAddrIPv4  *netip.Addr
 	InterfaceAddrIPv6 *netip.Addr
 	NeighborAddrIPv6  *netip.Addr
+	MultiTopoIDs      map[uint16]struct{}
 }
 
 func (l *LsLinkDescriptor) ParseTLVs(tlvs []LsTLVInterface) {
@@ -5012,39 +5014,53 @@ func (l *LsLinkDescriptor) ParseTLVs(tlvs []LsTLVInterface) {
 
 		case *LsTLVIPv6NeighborAddr:
 			l.NeighborAddrIPv6 = &v.IP
+
+		case *LsTLVMultiTopoID:
+			if l.MultiTopoIDs == nil {
+				l.MultiTopoIDs = make(map[uint16]struct{}, len(v.MultiTopoIDs))
+			}
+
+			for _, id := range v.MultiTopoIDs {
+				l.MultiTopoIDs[id] = struct{}{}
+			}
 		}
 	}
 }
 
 func (l *LsLinkDescriptor) String() string {
+	var base string
 	switch {
 	case l.InterfaceAddrIPv4 != nil && l.NeighborAddrIPv4 != nil:
-		return fmt.Sprintf("%v->%v", l.InterfaceAddrIPv4, l.NeighborAddrIPv4)
+		base = fmt.Sprintf("%v->%v", l.InterfaceAddrIPv4, l.NeighborAddrIPv4)
 
 	case l.InterfaceAddrIPv6 != nil && l.NeighborAddrIPv6 != nil:
-		return fmt.Sprintf("%v->%v", l.InterfaceAddrIPv6, l.NeighborAddrIPv6)
+		base = fmt.Sprintf("%v->%v", l.InterfaceAddrIPv6, l.NeighborAddrIPv6)
 
 	case l.LinkLocalID != nil && l.LinkRemoteID != nil:
-		return fmt.Sprintf("%v->%v", *l.LinkLocalID, *l.LinkRemoteID)
+		base = fmt.Sprintf("%v->%v", *l.LinkLocalID, *l.LinkRemoteID)
 
 	case l.InterfaceAddrIPv4 != nil:
-		return fmt.Sprintf("%v->UNKNOWN", l.InterfaceAddrIPv4)
+		base = fmt.Sprintf("%v->UNKNOWN", l.InterfaceAddrIPv4)
 	case l.NeighborAddrIPv4 != nil:
-		return fmt.Sprintf("UNKNOWN->%v", l.NeighborAddrIPv4)
+		base = fmt.Sprintf("UNKNOWN->%v", l.NeighborAddrIPv4)
 
 	case l.InterfaceAddrIPv6 != nil:
-		return fmt.Sprintf("%v->UNKNOWN", l.InterfaceAddrIPv6)
+		base = fmt.Sprintf("%v->UNKNOWN", l.InterfaceAddrIPv6)
 	case l.NeighborAddrIPv6 != nil:
-		return fmt.Sprintf("UNKNOWN->%v", l.NeighborAddrIPv6)
+		base = fmt.Sprintf("UNKNOWN->%v", l.NeighborAddrIPv6)
 
 	case l.LinkLocalID != nil:
-		return fmt.Sprintf("%v->UNKNOWN", *l.LinkLocalID)
+		base = fmt.Sprintf("%v->UNKNOWN", *l.LinkLocalID)
 	case l.LinkRemoteID != nil:
-		return fmt.Sprintf("UNKNOWN->%v", *l.LinkRemoteID)
+		base = fmt.Sprintf("UNKNOWN->%v", *l.LinkRemoteID)
 
 	default:
-		return "UNKNOWN"
+		base = "UNKNOWN"
 	}
+	// MT-ID participates in the destination key (RFC 7752 §3.2.1.5).
+	// Two ISIS-MT advertisements of the same physical link must not
+	// collide in the RIB.
+	return base + multiTopoIDsToString(l.MultiTopoIDs)
 }
 
 func NewLsLinkTLVs(ld *LsLinkDescriptor) []LsTLVInterface {
@@ -5159,6 +5175,8 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVIPv6InterfaceAddr{}
 		case LS_TLV_IPV6_NEIGHBOR_ADDR:
 			subTLV = &LsTLVIPv6NeighborAddr{}
+		case LS_TLV_MULTI_TOPO_ID:
+			subTLV = &LsTLVMultiTopoID{}
 
 		default:
 			if sub.Len() > len(tlv) {
@@ -5242,6 +5260,7 @@ func (l *LsLinkNLRI) MarshalJSON() ([]byte, error) {
 type LsPrefixDescriptor struct {
 	IPReachability []netip.Prefix
 	OSPFRouteType  LsOspfRouteType
+	MultiTopoIDs   map[uint16]struct{}
 }
 
 func (l *LsPrefixDescriptor) ParseTLVs(tlvs []LsTLVInterface, ipv6 bool) {
@@ -5252,8 +5271,35 @@ func (l *LsPrefixDescriptor) ParseTLVs(tlvs []LsTLVInterface, ipv6 bool) {
 
 		case *LsTLVOspfRouteType:
 			l.OSPFRouteType = v.RouteType
+
+		case *LsTLVMultiTopoID:
+			if l.MultiTopoIDs == nil {
+				l.MultiTopoIDs = make(map[uint16]struct{}, len(v.MultiTopoIDs))
+			}
+
+			for _, id := range v.MultiTopoIDs {
+				l.MultiTopoIDs[id] = struct{}{}
+			}
 		}
 	}
+}
+
+// MultiTopoIDsToString renders an MT-ID list for use in NLRI String() output.
+// The empty case returns an empty string so callers can append it
+// unconditionally without affecting the existing format.
+func multiTopoIDsToString(ids map[uint16]struct{}) string {
+	if len(ids) == 0 {
+		return ""
+	}
+
+	mtIDs := make([]uint16, 0, len(ids))
+	for id := range ids {
+		mtIDs = append(mtIDs, id)
+	}
+
+	slices.Sort(mtIDs)
+
+	return fmt.Sprintf(" MT: %v", mtIDs)
 }
 
 type LsPrefixV4NLRI struct {
@@ -5280,7 +5326,7 @@ func (l *LsPrefixV4NLRI) String() string {
 		ospf = fmt.Sprintf("OSPF_ROUTE_TYPE:%v ", prefix.OSPFRouteType)
 	}
 
-	return fmt.Sprintf("PREFIXv4 { LOCAL_NODE: %s PREFIX: %v %s}", local.IGPRouterID, ips, ospf)
+	return fmt.Sprintf("PREFIXv4 { LOCAL_NODE: %s PREFIX: %v %s%s}", local.IGPRouterID, ips, ospf, multiTopoIDsToString(prefix.MultiTopoIDs))
 }
 
 func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
@@ -5307,6 +5353,8 @@ func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVOspfRouteType{}
 		case LS_TLV_IP_REACH_INFO:
 			subTLV = &LsTLVIPReachability{}
+		case LS_TLV_MULTI_TOPO_ID:
+			subTLV = &LsTLVMultiTopoID{}
 
 		default:
 			if sub.Len() > len(tlv) {
@@ -5455,7 +5503,7 @@ func (l *LsPrefixV6NLRI) String() string {
 		ospf = fmt.Sprintf("OSPF_ROUTE_TYPE:%v ", prefix.OSPFRouteType)
 	}
 
-	return fmt.Sprintf("PREFIXv6 { LOCAL_NODE: %v PREFIX: %v %v}", local.IGPRouterID, ips, ospf)
+	return fmt.Sprintf("PREFIXv6 { LOCAL_NODE: %v PREFIX: %v %v%s}", local.IGPRouterID, ips, ospf, multiTopoIDsToString(prefix.MultiTopoIDs))
 }
 
 func (l *LsPrefixV6NLRI) DecodeFromBytes(data []byte) error {
@@ -5482,6 +5530,8 @@ func (l *LsPrefixV6NLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVOspfRouteType{}
 		case LS_TLV_IP_REACH_INFO:
 			subTLV = &LsTLVIPReachability{}
+		case LS_TLV_MULTI_TOPO_ID:
+			subTLV = &LsTLVMultiTopoID{}
 
 		default:
 			if sub.Len() > len(tlv) {

@@ -4992,3 +4992,279 @@ func Test_LsPrefixV6NLRI_UnknownSubTLV(t *testing.T) {
 		})
 	}
 }
+
+// mtTLVBytes builds an LS Multi-Topology ID sub-TLV (RFC 7752 §3.2.1.5,
+// type 263) carrying the given MT-IDs. Used by the table-driven tests below
+// to compose synthetic NLRI payloads.
+func mtTLVBytes(ids ...uint16) []byte {
+	out := []byte{0x01, 0x07, 0x00, byte(2 * len(ids))}
+	for _, id := range ids {
+		out = append(out, byte(id>>8), byte(id))
+	}
+	return out
+}
+
+// Test_LsLinkNLRI_MultiTopoID verifies that the Multi-Topology ID sub-TLV
+// (RFC 7752 §3.2.1.5, type 263) is parsed into LinkDesc, that
+// LsLinkDescriptor.String() emits the MT-ID suffix, and that two
+// otherwise-identical link NLRIs with different MT-IDs produce different
+// destination keys (regression test for RIB collision via implicit-withdraw).
+func Test_LsLinkNLRI_MultiTopoID(t *testing.T) {
+	commonHeader := []byte{
+		0x02,                                           // Protocol: ISIS L2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		// Local Node Descriptor, value length=18
+		0x01, 0x00, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		// Remote Node Descriptor, value length=18
+		0x01, 0x01, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		// IPv4 Interface Address: 10.0.0.1
+		0x01, 0x03, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x01,
+		// IPv4 Neighbor Address: 10.0.0.2
+		0x01, 0x04, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x02,
+	}
+
+	tests := []struct {
+		name         string
+		extraTLV     []byte
+		wantMTIDs    map[uint16]struct{}
+		wantContains string // expected substring in LsLinkDescriptor.String()
+		wantNoMT     bool   // String() must NOT contain "MT:"
+	}{
+		{
+			name:     "no MT-ID (backward compat)",
+			extraTLV: nil,
+			wantNoMT: true,
+		},
+		{
+			name:     "single MT-ID 0",
+			extraTLV: mtTLVBytes(0),
+			wantMTIDs: map[uint16]struct{}{
+				0: {},
+			},
+			wantContains: " MT: [0]",
+		},
+		{
+			name:     "single MT-ID 2",
+			extraTLV: mtTLVBytes(2),
+			wantMTIDs: map[uint16]struct{}{
+				2: {},
+			},
+			wantContains: " MT: [2]",
+		},
+		{
+			name:     "multiple MT-IDs",
+			extraTLV: mtTLVBytes(1, 2),
+			wantMTIDs: map[uint16]struct{}{
+				1: {},
+				2: {},
+			},
+			wantContains: " MT: [1 2]",
+		},
+	}
+
+	// Track per-case String() outputs to assert that distinct MT sets yield
+	// distinct destination keys (RIB collision regression).
+	keys := make(map[string]string, len(tests))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append(append([]byte{}, commonHeader...), tt.extraTLV...)
+			nlri := &LsLinkNLRI{}
+			nlri.Length = uint16(len(data))
+			assert.NoError(nlri.DecodeFromBytes(data))
+
+			desc := &LsLinkDescriptor{}
+			desc.ParseTLVs(nlri.LinkDesc)
+
+			assert.Equal(tt.wantMTIDs, desc.MultiTopoIDs)
+
+			s := desc.String()
+			if tt.wantNoMT {
+				assert.NotContains(s, "MT:",
+					"non-MT NLRI must not gain an MT suffix (backward compat)")
+			} else {
+				assert.Contains(s, tt.wantContains)
+			}
+			keys[tt.name] = s
+		})
+	}
+
+	// Cross-case regression: every distinct case must produce a distinct key.
+	t.Run("distinct MT sets yield distinct keys", func(t *testing.T) {
+		seen := make(map[string]string, len(keys))
+		for name, key := range keys {
+			if other, ok := seen[key]; ok {
+				t.Fatalf("RIB key collision: %q and %q both produced %q", name, other, key)
+			}
+			seen[key] = name
+		}
+	})
+}
+
+func Test_LsPrefixV4NLRI_MultiTopoID(t *testing.T) {
+	commonHeader := []byte{
+		0x02,                                           // Protocol: ISIS L2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		0x01, 0x00, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		// IP Reachability Info: prefix-len=24, prefix=10.0.0.0/24
+		0x01, 0x09, 0x00, 0x04, 0x18, 0x0a, 0x00, 0x00,
+	}
+
+	tests := []struct {
+		name         string
+		extraTLV     []byte
+		wantMTIDs    map[uint16]struct{}
+		wantContains string
+		wantNoMT     bool
+	}{
+		{
+			name:     "no MT-ID (backward compat)",
+			extraTLV: nil,
+			wantNoMT: true,
+		},
+		{
+			name:     "single MT-ID 2",
+			extraTLV: mtTLVBytes(2),
+			wantMTIDs: map[uint16]struct{}{
+				2: {},
+			},
+			wantContains: " MT: [2]",
+		},
+		{
+			name:     "multiple MT-IDs",
+			extraTLV: mtTLVBytes(0, 2),
+			wantMTIDs: map[uint16]struct{}{
+				0: {},
+				2: {},
+			},
+			wantContains: " MT: [0 2]",
+		},
+	}
+
+	keys := make(map[string]string, len(tests))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append(append([]byte{}, commonHeader...), tt.extraTLV...)
+			nlri := &LsPrefixV4NLRI{}
+			nlri.Length = uint16(len(data))
+			assert.NoError(nlri.DecodeFromBytes(data))
+
+			pd := &LsPrefixDescriptor{}
+			pd.ParseTLVs(nlri.PrefixDesc, false)
+
+			assert.Equal(tt.wantMTIDs, pd.MultiTopoIDs)
+
+			s := nlri.String()
+			if tt.wantNoMT {
+				assert.NotContains(s, "MT:")
+			} else {
+				assert.Contains(s, tt.wantContains)
+			}
+			keys[tt.name] = s
+		})
+	}
+
+	// Cross-case regression: every distinct case must produce a distinct key.
+	t.Run("distinct MT sets yield distinct keys", func(t *testing.T) {
+		seen := make(map[string]string, len(keys))
+		for name, key := range keys {
+			if other, ok := seen[key]; ok {
+				t.Fatalf("RIB key collision: %q and %q both produced %q", name, other, key)
+			}
+			seen[key] = name
+		}
+	})
+}
+
+func Test_LsPrefixV6NLRI_MultiTopoID(t *testing.T) {
+	commonHeader := []byte{
+		0x02,                                           // Protocol: ISIS L2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		0x01, 0x00, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		// IP Reachability Info: prefix-len=64, prefix=2001:db8::/64
+		0x01, 0x09, 0x00, 0x09,
+		0x40,
+		0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+	}
+
+	tests := []struct {
+		name         string
+		extraTLV     []byte
+		wantMTIDs    map[uint16]struct{}
+		wantContains string
+		wantNoMT     bool
+	}{
+		{
+			name:     "no MT-ID (backward compat)",
+			extraTLV: nil,
+			wantNoMT: true,
+		},
+		{
+			name:     "single MT-ID 2",
+			extraTLV: mtTLVBytes(2),
+			wantMTIDs: map[uint16]struct{}{
+				2: {},
+			},
+			wantContains: " MT: [2]",
+		},
+		{
+			name:     "multiple MT-IDs",
+			extraTLV: mtTLVBytes(0, 2),
+			wantMTIDs: map[uint16]struct{}{
+				0: {},
+				2: {},
+			},
+			wantContains: " MT: [0 2]",
+		},
+	}
+
+	keys := make(map[string]string, len(tests))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append(append([]byte{}, commonHeader...), tt.extraTLV...)
+			nlri := &LsPrefixV6NLRI{}
+			nlri.Length = uint16(len(data))
+			assert.NoError(nlri.DecodeFromBytes(data))
+
+			pd := &LsPrefixDescriptor{}
+			pd.ParseTLVs(nlri.PrefixDesc, true)
+
+			assert.Equal(tt.wantMTIDs, pd.MultiTopoIDs)
+
+			s := nlri.String()
+			if tt.wantNoMT {
+				assert.NotContains(s, "MT:")
+			} else {
+				assert.Contains(s, tt.wantContains)
+			}
+			keys[tt.name] = s
+		})
+	}
+
+	// Cross-case regression: every distinct case must produce a distinct key.
+	t.Run("distinct MT sets yield distinct keys", func(t *testing.T) {
+		seen := make(map[string]string, len(keys))
+		for name, key := range keys {
+			if other, ok := seen[key]; ok {
+				t.Fatalf("RIB key collision: %q and %q both produced %q", name, other, key)
+			}
+			seen[key] = name
+		}
+	})
+}
