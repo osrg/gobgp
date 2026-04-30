@@ -421,21 +421,7 @@ func TestUpdatePathAttrsRTCOriginatorIDWithLocalID(t *testing.T) {
 		LocalAddress:            netip.MustParseAddr("192.168.0.1"),
 		RouteReflectorClient:    true,
 		RouteReflectorClusterID: clusterID,
-	}
-	peer := &oc.Neighbor{
-		State: oc.NeighborState{
-			PeerType: oc.PEER_TYPE_INTERNAL,
-		},
-		RouteReflector: oc.RouteReflector{
-			Config: oc.RouteReflectorConfig{
-				RouteReflectorClusterId: clusterID,
-				RouteReflectorClient:    true,
-			},
-			State: oc.RouteReflectorState{
-				RouteReflectorClusterId: clusterID,
-				RouteReflectorClient:    true,
-			},
-		},
+		PeerType:                oc.PEER_TYPE_INTERNAL,
 	}
 
 	// Case 1: Source with Address (not local) set - should use LocalID as Originator ID
@@ -453,7 +439,7 @@ func TestUpdatePathAttrsRTCOriginatorIDWithLocalID(t *testing.T) {
 		nlriAttr,
 	}
 	pathWithLocalID := NewPath(bgp.RF_RTC_UC, sourceWithLocalID, nlri, false, attrs, time.Now(), false)
-	updatedPath1 := UpdatePathAttrs(logger, global, peer, info, pathWithLocalID)
+	updatedPath1 := UpdatePathAttrs(logger, global, info, pathWithLocalID)
 
 	attr1 := updatedPath1.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID)
 	originatorID1 := attr1.(*bgp.PathAttributeOriginatorId).Value
@@ -468,7 +454,7 @@ func TestUpdatePathAttrsRTCOriginatorIDWithLocalID(t *testing.T) {
 		ID:      netip.MustParseAddr("10.0.0.2"),
 	}
 	pathWithoutLocalID := NewPath(bgp.RF_RTC_UC, sourceWithoutLocalID, nlri, false, attrs, time.Now(), false)
-	updatedPath2 := UpdatePathAttrs(logger, global, peer, info, pathWithoutLocalID)
+	updatedPath2 := UpdatePathAttrs(logger, global, info, pathWithoutLocalID)
 
 	attr2 := updatedPath2.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID)
 	originatorID2 := attr2.(*bgp.PathAttributeOriginatorId).Value
