@@ -637,7 +637,6 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 	options := &table.PolicyOptions{
 		Info: peerInfo,
 	}
-	peer.fsm.lock.Lock()
 	if path.IsLocal() && path.GetNexthop().IsUnspecified() {
 		// We need a special treatment for the locally-originated path
 		// with unspecified nexthop (0.0.0.0 or ::). In this case, the
@@ -647,12 +646,11 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 		//
 		// When the local address contains zone, we need to strip it
 		// because BGP nexthop cannot contain zone information.
-		options.OldNextHop = conf.Transport.State.LocalAddress.WithZone("")
+		options.OldNextHop = peerInfo.LocalAddress.WithZone("")
 	} else {
 		options.OldNextHop = path.GetNexthop()
 	}
-	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, conf, peerInfo, path)
-	peer.fsm.lock.Unlock()
+	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, peerInfo, path)
 
 	return path, options, false
 }
