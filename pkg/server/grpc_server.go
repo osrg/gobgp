@@ -1089,6 +1089,13 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.TtlSecurity.Config.Enabled = a.TtlSecurity.Enabled
 		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
 	}
+	if a.Bfd != nil {
+		pconf.Bfd.Config.Enabled = a.Bfd.Enabled
+		pconf.Bfd.Config.Port = uint16(a.Bfd.Port)
+		pconf.Bfd.Config.DesiredMinimumTxInterval = a.Bfd.DesiredMinimumTxInterval
+		pconf.Bfd.Config.RequiredMinimumReceive = a.Bfd.RequiredMinimumReceive
+		pconf.Bfd.Config.DetectionMultiplier = uint8(a.Bfd.DetectionMultiplier)
+	}
 	if a.State != nil {
 		var sessionState oc.SessionState
 		switch a.State.SessionState {
@@ -1229,6 +1236,13 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 	if a.TtlSecurity != nil {
 		pconf.TtlSecurity.Config.Enabled = a.TtlSecurity.Enabled
 		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
+	}
+	if a.Bfd != nil {
+		pconf.Bfd.Config.Enabled = a.Bfd.Enabled
+		pconf.Bfd.Config.Port = uint16(a.Bfd.Port)
+		pconf.Bfd.Config.DesiredMinimumTxInterval = a.Bfd.DesiredMinimumTxInterval
+		pconf.Bfd.Config.RequiredMinimumReceive = a.Bfd.RequiredMinimumReceive
+		pconf.Bfd.Config.DetectionMultiplier = uint8(a.Bfd.DetectionMultiplier)
 	}
 	if a.Info != nil {
 		pconf.State.TotalPaths = a.Info.TotalPaths

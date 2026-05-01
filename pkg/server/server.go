@@ -59,6 +59,13 @@ const (
 	FSMOperationTypeCount
 )
 
+// RFC 5881 requires the BFD server to listen on port 3784.
+// Per-peer BfdConfig.Port configures the destination port for outgoing
+// packets and may differ, but the listen port is not user-configurable.
+const (
+	BfdServerPort = 3784
+)
+
 type FSMTimingHook interface {
 	Observe(op FSMOperation, tOp, tWait time.Duration)
 }
@@ -146,6 +153,7 @@ type BgpServer struct {
 	mrtManager   *mrtManager
 	roaTable     *table.ROATable
 	uuidMap      map[string]uuid.UUID
+	bfdServer    *bfdServer
 	logger       *slog.Logger
 	logLevelVar  *slog.LevelVar
 	timingHook   FSMTimingHook
@@ -190,6 +198,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
+	s.bfdServer = NewBfdServer(s, logger)
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
 		s.apiServer = newAPIserver(s, shared, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
@@ -208,6 +217,10 @@ func (s *BgpServer) Stop() {
 			slog.String("Topic", "BgpServer"),
 			slog.Any("Error", err),
 		)
+	}
+
+	if s.bfdServer != nil {
+		s.bfdServer.Stop()
 	}
 
 	if s.apiServer != nil {
@@ -812,6 +825,21 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	conf.State.Messages.Sent.WithdrawPrefix = atomic.LoadUint32(&peer.fsm.counterStats.Sent.WithdrawPrefix)
 	conf.State.Messages.Sent.Discarded = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Discarded)
 	conf.Timers.State.UpdateRecvTime = atomic.LoadInt64(&peer.fsm.timerStats.State.UpdateRecvTime)
+
+	if s.bfdServer != nil {
+		bfdPeer, err := s.bfdServer.GetPeerState(conf.State.NeighborAddress)
+		if err == nil {
+			st := &bfdPeer.state
+			conf.Bfd.State.SessionState = oc.IntToBfdSessionStateMap[int(st.SessionState)]
+			conf.Bfd.State.LastFailureTime = st.LastFailureTime
+			conf.Bfd.State.FailureTransitions = st.FailureTransitions
+			conf.Bfd.State.LocalDiscriminator = st.LocalDiscriminator
+			if st.BfdAsync != nil {
+				conf.Bfd.State.BfdAsync.TransmittedPackets = st.BfdAsync.TransmittedPackets
+				conf.Bfd.State.BfdAsync.ReceivedPackets = st.BfdAsync.ReceivedPackets
+			}
+		}
+	}
 
 	return &conf
 }
@@ -2511,6 +2539,11 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
+		if s.bfdServer != nil {
+			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort}); err != nil {
+				return err
+			}
+		}
 		return nil
 	}, false)
 }
@@ -3334,6 +3367,18 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if name := c.Config.PeerGroup; name != "" {
 		s.peerGroupMap[name].AddMember(*c)
 	}
+	if s.bfdServer != nil {
+		ipAddr, err := netip.ParseAddr(addr)
+		if err != nil {
+			return fmt.Errorf("failed to parse IP address: %v", err)
+		}
+		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, c.Bfd.Config); err != nil {
+			s.logger.Warn("failed to add BFD peer",
+				slog.String("Topic", "Peer"),
+				slog.String("Key", addr),
+				slog.String("Err", err.Error()))
+		}
+	}
 	s.startFsmHandler(peer)
 	return nil
 }
@@ -3450,6 +3495,18 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 	}
 	n.fsm.logger.Info("Delete a peer configuration")
 
+	if s.bfdServer != nil {
+		ipAddr, err := netip.ParseAddr(addr)
+		if err != nil {
+			return fmt.Errorf("failed to parse IP address: %v", err)
+		}
+		if err := s.bfdServer.DeletePeer(context.Background(), ipAddr); err != nil {
+			s.logger.Warn("failed to delete BFD peer",
+				slog.String("Topic", "Peer"),
+				slog.String("Key", addr),
+				slog.String("Err", err.Error()))
+		}
+	}
 	if sendNotification {
 		n.fsm.deconfiguredNotification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
 	}
@@ -4982,4 +5039,21 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 		return nil
 	}, false)
 	return w
+}
+
+func (s *BgpServer) GetBfdServerStats() *api.BfdState {
+	if s.bfdServer == nil {
+		return nil
+	}
+	return s.bfdServer.GetServerStats()
+}
+
+func (s *BgpServer) ListBfdPeer(ctx context.Context, fn func(string, *api.BfdPeerState)) {
+	if s.bfdServer == nil {
+		return
+	}
+	list := s.bfdServer.GetPeerStateList()
+	for _, state := range list {
+		fn(state.peerAddress.String(), &state.state)
+	}
 }
