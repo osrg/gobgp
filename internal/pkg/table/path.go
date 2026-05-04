@@ -829,12 +829,10 @@ func (path *Path) ReplaceAS(localAS, peerAS uint32) *Path {
 }
 
 func (path *Path) GetCommunities() []uint32 {
-	communityList := []uint32{}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES); attr != nil {
-		communities := attr.(*bgp.PathAttributeCommunities)
-		communityList = append(communityList, communities.Value...)
+		return attr.(*bgp.PathAttributeCommunities).Value
 	}
-	return communityList
+	return nil
 }
 
 // SetCommunities adds or replaces communities with new ones.
@@ -899,12 +897,10 @@ func (path *Path) RemoveCommunities(communities []uint32) int {
 }
 
 func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
-	eCommunityList := make([]bgp.ExtendedCommunityInterface, 0)
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES); attr != nil {
-		eCommunities := attr.(*bgp.PathAttributeExtendedCommunities).Value
-		eCommunityList = append(eCommunityList, eCommunities...)
+		return attr.(*bgp.PathAttributeExtendedCommunities).Value
 	}
-	return eCommunityList
+	return nil
 }
 
 func (path *Path) SetExtCommunities(exts []bgp.ExtendedCommunityInterface, doReplace bool) {
@@ -934,10 +930,7 @@ func (path *Path) GetRouteTargets() []bgp.ExtendedCommunityInterface {
 
 func (path *Path) GetLargeCommunities() []*bgp.LargeCommunity {
 	if a := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY); a != nil {
-		v := a.(*bgp.PathAttributeLargeCommunities).Values
-		ret := make([]*bgp.LargeCommunity, 0, len(v))
-		ret = append(ret, v...)
-		return ret
+		return a.(*bgp.PathAttributeLargeCommunities).Values
 	}
 	return nil
 }

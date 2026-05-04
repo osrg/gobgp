@@ -38,6 +38,7 @@ ospf
 pmsi
 prepend
 reachability
+regexp
 reservable
 reuseaddr
 rpki
