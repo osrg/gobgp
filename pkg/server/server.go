@@ -4680,10 +4680,10 @@ func WatchPostUpdate(current bool, peerAddress string, peerGroup string) WatchOp
 				if !ok || ev == nil {
 					return false
 				}
-				if len(peerAddress) > 0 && ev.Neighbor.State.NeighborAddress == netip.MustParseAddr(peerAddress) {
+				if len(peerAddress) > 0 && ev.Neighbor != nil && ev.Neighbor.State.NeighborAddress == netip.MustParseAddr(peerAddress) {
 					return true
 				}
-				if len(peerGroup) > 0 && ev.Neighbor.State.PeerGroup == peerGroup {
+				if len(peerGroup) > 0 && ev.Neighbor != nil && ev.Neighbor.State.PeerGroup == peerGroup {
 					return true
 				}
 				return false
