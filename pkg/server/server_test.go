@@ -43,6 +43,37 @@ import (
 
 var logger = slog.Default()
 
+func TestWatchPostUpdateWithLocalRoute(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	// Add local path (no PeerInfo)
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh,
+	}
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+	path, _ := apiutil.NewPath(bgp.RF_IPv4_UC, nlri, false, attrs, time.Now())
+
+	_, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}})
+	require.NoError(t, err)
+
+	// Calling watch with initPostUpdate=true and a peerAddress filter.
+	// This will traverse the global RIB, encounter the local path with no PeerInfo,
+	// and apply the postUpdateFilter. It should not panic.
+	s.watch(WatchPostUpdate(true, "10.2.2.2", ""))
+}
+
 func TestStop(t *testing.T) {
 	assert := assert.New(t)
 	s := NewBgpServer()
