@@ -1344,12 +1344,17 @@ func MarshalNLRI(value bgp.NLRI) (*api.NLRI, error) {
 				return nil, err
 			}
 
+			ipAddr := ""
+			if r.IPAddressLength != 0 {
+				ipAddr = r.IPAddress.String()
+			}
+
 			nlri.Nlri = &api.NLRI_EvpnMacadv{EvpnMacadv: &api.EVPNMACIPAdvertisementRoute{
 				Rd:          rd,
 				Esi:         esi,
 				EthernetTag: r.ETag,
 				MacAddress:  r.MacAddress.String(),
-				IpAddress:   r.IPAddress.String(),
+				IpAddress:   ipAddr,
 				Labels:      r.Labels,
 			}}
 		case *bgp.EVPNMulticastEthernetTagRoute:
@@ -1660,9 +1665,12 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 			if err != nil {
 				return nil, err
 			}
-			addr, err := netip.ParseAddr(v.IpAddress)
-			if err != nil {
-				return nil, err
+			var addr netip.Addr
+			if v.IpAddress != "" {
+				addr, err = netip.ParseAddr(v.IpAddress)
+				if err != nil {
+					return nil, err
+				}
 			}
 			nlri, _ = bgp.NewEVPNMacIPAdvertisementRoute(rd, *esi, v.EthernetTag, v.MacAddress, addr, v.Labels)
 		}
