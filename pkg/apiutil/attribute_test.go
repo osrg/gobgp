@@ -521,6 +521,45 @@ func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route(t *testing.T) {
 	assert.True(proto.Equal(input, output))
 }
 
+func Test_MpReachNLRIAttribute_EVPN_MAC_IP_Route_MacOnly(t *testing.T) {
+	assert := assert.New(t)
+
+	rd := &api.RouteDistinguisher{Rd: &api.RouteDistinguisher_IpAddress{
+		IpAddress: &api.RouteDistinguisherIPAddress{
+			Admin:    "1.1.1.1",
+			Assigned: 100,
+		},
+	}}
+	nlris := []*api.NLRI{
+		{Nlri: &api.NLRI_EvpnMacadv{EvpnMacadv: &api.EVPNMACIPAdvertisementRoute{
+			Rd: rd,
+			Esi: &api.EthernetSegmentIdentifier{
+				Type:  0,
+				Value: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
+			},
+			EthernetTag: 100,
+			MacAddress:  "aa:bb:cc:dd:ee:ff",
+			IpAddress:   "",
+			Labels:      []uint32{200},
+		}}},
+	}
+	input := &api.MpReachNLRIAttribute{
+		Family: &api.Family{
+			Afi:  api.Family_AFI_L2VPN,
+			Safi: api.Family_SAFI_EVPN,
+		},
+		NextHops: []string{"192.168.1.1"},
+		Nlris:    nlris,
+	}
+
+	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
+	n, err := UnmarshalAttribute(a)
+	assert.NoError(err)
+
+	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+	assert.True(proto.Equal(input, output))
+}
+
 func Test_MpReachNLRIAttribute_EVPN_MC_Route(t *testing.T) {
 	assert := assert.New(t)
 

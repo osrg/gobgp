@@ -2585,17 +2585,16 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	er.MacAddress = net.HardwareAddr(data[1:7])
 	er.IPAddressLength = data[7]
 	data = data[8:]
-	if er.IPAddressLength == 32 || er.IPAddressLength == 128 {
+	switch er.IPAddressLength {
+	case 32, 128:
 		if len(data) < int(er.IPAddressLength/8) {
 			return malformedAttrListErr("bad length of MAC/IP Advertisement Route")
 		}
-		// The length was validated above
 		er.IPAddress, _ = netip.AddrFromSlice(data[:er.IPAddressLength/8])
-	} else if er.IPAddressLength != 0 {
+	case 0:
+		// IP address omitted
+	default:
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP address length: %d", er.IPAddressLength))
-	}
-	if len(data) < int(er.IPAddressLength/8) {
-		return malformedAttrListErr("bad length of MAC/IP Advertisement Route")
 	}
 	data = data[er.IPAddressLength/8:]
 	var label uint32
@@ -2674,23 +2673,30 @@ func (er *EVPNMacIPAdvertisementRoute) String() string {
 	// The Ethernet Segment Identifier, MPLS Label1, and MPLS Label2 fields
 	// are to be treated as route attributes as opposed to being part of the
 	// "route".
+	if er.IPAddressLength == 0 {
+		return fmt.Sprintf("[type:macadv][rd:%s][etag:%d][mac:%s]", er.RD, er.ETag, er.MacAddress)
+	}
 	return fmt.Sprintf("[type:macadv][rd:%s][etag:%d][mac:%s][ip:%s]", er.RD, er.ETag, er.MacAddress, er.IPAddress)
 }
 
 func (er *EVPNMacIPAdvertisementRoute) MarshalJSON() ([]byte, error) {
+	ipAddr := ""
+	if er.IPAddressLength != 0 {
+		ipAddr = er.IPAddress.String()
+	}
 	return json.Marshal(struct {
 		RD         RouteDistinguisherInterface `json:"rd"`
 		ESI        string                      `json:"esi"`
 		Etag       uint32                      `json:"etag"`
 		MacAddress string                      `json:"mac"`
-		IPAddress  string                      `json:"ip"`
+		IPAddress  string                      `json:"ip,omitempty"`
 		Labels     []uint32                    `json:"labels"`
 	}{
 		RD:         er.RD,
 		ESI:        er.ESI.String(),
 		Etag:       er.ETag,
 		MacAddress: er.MacAddress.String(),
-		IPAddress:  er.IPAddress.String(),
+		IPAddress:  ipAddr,
 		Labels:     er.Labels,
 	})
 }
@@ -2701,10 +2707,6 @@ func (er *EVPNMacIPAdvertisementRoute) rd() RouteDistinguisherInterface {
 
 func NewEVPNMacIPAdvertisementRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, macAddress string, ipAddress netip.Addr, labels []uint32) (*EVPNNLRI, error) {
 	mac, _ := net.ParseMAC(macAddress)
-	if !ipAddress.IsValid() {
-		return nil, fmt.Errorf("invalid IP address")
-	}
-
 	return NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, &EVPNMacIPAdvertisementRoute{
 		RD:               rd,
 		ESI:              esi,

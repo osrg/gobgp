@@ -18,6 +18,7 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"math"
 	"net"
 	"net/netip"
@@ -702,6 +703,90 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Equal(n1, n2)
+}
+
+func Test_EVPNMacIPAdvertisementRoute(t *testing.T) {
+	rd, err := ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	esi := EthernetSegmentIdentifier{Type: ESI_ARBITRARY, Value: make([]byte, 9)}
+	mac := "aa:bb:cc:dd:ee:ff"
+
+	t.Run("MAC-only NLRI", func(t *testing.T) {
+		nl, err := NewEVPNMacIPAdvertisementRoute(rd, esi, 42, mac, netip.Addr{}, []uint32{200})
+		require.NoError(t, err)
+		r := nl.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
+		assert.Equal(t, uint8(0), r.IPAddressLength)
+		assert.False(t, r.IPAddress.IsValid())
+	})
+
+	t.Run("IPv4 host address", func(t *testing.T) {
+		ip := netip.MustParseAddr("10.0.0.1")
+		nl, err := NewEVPNMacIPAdvertisementRoute(rd, esi, 42, mac, ip, nil)
+		require.NoError(t, err)
+		r := nl.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
+		assert.Equal(t, uint8(32), r.IPAddressLength)
+		assert.Equal(t, ip, r.IPAddress)
+	})
+
+	t.Run("IPv6 host address", func(t *testing.T) {
+		ip := netip.MustParseAddr("2001:db8::1")
+		nl, err := NewEVPNMacIPAdvertisementRoute(rd, esi, 42, mac, ip, nil)
+		require.NoError(t, err)
+		r := nl.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
+		assert.Equal(t, uint8(128), r.IPAddressLength)
+		assert.Equal(t, ip, r.IPAddress)
+	})
+}
+
+func Test_EVPNMacIPAdvertisementRoute_MarshalJSON(t *testing.T) {
+	rd, err := ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	esi := EthernetSegmentIdentifier{Type: ESI_ARBITRARY, Value: make([]byte, 9)}
+	mac := "aa:bb:cc:dd:ee:ff"
+
+	t.Run("omits ip key when IPAddressLength is 0", func(t *testing.T) {
+		r := &EVPNMacIPAdvertisementRoute{
+			RD:               rd,
+			ESI:              esi,
+			ETag:             7,
+			MacAddressLength: 48,
+			MacAddress:       mustParseMAC(t, mac),
+			IPAddressLength:  0,
+			IPAddress:        netip.Addr{},
+			Labels:           []uint32{300},
+		}
+		b, err := r.MarshalJSON()
+		require.NoError(t, err)
+		var m map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(b, &m))
+		_, hasIP := m["ip"]
+		assert.False(t, hasIP)
+	})
+
+	t.Run("includes ip when IPAddressLength is non-zero", func(t *testing.T) {
+		r := &EVPNMacIPAdvertisementRoute{
+			RD:               rd,
+			ESI:              esi,
+			ETag:             7,
+			MacAddressLength: 48,
+			MacAddress:       mustParseMAC(t, mac),
+			IPAddressLength:  32,
+			IPAddress:        netip.MustParseAddr("192.0.2.1"),
+			Labels:           []uint32{300},
+		}
+		b, err := r.MarshalJSON()
+		require.NoError(t, err)
+		var m map[string]any
+		require.NoError(t, json.Unmarshal(b, &m))
+		assert.Equal(t, "192.0.2.1", m["ip"])
+	})
+}
+
+func mustParseMAC(t *testing.T, s string) net.HardwareAddr {
+	t.Helper()
+	m, err := net.ParseMAC(s)
+	require.NoError(t, err)
+	return m
 }
 
 func Test_CapExtendedNexthop(t *testing.T) {
