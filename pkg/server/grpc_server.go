@@ -420,6 +420,10 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 			if err != nil {
 				remoteCaps = []*api.Capability{}
 			}
+			localCaps, err := apiutil.MarshalCapabilities(p.State.LocalCap)
+			if err != nil {
+				localCaps = []*api.Capability{}
+			}
 			fn(&api.WatchEventResponse{
 				Event: &api.WatchEventResponse_Peer{
 					Peer: &api.WatchEventResponse_PeerEvent{
@@ -430,6 +434,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 								LocalAsn:          p.Conf.LocalASN,
 								NeighborAddress:   p.Conf.NeighborAddress.String(),
 								NeighborInterface: p.Conf.NeighborInterface,
+								PeerGroup:         p.Conf.PeerGroup,
 							},
 							State: &api.PeerState{
 								PeerAsn:         p.State.PeerASN,
@@ -438,7 +443,9 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 								SessionState:    api.PeerState_SessionState(int(p.State.SessionState) + 1),
 								AdminState:      p.State.AdminState,
 								RouterId:        p.State.RouterID.String(),
+								PeerGroup:       p.State.PeerGroup,
 								RemoteCap:       remoteCaps,
+								LocalCap:        localCaps,
 							},
 							Transport: &api.Transport{
 								LocalAddress: p.Transport.LocalAddress.String(),
