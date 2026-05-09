@@ -906,7 +906,6 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t
 	peer.fsm.lock.Lock()
 	conf := peer.fsm.pConf.ReadCopy()
 	sentOpen := buildopen(peer.fsm.gConf, &conf)
-	peer.fsm.pConf.Update(&conf)
 	capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
 	if newState >= bgp.BGP_FSM_OPENCONFIRM {
 		// Adding peer remote capabilities to the event
@@ -918,6 +917,10 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t
 			capList = append(capList, caps...)
 		}
 	}
+	localCaps := capabilitiesFromConfig(&conf)
+	// Publish conf only after buildopen and capabilitiesFromConfig finish mutating it
+	// (capabilitiesFromConfig updates per-AFI GR advertised state).
+	peer.fsm.pConf.Update(&conf)
 	peer.fsm.lock.Unlock()
 
 	recvOpen := peer.fsm.recvOpen
@@ -938,6 +941,8 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t
 		Timestamp:     time.Now(),
 		PeerInterface: conf.Config.NeighborInterface,
 		RemoteCap:     capList,
+		LocalCap:      localCaps,
+		PeerGroup:     conf.Config.PeerGroup,
 	}
 
 	if m != nil {
@@ -4582,6 +4587,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 									LocalASN:          msg.LocalAS,
 									NeighborAddress:   msg.PeerAddress,
 									NeighborInterface: msg.PeerInterface,
+									PeerGroup:         msg.PeerGroup,
 								},
 								State: apiutil.PeerState{
 									PeerASN:           msg.PeerAS,
@@ -4590,7 +4596,9 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 									SessionState:      msg.State,
 									AdminState:        admin_state,
 									RouterID:          msg.PeerID,
+									PeerGroup:         msg.PeerGroup,
 									RemoteCap:         msg.RemoteCap,
+									LocalCap:          msg.LocalCap,
 									DisconnectReason:  disconnectReason,
 									DisconnectMessage: disconnectMessage,
 								},
@@ -4687,6 +4695,7 @@ type watchEventPeer struct {
 	PeerPort      uint16
 	LocalPort     uint16
 	PeerID        netip.Addr
+	PeerGroup     string
 	SentOpen      *bgp.BGPMessage
 	RecvOpen      *bgp.BGPMessage
 	State         bgp.FSMState
@@ -4696,6 +4705,7 @@ type watchEventPeer struct {
 	Timestamp     time.Time
 	PeerInterface string
 	RemoteCap     []bgp.ParameterCapabilityInterface
+	LocalCap      []bgp.ParameterCapabilityInterface
 }
 
 type watchEventBestPath struct {
