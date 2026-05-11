@@ -1076,6 +1076,110 @@ func TestListPathEnableMultipath(t *testing.T) {
 	}
 }
 
+func TestListPathEnableMultipath_DifferentLocalPref(t *testing.T) {
+	// Regression test: with UseMultiplePaths enabled, only paths that
+	// Compare() equal to the best path (index 0) should be marked Best.
+	// A prior bug compared each path against its predecessor [i-1] instead
+	// of [0], causing a path with lower LOCAL_PREF to be marked Best when
+	// it was equal to another non-best path.
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	require.NoError(t, err)
+
+	nh0, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.0.1"))
+	require.NoError(t, err)
+	nh1, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.0.2"))
+	require.NoError(t, err)
+	nh2, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.0.3"))
+	require.NoError(t, err)
+
+	// Path A: LOCAL_PREF=200 — should be the sole best path.
+	pathA := &apiutil.Path{
+		Family:  bgp.RF_IPv4_UC,
+		Nlri:    nlri,
+		PeerASN: 65001,
+		Attrs: []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+				bgp.NewAsPathParam(2, []uint16{65001}),
+			}),
+			nh0,
+			bgp.NewPathAttributeLocalPref(200),
+		},
+	}
+
+	// Path B: LOCAL_PREF=100 — not best.
+	pathB := &apiutil.Path{
+		Family:  bgp.RF_IPv4_UC,
+		Nlri:    nlri,
+		PeerASN: 65002,
+		Attrs: []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+				bgp.NewAsPathParam(2, []uint16{65002}),
+			}),
+			nh1,
+			bgp.NewPathAttributeLocalPref(100),
+		},
+	}
+
+	// Path C: LOCAL_PREF=100 — not best (equal to B, but not equal to A).
+	pathC := &apiutil.Path{
+		Family:  bgp.RF_IPv4_UC,
+		Nlri:    nlri,
+		PeerASN: 65003,
+		Attrs: []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+				bgp.NewAsPathParam(2, []uint16{65003}),
+			}),
+			nh2,
+			bgp.NewPathAttributeLocalPref(100),
+		},
+	}
+
+	server := NewBgpServer()
+	go server.Serve()
+	err = server.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:              1,
+			RouterId:         "1.1.1.1",
+			UseMultiplePaths: true,
+			ListenPort:       -1,
+		},
+	})
+	require.NoError(t, err)
+	defer server.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	_, err = server.AddPath(apiutil.AddPathRequest{
+		Paths: []*apiutil.Path{pathA, pathB, pathC},
+	})
+	require.NoError(t, err)
+
+	err = server.ListPath(
+		apiutil.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_LOCAL,
+			Family:    bgp.RF_IPv4_UC,
+		},
+		func(prefix bgp.NLRI, paths []*apiutil.Path) {
+			p, ok := prefix.(*bgp.IPAddrPrefix)
+			require.True(t, ok)
+			require.Equal(t, netip.MustParsePrefix("10.0.0.0/24"), p.Prefix)
+
+			require.Len(t, paths, 3)
+
+			// Only the best path (highest LOCAL_PREF) should be marked Best.
+			bestCount := 0
+			for _, path := range paths {
+				if path.Best {
+					bestCount++
+				}
+			}
+			require.Equal(t, 1, bestCount, "only the best path should be marked Best")
+		},
+	)
+	require.NoError(t, err)
+}
+
 func TestMonitor(test *testing.T) {
 	assert := assert.New(test)
 	s := NewBgpServer()
