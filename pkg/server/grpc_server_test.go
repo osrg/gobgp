@@ -64,6 +64,16 @@ func TestParseHost(t *testing.T) {
 	}
 }
 
+func TestNewPeerGroupFromAPIStructRejectsInvalidAllowOwnAsn(t *testing.T) {
+	_, err := newPeerGroupFromAPIStruct(&api.PeerGroup{
+		Conf: &api.PeerGroupConf{
+			PeerGroupName: "pg",
+			AllowOwnAsn:   256,
+		},
+	})
+	assert.ErrorContains(t, err, "allow_own_asn is out of range")
+}
+
 func TestToPathApi(t *testing.T) {
 	type args struct {
 		path            *table.Path

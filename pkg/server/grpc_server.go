@@ -1188,6 +1188,12 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		pconf.Config.Description = a.Conf.Description
 		pconf.Config.PeerGroupName = a.Conf.PeerGroupName
 		pconf.Config.SendSoftwareVersion = a.Conf.SendSoftwareVersion
+		if a.Conf.AllowOwnAsn > math.MaxUint8 {
+			return nil, fmt.Errorf("allow_own_asn is out of range: %d", a.Conf.AllowOwnAsn)
+		}
+		pconf.AsPathOptions.Config.AllowOwnAs = uint8(a.Conf.AllowOwnAsn)
+		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAsn
+		pconf.AsPathOptions.Config.AllowAsPathLoopLocal = a.Conf.AllowAspathLoopLocal
 
 		switch a.Conf.RemovePrivate {
 		case api.RemovePrivate_REMOVE_PRIVATE_ALL:
