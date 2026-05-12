@@ -910,3 +910,81 @@ func TestAsPathAs4PathOrdering(t *testing.T) {
 	assert.Equal(t, msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS[3], uint32(300000))
 	assert.Equal(t, msg.PathAttributes[0].(*bgp.PathAttributeAsPath).Value[0].(*bgp.As4PathParam).AS[4], uint32(40001))
 }
+
+func TestCreateUpdateMsgFromPathsKeepsLastAction(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		paths        func(*Path, *Path, *Path, *Path) []*Path
+		wantWithdraw bool
+		wantAnnounce bool
+		wantOther    bool
+		wantEOR      bool
+	}{
+		{
+			name: "withdraw last",
+			paths: func(announce, withdraw, other, eor *Path) []*Path {
+				return []*Path{announce, nil, eor, other, withdraw}
+			},
+			wantWithdraw: true,
+			wantOther:    true,
+			wantEOR:      true,
+		},
+		{
+			name: "announce last",
+			paths: func(announce, withdraw, other, eor *Path) []*Path {
+				return []*Path{withdraw, eor, announce}
+			},
+			wantAnnounce: true,
+			wantEOR:      true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			announce := newIPv4UpdatePath(t, "10.0.0.0/24")
+			withdraw := announce.Clone(true)
+			other := newIPv4UpdatePath(t, "10.0.1.0/24")
+			eor := NewEOR(bgp.RF_IPv4_UC)
+
+			msgs := CreateUpdateMsgFromPaths(tc.paths(announce, withdraw, other, eor))
+			withdrawn := make(map[string]bool)
+			announced := make(map[string]bool)
+			gotEOR := false
+			for _, msg := range msgs {
+				update := msg.Body.(*bgp.BGPUpdate)
+				if ok, family := update.IsEndOfRib(); ok && family == bgp.RF_IPv4_UC {
+					gotEOR = true
+				}
+				for _, nlri := range update.WithdrawnRoutes {
+					withdrawn[nlri.NLRI.String()] = true
+				}
+				for _, nlri := range update.NLRI {
+					announced[nlri.NLRI.String()] = true
+				}
+			}
+
+			assert.Equal(t, tc.wantWithdraw, withdrawn["10.0.0.0/24"])
+			assert.Equal(t, tc.wantAnnounce, announced["10.0.0.0/24"])
+			assert.Equal(t, tc.wantOther, announced["10.0.1.0/24"])
+			assert.Equal(t, tc.wantEOR, gotEOR)
+		})
+	}
+}
+
+func newIPv4UpdatePath(t *testing.T, prefix string) *Path {
+	t.Helper()
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nexthop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(2, []uint32{65001}),
+		}),
+		nexthop,
+	}
+	return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+}
