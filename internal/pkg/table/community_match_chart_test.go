@@ -13,7 +13,20 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-// createPathWithCommunities builds a path that carries the given community values.
+const gobgpCommunityBenchCompareEnv = "GOBGP_COMMUNITY_BENCH_COMPARE"
+
+func communityBenchComparePrintEnabled() bool {
+	return os.Getenv(gobgpCommunityBenchCompareEnv) == "1"
+}
+
+func writeCommunityBenchCompareChartHeader(tw *tabwriter.Writer) error {
+	if _, err := fmt.Fprintln(tw, "bench\tnew ns/op\tlegacy ns/op\tlegacy/new\tname"); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintln(tw, "-----\t---------\t-----------\t--------\t----")
+	return err
+}
+
 func createPathWithCommunities(communities []uint32) *Path {
 	p := netip.MustParsePrefix("10.0.0.0/24")
 	nlri, _ := bgp.NewIPAddrPrefix(p)
@@ -27,11 +40,21 @@ func createPathWithCommunities(communities []uint32) *Path {
 	return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 }
 
-// communityChartCase describes one benchmark scenario for community matching.
+func createPathWithExtCommunities(ecs []bgp.ExtendedCommunityInterface) *Path {
+	p := netip.MustParsePrefix("10.0.0.0/24")
+	nlri, _ := bgp.NewIPAddrPrefix(p)
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		nexthop,
+		bgp.NewPathAttributeExtendedCommunities(ecs),
+	}
+	return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+}
+
 type communityChartCase struct {
-	// Bench is a short b.Run() sub-name (ASCII, no spaces) so console output stays narrow.
 	Bench    string
-	Name     string // human-readable; used in failure messages
+	Name     string
 	Patterns []string
 	Regexps  []string
 	WantHit  bool
@@ -148,7 +171,6 @@ func communityBenchmarkPath() *Path {
 	})
 }
 
-// communityMatchLegacyLoop is the naive fmt.Sprintf + regexp baseline (not semantically identical to MATCH_OPTION_ANY).
 func communityMatchLegacyLoop(path *Path, regs []*regexp.Regexp) {
 	cs := path.GetCommunities()
 	for _, x := range regs {
@@ -160,9 +182,90 @@ func communityMatchLegacyLoop(path *Path, regs []*regexp.Regexp) {
 	}
 }
 
-// BenchmarkCommunityCondition runs New and Legacy side by side per scenario (names like exact_1/New, exact_1/Legacy).
+type extCommunityLegacyEntry struct {
+	subtype bgp.ExtendedCommunityAttrSubType
+	re      *regexp.Regexp
+}
+
+func parseExtCommunityLegacyEntries(patterns []string) ([]extCommunityLegacyEntry, error) {
+	entries := make([]extCommunityLegacyEntry, len(patterns))
+	for i, p := range patterns {
+		st, re, err := ParseExtCommunityRegexp(p)
+		if err != nil {
+			return nil, err
+		}
+		entries[i] = extCommunityLegacyEntry{subtype: st, re: re}
+	}
+	return entries, nil
+}
+
+func extCommunityMatchLegacyLoop(path *Path, entries []extCommunityLegacyEntry) {
+	ecs := path.GetExtCommunities()
+	for _, x := range ecs {
+		if !isTransitiveType(x) {
+			continue
+		}
+		xStr := x.String()
+		for _, e := range entries {
+			if subTypeEqual(x, e.subtype) && e.re.MatchString(xStr) {
+				break
+			}
+		}
+	}
+}
+
+type extCommunityChartCase struct {
+	Bench    string
+	Name     string
+	Patterns []string
+	Path     *Path
+	WantHit  bool
+}
+
+func extCommunityChartCases() []extCommunityChartCase {
+	makeRT := func(as uint16, la uint32) bgp.ExtendedCommunityInterface {
+		return bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, as, la, true)
+	}
+	makeExtPath := func(ecs ...bgp.ExtendedCommunityInterface) *Path {
+		p := netip.MustParsePrefix("10.0.0.0/8")
+		nlri, _ := bgp.NewIPAddrPrefix(p)
+		nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+		return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false,
+			[]bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0), nh,
+				bgp.NewPathAttributeExtendedCommunities(ecs),
+			}, time.Now(), false)
+	}
+
+	pols1 := []string{
+		"rt:^65448:614$", "rt:^65448:654$", "rt:^65448:664$", "rt:^65448:665$", "rt:^65448:684$",
+		"rt:^65533:614$", "rt:^65533:654$", "rt:^65533:664$", "rt:^65533:684$",
+	}
+	pols2 := []string{
+		"rt:^65440:.*$", "rt:^65442:.*$",
+		"rt:^65448:614$", "rt:^65448:654$", "rt:^65448:664$", "rt:^65448:665$", "rt:^65448:684$",
+		"rt:^65533:614$", "rt:^65533:616$", "rt:^65533:654$", "rt:^65533:656$",
+		"rt:^65533:664$", "rt:^65533:666$", "rt:^65533:684$", "rt:^65533:686$",
+	}
+	pathSingle := makeExtPath(makeRT(65533, 664))
+	pathMulti := makeExtPath(makeRT(65448, 614), makeRT(65533, 654), makeRT(65533, 664))
+
+	return []extCommunityChartCase{
+		{"rt9_exact_last", "RT / 9 exact patterns / last matches", pols1, pathSingle, true},
+		{"rt9_exact_none", "RT / 9 exact patterns / no match", pols1, makeExtPath(makeRT(65099, 1)), false},
+		{"rt15_mix_exact", "RT / 15 patterns / wildcard prefix / exact RT match", pols2, pathSingle, true},
+		{"rt15_mix_wild", "RT / 15 patterns / wildcard prefix / wildcard RT match", pols2, makeExtPath(makeRT(65440, 100)), true},
+		{"rt15_multi_3rt", "RT / 15 patterns / 3 RTs / early match", pols2, pathMulti, true},
+		{"rt_local_digit", "RT / ^\\d+:local / bitmap-style / match", []string{`rt:^\d+:664$`}, pathSingle, true},
+		{"rt_local_alt", "RT / ^\\d+:(a|b) / bitmap-style / match", []string{`rt:^\d+:(614|664)$`}, pathSingle, true},
+		{"rt_local_miss", "RT / ^\\d+:local / no match", []string{`rt:^\d+:1$`}, pathSingle, false},
+	}
+}
+
+// BenchmarkCommunityCondition and BenchmarkExtCommunityCondition run New vs Legacy side by side
+// per scenario (e.g. exact_1/New, exact_1/Legacy and rt9_exact_last/New, rt9_exact_last/Legacy).
 //
-//	go test ./internal/pkg/table/ -run '^$' -bench 'BenchmarkCommunityCondition' -benchmem -count=5
+//	go test ./internal/pkg/table/ -run '^$' -bench 'BenchmarkCommunity(Condition|ExtCommunityCondition)$' -benchmem -count=5
 func BenchmarkCommunityCondition(b *testing.B) {
 	path := communityBenchmarkPath()
 	for _, sc := range communityChartCases() {
@@ -196,18 +299,48 @@ func BenchmarkCommunityCondition(b *testing.B) {
 	}
 }
 
+func BenchmarkExtCommunityCondition(b *testing.B) {
+	for _, sc := range extCommunityChartCases() {
+		b.Run(sc.Bench+"/New", func(b *testing.B) {
+			es, err := NewExtCommunitySet(oc.ExtCommunitySet{ExtCommunitySetName: "bench", ExtCommunityList: sc.Patterns})
+			if err != nil {
+				b.Fatal(err)
+			}
+			cond := &ExtCommunityCondition{set: es, option: MATCH_OPTION_ANY}
+			if got := cond.Evaluate(sc.Path, nil); got != sc.WantHit {
+				b.Fatalf("%s: expected match=%v got %v", sc.Name, sc.WantHit, got)
+			}
+			b.ResetTimer()
+			for range b.N {
+				cond.Evaluate(sc.Path, nil)
+			}
+		})
+		b.Run(sc.Bench+"/Legacy", func(b *testing.B) {
+			entries, err := parseExtCommunityLegacyEntries(sc.Patterns)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.ResetTimer()
+			for range b.N {
+				extCommunityMatchLegacyLoop(sc.Path, entries)
+			}
+		})
+	}
+}
+
 func TestCommunityConditionCompareSummary(t *testing.T) {
-	if os.Getenv("GOBGP_COMMUNITY_BENCH_COMPARE") != "1" {
-		t.Skip(`set GOBGP_COMMUNITY_BENCH_COMPARE=1 to print New vs Legacy ns/op and speedup (legacy/new)`)
+	if testing.Short() {
+		t.Skip("skipping community bench compare summary in short mode")
+	}
+	if !communityBenchComparePrintEnabled() {
+		t.Skipf(`set %s=1 to print standard vs Legacy ns/op and speedup (legacy/new)`, gobgpCommunityBenchCompareEnv)
 	}
 	path := communityBenchmarkPath()
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, err := fmt.Fprintln(tw, "bench\tnew ns/op\tlegacy ns/op\tlegacy/new\tname")
-	if err != nil {
+	if _, err := fmt.Fprintln(tw, "\n[standard community]"); err != nil {
 		t.Fatal(err)
 	}
-	_, err = fmt.Fprintln(tw, "-----\t---------\t-----------\t--------\t----")
-	if err != nil {
+	if err := writeCommunityBenchCompareChartHeader(tw); err != nil {
 		t.Fatal(err)
 	}
 	for _, sc := range communityChartCases() {
@@ -243,6 +376,58 @@ func TestCommunityConditionCompareSummary(t *testing.T) {
 		ratio := legNs / newNs
 		_, err := fmt.Fprintf(tw, "%s\t%.0f\t%.0f\t%.2fx\t%s\n", sc.Bench, newNs, legNs, ratio, sc.Name)
 		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = tw.Flush()
+}
+
+func TestExtCommunityConditionCompareSummary(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping ext-community bench compare summary in short mode")
+	}
+	if !communityBenchComparePrintEnabled() {
+		t.Skipf(`set %s=1 to print standard vs Legacy ns/op and speedup (legacy/new)`, gobgpCommunityBenchCompareEnv)
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if _, err := fmt.Fprintln(tw, "\n[extended community]"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCommunityBenchCompareChartHeader(tw); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, sc := range extCommunityChartCases() {
+		es, err := NewExtCommunitySet(oc.ExtCommunitySet{ExtCommunitySetName: "bench", ExtCommunityList: sc.Patterns})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cond := &ExtCommunityCondition{set: es, option: MATCH_OPTION_ANY}
+		if got := cond.Evaluate(sc.Path, nil); got != sc.WantHit {
+			t.Fatalf("%s: want match=%v got %v", sc.Name, sc.WantHit, got)
+		}
+
+		entries, err := parseExtCommunityLegacyEntries(sc.Patterns)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rNew := testing.Benchmark(func(b *testing.B) {
+			b.ResetTimer()
+			for range b.N {
+				cond.Evaluate(sc.Path, nil)
+			}
+		})
+		rLeg := testing.Benchmark(func(b *testing.B) {
+			b.ResetTimer()
+			for range b.N {
+				extCommunityMatchLegacyLoop(sc.Path, entries)
+			}
+		})
+		newNs := float64(rNew.NsPerOp())
+		legNs := float64(rLeg.NsPerOp())
+		ratio := legNs / newNs
+		if _, err := fmt.Fprintf(tw, "%s\t%.0f\t%.0f\t%.2fx\t%s\n", sc.Bench, newNs, legNs, ratio, sc.Name); err != nil {
 			t.Fatal(err)
 		}
 	}
