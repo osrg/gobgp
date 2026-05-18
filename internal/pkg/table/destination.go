@@ -372,9 +372,10 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 		}
 	}
 
-	// We do no have any match for this withdraw.
+	// We do not have any match for this withdraw.
+	// May be caused by bgp policy if not all paths got installed into the table.
 	if isFound == -1 {
-		logger.Warn("No matching path for withdraw found, may be path was not installed into table",
+		logger.Debug("No matching path for withdraw found, may be path was not installed into table",
 			slog.String("Topic", "Table"),
 			slog.String("Key", dest.GetNlri().String()),
 			slog.String("Path", withdraw.String()))
