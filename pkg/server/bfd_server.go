@@ -58,6 +58,8 @@ type bfdServer struct {
 	eventConfig     chan *oc.BfdConfig
 	eventPeerUpdate chan *bfdEventPeerUpdate
 	eventShutdown   chan struct{}
+	shutdownOnce    sync.Once
+	stopped         atomic.Bool
 
 	shutdownWait sync.WaitGroup
 
@@ -86,8 +88,16 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 }
 
 func (s *bfdServer) Start(ctx context.Context, config oc.BfdConfig) error {
+	if s.stopped.Load() {
+		return errors.New("bfd server stopped")
+	}
+
 	select {
 	case s.eventConfig <- &config:
+		if s.stopped.Load() {
+			return errors.New("bfd server stopped")
+		}
+
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -97,17 +107,28 @@ func (s *bfdServer) Start(ctx context.Context, config oc.BfdConfig) error {
 }
 
 func (s *bfdServer) Stop() {
-	close(s.eventShutdown)
-	s.shutdownWait.Wait()
+	s.shutdownOnce.Do(func() {
+		s.stopped.Store(true)
+		close(s.eventShutdown)
+		s.shutdownWait.Wait()
+	})
 }
 
 func (s *bfdServer) AddPeer(ctx context.Context, peerAddress netip.Addr, config oc.BfdConfig) error {
+	if s.stopped.Load() {
+		return errors.New("bfd server stopped")
+	}
+
 	if !config.Enabled {
 		return nil
 	}
 
 	select {
 	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: true, peerAddress: peerAddress, config: config}:
+		if s.stopped.Load() {
+			return errors.New("bfd server stopped")
+		}
+
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -117,8 +138,16 @@ func (s *bfdServer) AddPeer(ctx context.Context, peerAddress netip.Addr, config 
 }
 
 func (s *bfdServer) DeletePeer(ctx context.Context, peerAddress netip.Addr) error {
+	if s.stopped.Load() {
+		return errors.New("bfd server stopped")
+	}
+
 	select {
 	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: false, peerAddress: peerAddress}:
+		if s.stopped.Load() {
+			return errors.New("bfd server stopped")
+		}
+
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

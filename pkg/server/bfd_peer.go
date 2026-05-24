@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -33,7 +34,6 @@ type bfdPeerStats struct {
 	txError              atomic.Uint64
 	invalidDiscriminator atomic.Uint64
 	expired              atomic.Uint64
-	badInitPacket        atomic.Uint64
 }
 
 type bfdPeer struct {
@@ -58,16 +58,24 @@ type bfdPeer struct {
 	eventTx       *time.Ticker
 	eventExpiry   *time.Ticker
 	eventShutdown chan struct{}
+	shutdownOnce  sync.Once
+	shutdownWait  sync.WaitGroup
+	stopped       atomic.Bool
 
 	stats bfdPeerStats
 }
 
 func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig) *bfdPeer {
+	peerPort := int(config.Port)
+	if peerPort == 0 {
+		peerPort = BfdServerPort
+	}
+
 	p := &bfdPeer{
 		peerState:   ps,
 		logger:      logger,
 		peerAddress: peerAddress,
-		peerPort:    int(config.Port),
+		peerPort:    peerPort,
 
 		myDiscriminator: randomBFDMyDiscriminator(),
 		multiplier:      defaultMultiplier,
@@ -99,24 +107,37 @@ func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, confi
 	p.eventExpiry = time.NewTicker(p.expiryInterval)
 	p.eventExpiry.Stop()
 
+	p.shutdownWait.Add(1)
 	go p.loop()
 	return p
 }
 
 func (p *bfdPeer) Rx(packet *bfd.BFDHeader) bool {
+	if p.stopped.Load() {
+		return false
+	}
+
 	select {
 	case p.eventRxPacket <- packet:
 		return true
+	case <-p.eventShutdown:
+		return false
 	default:
 		return false
 	}
 }
 
 func (p *bfdPeer) Stop() {
-	close(p.eventShutdown)
+	p.shutdownOnce.Do(func() {
+		p.stopped.Store(true)
+		close(p.eventShutdown)
+		p.shutdownWait.Wait()
+	})
 }
 
 func (p *bfdPeer) loop() {
+	defer p.shutdownWait.Done()
+
 	for {
 		select {
 		case <-p.eventStart.C:
@@ -235,33 +256,45 @@ func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
 	// NOTE: remote DesiredMinTxInterval and RequiredMinRxInterval ignored
 
 	switch h.State {
-	case bfd.StateDown:
-		p.sendPacket(bfd.StateInit, false, false, h.MyDiscriminator)
-	case bfd.StateInit:
-		if api.BfdSessionState(p.state.Load()) == api.BfdSessionState_BFD_SESSION_STATE_UP {
-			p.stats.badInitPacket.Add(1)
-			return
+	case bfd.StateAdminDown:
+		if p.sessionState() != api.BfdSessionState_BFD_SESSION_STATE_DOWN {
+			p.remoteDown()
 		}
-
-		p.setStateUp(h.MyDiscriminator)
-	case bfd.StateUp:
-		if api.BfdSessionState(p.state.Load()) != api.BfdSessionState_BFD_SESSION_STATE_UP {
+	case bfd.StateDown:
+		switch p.sessionState() {
+		case api.BfdSessionState_BFD_SESSION_STATE_DOWN:
+			p.setStateInit(h.MyDiscriminator)
+		case api.BfdSessionState_BFD_SESSION_STATE_UP:
+			p.remoteDown()
+		}
+	case bfd.StateInit:
+		switch p.sessionState() {
+		case api.BfdSessionState_BFD_SESSION_STATE_DOWN, api.BfdSessionState_BFD_SESSION_STATE_INIT:
 			p.setStateUp(h.MyDiscriminator)
 		}
-
-		if h.Poll {
-			// send final packet
-			p.sendPacket(bfd.StateUp, false, true, h.MyDiscriminator)
+	case bfd.StateUp:
+		if p.sessionState() == api.BfdSessionState_BFD_SESSION_STATE_INIT {
+			p.setStateUp(h.MyDiscriminator)
 		}
+	}
 
+	if h.Poll {
+		p.sendPacket(p.sessionStateToWire(), false, true, h.MyDiscriminator)
+	}
+
+	if p.sessionState() == api.BfdSessionState_BFD_SESSION_STATE_INIT ||
+		p.sessionState() == api.BfdSessionState_BFD_SESSION_STATE_UP {
 		p.eventExpiry.Reset(p.expiryInterval)
 	}
 }
 
 func (p *bfdPeer) tx() {
-	if api.BfdSessionState(p.state.Load()) == api.BfdSessionState_BFD_SESSION_STATE_UP {
+	switch p.sessionState() {
+	case api.BfdSessionState_BFD_SESSION_STATE_UP:
 		p.sendPacket(bfd.StateUp, false, false, p.yourDiscriminator)
-	} else {
+	case api.BfdSessionState_BFD_SESSION_STATE_INIT:
+		p.sendPacket(bfd.StateInit, false, false, p.yourDiscriminator)
+	default:
 		p.sendPacket(bfd.StateDown, false, false, 0)
 	}
 }
@@ -272,6 +305,30 @@ func (p *bfdPeer) expiry() {
 		slog.String("Peer", p.peerAddress.String()),
 	)
 
+	p.stats.expired.Add(1)
+
+	p.resetPeer()
+	p.setStateDown()
+}
+
+func (p *bfdPeer) shutdown() {
+	p.stop()
+	p.eventStart.Stop()
+	p.eventTx.Stop()
+	p.eventExpiry.Stop()
+}
+
+func (p *bfdPeer) remoteDown() {
+	p.logger.Warn("Remote peer signaled BFD down",
+		slog.String("Topic", "bfd"),
+		slog.String("Peer", p.peerAddress.String()),
+	)
+
+	p.resetPeer()
+	p.setStateDown()
+}
+
+func (p *bfdPeer) resetPeer() {
 	if err := p.peerState.ResetPeer(context.Background(), &api.ResetPeerRequest{
 		Address:       p.peerAddress.String(),
 		Communication: "BFD is down",
@@ -283,16 +340,6 @@ func (p *bfdPeer) expiry() {
 			slog.String("Err", err.Error()),
 		)
 	}
-
-	p.stats.expired.Add(1)
-
-	p.setStateDown()
-}
-
-func (p *bfdPeer) shutdown() {
-	p.stop()
-	p.eventTx.Stop()
-	p.eventExpiry.Stop()
 }
 
 func (p *bfdPeer) sendPacket(state bfd.StateType, poll bool, final bool, yourDiscriminator uint32) {
@@ -337,6 +384,23 @@ func (p *bfdPeer) sendPacket(state bfd.StateType, poll bool, final bool, yourDis
 	p.stats.txPacket.Add(1)
 }
 
+func (p *bfdPeer) sessionState() api.BfdSessionState {
+	return api.BfdSessionState(p.state.Load())
+}
+
+func (p *bfdPeer) sessionStateToWire() bfd.StateType {
+	switch p.sessionState() {
+	case api.BfdSessionState_BFD_SESSION_STATE_UP:
+		return bfd.StateUp
+	case api.BfdSessionState_BFD_SESSION_STATE_INIT:
+		return bfd.StateInit
+	case api.BfdSessionState_BFD_SESSION_STATE_ADMIN_DOWN:
+		return bfd.StateAdminDown
+	default:
+		return bfd.StateDown
+	}
+}
+
 func (p *bfdPeer) setStateDown() {
 	p.logger.Debug("Set state to DOWN",
 		slog.String("Topic", "bfd"),
@@ -347,6 +411,16 @@ func (p *bfdPeer) setStateDown() {
 	p.yourDiscriminator = 0
 
 	p.eventExpiry.Stop()
+}
+
+func (p *bfdPeer) setStateInit(yourDiscriminator uint32) {
+	p.logger.Debug("Set state to INIT",
+		slog.String("Topic", "bfd"),
+		slog.String("Peer", p.peerAddress.String()),
+	)
+
+	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_INIT))
+	p.yourDiscriminator = yourDiscriminator
 }
 
 func (p *bfdPeer) setStateUp(yourDiscriminator uint32) {

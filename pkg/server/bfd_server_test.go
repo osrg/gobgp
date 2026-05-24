@@ -73,6 +73,51 @@ func Test_StartStop(t *testing.T) {
 	defer s1.Stop()
 }
 
+func Test_BfdServerStopIdempotentAndPublicMethodsAfterStop(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	s := NewBfdServer(ps, slog.Default())
+	s.Stop()
+	s.Stop()
+
+	assert.Error(s.Start(context.Background(), oc.BfdConfig{Port: 13784}))
+	assert.Error(s.AddPeer(context.Background(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:    23784,
+		Enabled: true,
+	}))
+	assert.Error(s.DeletePeer(context.Background(), netip.MustParseAddr("127.0.0.1")))
+}
+
+func Test_ApiBfdSessionStateToOC(t *testing.T) {
+	assert := assert.New(t)
+
+	assert.Equal(oc.BFD_SESSION_STATE_UP, apiBfdSessionStateToOC(api.BfdSessionState_BFD_SESSION_STATE_UP))
+	assert.Equal(oc.BFD_SESSION_STATE_DOWN, apiBfdSessionStateToOC(api.BfdSessionState_BFD_SESSION_STATE_DOWN))
+	assert.Equal(oc.BFD_SESSION_STATE_ADMIN_DOWN, apiBfdSessionStateToOC(api.BfdSessionState_BFD_SESSION_STATE_ADMIN_DOWN))
+	assert.Equal(oc.BFD_SESSION_STATE_INIT, apiBfdSessionStateToOC(api.BfdSessionState_BFD_SESSION_STATE_INIT))
+}
+
+func Test_NewBfdConfigFromAPIStructRejectsOverflow(t *testing.T) {
+	assert := assert.New(t)
+
+	_, err := newBfdConfigFromAPIStruct(&api.BfdPeerConfig{Port: 1 << 16})
+	assert.Error(err)
+
+	_, err = newBfdConfigFromAPIStruct(&api.BfdPeerConfig{DetectionMultiplier: 1 << 8})
+	assert.Error(err)
+
+	config, err := newBfdConfigFromAPIStruct(&api.BfdPeerConfig{
+		Enabled:             true,
+		Port:                BfdServerPort,
+		DetectionMultiplier: 3,
+	})
+	assert.NoError(err)
+	assert.True(config.Enabled)
+	assert.Equal(uint16(BfdServerPort), config.Port)
+	assert.Equal(uint8(3), config.DetectionMultiplier)
+}
+
 func newServer(port uint16) *bfdServer {
 	ps := &mockPeerState{}
 	s := NewBfdServer(ps, slog.Default())
@@ -447,6 +492,73 @@ func Test_BgpAddDeletePeerWithDisabledBfd(t *testing.T) {
 		count++
 	})
 	assert.Equal(count, 0)
+}
+
+func Test_BgpUpdatePeerBfdConfig(t *testing.T) {
+	assert := assert.New(t)
+
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s.Stop()
+
+	peer := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.3",
+			PeerAsn:         1,
+		},
+		Bfd: &api.BfdPeerConfig{Enabled: false},
+	}
+
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer})
+	assert.NoError(err)
+
+	countBfdPeers := func() int {
+		count := 0
+		s.ListBfdPeer(context.Background(), func(peerAddress string, state *api.BfdPeerState) {
+			count++
+		})
+		return count
+	}
+
+	assert.Equal(0, countBfdPeers())
+
+	peer.Bfd = &api.BfdPeerConfig{
+		Enabled:                  true,
+		Port:                     BfdServerPort,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   1000000,
+		DesiredMinimumTxInterval: 1000000,
+	}
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: peer})
+	assert.NoError(err)
+
+	err = eventually(time.Second, func() error {
+		if countBfdPeers() == 1 {
+			return nil
+		}
+		return fmt.Errorf("must be: bfd peer count == 1")
+	})
+	assert.NoError(err)
+
+	peer.Bfd.Enabled = false
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: peer})
+	assert.NoError(err)
+
+	err = eventually(time.Second, func() error {
+		if countBfdPeers() == 0 {
+			return nil
+		}
+		return fmt.Errorf("must be: bfd peer count == 0")
+	})
+	assert.NoError(err)
 }
 
 func Test_BfdServer_NoGoroutineLeakAfterStop(t *testing.T) {
