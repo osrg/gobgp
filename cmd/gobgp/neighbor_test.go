@@ -16,9 +16,8 @@
 package main
 
 import (
-	"time"
-
 	"testing"
+	"time"
 
 	"github.com/osrg/gobgp/v4/api"
 	bgp "github.com/osrg/gobgp/v4/pkg/packet/bgp"
