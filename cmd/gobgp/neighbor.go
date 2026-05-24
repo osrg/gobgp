@@ -589,7 +589,12 @@ func getPathAttributeString(nlri bgp.NLRI, attrs []bgp.PathAttributeInterface) s
 }
 
 func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, showLabel, showMUP, showSendMaxFiltered bool, showIdentifier bgp.BGPAddPathMode) []any {
-	nlri, _ := apiutil.GetNativeNlri(p)
+	nlri, err := apiutil.GetNativeNlri(p)
+	// nlri is nil when the NLRI cannot be decoded; avoid a nil dereference below.
+	nlriStr := "?"
+	if err == nil && nlri != nil {
+		nlriStr = nlri.String()
+	}
 
 	// Path Symbols (e.g. "*>")
 	args := []any{getPathSymbolString(p, idx, showBest)}
@@ -603,7 +608,7 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 	}
 
 	// NLRI
-	args = append(args, nlri)
+	args = append(args, nlriStr)
 
 	// Label
 	label := ""
@@ -662,7 +667,7 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 		}
 	}
 
-	updateColumnWidth(nlri.String(), nexthop, aspathstr, label, teid, qfi, endpoint)
+	updateColumnWidth(nlriStr, nexthop, aspathstr, label, teid, qfi, endpoint)
 
 	return args
 }
