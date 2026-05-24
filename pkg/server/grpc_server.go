@@ -970,6 +970,26 @@ func PeerTypeFromApi(a api.PeerType) (oc.PeerType, error) {
 	}
 }
 
+func newBfdConfigFromAPIStruct(a *api.BfdPeerConfig) (oc.BfdConfig, error) {
+	if a == nil {
+		return oc.BfdConfig{}, nil
+	}
+	if a.Port > uint32(^uint16(0)) {
+		return oc.BfdConfig{}, fmt.Errorf("invalid BFD port: %d", a.Port)
+	}
+	if a.DetectionMultiplier > uint32(^uint8(0)) {
+		return oc.BfdConfig{}, fmt.Errorf("invalid BFD detection multiplier: %d", a.DetectionMultiplier)
+	}
+
+	return oc.BfdConfig{
+		Enabled:                  a.Enabled,
+		Port:                     uint16(a.Port),
+		DesiredMinimumTxInterval: a.DesiredMinimumTxInterval,
+		RequiredMinimumReceive:   a.RequiredMinimumReceive,
+		DetectionMultiplier:      uint8(a.DetectionMultiplier),
+	}, nil
+}
+
 func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 	pconf := &oc.Neighbor{}
 	if a.Conf != nil {
@@ -1090,11 +1110,11 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
 	}
 	if a.Bfd != nil {
-		pconf.Bfd.Config.Enabled = a.Bfd.Enabled
-		pconf.Bfd.Config.Port = uint16(a.Bfd.Port)
-		pconf.Bfd.Config.DesiredMinimumTxInterval = a.Bfd.DesiredMinimumTxInterval
-		pconf.Bfd.Config.RequiredMinimumReceive = a.Bfd.RequiredMinimumReceive
-		pconf.Bfd.Config.DetectionMultiplier = uint8(a.Bfd.DetectionMultiplier)
+		bfdConfig, err := newBfdConfigFromAPIStruct(a.Bfd)
+		if err != nil {
+			return nil, err
+		}
+		pconf.Bfd.Config = bfdConfig
 	}
 	if a.State != nil {
 		var sessionState oc.SessionState
@@ -1238,11 +1258,11 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		pconf.TtlSecurity.Config.TtlMin = uint8(a.TtlSecurity.TtlMin)
 	}
 	if a.Bfd != nil {
-		pconf.Bfd.Config.Enabled = a.Bfd.Enabled
-		pconf.Bfd.Config.Port = uint16(a.Bfd.Port)
-		pconf.Bfd.Config.DesiredMinimumTxInterval = a.Bfd.DesiredMinimumTxInterval
-		pconf.Bfd.Config.RequiredMinimumReceive = a.Bfd.RequiredMinimumReceive
-		pconf.Bfd.Config.DetectionMultiplier = uint8(a.Bfd.DetectionMultiplier)
+		bfdConfig, err := newBfdConfigFromAPIStruct(a.Bfd)
+		if err != nil {
+			return nil, err
+		}
+		pconf.Bfd.Config = bfdConfig
 	}
 	if a.Info != nil {
 		pconf.State.TotalPaths = a.Info.TotalPaths

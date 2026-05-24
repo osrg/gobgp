@@ -828,7 +828,7 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 		bfdPeer, err := s.bfdServer.GetPeerState(conf.State.NeighborAddress)
 		if err == nil {
 			st := &bfdPeer.state
-			conf.Bfd.State.SessionState = oc.IntToBfdSessionStateMap[int(st.SessionState)]
+			conf.Bfd.State.SessionState = apiBfdSessionStateToOC(st.SessionState)
 			conf.Bfd.State.LastFailureTime = st.LastFailureTime
 			conf.Bfd.State.FailureTransitions = st.FailureTransitions
 			conf.Bfd.State.LocalDiscriminator = st.LocalDiscriminator
@@ -3381,6 +3381,46 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	return nil
 }
 
+func apiBfdSessionStateToOC(state api.BfdSessionState) oc.BfdSessionState {
+	switch state {
+	case api.BfdSessionState_BFD_SESSION_STATE_UP:
+		return oc.BFD_SESSION_STATE_UP
+	case api.BfdSessionState_BFD_SESSION_STATE_DOWN:
+		return oc.BFD_SESSION_STATE_DOWN
+	case api.BfdSessionState_BFD_SESSION_STATE_ADMIN_DOWN:
+		return oc.BFD_SESSION_STATE_ADMIN_DOWN
+	case api.BfdSessionState_BFD_SESSION_STATE_INIT:
+		return oc.BFD_SESSION_STATE_INIT
+	default:
+		return oc.BFD_SESSION_STATE_DOWN
+	}
+}
+
+func (s *BgpServer) updateBfdPeer(addr string, oldConfig, newConfig oc.BfdConfig) error {
+	if s.bfdServer == nil || oldConfig.Equal(&newConfig) {
+		return nil
+	}
+
+	ipAddr, err := netip.ParseAddr(addr)
+	if err != nil {
+		return fmt.Errorf("failed to parse IP address: %v", err)
+	}
+
+	if oldConfig.Enabled {
+		if err := s.bfdServer.DeletePeer(context.Background(), ipAddr); err != nil {
+			return err
+		}
+	}
+
+	if newConfig.Enabled {
+		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, newConfig); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *BgpServer) AddPeerGroup(ctx context.Context, r *api.AddPeerGroupRequest) error {
 	if r == nil || r.PeerGroup == nil {
 		return fmt.Errorf("nil request")
@@ -3656,6 +3696,12 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		needsSoftResetIn = true
 	}
 
+	bfdConfigChanged := !original.Bfd.Config.Equal(&c.Bfd.Config)
+	if bfdConfigChanged {
+		peer.fsm.logger.Info("Update BFD configuration")
+		conf.Bfd.Config = c.Bfd.Config
+	}
+
 	if original.NeedsResendOpenMessage(c) {
 		sub := uint8(bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE)
 		if original.Config.AdminDown != c.Config.AdminDown {
@@ -3699,8 +3745,13 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if err == nil {
 		peer.fsm.pConf.Update(&conf)
 		peer.fsm.lock.Unlock()
+		if bfdConfigChanged {
+			err = s.updateBfdPeer(addr, original.Bfd.Config, c.Bfd.Config)
+		}
 		if isLimit {
-			err = s.setAdminState(addr, "", adminStatePfxCt)
+			if err == nil {
+				err = s.setAdminState(addr, "", adminStatePfxCt)
+			}
 		}
 	} else {
 		// rollback to original ApplyPolicy
