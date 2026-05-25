@@ -47,6 +47,7 @@ Try [a binary release](https://github.com/osrg/gobgp/releases/latest).
 - [Dynamic Neighbor](docs/sources/dynamic-neighbor.md)
 - [eBGP Multihop](docs/sources/ebgp-multihop.md)
 - [TTL Security](docs/sources/ttl-security.md)
+- [BFD](docs/sources/bfd.md)
 - [Confederation](docs/sources/bgp-confederation.md)
 - Data Center Networking
   - [Unnumbered BGP](docs/sources/unnumbered-bgp.md)
