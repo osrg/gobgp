@@ -389,6 +389,27 @@ func Test_Validate_aspath(t *testing.T) {
 	res, err = ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, true, true, false)
 	require.NoError(t, err)
 	assert.Equal(true, res)
+
+	// empty AS_PATH for confederation eBGP
+	newAttrs = make([]PathAttributeInterface, 0)
+	attrs = message.PathAttributes
+	for _, attr := range attrs {
+		if _, y := attr.(*PathAttributeAsPath); y {
+			newAttrs = append(newAttrs, NewPathAttributeAsPath([]AsPathParamInterface{}))
+		} else {
+			newAttrs = append(newAttrs, attr)
+		}
+	}
+
+	message.PathAttributes = newAttrs
+	res, err = ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, true, true, false)
+	assert.Equal(false, res)
+	assert.Error(err)
+	e = err.(*MessageError)
+	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+	assert.Equal(uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH), e.SubTypeCode)
+	assert.Equal(ERROR_HANDLING_SESSION_RESET, e.ErrorHandling)
+	assert.Nil(e.Data)
 }
 
 func Test_Validate_flowspec(t *testing.T) {
