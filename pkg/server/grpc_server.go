@@ -526,9 +526,13 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	var nexthop netip.Addr
 
 	if path.SourceAsn != 0 {
+		id, err := netip.ParseAddr(path.SourceId)
+		if err != nil {
+			return nil, fmt.Errorf("invalid source ID: %w", err)
+		}
 		pi = &table.PeerInfo{
 			AS: path.SourceAsn,
-			ID: netip.MustParseAddr(path.SourceId),
+			ID: id,
 		}
 	}
 
