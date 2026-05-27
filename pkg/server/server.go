@@ -1733,7 +1733,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				// the Selection_Deferral_Timer referred to below has expired.
 				allEnd := func() bool {
 					for _, p := range s.neighborMap {
-						if !p.recvedAllEOR() {
+						if !p.receivedAllEOR() {
 							return false
 						}
 					}
@@ -1849,7 +1849,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				if localRestarting {
 					allEnd := func() bool {
 						for _, p := range s.neighborMap {
-							if !p.recvedAllEOR() {
+							if !p.receivedAllEOR() {
 								return false
 							}
 						}
@@ -1883,7 +1883,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				conf := peer.fsm.pConf.ReadOnly()
 				peerRestarting := conf.GracefulRestart.State.PeerRestarting
 				if peerRestarting {
-					if peer.recvedAllEOR() {
+					if peer.receivedAllEOR() {
 						peer.stopPeerRestarting()
 						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
 
