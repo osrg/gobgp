@@ -1635,6 +1635,19 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		drainChannel(peer.fsm.outgoingCh.Out())
 
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
+			// Override the local address from the TCP connection with the
+			// configured local address when it is a specific (non-wildcard)
+			// address. This is needed for deployments where the BGP listener
+			// binds to an internal address (e.g. GENEVE tunnel endpoint) but
+			// the configured address is what should be advertised as nexthop.
+			peer.fsm.lock.Lock()
+			if cfgAddr := peer.fsm.pConf.ReadOnly().Transport.Config.LocalAddress; cfgAddr.IsValid() && !cfgAddr.IsUnspecified() {
+				localOverride := peer.fsm.pConf.ReadCopy()
+				localOverride.Transport.State.LocalAddress = cfgAddr.WithZone("")
+				peer.fsm.pConf.Update(&localOverride)
+			}
+			peer.fsm.lock.Unlock()
+
 			conf := peer.fsm.pConf.ReadOnly()
 			peerInfo := table.NewPeerInfo(peer.fsm.gConf, conf,
 				conf.State.PeerAs, conf.Config.LocalAs,
