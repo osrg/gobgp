@@ -208,6 +208,377 @@ func TestSoftResetOutSerializesNormalReset(t *testing.T) {
 	}
 }
 
+func TestSoftResetOutRefreshesExportPolicyFilteredRoutes(t *testing.T) {
+	ctx := context.Background()
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	p.policy = s.policy
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE,
+	})
+	err = s.mgmtOperation(func() error {
+		s.neighborMap[peerAddr] = p
+		return nil
+	}, true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := s.mgmtOperation(func() error {
+			delete(s.neighborMap, peerAddr)
+			return nil
+		}, false)
+		require.NoError(t, err)
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+	})
+
+	setExportDefault := func(action api.RouteAction) {
+		t.Helper()
+		err := s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+			Assignment: &api.PolicyAssignment{
+				Name:          table.GLOBAL_RIB_NAME,
+				Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+				DefaultAction: action,
+			},
+		})
+		require.NoError(t, err)
+	}
+	requireNoOutgoing := func() {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			t.Fatalf("unexpected outbound paths: %#v", o)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	requireOutgoing := func() []*table.Path {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			msg, ok := o.(*fsmOutgoingMsg)
+			require.True(t, ok)
+			paths := make([]*table.Path, 0, len(msg.Paths))
+			for _, path := range msg.Paths {
+				if path != nil && !path.IsEOR() {
+					paths = append(paths, path)
+				}
+			}
+			return paths
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for outbound soft-reset paths")
+			return nil
+		}
+	}
+	requirePaths := func(paths []*table.Path, withdraw bool, prefixes ...string) {
+		t.Helper()
+		require.Len(t, paths, len(prefixes))
+		seen := make(map[string]struct{}, len(paths))
+		for _, path := range paths {
+			require.Equal(t, withdraw, path.IsWithdraw)
+			seen[path.GetPrefix()] = struct{}{}
+		}
+		for _, prefix := range prefixes {
+			require.Contains(t, seen, prefix)
+		}
+	}
+
+	advertised := makePath(t, "192.0.2.0/32", "192.0.2.254", 0)
+	neverAdvertised := makePath(t, "192.0.2.1/32", "192.0.2.254", 0)
+
+	setExportDefault(api.RouteAction_ROUTE_ACTION_ACCEPT)
+	s.propagateUpdate(nil, []*table.Path{advertised})
+	requirePaths(requireOutgoing(), false, "192.0.2.0/32")
+
+	setExportDefault(api.RouteAction_ROUTE_ACTION_REJECT)
+	s.propagateUpdate(nil, []*table.Path{neverAdvertised})
+	requireNoOutgoing()
+
+	require.NoError(t, s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false))
+	requirePaths(requireOutgoing(), true, "192.0.2.0/32")
+
+	require.NoError(t, s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false))
+	requireNoOutgoing()
+
+	setExportDefault(api.RouteAction_ROUTE_ACTION_ACCEPT)
+	require.NoError(t, s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false))
+	requirePaths(requireOutgoing(), false, "192.0.2.0/32", "192.0.2.1/32")
+
+	setExportDefault(api.RouteAction_ROUTE_ACTION_REJECT)
+	require.NoError(t, s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false))
+	requirePaths(requireOutgoing(), true, "192.0.2.0/32", "192.0.2.1/32")
+}
+
+func TestSoftResetOutVRFWithdrawsExportPolicyFilteredRoutes(t *testing.T) {
+	ctx := context.Background()
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	addVrf(t, s, "vrf1", "65001:100", []string{"65001:100"}, []string{"65001:100"}, 1)
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	p.policy = s.policy
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE,
+	})
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Config.Vrf = "vrf1"
+	conf.State.Vrf = "vrf1"
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	err = s.mgmtOperation(func() error {
+		s.neighborMap[peerAddr] = p
+		return nil
+	}, true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := s.mgmtOperation(func() error {
+			delete(s.neighborMap, peerAddr)
+			return nil
+		}, false)
+		require.NoError(t, err)
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+	})
+
+	setExportDefault := func(action api.RouteAction) {
+		t.Helper()
+		err := s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+			Assignment: &api.PolicyAssignment{
+				Name:          table.GLOBAL_RIB_NAME,
+				Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+				DefaultAction: action,
+			},
+		})
+		require.NoError(t, err)
+	}
+	requireNoOutgoing := func() {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			t.Fatalf("unexpected outbound paths: %#v", o)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	requireOutgoing := func() []*table.Path {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			msg, ok := o.(*fsmOutgoingMsg)
+			require.True(t, ok)
+			paths := make([]*table.Path, 0, len(msg.Paths))
+			for _, path := range msg.Paths {
+				if path != nil && !path.IsEOR() {
+					paths = append(paths, path)
+				}
+			}
+			return paths
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for outbound VRF soft-reset paths")
+			return nil
+		}
+	}
+	makeVPNPath := func(prefix string) *table.Path {
+		t.Helper()
+		rd, rt, err := parseRDRT("65001:100")
+		require.NoError(t, err)
+		labels := bgp.NewMPLSLabelStack(100)
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(prefix), *labels, rd)
+		require.NoError(t, err)
+		nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+		require.NoError(t, err)
+		return table.NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+				bgp.NewAs4PathParam(2, []uint32{65010}),
+			}),
+			nextHop,
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+		}, time.Now(), false)
+	}
+
+	advertised := makeVPNPath("192.0.2.0/32")
+
+	setExportDefault(api.RouteAction_ROUTE_ACTION_ACCEPT)
+	s.propagateUpdate(nil, []*table.Path{advertised})
+	paths := requireOutgoing()
+	require.Len(t, paths, 1)
+	require.False(t, paths[0].IsWithdraw)
+	require.Equal(t, bgp.RF_IPv4_UC, paths[0].GetFamily())
+	require.Equal(t, "192.0.2.0/32", paths[0].GetPrefix())
+
+	setExportDefault(api.RouteAction_ROUTE_ACTION_REJECT)
+	require.NoError(t, s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false))
+	paths = requireOutgoing()
+	require.Len(t, paths, 1)
+	require.True(t, paths[0].IsWithdraw)
+	require.Equal(t, bgp.RF_IPv4_UC, paths[0].GetFamily())
+	require.Equal(t, "192.0.2.0/32", paths[0].GetPrefix())
+
+	require.NoError(t, s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false))
+	requireNoOutgoing()
+}
+
+func TestSoftResetOutAddPathWithdrawsOnlyAdvertisedFilteredRoutes(t *testing.T) {
+	ctx := context.Background()
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	p.policy = s.policy
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_SEND,
+	})
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	foundFamily := false
+	for i := range conf.AfiSafis {
+		if conf.AfiSafis[i].State.Family != bgp.RF_IPv4_UC {
+			continue
+		}
+		conf.AfiSafis[i].AddPaths.Config.SendMax = 1
+		conf.AfiSafis[i].AddPaths.State.SendMax = 1
+		foundFamily = true
+	}
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	require.True(t, foundFamily)
+
+	err = s.mgmtOperation(func() error {
+		s.neighborMap[peerAddr] = p
+		return nil
+	}, true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := s.mgmtOperation(func() error {
+			delete(s.neighborMap, peerAddr)
+			return nil
+		}, false)
+		require.NoError(t, err)
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+	})
+
+	makeSourcePath := func(source string) *table.Path {
+		t.Helper()
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/32"))
+		require.NoError(t, err)
+		nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+		require.NoError(t, err)
+		sourceAddr := netip.MustParseAddr(source)
+		return table.NewPath(bgp.RF_IPv4_UC, &table.PeerInfo{
+			AS:           65010,
+			ID:           sourceAddr,
+			Address:      sourceAddr,
+			LocalAS:      65001,
+			LocalID:      netip.MustParseAddr("1.1.1.1"),
+			LocalAddress: netip.MustParseAddr("1.1.1.1"),
+		}, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+				bgp.NewAs4PathParam(2, []uint32{65010}),
+			}),
+			nextHop,
+		}, time.Now(), false)
+	}
+	requireNoOutgoing := func() {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			t.Fatalf("unexpected outbound paths: %#v", o)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	requireOutgoing := func() []*table.Path {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			msg, ok := o.(*fsmOutgoingMsg)
+			require.True(t, ok)
+			paths := make([]*table.Path, 0, len(msg.Paths))
+			for _, path := range msg.Paths {
+				if path != nil && !path.IsEOR() {
+					paths = append(paths, path)
+				}
+			}
+			return paths
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for outbound add-path soft-reset paths")
+			return nil
+		}
+	}
+	setExportDefault := func(action api.RouteAction) {
+		t.Helper()
+		err := s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+			Assignment: &api.PolicyAssignment{
+				Name:          table.GLOBAL_RIB_NAME,
+				Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+				DefaultAction: action,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	advertised := makeSourcePath("10.0.0.2")
+	neverAdvertised := makeSourcePath("10.0.0.3")
+
+	setExportDefault(api.RouteAction_ROUTE_ACTION_ACCEPT)
+	s.propagateUpdate(nil, []*table.Path{advertised})
+	paths := requireOutgoing()
+	require.Len(t, paths, 1)
+	require.False(t, paths[0].IsWithdraw)
+	require.Equal(t, advertised.LocalID(), paths[0].LocalID())
+
+	s.propagateUpdate(nil, []*table.Path{neverAdvertised})
+	require.NotEqual(t, advertised.LocalID(), neverAdvertised.LocalID())
+	requireNoOutgoing()
+
+	setExportDefault(api.RouteAction_ROUTE_ACTION_REJECT)
+	require.NoError(t, s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false))
+	paths = requireOutgoing()
+	require.Len(t, paths, 1)
+	require.True(t, paths[0].IsWithdraw)
+	require.Equal(t, "192.0.2.0/32", paths[0].GetPrefix())
+	require.Equal(t, advertised.LocalID(), paths[0].LocalID())
+	require.NotEqual(t, neverAdvertised.LocalID(), paths[0].LocalID())
+
+	require.NoError(t, s.softResetOut(peerAddr.String(), bgp.RF_IPv4_UC, false))
+	requireNoOutgoing()
+}
+
 func TestRTCMembershipSerializesTriggeredVPNUpdates(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
