@@ -34,6 +34,52 @@ const (
 	flopThreshold = time.Second * 30
 )
 
+// peerPathLimiter tracks per-destination add-path identifiers and send-max filtering
+// state for a peer or peer group. Both peer and peerGroup implement this interface.
+type peerPathLimiter interface {
+	getAddPathSendMax(family bgp.Family) uint8
+	getRoutesCount(family bgp.Family, dstPrefix string) uint8
+	updateRoutes(paths ...*table.Path)
+	isPathSendMaxFiltered(path *table.Path) bool
+	setPathSendMaxFiltered(path *table.Path)
+	unsetPathSendMaxFiltered(path *table.Path) bool
+	hasPathAlreadyBeenSent(path *table.Path) bool
+}
+
+var _ peerPathLimiter = (*peer)(nil)
+
+// receiver abstracts a BGP peer or peer-group for the purpose of export-path filtering
+// and policy application. Both *peer and *peerGroup implement this interface.
+type receiver interface {
+	peerPathLimiter
+
+	ID() string
+	PeerInfo() *table.PeerInfo
+	TableID() string
+	PolicyID() string
+	AS() uint32
+
+	vrf() string
+	routingPolicy() *table.RoutingPolicy
+	rib() *table.TableManager
+	configuredRFlist() []bgp.Family
+
+	isIBGPPeer() bool
+	isEnabledFamily(family bgp.Family) bool
+	isLLGREnabledFamily(family bgp.Family) bool
+	replacePeerAS() (bool, uint32, uint32)
+	isRouteReflectorClient() bool
+	isAddPathSendEnabled(family bgp.Family) bool
+	isRouteServerClient() bool
+	isSecondaryRouteEnabled() bool
+	allowAsPathLoopLocal() bool
+
+	needToAdvertise() bool
+	logger() *slog.Logger
+}
+
+var _ receiver = (*peer)(nil)
+
 type peerGroup struct {
 	Conf             *oc.PeerGroup
 	members          map[string]oc.Neighbor
@@ -171,6 +217,54 @@ func (peer *peer) routerID() netip.Addr {
 
 func (peer *peer) TableID() string {
 	return peer.tableId
+}
+
+// PolicyID returns the routing policy assignment key for this peer.
+// For a regular peer this is the same as TableID.
+func (peer *peer) PolicyID() string {
+	return peer.tableId
+}
+
+func (peer *peer) PeerInfo() *table.PeerInfo {
+	return peer.peerInfo.Load()
+}
+
+func (peer *peer) routingPolicy() *table.RoutingPolicy {
+	return peer.policy
+}
+
+func (peer *peer) rib() *table.TableManager {
+	return peer.localRib
+}
+
+func (peer *peer) vrf() string {
+	conf := peer.fsm.pConf.ReadOnly()
+	return conf.Config.Vrf
+}
+
+func (peer *peer) replacePeerAS() (bool, uint32, uint32) {
+	conf := peer.fsm.pConf.ReadOnly()
+	return conf.AsPathOptions.State.ReplacePeerAs, conf.Config.LocalAs, conf.Config.PeerAs
+}
+
+func (peer *peer) isEnabledFamily(family bgp.Family) bool {
+	return peer.IsFamilyEnabled(family)
+}
+
+func (peer *peer) needToAdvertise() bool {
+	if peer.State() != bgp.BGP_FSM_ESTABLISHED {
+		return false
+	}
+	conf := peer.fsm.pConf.ReadOnly()
+	if conf.GracefulRestart.State.LocalRestarting {
+		peer.fsm.logger.Debug("now syncing, suppress sending updates")
+		return false
+	}
+	return true
+}
+
+func (peer *peer) logger() *slog.Logger {
+	return peer.fsm.logger
 }
 
 func (peer *peer) allowAsPathLoopLocal() bool {
