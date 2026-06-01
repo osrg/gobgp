@@ -329,14 +329,8 @@ func (peer *peer) hasPathAlreadyBeenSent(path *table.Path) bool {
 }
 
 func (peer *peer) resetAdvertisedRoutes() {
-	peer.sentPaths.Range(func(key, _ any) bool {
-		peer.sentPaths.Delete(key)
-		return true
-	})
-	peer.sendMaxPathFiltered.Range(func(key, _ any) bool {
-		peer.sendMaxPathFiltered.Delete(key)
-		return true
-	})
+	peer.sentPaths.Clear()
+	peer.sendMaxPathFiltered.Clear()
 }
 
 func (peer *peer) isDynamicNeighbor() bool {
