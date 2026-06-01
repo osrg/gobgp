@@ -1401,6 +1401,11 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 		func() {
 			targetPeer.routeRefreshInProgress.RLock()
 			defer targetPeer.routeRefreshInProgress.RUnlock()
+			// If the peer is not advertising, return early to avoid rebuilding RIB-out bookkeeping,
+			// as it might have been already cleared by resetAdvertisedRoutes.
+			if !needToAdvertise(targetPeer) {
+				return
+			}
 			var bestList, oldList []*table.Path
 			if targetPeer.isAddPathSendEnabled(f) {
 				// in case of multiple paths to the same destination, we need to
@@ -1586,6 +1591,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.pConf.Update(&conf)
 			peer.prefixLimitWarned = make(map[bgp.Family]bool)
 			peer.fsm.lock.Unlock()
+
+			// Publish the down state before clearing advertised-route state.
+			// This avoids rebuilding RIB-out bookkeeping by propagation that starts after the reset.
+			peer.fsm.state.Store(nextState)
 			s.resetAdvertisedRoutes(peer)
 			s.propagateUpdate(peer, peer.DropAll(dropFamilies))
 
@@ -1947,15 +1956,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 }
 
 func (s *BgpServer) resetAdvertisedRoutes(peer *peer) {
-	for i := range s.shared.propagateBuckets {
-		s.shared.propagateBuckets[i].Lock()
-	}
 	peer.routeRefreshInProgress.Lock()
+	defer peer.routeRefreshInProgress.Unlock()
 	peer.resetAdvertisedRoutes()
-	peer.routeRefreshInProgress.Unlock()
-	for i := len(s.shared.propagateBuckets) - 1; i >= 0; i-- {
-		s.shared.propagateBuckets[i].Unlock()
-	}
 }
 
 func (s *BgpServer) EnableZebra(ctx context.Context, r *api.EnableZebraRequest) error {
