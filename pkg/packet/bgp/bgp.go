@@ -8660,8 +8660,60 @@ func (l *LsTLVFlexAlgoDef) Serialize() ([]byte, error) {
 }
 
 func (l *LsTLVFlexAlgoDef) String() string {
-	return fmt.Sprintf("{Flex-Algo Def: %d (metric %d calc %d prio %d)}",
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "{Flex-Algo Def: %d metric:%d calc:%d prio:%d",
 		l.Algorithm, l.MetricType, l.CalcType, l.Priority)
+	if len(l.ExcludeAny) > 0 {
+		fmt.Fprintf(&buf, " exclude-any:%s", flexAlgoUint32SliceHex(l.ExcludeAny))
+	}
+	if len(l.IncludeAny) > 0 {
+		fmt.Fprintf(&buf, " include-any:%s", flexAlgoUint32SliceHex(l.IncludeAny))
+	}
+	if len(l.IncludeAll) > 0 {
+		fmt.Fprintf(&buf, " include-all:%s", flexAlgoUint32SliceHex(l.IncludeAll))
+	}
+	if len(l.Flags) > 0 {
+		fmt.Fprintf(&buf, " flags:%s", flexAlgoByteSliceHex(l.Flags))
+	}
+	if len(l.ExcludeSRLG) > 0 {
+		fmt.Fprintf(&buf, " exclude-srlg:%v", l.ExcludeSRLG)
+	}
+	if l.Unsupported != nil {
+		fmt.Fprintf(&buf, " unsupported:{proto:%d types:%v}",
+			l.Unsupported.ProtocolID, l.Unsupported.SubTLVTypes)
+	}
+	buf.WriteString("}")
+	return buf.String()
+}
+
+// flexAlgoUint32SliceHex formats a slice of 32-bit affinity bitmaps
+// as a comma-separated hex list, e.g. [0x0000000F 0x000000F0]. Used
+// by LsTLVFlexAlgoDef.String to keep the CLI render compact and easy
+// to compare against vendor "show isis flex-algorithm" output.
+func flexAlgoUint32SliceHex(in []uint32) string {
+	var buf bytes.Buffer
+	buf.WriteString("[")
+	for i, v := range in {
+		if i > 0 {
+			buf.WriteString(" ")
+		}
+		fmt.Fprintf(&buf, "0x%08x", v)
+	}
+	buf.WriteString("]")
+	return buf.String()
+}
+
+func flexAlgoByteSliceHex(in []byte) string {
+	var buf bytes.Buffer
+	buf.WriteString("[")
+	for i, v := range in {
+		if i > 0 {
+			buf.WriteString(" ")
+		}
+		fmt.Fprintf(&buf, "0x%02x", v)
+	}
+	buf.WriteString("]")
+	return buf.String()
 }
 
 func (l *LsTLVFlexAlgoDef) MarshalJSON() ([]byte, error) {

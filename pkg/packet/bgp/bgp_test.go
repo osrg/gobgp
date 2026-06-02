@@ -4696,6 +4696,62 @@ func Test_LsTLVFlexAlgoDef_Errors(t *testing.T) {
 	}
 }
 
+// Test_LsTLVFlexAlgoDef_String covers the CLI render of the FAD TLV
+// so that operators see the affinity / SRLG / flags sub-TLVs and not
+// just the four fixed-header bytes.
+func Test_LsTLVFlexAlgoDef_String(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name string
+		def  LsTLVFlexAlgoDef
+		want string
+	}{
+		{
+			name: "fixed header only",
+			def: LsTLVFlexAlgoDef{
+				Algorithm: 128, MetricType: 0, CalcType: 0, Priority: 100,
+			},
+			want: "{Flex-Algo Def: 128 metric:0 calc:0 prio:100}",
+		},
+		{
+			name: "with all affinity bitmaps and SRLG",
+			def: LsTLVFlexAlgoDef{
+				Algorithm:   129,
+				MetricType:  1,
+				CalcType:    0,
+				Priority:    200,
+				ExcludeAny:  []uint32{0x0F},
+				IncludeAny:  []uint32{0xF0},
+				IncludeAll:  []uint32{0xAA},
+				Flags:       []byte{0x80, 0x00, 0x00, 0x00},
+				ExcludeSRLG: []uint32{42, 43},
+			},
+			want: "{Flex-Algo Def: 129 metric:1 calc:0 prio:200" +
+				" exclude-any:[0x0000000f] include-any:[0x000000f0]" +
+				" include-all:[0x000000aa] flags:[0x80 0x00 0x00 0x00]" +
+				" exclude-srlg:[42 43]}",
+		},
+		{
+			name: "with unsupported sub-TLV",
+			def: LsTLVFlexAlgoDef{
+				Algorithm: 130, MetricType: 2, CalcType: 0, Priority: 50,
+				Unsupported: &LsTLVFADUnsupported{
+					ProtocolID:  2,
+					SubTLVTypes: []uint16{1040, 1041},
+				},
+			},
+			want: "{Flex-Algo Def: 130 metric:2 calc:0 prio:50" +
+				" unsupported:{proto:2 types:[1040 1041]}}",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(tc.want, tc.def.String())
+		})
+	}
+}
+
 // Test_LsTLVFADPrefixMetric exercises the RFC 9351 Section 4 FAPM
 // wire format (TLV 1044, fixed 8-byte value).
 func Test_LsTLVFADPrefixMetric(t *testing.T) {
