@@ -4485,7 +4485,13 @@ func Test_PathAttributeLs(t *testing.T) {
 				0x04, 0x86, 0x00, 0x07, 0x01, 0x01, 0x00, 0x00, 0x01, 0x88, 0x94, // Prefix SID: 100500
 			},
 			"{LsAttributes: {IGP Flags: XXXXPLND} {Prefix opaque attribute: [1 2 3]} {Prefix SID: 100500} }",
-			`{"type":41,"flags":128,"node":{},"link":{},"prefix":{"igp_flags":{"down":true,"no_unicast":true,"local_address":true,"propagate_nssa":true},"opaque":"AQID","sr_prefix_sid":100500},"bgp_peer_segment":{},"srv6_sid":{}}`,
+			// Per RFC 9085 Section 2.1.1 the Prefix-SID TLV carries
+			// a Flags + Algorithm header. The wire bytes above set
+			// Algorithm=1 / Flags=1 / SID=100500, so the projection
+			// puts the entry into sr_prefix_sids; the singular
+			// sr_prefix_sid is reserved for the Algorithm-0
+			// (default SPF) SID and stays unset here.
+			`{"type":41,"flags":128,"node":{},"link":{},"prefix":{"igp_flags":{"down":true,"no_unicast":true,"local_address":true,"propagate_nssa":true},"opaque":"AQID","sr_prefix_sids":[{"algorithm":1,"flags":1,"sid":100500}]},"bgp_peer_segment":{},"srv6_sid":{}}`,
 			true, false,
 		},
 	}
@@ -4544,6 +4550,202 @@ func Test_PathAttributeLsDelayMetricTLVs(t *testing.T) {
 	got, err := attr.Serialize()
 	assert.NoError(err)
 	assert.Equal(in, got)
+}
+
+// Test_LsTLVFlexAlgoDef exercises the RFC 9351 Section 3 wire decode
+// for the BGP-LS FAD TLV (1039) plus every defined nested sub-TLV
+// (1040 Exclude-Any, 1041 Include-Any, 1042 Include-All, 1043 Flags,
+// 1045 Exclude SRLG, 1046 Unsupported). Round-trip serialise/decode is
+// verified for each fixture so the IANA codepoints stay byte-stable.
+func Test_LsTLVFlexAlgoDef(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name string
+		in   []byte
+		want LsTLVFlexAlgoDef
+	}{
+		{
+			name: "fixed header only (algo 128, metric IGP, calc SPF, priority 100)",
+			// Type 1039 = 0x040F, Length 4, body: algo, metric, calc, prio.
+			in: []byte{0x04, 0x0F, 0x00, 0x04, 0x80, 0x00, 0x00, 0x64},
+			want: LsTLVFlexAlgoDef{
+				LsTLV:      LsTLV{Type: LS_TLV_FLEX_ALGO_DEF, Length: 4},
+				Algorithm:  128,
+				MetricType: 0,
+				CalcType:   0,
+				Priority:   100,
+			},
+		},
+		{
+			name: "algo 129 metric Min-Delay with Exclude-Any + Include-Any + Flags + Exclude-SRLG",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x24, // TLV 1039, length 36 (4-byte header + four 8-byte sub-TLVs)
+				0x81, 0x01, 0x00, 0xC8, // algo 129, metric 1 (Min-Delay), calc 0, prio 200
+				0x04, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, 0x0F, // sub-TLV 1040 Exclude-Any, EAG 0x0000000F
+				0x04, 0x11, 0x00, 0x04, 0x00, 0x00, 0x00, 0xF0, // sub-TLV 1041 Include-Any, EAG 0x000000F0
+				0x04, 0x13, 0x00, 0x04, 0x80, 0x00, 0x00, 0x00, // sub-TLV 1043 Flags, M-flag set
+				0x04, 0x15, 0x00, 0x04, 0x00, 0x00, 0x00, 0x2A, // sub-TLV 1045 Exclude SRLG = [42]
+			},
+			want: LsTLVFlexAlgoDef{
+				LsTLV:       LsTLV{Type: LS_TLV_FLEX_ALGO_DEF, Length: 36},
+				Algorithm:   129,
+				MetricType:  1,
+				CalcType:    0,
+				Priority:    200,
+				ExcludeAny:  []uint32{0x0F},
+				IncludeAny:  []uint32{0xF0},
+				Flags:       []byte{0x80, 0x00, 0x00, 0x00},
+				ExcludeSRLG: []uint32{42},
+			},
+		},
+		{
+			name: "algo 130 metric TE with Include-All + Unsupported",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x15, // TLV 1039, length 21
+				0x82, 0x02, 0x00, 0x32, // algo 130, metric 2 (TE), calc 0, prio 50
+				0x04, 0x12, 0x00, 0x04, 0x00, 0x00, 0x00, 0xAA, // sub-TLV 1042 Include-All, EAG 0xAA
+				0x04, 0x16, 0x00, 0x05, 0x02, 0x04, 0x10, 0x04, 0x11, // sub-TLV 1046 Unsupported, proto 2, types [1040 1041]
+			},
+			want: LsTLVFlexAlgoDef{
+				LsTLV:      LsTLV{Type: LS_TLV_FLEX_ALGO_DEF, Length: 21},
+				Algorithm:  130,
+				MetricType: 2,
+				CalcType:   0,
+				Priority:   50,
+				IncludeAll: []uint32{0xAA},
+				Unsupported: &LsTLVFADUnsupported{
+					ProtocolID:  2,
+					SubTLVTypes: []uint16{0x0410, 0x0411},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := LsTLVFlexAlgoDef{}
+			assert.NoError(got.DecodeFromBytes(tc.in))
+			assert.Equal(tc.want.Algorithm, got.Algorithm)
+			assert.Equal(tc.want.MetricType, got.MetricType)
+			assert.Equal(tc.want.CalcType, got.CalcType)
+			assert.Equal(tc.want.Priority, got.Priority)
+			assert.Equal(tc.want.ExcludeAny, got.ExcludeAny)
+			assert.Equal(tc.want.IncludeAny, got.IncludeAny)
+			assert.Equal(tc.want.IncludeAll, got.IncludeAll)
+			assert.Equal(tc.want.Flags, got.Flags)
+			assert.Equal(tc.want.ExcludeSRLG, got.ExcludeSRLG)
+			assert.Equal(tc.want.Unsupported, got.Unsupported)
+
+			out, err := got.Serialize()
+			assert.NoError(err)
+			assert.Equal(tc.in, out)
+		})
+	}
+}
+
+// Test_LsTLVFlexAlgoDef_Errors covers the malformed-input paths the
+// decoder must reject per RFC 9351 (truncated headers, reserved
+// algorithm IDs, sub-TLV length violations).
+func Test_LsTLVFlexAlgoDef_Errors(t *testing.T) {
+	assert := assert.New(t)
+
+	cases := []struct {
+		name string
+		in   []byte
+	}{
+		{
+			name: "value shorter than 4-byte fixed header",
+			in:   []byte{0x04, 0x0F, 0x00, 0x02, 0x80, 0x00},
+		},
+		{
+			name: "algorithm 127 is reserved (RFC 9350 Section 4)",
+			in:   []byte{0x04, 0x0F, 0x00, 0x04, 0x7F, 0x00, 0x00, 0x64},
+		},
+		{
+			name: "Exclude-Any length not a multiple of 4",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x09,
+				0x80, 0x00, 0x00, 0x64,
+				0x04, 0x10, 0x00, 0x01, 0x00,
+			},
+		},
+		{
+			name: "Exclude SRLG length zero is malformed",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x08,
+				0x80, 0x00, 0x00, 0x64,
+				0x04, 0x15, 0x00, 0x00,
+			},
+		},
+		{
+			name: "Unsupported sub-TLV body length 0 is malformed",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x08,
+				0x80, 0x00, 0x00, 0x64,
+				0x04, 0x16, 0x00, 0x00,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := LsTLVFlexAlgoDef{}
+			assert.Error(got.DecodeFromBytes(tc.in))
+		})
+	}
+}
+
+// Test_LsTLVFADPrefixMetric exercises the RFC 9351 Section 4 FAPM
+// wire format (TLV 1044, fixed 8-byte value).
+func Test_LsTLVFADPrefixMetric(t *testing.T) {
+	assert := assert.New(t)
+
+	in := []byte{
+		0x04, 0x14, 0x00, 0x08, // TLV 1044, length 8
+		0x80, 0x00, 0x00, 0x00, // algo 128, flags 0, reserved 0x0000
+		0x00, 0x00, 0x27, 0x10, // metric = 10000
+	}
+
+	got := LsTLVFADPrefixMetric{}
+	assert.NoError(got.DecodeFromBytes(in))
+	assert.Equal(uint8(128), got.Algorithm)
+	assert.Equal(uint8(0), got.Flags)
+	assert.Equal(uint32(10000), got.Metric)
+
+	out, err := got.Serialize()
+	assert.NoError(err)
+	assert.Equal(in, out)
+}
+
+// Test_PathAttributeLs_MultiPrefixSID confirms that the Extract path
+// aggregates every Prefix-SID TLV observed on the same Prefix NLRI
+// instead of overwriting earlier entries. Regression test for the
+// last-write-wins behaviour the legacy projection had.
+func Test_PathAttributeLs_MultiPrefixSID(t *testing.T) {
+	assert := assert.New(t)
+
+	in := []byte{
+		0x80, 0x29, 0x16, // Optional attribute, BGP_ATTR_TYPE_LS, length 22 (two 11-byte Prefix-SID TLVs)
+		0x04, 0x86, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x01, 0x88, 0x94, // Prefix-SID algo 0, SID 100500
+		0x04, 0x86, 0x00, 0x07, 0x40, 0x80, 0x00, 0x00, 0x01, 0x88, 0x95, // Prefix-SID algo 128, SID 100501
+	}
+
+	attr := PathAttributeLs{}
+	assert.NoError(attr.DecodeFromBytes(in))
+
+	ls := attr.Extract()
+	assert.NotNil(ls.Prefix.SrPrefixSID)
+	if ls.Prefix.SrPrefixSID != nil {
+		assert.Equal(uint32(100500), *ls.Prefix.SrPrefixSID)
+	}
+	assert.Len(ls.Prefix.SrPrefixSIDs, 2)
+	if len(ls.Prefix.SrPrefixSIDs) == 2 {
+		assert.Equal(uint8(0), ls.Prefix.SrPrefixSIDs[0].Algorithm)
+		assert.Equal(uint32(100500), ls.Prefix.SrPrefixSIDs[0].SID)
+		assert.Equal(uint8(128), ls.Prefix.SrPrefixSIDs[1].Algorithm)
+		assert.Equal(uint32(100501), ls.Prefix.SrPrefixSIDs[1].SID)
+	}
 }
 
 func Test_BGPOpenDecodeCapabilities(t *testing.T) {
