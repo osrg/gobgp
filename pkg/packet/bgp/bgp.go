@@ -10723,8 +10723,8 @@ type LsAttributePrefix struct {
 	// the full list (Algorithm + Flags + SID) without losing entries.
 	// SrPrefixSID stays for backward compatibility with the singular
 	// Algorithm-0 lookup callers already perform.
-	SrPrefixSID  *uint32                 `json:"sr_prefix_sid,omitempty"`
-	SrPrefixSIDs []LsAttributePrefixSID  `json:"sr_prefix_sids,omitempty"`
+	SrPrefixSID  *uint32                `json:"sr_prefix_sid,omitempty"`
+	SrPrefixSIDs []LsAttributePrefixSID `json:"sr_prefix_sids,omitempty"`
 
 	// FadPrefixMetrics carries any FAPM (Flexible Algorithm Prefix
 	// Metric) Prefix Attribute TLVs (TLV 1044, RFC 9351 Section 4)

@@ -1810,12 +1810,12 @@ func TestFullCycleFlexAlgoDefAndFAPM(t *testing.T) {
 // TestFlexAlgo_FullWirePath drives the full RFC 9351 / RFC 9085
 // path end-to-end:
 //
-//   wire bytes -> PathAttributeLs.DecodeFromBytes
-//              -> Extract                 (structured fields)
-//              -> NewLsAttributeFromNative (api projection)
-//              -> proto.Marshal + proto.Unmarshal
-//              -> UnmarshalLsAttribute     (rehydrate bgp.LsAttribute)
-//              -> Serialize                (back to wire bytes)
+//	wire bytes -> PathAttributeLs.DecodeFromBytes
+//	           -> Extract                 (structured fields)
+//	           -> NewLsAttributeFromNative (api projection)
+//	           -> proto.Marshal + proto.Unmarshal
+//	           -> UnmarshalLsAttribute     (rehydrate bgp.LsAttribute)
+//	           -> Serialize                (back to wire bytes)
 //
 // The fixture is a hand-built BGP-LS Attribute (MP_REACH stripped, we
 // only test the attribute payload) carrying a Flex-Algo Definition
