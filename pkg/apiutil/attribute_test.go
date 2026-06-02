@@ -1807,6 +1807,125 @@ func TestFullCycleFlexAlgoDefAndFAPM(t *testing.T) {
 	assert.Equal(t, uint32(10000), back.Prefix.FadPrefixMetrics[0].Metric)
 }
 
+// TestFlexAlgo_FullWirePath drives the full RFC 9351 / RFC 9085
+// path end-to-end:
+//
+//   wire bytes -> PathAttributeLs.DecodeFromBytes
+//              -> Extract                 (structured fields)
+//              -> NewLsAttributeFromNative (api projection)
+//              -> proto.Marshal + proto.Unmarshal
+//              -> UnmarshalLsAttribute     (rehydrate bgp.LsAttribute)
+//              -> Serialize                (back to wire bytes)
+//
+// The fixture is a hand-built BGP-LS Attribute (MP_REACH stripped, we
+// only test the attribute payload) carrying a Flex-Algo Definition
+// (TLV 1039 with three nested sub-TLVs), two Prefix-SID TLVs (algo 0
+// and algo 128) and one FAPM (TLV 1044). Every structured field on
+// the way out matches the wire bytes on the way in.
+func TestFlexAlgo_FullWirePath(t *testing.T) {
+	const (
+		srgbStart = uint32(16000)
+	)
+
+	// MP_REACH_NLRI is omitted; we test PathAttributeLs payload only.
+	// Outer wrapper: flags 0x80 (Optional, Non-Transitive,
+	// non-extended), type 41 (BGP_ATTR_TYPE_LS), 1-byte length.
+	body := []byte{
+		// TLV 1039 FAD, length 28 (4-byte fixed header + three
+		// 8-byte sub-TLVs):
+		//   algo=128 metric=0 (IGP) calc=0 (SPF) prio=200
+		//   sub-TLV 1040 Exclude-Any 0x0000000F
+		//   sub-TLV 1041 Include-Any 0x000000F0
+		//   sub-TLV 1043 Definition Flags 0x80000000
+		0x04, 0x0F, 0x00, 0x1C,
+		0x80, 0x00, 0x00, 0xC8,
+		0x04, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, 0x0F,
+		0x04, 0x11, 0x00, 0x04, 0x00, 0x00, 0x00, 0xF0,
+		0x04, 0x13, 0x00, 0x04, 0x80, 0x00, 0x00, 0x00,
+
+		// TLV 1158 Prefix-SID algo 0 (default SPF), SID 16001 in
+		// 8-byte (4-byte SID) form: flags + algo + 2B reserved + 4B SID.
+		0x04, 0x86, 0x00, 0x08,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x3E, 0x81,
+
+		// TLV 1158 Prefix-SID algo 128, V-flag set (absolute label),
+		// SID 16128 in 8-byte form.
+		0x04, 0x86, 0x00, 0x08,
+		0x08, 0x80, 0x00, 0x00,
+		0x00, 0x00, 0x3F, 0x00,
+
+		// TLV 1044 FAPM (Flexible Algorithm Prefix Metric): algo 128
+		// metric 10000 (0x2710), flags 0, reserved 0.
+		0x04, 0x14, 0x00, 0x08,
+		0x80, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x27, 0x10,
+	}
+	hdr := []byte{0x80, 0x29, byte(len(body))}
+	wire := append([]byte{}, hdr...)
+	wire = append(wire, body...)
+
+	// Decode the wire bytes into the structured PathAttributeLs.
+	pa := &bgp.PathAttributeLs{}
+	require.NoError(t, pa.DecodeFromBytes(wire))
+
+	// Extract the structured LsAttribute and check every field.
+	ls := pa.Extract()
+	require.Len(t, ls.Node.FlexAlgoDefs, 1)
+	fad := ls.Node.FlexAlgoDefs[0]
+	assert.Equal(t, uint8(128), fad.Algorithm)
+	assert.Equal(t, uint8(0), fad.MetricType)
+	assert.True(t, fad.MetricTypeKnown)
+	assert.Equal(t, uint8(0), fad.CalcType)
+	assert.Equal(t, uint8(200), fad.Priority)
+	assert.Equal(t, []uint32{0x0F}, fad.ExcludeAny)
+	assert.Equal(t, []uint32{0xF0}, fad.IncludeAny)
+	assert.Equal(t, []byte{0x80, 0x00, 0x00, 0x00}, fad.Flags)
+
+	require.Len(t, ls.Prefix.SrPrefixSIDs, 2)
+	assert.Equal(t, uint8(0), ls.Prefix.SrPrefixSIDs[0].Algorithm)
+	assert.Equal(t, srgbStart+1, ls.Prefix.SrPrefixSIDs[0].SID)
+	assert.Equal(t, uint8(128), ls.Prefix.SrPrefixSIDs[1].Algorithm)
+	assert.Equal(t, uint8(0x08), ls.Prefix.SrPrefixSIDs[1].Flags)
+	assert.Equal(t, srgbStart+128, ls.Prefix.SrPrefixSIDs[1].SID)
+	require.NotNil(t, ls.Prefix.SrPrefixSID)
+	assert.Equal(t, srgbStart+1, *ls.Prefix.SrPrefixSID)
+
+	require.Len(t, ls.Prefix.FadPrefixMetrics, 1)
+	assert.Equal(t, uint8(128), ls.Prefix.FadPrefixMetrics[0].Algorithm)
+	assert.Equal(t, uint32(10000), ls.Prefix.FadPrefixMetrics[0].Metric)
+
+	// Cross the apiutil boundary in both directions.
+	apiAttr, err := NewLsAttributeFromNative(pa)
+	require.NoError(t, err)
+	require.Len(t, apiAttr.Node.FlexAlgoDefs, 1)
+	require.Len(t, apiAttr.Prefix.SrPrefixSids, 2)
+	require.Len(t, apiAttr.Prefix.FadPrefixMetrics, 1)
+
+	enc, err := proto.Marshal(apiAttr)
+	require.NoError(t, err)
+	clone := &api.LsAttribute{}
+	require.NoError(t, proto.Unmarshal(enc, clone))
+	assert.True(t, proto.Equal(apiAttr, clone))
+
+	back, err := UnmarshalLsAttribute(clone)
+	require.NoError(t, err)
+	require.Len(t, back.Node.FlexAlgoDefs, 1)
+	assert.Equal(t, uint8(128), back.Node.FlexAlgoDefs[0].Algorithm)
+	require.Len(t, back.Prefix.SrPrefixSIDs, 2)
+	assert.Equal(t, srgbStart+128, back.Prefix.SrPrefixSIDs[1].SID)
+	require.Len(t, back.Prefix.FadPrefixMetrics, 1)
+
+	// Re-serialise the original PathAttributeLs (its TLV slice still
+	// carries the original wire-shaped sub-TLVs) and confirm the
+	// byte sequence matches the input. This is the strongest
+	// regression signal against silent re-encoding drift.
+	out, err := pa.Serialize()
+	require.NoError(t, err)
+	assert.True(t, bytes.Equal(wire, out),
+		"wire bytes round-trip mismatch:\n  in: % x\n out: % x", wire, out)
+}
+
 func TestFullCycleSRv6InformationSubTLV(t *testing.T) {
 	tests := []struct {
 		name  string
