@@ -1710,6 +1710,103 @@ func TestFullCycleSRv6SIDStructureSubSubTLV(t *testing.T) {
 	}
 }
 
+// TestFullCycleFlexAlgoDefAndFAPM exercises the api <-> packet
+// round-trip for the RFC 9351 Flex-Algorithm Definition (FAD) Node
+// Attribute TLV and the FAPM (Prefix Attribute TLV 1044). The packet
+// layer round-trip is covered in pkg/packet/bgp; here we confirm the
+// apiutil mapping preserves every field on the way from bgp.LsAttribute
+// down to api.LsAttribute and back.
+func TestFullCycleFlexAlgoDefAndFAPM(t *testing.T) {
+	srgbStart := uint32(16000)
+
+	// Build a synthetic PathAttributeLs whose Extract output already
+	// carries the FAD + multi-SID + FAPM fields we want to surface.
+	// We bypass the wire by hand-building the TLV slice; the goal is
+	// to drive NewLsAttributeFromNative and UnmarshalLsAttribute.
+	tlvs := []bgp.LsTLVInterface{
+		&bgp.LsTLVFlexAlgoDef{
+			LsTLV:       bgp.LsTLV{Type: bgp.LS_TLV_FLEX_ALGO_DEF},
+			Algorithm:   128,
+			MetricType:  1, // Min-Delay
+			CalcType:    0,
+			Priority:    200,
+			ExcludeAny:  []uint32{0x0F},
+			IncludeAny:  []uint32{0xF0},
+			IncludeAll:  []uint32{0xAA},
+			Flags:       []byte{0x80, 0x00, 0x00, 0x00},
+			ExcludeSRLG: []uint32{42, 43},
+		},
+		&bgp.LsTLVPrefixSID{
+			LsTLV:     bgp.LsTLV{Type: bgp.LS_TLV_PREFIX_SID},
+			Algorithm: 0,
+			Flags:     0,
+			SID:       srgbStart + 1,
+		},
+		&bgp.LsTLVPrefixSID{
+			LsTLV:     bgp.LsTLV{Type: bgp.LS_TLV_PREFIX_SID},
+			Algorithm: 128,
+			Flags:     0x08,
+			SID:       srgbStart + 128,
+		},
+		&bgp.LsTLVFADPrefixMetric{
+			LsTLV:     bgp.LsTLV{Type: bgp.LS_TLV_FAD_PREFIX_METRIC},
+			Algorithm: 128,
+			Flags:     0,
+			Metric:    10000,
+		},
+	}
+	pa := &bgp.PathAttributeLs{TLVs: tlvs}
+
+	apiAttr, err := NewLsAttributeFromNative(pa)
+	require.NoError(t, err)
+	require.NotNil(t, apiAttr)
+
+	require.Len(t, apiAttr.Node.FlexAlgoDefs, 1)
+	fad := apiAttr.Node.FlexAlgoDefs[0]
+	assert.Equal(t, uint32(128), fad.Algorithm)
+	assert.Equal(t, uint32(1), fad.MetricType)
+	assert.True(t, fad.MetricTypeKnown)
+	assert.Equal(t, uint32(200), fad.Priority)
+	assert.Equal(t, []uint32{0x0F}, fad.ExcludeAnyAffinity)
+	assert.Equal(t, []uint32{0xF0}, fad.IncludeAnyAffinity)
+	assert.Equal(t, []uint32{0xAA}, fad.IncludeAllAffinity)
+	assert.Equal(t, []byte{0x80, 0x00, 0x00, 0x00}, fad.DefinitionFlags)
+	assert.Equal(t, []uint32{42, 43}, fad.ExcludeSrlg)
+
+	require.Len(t, apiAttr.Prefix.SrPrefixSids, 2)
+	assert.Equal(t, uint32(0), apiAttr.Prefix.SrPrefixSids[0].Algorithm)
+	assert.Equal(t, srgbStart+1, apiAttr.Prefix.SrPrefixSids[0].Sid)
+	assert.Equal(t, uint32(128), apiAttr.Prefix.SrPrefixSids[1].Algorithm)
+	assert.Equal(t, uint32(0x08), apiAttr.Prefix.SrPrefixSids[1].Flags)
+	assert.Equal(t, srgbStart+128, apiAttr.Prefix.SrPrefixSids[1].Sid)
+	// Singular field still populated for the Algorithm-0 SID.
+	assert.Equal(t, srgbStart+1, apiAttr.Prefix.SrPrefixSid)
+
+	require.Len(t, apiAttr.Prefix.FadPrefixMetrics, 1)
+	assert.Equal(t, uint32(128), apiAttr.Prefix.FadPrefixMetrics[0].Algorithm)
+	assert.Equal(t, uint32(10000), apiAttr.Prefix.FadPrefixMetrics[0].Metric)
+
+	// proto round-trip: marshal + unmarshal must preserve byte-for-byte.
+	enc, err := proto.Marshal(apiAttr)
+	require.NoError(t, err)
+	clone := &api.LsAttribute{}
+	require.NoError(t, proto.Unmarshal(enc, clone))
+	assert.True(t, proto.Equal(apiAttr, clone))
+
+	// api -> bgp rehydration: every FAD / SID / FAPM field round-trips.
+	back, err := UnmarshalLsAttribute(clone)
+	require.NoError(t, err)
+	require.Len(t, back.Node.FlexAlgoDefs, 1)
+	assert.Equal(t, uint8(128), back.Node.FlexAlgoDefs[0].Algorithm)
+	assert.Equal(t, uint8(1), back.Node.FlexAlgoDefs[0].MetricType)
+	assert.Equal(t, []uint32{42, 43}, back.Node.FlexAlgoDefs[0].ExcludeSRLG)
+	require.Len(t, back.Prefix.SrPrefixSIDs, 2)
+	assert.Equal(t, uint8(128), back.Prefix.SrPrefixSIDs[1].Algorithm)
+	assert.Equal(t, srgbStart+128, back.Prefix.SrPrefixSIDs[1].SID)
+	require.Len(t, back.Prefix.FadPrefixMetrics, 1)
+	assert.Equal(t, uint32(10000), back.Prefix.FadPrefixMetrics[0].Metric)
+}
+
 func TestFullCycleSRv6InformationSubTLV(t *testing.T) {
 	tests := []struct {
 		name  string
