@@ -739,7 +739,7 @@ func (s *BgpServer) setPathVrfIdMap(paths []*table.Path, m map[uint32]bool) {
 
 // Note: the destination would be the same for all the paths passed here
 // The wather (only zapi) needs a unique list of vrf IDs
-func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.Path) {
+func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.Path, multipathUpdate []*table.Path, multipathWithdraw []*table.Path) {
 	if table.SelectionOptions.DisableBestPathSelection {
 		// Note: If best path selection disabled, no best path to notify.
 		return
@@ -753,10 +753,18 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 		}
 	}
 	clonedB := clonePathList(best)
+	clonedU := clonePathList(multipathUpdate)
+	clonedW := clonePathList(multipathWithdraw)
 	if !table.UseMultiplePaths.Enabled {
 		s.setPathVrfIdMap(clonedB, m)
 	}
-	w := &watchEventBestPath{PathList: clonedB, MultiPathList: clonedM, Timestamp: time.Now()}
+	w := &watchEventBestPath{
+		PathList:         clonedB,
+		MultiPathList:    clonedM,
+		UpdatePathList:   clonedU,
+		WithdrawPathList: clonedW,
+		Timestamp:        time.Now(),
+	}
 	if len(m) > 0 {
 		w.Vrf = m
 	}
@@ -1349,10 +1357,12 @@ func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, rt bgp.Extende
 	fn(nil, s.globalRib.GetBestPathList(peer.TableID(), 0, fs))
 }
 
-func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*table.Path, [][]*table.Path) {
+func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*table.Path, [][]*table.Path, []*table.Path, []*table.Path) {
 	bestList := make([]*table.Path, 0, len(dsts))
 	oldList := make([]*table.Path, 0, len(dsts))
 	mpathList := make([][]*table.Path, 0, len(dsts))
+	multipathUpdate := make([]*table.Path, 0, len(dsts))
+	multipathWithdraw := make([]*table.Path, 0, len(dsts))
 
 	for _, dst := range dsts {
 		best, old, mpath := dst.GetChanges(id, as, false)
@@ -1361,8 +1371,13 @@ func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*
 		if mpath != nil {
 			mpathList = append(mpathList, mpath)
 		}
+		if id == table.GLOBAL_RIB_NAME && table.UseMultiplePaths.Enabled {
+			u, w := dst.GetMultiBestPathDiff(id)
+			multipathUpdate = append(multipathUpdate, u...)
+			multipathWithdraw = append(multipathWithdraw, w...)
+		}
 	}
-	return bestList, oldList, mpathList
+	return bestList, oldList, mpathList, multipathUpdate, multipathWithdraw
 }
 
 func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *peer, newPath *table.Path, dsts []*table.Update, needOld bool) {
@@ -1371,9 +1386,10 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 	}
 	var gBestList, gOldList []*table.Path
 	var mpathList [][]*table.Path
+	var multipathUpdate, multipathWithdraw []*table.Path
 	if source == nil || !source.isRouteServerClient() {
-		gBestList, gOldList, mpathList = dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
-		s.notifyBestWatcher(gBestList, mpathList)
+		gBestList, gOldList, mpathList, multipathUpdate, multipathWithdraw = dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
+		s.notifyBestWatcher(gBestList, mpathList, multipathUpdate, multipathWithdraw)
 	}
 	family := newPath.GetFamily()
 	for _, targetPeer := range s.neighborMap {
@@ -1500,7 +1516,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 						}
 						return
 					}
-					bestList, oldList, _ = dstsToPaths(targetPeer.TableID(), targetPeer.AS(), dsts)
+					bestList, oldList, _, _, _ = dstsToPaths(targetPeer.TableID(), targetPeer.AS(), dsts)
 				} else {
 					bestList = gBestList
 					oldList = gOldList
@@ -4599,24 +4615,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 							}
 							callbacks.OnBestPath(p, msg.Timestamp)
 						}
-
-						if len(msg.MultiPathList) > 0 {
-							plen := 0
-							for _, pa := range msg.MultiPathList {
-								plen += len(pa)
-							}
-							paths := make([]*table.Path, plen)
-							i := 0
-							for _, pa := range msg.MultiPathList {
-								for _, path := range pa {
-									paths[i] = path
-									i++
-								}
-							}
-							callback(paths)
-						} else {
-							callback(msg.PathList)
-						}
+						callback(locRIBPathsForBMP(msg))
 					}
 
 				case *watchEventEor:
@@ -4770,10 +4769,35 @@ type watchEventPeer struct {
 }
 
 type watchEventBestPath struct {
-	PathList      []*table.Path
-	MultiPathList [][]*table.Path
-	Vrf           map[uint32]bool
-	Timestamp     time.Time
+	PathList         []*table.Path
+	MultiPathList    [][]*table.Path
+	UpdatePathList   []*table.Path
+	WithdrawPathList []*table.Path
+	Vrf              map[uint32]bool
+	Timestamp        time.Time
+}
+
+func locRIBPathsForBMP(msg *watchEventBestPath) []*table.Path {
+	// Prefer update/withdraw delta when present.
+	if len(msg.UpdatePathList) > 0 || len(msg.WithdrawPathList) > 0 {
+		paths := make([]*table.Path, 0, len(msg.WithdrawPathList)+len(msg.UpdatePathList))
+		paths = append(paths, msg.WithdrawPathList...)
+		paths = append(paths, msg.UpdatePathList...)
+		return paths
+	}
+	// Fallback for non-multipath and init snapshot behavior.
+	if len(msg.MultiPathList) > 0 {
+		plen := 0
+		for _, pa := range msg.MultiPathList {
+			plen += len(pa)
+		}
+		paths := make([]*table.Path, 0, plen)
+		for _, pa := range msg.MultiPathList {
+			paths = append(paths, pa...)
+		}
+		return paths
+	}
+	return msg.PathList
 }
 
 type watchEventMessage struct {

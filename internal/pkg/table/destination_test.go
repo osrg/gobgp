@@ -868,3 +868,51 @@ func TestNHT_NewPathWithInvalidNexthop(t *testing.T) {
 	assert.Nil(t, best, "invalid new path must not be advertised as best")
 	assert.Nil(t, old, "no old path expected")
 }
+
+func makeDeltaTestPath(t *testing.T, prefix, nexthop, src string, srcAS uint32, remoteID uint32) *Path {
+	t.Helper()
+
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+	assert.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop))
+	assert.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAsPathParam(2, []uint16{uint16(srcAS)}),
+		}),
+		nh,
+	}
+	source := &PeerInfo{
+		AS:      srcAS,
+		ID:      netip.MustParseAddr(src),
+		Address: netip.MustParseAddr(src),
+	}
+	return NewPath(
+		bgp.RF_IPv4_UC,
+		source,
+		bgp.PathNLRI{NLRI: nlri, ID: remoteID},
+		false,
+		attrs,
+		time.Unix(100, 0),
+		false,
+	)
+}
+
+func TestUpdateGetMultiBestPathDiff(t *testing.T) {
+	oldA := makeDeltaTestPath(t, "10.10.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
+	oldB := makeDeltaTestPath(t, "10.10.0.0/24", "192.0.2.2", "198.51.100.2", 65002, 2)
+	newC := makeDeltaTestPath(t, "10.10.0.0/24", "192.0.2.3", "198.51.100.3", 65003, 3)
+
+	u := &Update{
+		OldKnownPathList: []*Path{oldA, oldB},
+		KnownPathList:    []*Path{oldB, newC},
+	}
+
+	update, withdraw := u.GetMultiBestPathDiff(GLOBAL_RIB_NAME)
+	assert.Len(t, update, 1)
+	assert.Len(t, withdraw, 1)
+	assert.Equal(t, newC.GetNexthop(), update[0].GetNexthop())
+	assert.Equal(t, oldA.GetNexthop(), withdraw[0].GetNexthop())
+	assert.True(t, withdraw[0].IsWithdraw)
+}
