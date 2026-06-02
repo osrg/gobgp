@@ -1463,7 +1463,7 @@ func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path
 	for _, path := range l {
 		dsts = append(dsts, rib.Update(path)...)
 	}
-	news, olds, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
+	news, olds, _, _, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}

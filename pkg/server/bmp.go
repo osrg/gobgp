@@ -83,6 +83,14 @@ func (r ribout) update(p *table.Path) bool {
 	return true
 }
 
+func bmpAddPathMarshallingOption(path *table.Path) *bgp.MarshallingOption {
+	return &bgp.MarshallingOption{
+		AddPath: map[bgp.Family]bgp.BGPAddPathMode{
+			path.GetFamily(): bgp.BGP_ADD_PATH_BOTH,
+		},
+	}
+}
+
 func (b *bmpClient) tryConnect() *net.TCPConn {
 	interval := 1
 	for {
@@ -224,9 +232,13 @@ func (b *bmpClient) loop() {
 							AS:      b.s.bgpConfig.Global.Config.As,
 							ID:      b.s.bgpConfig.Global.Config.RouterId,
 						}
-						for _, p := range msg.PathList {
-							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
-							if payload, err := u.Serialize(); err != nil {
+						for _, p := range locRIBPathsForBMP(msg) {
+							if p == nil {
+								continue
+							}
+							options := bmpAddPathMarshallingOption(p)
+							u := table.CreateUpdateMsgFromPaths([]*table.Path{p}, options)[0]
+							if payload, err := u.Serialize(options); err != nil {
 								return false
 							} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, true, info, p.GetTimestamp().Unix(), payload)); err != nil {
 								return false
