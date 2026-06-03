@@ -8,6 +8,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	packetbmp "github.com/osrg/gobgp/v4/pkg/packet/bmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,4 +94,49 @@ func TestBMPAddPathMarshallingOptionCarriesPathIDOnWithdraw(t *testing.T) {
 	// Loc-RIB sender-assigned path-id can be 0 for paths without local path-id assignment.
 	// We only assert Add-Path encoding is in use (checked above by withdrawn length).
 	_ = update.WithdrawnRoutes[0].ID
+}
+
+func localRIBPeerUpOpen(t *testing.T, addPathEnabled bool) *bgp.BGPOpen {
+	t.Helper()
+	msg := bmpLocRIBPeerUp(
+		65002,
+		netip.MustParseAddr("100.1.1.102"),
+		"global",
+		0,
+		time.Now().Unix(),
+		addPathEnabled,
+	)
+	up := msg.Body.(*packetbmp.BMPPeerUpNotification)
+	return up.SentOpenMsg.Body.(*bgp.BGPOpen)
+}
+
+func findAddPathCapability(open *bgp.BGPOpen) *bgp.CapAddPath {
+	for _, p := range open.OptParams {
+		param, ok := p.(*bgp.OptionParameterCapability)
+		if !ok {
+			continue
+		}
+		for _, c := range param.Capability {
+			if addPath, ok := c.(*bgp.CapAddPath); ok {
+				return addPath
+			}
+		}
+	}
+	return nil
+}
+
+func TestBMPLocRIBPeerUpOmitsAddPathCapabilityWhenDisabled(t *testing.T) {
+	open := localRIBPeerUpOpen(t, false)
+	require.Nil(t, findAddPathCapability(open))
+}
+
+func TestBMPLocRIBPeerUpCarriesAddPathCapabilityWhenEnabled(t *testing.T) {
+	open := localRIBPeerUpOpen(t, true)
+	addPath := findAddPathCapability(open)
+	require.NotNil(t, addPath)
+	require.Len(t, addPath.Tuples, 2)
+	require.Equal(t, bgp.RF_IPv4_UC, addPath.Tuples[0].Family)
+	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[0].Mode)
+	require.Equal(t, bgp.RF_IPv6_UC, addPath.Tuples[1].Family)
+	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[1].Mode)
 }
