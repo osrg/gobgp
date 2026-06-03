@@ -188,7 +188,14 @@ func (b *bmpClient) loop() {
 			sentLocRIBPeerUp := false
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				// For now, use PD=0 and VRF/Table Name="global".
-				if err := write(bmpLocRIBPeerUp(b.s.bgpConfig.Global.Config.As, b.s.bgpConfig.Global.Config.RouterId, "global", 0, time.Now().Unix())); err != nil {
+				if err := write(bmpLocRIBPeerUp(
+					b.s.bgpConfig.Global.Config.As,
+					b.s.bgpConfig.Global.Config.RouterId,
+					"global",
+					0,
+					time.Now().Unix(),
+					table.UseMultiplePaths.Enabled,
+				)); err != nil {
 					return false
 				}
 				sentLocRIBPeerUp = true
@@ -297,7 +304,7 @@ func (b *bmpClient) loop() {
 	}
 }
 
-func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peerDist uint64, timestamp int64) *bmp.BMPMessage {
+func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peerDist uint64, timestamp int64, addPathEnabled bool) *bmp.BMPMessage {
 	const asTrans uint16 = 23456
 
 	myAS := asTrans
@@ -307,6 +314,14 @@ func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peer
 	} else {
 		opts = append(opts, bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
 			bgp.NewCapFourOctetASNumber(localAS),
+		}))
+	}
+	if addPathEnabled {
+		opts = append(opts, bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
+			bgp.NewCapAddPath([]*bgp.CapAddPathTuple{
+				bgp.NewCapAddPathTuple(bgp.RF_IPv4_UC, bgp.BGP_ADD_PATH_BOTH),
+				bgp.NewCapAddPathTuple(bgp.RF_IPv6_UC, bgp.BGP_ADD_PATH_BOTH),
+			}),
 		}))
 	}
 
