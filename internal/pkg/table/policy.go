@@ -2298,14 +2298,14 @@ func (c *ExtCommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 
 	// General path: loop over path ECs, try each matcher. Semantics preserved from original.
 	result := false
-	for _, x := range es {
+	for _, m := range c.set.matchers {
 		result = false
-		// match only with transitive community. see RFC7153
-		if !isTransitiveType(x) {
-			continue
-		}
-		var xStr string
-		for _, m := range c.set.matchers {
+		for _, x := range es {
+			// match only with transitive community. see RFC7153
+			if !isTransitiveType(x) {
+				continue
+			}
+			var xStr string
 			if m.matchesExtCommunity(x, &xStr) {
 				result = true
 				break
@@ -2314,7 +2314,7 @@ func (c *ExtCommunityCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 		if c.option == MATCH_OPTION_ALL && !result {
 			break
 		}
-		if c.option == MATCH_OPTION_ANY && result {
+		if (c.option == MATCH_OPTION_ANY || c.option == MATCH_OPTION_INVERT) && result {
 			break
 		}
 	}
