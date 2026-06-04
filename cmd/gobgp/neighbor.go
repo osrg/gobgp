@@ -163,6 +163,7 @@ func showNeighbors(vrf string) error {
 		return nil
 	}
 	maxaddrlen := 0
+	maxgrouplen := len("Group")
 	maxaslen := 2
 	maxtimelen := len("Up/Down")
 	timedelta := []string{}
@@ -192,6 +193,9 @@ func showNeighbors(vrf string) error {
 		} else if j := len(n.State.NeighborAddress); j > maxaddrlen {
 			maxaddrlen = j
 		}
+		if l := len(n.Conf.PeerGroup); l > maxgrouplen {
+			maxgrouplen = l
+		}
 		if l := len(getRemoteASN(n)); l > maxaslen {
 			maxaslen = l
 		}
@@ -209,9 +213,9 @@ func showNeighbors(vrf string) error {
 		timedelta = append(timedelta, timeStr)
 	}
 
-	format := "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
+	format := "%-" + fmt.Sprint(maxaddrlen) + "s" + " %" + fmt.Sprint(maxgrouplen) + "s" + " %" + fmt.Sprint(maxaslen) + "s" + " %" + fmt.Sprint(maxtimelen) + "s"
 	format += " %-11s |%9s %9s\n"
-	fmt.Printf(format, "Peer", "AS", "Up/Down", "State", "#Received", "Accepted")
+	fmt.Printf(format, "Peer", "Group", "AS", "Up/Down", "State", "#Received", "Accepted")
 	formatFsm := func(admin api.PeerState_AdminState, fsm api.PeerState_SessionState) string {
 		switch admin {
 		case api.PeerState_ADMIN_STATE_DOWN:
@@ -247,7 +251,7 @@ func showNeighbors(vrf string) error {
 			neigh = n.Conf.NeighborInterface
 		}
 		received, accepted, _, _ := counter(n)
-		fmt.Printf(format, neigh, getRemoteASN(n), timedelta[i], formatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(received), fmt.Sprint(accepted))
+		fmt.Printf(format, neigh, n.Conf.PeerGroup, getRemoteASN(n), timedelta[i], formatFsm(n.State.AdminState, n.State.SessionState), fmt.Sprint(received), fmt.Sprint(accepted))
 	}
 
 	return nil
