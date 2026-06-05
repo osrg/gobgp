@@ -5280,6 +5280,112 @@ func mtTLVBytes(ids ...uint16) []byte {
 	return out
 }
 
+// linkIDTLVBytes builds an LS Link Local/Remote Identifier sub-TLV
+// (RFC 7752 Table 5, type 258, length 8) carrying the supplied
+// 32-bit values. Used by the table-driven test below to compose
+// NLRI payloads that exercise the coexistence of the identifier
+// sub-TLV with the IPv4 interface/neighbor address sub-TLVs (the
+// shape RFC 9086 Section 5.2 PeerAdj-SID Link NLRI mandates).
+func linkIDTLVBytes(local, remote uint32) []byte {
+	return []byte{
+		0x01, 0x02, 0x00, 0x08,
+		byte(local >> 24), byte(local >> 16), byte(local >> 8), byte(local),
+		byte(remote >> 24), byte(remote >> 16), byte(remote >> 8), byte(remote),
+	}
+}
+
+// Test_LsLinkDescriptor_StringIncludesLinkID verifies that
+// LsLinkDescriptor.String folds the Link Local/Remote Identifier
+// sub-TLV (RFC 7752 Table 5, type 258) into its output when the
+// identifier is present alongside the IPv4 interface/neighbor
+// address sub-TLVs (types 259/260). RFC 9086 Section 5.2 mandates
+// the identifier on PeerAdj-SID Link NLRIs and lets the producer
+// also include the addresses. The two NLRI shapes (PeerNode-SID
+// with addresses only vs PeerAdj-SID with addresses plus
+// identifier) reuse the addresses but are distinct prefixes in
+// adj-RIB-in. Any caller keyed on this String form (table-layer
+// dedup, RIB walkers, log correlation) collapses the two prefixes
+// into one unless the identifier surfaces too.
+func Test_LsLinkDescriptor_StringIncludesLinkID(t *testing.T) {
+	commonHeader := []byte{
+		0x02,                                           // Protocol: ISIS L2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		// Local Node Descriptor, value length=18
+		0x01, 0x00, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		// Remote Node Descriptor, value length=18
+		0x01, 0x01, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		// IPv4 Interface Address: 10.0.0.1
+		0x01, 0x03, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x01,
+		// IPv4 Neighbor Address: 10.0.0.2
+		0x01, 0x04, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x02,
+	}
+
+	tests := []struct {
+		name         string
+		extraTLV     []byte
+		wantContains string // expected substring in String()
+		wantNoLinkID bool   // String() must NOT contain "(L:" suffix
+	}{
+		{
+			name:         "addresses only (PeerNode-SID NLRI shape)",
+			extraTLV:     nil,
+			wantContains: "10.0.0.1->10.0.0.2",
+			wantNoLinkID: true,
+		},
+		{
+			name:         "addresses + Link ID 3/0 (PeerAdj-SID NLRI shape)",
+			extraTLV:     linkIDTLVBytes(3, 0),
+			wantContains: "10.0.0.1->10.0.0.2(L:3,R:0)",
+		},
+		{
+			name:         "addresses + Link ID 1/1",
+			extraTLV:     linkIDTLVBytes(1, 1),
+			wantContains: "10.0.0.1->10.0.0.2(L:1,R:1)",
+		},
+	}
+
+	keys := make(map[string]string, len(tests))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append(append([]byte{}, commonHeader...), tt.extraTLV...)
+			nlri := &LsLinkNLRI{}
+			nlri.Length = uint16(len(data))
+			assert.NoError(nlri.DecodeFromBytes(data))
+
+			desc := &LsLinkDescriptor{}
+			desc.ParseTLVs(nlri.LinkDesc)
+
+			s := desc.String()
+			assert.Contains(s, tt.wantContains)
+			if tt.wantNoLinkID {
+				assert.NotContains(s, "(L:",
+					"NLRI without Link Local/Remote Identifier must not gain (L:..,R:..) suffix")
+			}
+			keys[tt.name] = s
+		})
+	}
+
+	// Cross-case regression: every distinct NLRI shape must produce a
+	// distinct String(), or callers keyed on the human-readable form
+	// will collapse two adj-RIB-in prefixes into one.
+	t.Run("distinct Link ID sub-TLV presence yields distinct keys", func(t *testing.T) {
+		seen := make(map[string]string, len(keys))
+		for name, key := range keys {
+			if other, ok := seen[key]; ok {
+				t.Fatalf("key collision: %q and %q both produced %q", name, other, key)
+			}
+			seen[key] = name
+		}
+	})
+}
+
 // Test_LsLinkNLRI_MultiTopoID verifies that the Multi-Topology ID sub-TLV
 // (RFC 7752 §3.2.1.5, type 263) is parsed into LinkDesc, that
 // LsLinkDescriptor.String() emits the MT-ID suffix, and that two

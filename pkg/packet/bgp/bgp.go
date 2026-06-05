@@ -5051,9 +5051,26 @@ func (l *LsLinkDescriptor) String() string {
 	default:
 		base = "UNKNOWN"
 	}
-	// MT-ID participates in the destination key (RFC 7752 §3.2.1.5).
-	// Two ISIS-MT advertisements of the same physical link must not
-	// collide in the RIB.
+
+	// The Link Local/Remote Identifier sub-TLV (Type 258, RFC 7752
+	// Table 5) coexists with the interface/neighbor address sub-TLVs
+	// in some NLRI shapes. RFC 9086 Section 5.2 mandates Type 258 on
+	// PeerAdj-SID Link NLRIs and lets the producer also include the
+	// IPv4 or IPv6 address sub-TLVs alongside. PeerNode-SID Link
+	// NLRIs for the same eBGP session may share the addresses but
+	// omit Type 258. The two NLRIs are distinct prefixes in
+	// adj-RIB-in because of Type 258's presence, so the String form
+	// must show the identifier whenever it is set or two distinct
+	// prefixes collide in any caller keyed on this output.
+	if l.LinkLocalID != nil && l.LinkRemoteID != nil &&
+		(l.InterfaceAddrIPv4 != nil || l.NeighborAddrIPv4 != nil ||
+			l.InterfaceAddrIPv6 != nil || l.NeighborAddrIPv6 != nil) {
+		base += fmt.Sprintf("(L:%d,R:%d)", *l.LinkLocalID, *l.LinkRemoteID)
+	}
+
+	// MT-ID participates in the destination key (RFC 7752 Section
+	// 3.2.1.5). Two ISIS-MT advertisements of the same physical link
+	// must not collide in the RIB.
 	return base + multiTopoIDsToString(l.MultiTopoIDs)
 }
 
