@@ -4298,3 +4298,111 @@ func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.
 	require.Never(t, vpnPresentAtS2AdjIn, 10*time.Second, 100*time.Millisecond,
 		"VPN route should not appear at s2 adj-in from s1 after second VPN prefix is added")
 }
+
+func TestLocalAddressOverride(t *testing.T) {
+	tests := []struct {
+		name          string
+		localAddress  string // Transport.Config.LocalAddress for the passive server's peer
+		bindInterface string // Transport.Config.BindInterface (allows local address mismatch)
+		wantOverride  bool   // true when ListPeer should return localAddress instead of TCP addr
+	}{
+		{
+			name:         "no config - TCP address used",
+			localAddress: "",
+			wantOverride: false,
+		},
+		{
+			name:         "wildcard IPv4 - no override",
+			localAddress: "0.0.0.0",
+			wantOverride: false,
+		},
+		{
+			name: "specific IPv4 - override",
+			// When the configured address differs from the TCP connection's
+			// address, BindInterface must be set to bypass the local address
+			// mismatch check in the passive connection acceptance path.
+			localAddress:  "192.168.1.100",
+			bindInterface: "lo0",
+			wantOverride:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Passive server (listener).
+			s := NewBgpServer()
+			go s.Serve()
+			require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{
+				Global: &api.Global{
+					Asn:        1,
+					RouterId:   "1.1.1.1",
+					ListenPort: 10179,
+				},
+			}))
+			defer s.StopBgp(ctx, &api.StopBgpRequest{})
+
+			p1 := &api.Peer{
+				Conf: &api.PeerConf{
+					NeighborAddress: "127.0.0.1",
+					PeerAsn:         2,
+				},
+				Transport: &api.Transport{
+					PassiveMode:   true,
+					LocalAddress:  tt.localAddress,
+					BindInterface: tt.bindInterface,
+				},
+			}
+			require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: p1}))
+
+			// Active server (initiator).
+			a := NewBgpServer()
+			go a.Serve()
+			require.NoError(t, a.StartBgp(ctx, &api.StartBgpRequest{
+				Global: &api.Global{
+					Asn:        2,
+					RouterId:   "2.2.2.2",
+					ListenPort: -1,
+				},
+			}))
+			defer a.StopBgp(ctx, &api.StopBgpRequest{})
+
+			p2 := &api.Peer{
+				Conf: &api.PeerConf{
+					NeighborAddress: "127.0.0.1",
+					PeerAsn:         1,
+				},
+				Transport: &api.Transport{
+					RemotePort: 10179,
+				},
+				Timers: &api.Timers{
+					Config: &api.TimersConfig{
+						ConnectRetry:           1,
+						IdleHoldTimeAfterReset: 1,
+					},
+				},
+			}
+
+			waiter := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ESTABLISHED)
+			require.NoError(t, a.AddPeer(ctx, &api.AddPeerRequest{Peer: p2}))
+			waiter.Wait(t, 10*time.Second)
+
+			// Verify Transport.LocalAddress via ListPeer on the passive server.
+			var gotAddr string
+			require.NoError(t, s.ListPeer(ctx, &api.ListPeerRequest{}, func(peer *api.Peer) {
+				if peer.Transport != nil {
+					gotAddr = peer.Transport.LocalAddress
+				}
+			}))
+
+			if tt.wantOverride {
+				assert.Equal(t, tt.localAddress, gotAddr,
+					"ListPeer should return the configured local address")
+			} else {
+				assert.Equal(t, "127.0.0.1", gotAddr,
+					"ListPeer should return the TCP connection's local address")
+			}
+		})
+	}
+}
