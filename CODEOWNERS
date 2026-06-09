@@ -9,6 +9,7 @@
 # will be requested to review.
 pkg/zebra/* @irino
 pkg/server/zclient* @irino
+.github/workflows/ @fujita
 
 # You can also use email addresses if you prefer.
 # docs/*  docs@example.com
