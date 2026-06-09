@@ -2,6 +2,11 @@ name: ci
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
 jobs:
   crossbuild:
     name: crossbuild
@@ -114,6 +119,10 @@ jobs:
   build:
     name: build container image
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
+      checks: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
