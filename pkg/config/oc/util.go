@@ -795,6 +795,7 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 			NotificationEnabled: c.GracefulRestart.Config.NotificationEnabled,
 			LonglivedEnabled:    c.GracefulRestart.Config.LongLivedEnabled,
 		},
+		BindToDevice: c.Config.BindInterface,
 	}
 }
 

@@ -234,6 +234,14 @@ func (s *bfdServer) startServer() {
 
 	var lc net.ListenConfig
 	lc.Control = func(network, address string, sc syscall.RawConn) error {
+		s.logger.Info("configuring BFD listener", slog.Any("config", s.config))
+		if s.config.BindInterface != "" {
+			s.logger.Info("binding bfd listener to interface", slog.String("interface", s.config.BindInterface))
+			if err := netutils.SetBindToDevSockopt(sc, s.config.BindInterface); err != nil {
+				return err
+			}
+		}
+
 		return netutils.SetReuseAddrSockopt(sc)
 	}
 

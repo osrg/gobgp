@@ -2602,7 +2602,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
 		if s.bfdServer != nil {
-			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort}); err != nil {
+			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort, BindInterface: g.BindToDevice}); err != nil {
 				return err
 			}
 		}
@@ -3452,6 +3452,11 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		if err != nil {
 			return fmt.Errorf("failed to parse IP address: %v", err)
 		}
+
+		if c.Transport.Config.BindInterface != "" && c.Bfd.Config.BindInterface == "" {
+			c.Bfd.Config.BindInterface = c.Transport.Config.BindInterface
+		}
+
 		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, c.Bfd.Config); err != nil {
 			s.logger.Warn("failed to add BFD peer",
 				slog.String("Topic", "Peer"),

@@ -186,6 +186,7 @@ func (v MatchSetOptionsType) DefaultAsNeeded() MatchSetOptionsType {
 	}
 	return v
 }
+
 func (v MatchSetOptionsType) ToInt() int {
 	_v := v.DefaultAsNeeded()
 	i, ok := MatchSetOptionsTypeToIntMap[_v]
@@ -234,6 +235,7 @@ func (v MatchSetOptionsRestrictedType) DefaultAsNeeded() MatchSetOptionsRestrict
 	}
 	return v
 }
+
 func (v MatchSetOptionsRestrictedType) ToInt() int {
 	_v := v.DefaultAsNeeded()
 	i, ok := MatchSetOptionsRestrictedTypeToIntMap[_v]
@@ -2186,6 +2188,8 @@ type BfdConfig struct {
 	// original -> gobgp:detection-multiplier
 	// Detection time multiplier.
 	DetectionMultiplier uint8 `mapstructure:"detection-multiplier" json:"detection-multiplier,omitempty"`
+	// BindInterface selects the device to bind to
+	BindInterface string `mapstructure:"bind-interface" json:"bind-to-device,omitempty"`
 }
 
 func (lhs *BfdConfig) Equal(rhs *BfdConfig) bool {
@@ -5110,6 +5114,8 @@ type GlobalConfig struct {
 	// original -> gobgp:local-address
 	// original type is list of inet:ip-address
 	LocalAddressList []netip.Addr `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
+	// BindInterface is the interface to bind BGP listeners to.
+	BindInterface string `mapstructure:"bind-interface" json:"bind-interface,omitempty"`
 }
 
 func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {
@@ -5891,8 +5897,7 @@ func (lhs *BgpConditions) Equal(rhs *BgpConditions) bool {
 
 // struct for container rpol:igp-conditions.
 // Policy conditions for IGP attributes.
-type IgpConditions struct {
-}
+type IgpConditions struct{}
 
 func (lhs *IgpConditions) Equal(rhs *IgpConditions) bool {
 	if lhs == nil || rhs == nil {

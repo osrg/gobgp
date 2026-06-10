@@ -12,6 +12,9 @@
     # listen address list (by default "0.0.0.0" and "::")
     local-address-list = ["192.168.10.1", "2001:db8::1"]
 
+    # bind BGP/BFD listeners to an interface
+    bind-interface = "eth0"
+
     [global.apply-policy.config]
         import-policy-list = ["policy1"]
         default-import-policy = "reject-route"
@@ -80,6 +83,7 @@
         local-address = "192.168.10.1"
         remote-port = 2016
         ip-tos = 192 #DSCP class CS6
+        bind-interface = "eth0" # Connect to BGP and BFD peers from this interface
     [neighbors.ebgp-multihop.config]
         enabled = true #directly connection should be set false，if not ，peer will be deleted after hold-time
         multihop-ttl = 100
