@@ -85,7 +85,7 @@ func Test_BfdServerStopIdempotentAndPublicMethodsAfterStop(t *testing.T) {
 	assert.Error(s.AddPeer(context.Background(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
 		Port:    23784,
 		Enabled: true,
-	}))
+	}, ""))
 	assert.Error(s.DeletePeer(context.Background(), netip.MustParseAddr("127.0.0.1")))
 }
 
@@ -143,7 +143,7 @@ func addPeer(s *bfdServer, port uint16) error {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 }
 
 func Test_AddDeletePeer(t *testing.T) {
@@ -578,7 +578,7 @@ func Test_BfdServer_NoGoroutineLeakAfterStop(t *testing.T) {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 	assert.NoError(err)
 
 	time.Sleep(500 * time.Millisecond)
@@ -601,7 +601,7 @@ func Test_BfdServer_RepeatedLifecycleNoGoroutineLeak(t *testing.T) {
 			DetectionMultiplier:      5,
 			RequiredMinimumReceive:   200000,
 			DesiredMinimumTxInterval: 200000,
-		})
+		}, "")
 		assert.NoError(err)
 		time.Sleep(80 * time.Millisecond)
 		s.Stop()
@@ -655,7 +655,7 @@ func Test_BfdServer_ConcurrentPublicMethods(t *testing.T) {
 					DetectionMultiplier:      cfg.DetectionMultiplier,
 					RequiredMinimumReceive:   cfg.RequiredMinimumReceive,
 					DesiredMinimumTxInterval: cfg.DesiredMinimumTxInterval,
-				}))
+				}, ""))
 				_, _ = s.GetPeerState(peerAddr)
 				list := s.GetPeerStateList()
 				_ = list
