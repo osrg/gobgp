@@ -69,7 +69,7 @@ func Test_StartStop(t *testing.T) {
 
 	s1.Start(context.Background(), oc.BfdConfig{ //nolint:errcheck
 		Port: 13784,
-	})
+	}, "")
 	defer s1.Stop()
 }
 
@@ -81,11 +81,11 @@ func Test_BfdServerStopIdempotentAndPublicMethodsAfterStop(t *testing.T) {
 	s.Stop()
 	s.Stop()
 
-	assert.Error(s.Start(context.Background(), oc.BfdConfig{Port: 13784}))
+	assert.Error(s.Start(context.Background(), oc.BfdConfig{Port: 13784}, ""))
 	assert.Error(s.AddPeer(context.Background(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
 		Port:    23784,
 		Enabled: true,
-	}))
+	}, ""))
 	assert.Error(s.DeletePeer(context.Background(), netip.MustParseAddr("127.0.0.1")))
 }
 
@@ -123,7 +123,7 @@ func newServer(port uint16) *bfdServer {
 	s := NewBfdServer(ps, slog.Default())
 	s.Start(context.Background(), oc.BfdConfig{ //nolint:errcheck
 		Port: port,
-	})
+	}, "")
 	return s
 }
 
@@ -132,7 +132,7 @@ func newServerWithMock(port uint16) (*bfdServer, *mockPeerState) {
 	s := NewBfdServer(ps, slog.Default())
 	s.Start(context.Background(), oc.BfdConfig{ //nolint:errcheck
 		Port: port,
-	})
+	}, "")
 	return s, ps
 }
 
@@ -143,7 +143,7 @@ func addPeer(s *bfdServer, port uint16) error {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 }
 
 func Test_AddDeletePeer(t *testing.T) {
@@ -569,7 +569,7 @@ func Test_BfdServer_NoGoroutineLeakAfterStop(t *testing.T) {
 	s := NewBfdServer(ps, slog.Default())
 	err := s.Start(context.Background(), oc.BfdConfig{
 		Port: 33884,
-	})
+	}, "")
 	assert.NoError(err)
 
 	err = s.AddPeer(context.Background(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
@@ -578,7 +578,7 @@ func Test_BfdServer_NoGoroutineLeakAfterStop(t *testing.T) {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 	assert.NoError(err)
 
 	time.Sleep(500 * time.Millisecond)
@@ -593,7 +593,7 @@ func Test_BfdServer_RepeatedLifecycleNoGoroutineLeak(t *testing.T) {
 		ps := &mockPeerState{}
 		s := NewBfdServer(ps, slog.Default())
 		port := uint16(35000 + i)
-		err := s.Start(context.Background(), oc.BfdConfig{Port: port})
+		err := s.Start(context.Background(), oc.BfdConfig{Port: port}, "")
 		assert.NoError(err)
 		err = s.AddPeer(context.Background(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
 			Port:                     port + 2000,
@@ -601,7 +601,7 @@ func Test_BfdServer_RepeatedLifecycleNoGoroutineLeak(t *testing.T) {
 			DetectionMultiplier:      5,
 			RequiredMinimumReceive:   200000,
 			DesiredMinimumTxInterval: 200000,
-		})
+		}, "")
 		assert.NoError(err)
 		time.Sleep(80 * time.Millisecond)
 		s.Stop()
@@ -618,7 +618,7 @@ func Test_BfdServer_ConcurrentPublicMethods(t *testing.T) {
 	s := NewBfdServer(ps, slog.Default())
 	err := s.Start(context.Background(), oc.BfdConfig{
 		Port: 35884,
-	})
+	}, "")
 	assert.NoError(err)
 
 	cfg := oc.BfdConfig{
@@ -648,14 +648,14 @@ func Test_BfdServer_ConcurrentPublicMethods(t *testing.T) {
 			peerAddr := netip.MustParseAddr(fmt.Sprintf("127.0.0.%d", id%254+1))
 			remotePort := uint16(46000 + id)
 			for range rounds {
-				addErr(s.Start(context.Background(), oc.BfdConfig{Port: 35884}))
+				addErr(s.Start(context.Background(), oc.BfdConfig{Port: 35884}, ""))
 				addErr(s.AddPeer(context.Background(), peerAddr, oc.BfdConfig{
 					Port:                     remotePort,
 					Enabled:                  cfg.Enabled,
 					DetectionMultiplier:      cfg.DetectionMultiplier,
 					RequiredMinimumReceive:   cfg.RequiredMinimumReceive,
 					DesiredMinimumTxInterval: cfg.DesiredMinimumTxInterval,
-				}))
+				}, ""))
 				_, _ = s.GetPeerState(peerAddr)
 				list := s.GetPeerStateList()
 				_ = list

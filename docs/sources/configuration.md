@@ -12,6 +12,9 @@
     # listen address list (by default "0.0.0.0" and "::")
     local-address-list = ["192.168.10.1", "2001:db8::1"]
 
+    # bind BGP/BFD listeners to an interface
+    bind-interface = "eth0"
+
     [global.apply-policy.config]
         import-policy-list = ["policy1"]
         default-import-policy = "reject-route"
