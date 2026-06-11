@@ -49,7 +49,8 @@ type bfdServer struct {
 
 	config *oc.BfdConfig
 
-	udpServer *net.UDPConn
+	udpServer       *net.UDPConn
+	listenInterface string
 
 	peersMutex sync.RWMutex
 	peers      map[netip.Addr]*bfdPeer
@@ -87,10 +88,12 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 	return s
 }
 
-func (s *bfdServer) Start(ctx context.Context, config oc.BfdConfig) error {
+func (s *bfdServer) Start(ctx context.Context, config oc.BfdConfig, listenInterface string) error {
 	if s.stopped.Load() {
 		return errors.New("bfd server stopped")
 	}
+
+	s.listenInterface = listenInterface
 
 	select {
 	case s.eventConfig <- &config:
@@ -234,6 +237,13 @@ func (s *bfdServer) startServer() {
 
 	var lc net.ListenConfig
 	lc.Control = func(network, address string, sc syscall.RawConn) error {
+		if s.listenInterface != "" {
+			s.logger.Info("binding bfd listener to interface", slog.String("interface", s.listenInterface))
+			if err := netutils.SetBindToDevSockopt(sc, s.listenInterface); err != nil {
+				return err
+			}
+		}
+
 		return netutils.SetReuseAddrSockopt(sc)
 	}
 

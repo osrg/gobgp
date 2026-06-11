@@ -2602,7 +2602,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
 		if s.bfdServer != nil {
-			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort}); err != nil {
+			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort}, g.BindToDevice); err != nil {
 				return err
 			}
 		}
