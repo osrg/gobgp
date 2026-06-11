@@ -29,9 +29,10 @@ type bfdServerStats struct {
 }
 
 type bfdEventPeerUpdate struct {
-	isAdd       bool
-	peerAddress netip.Addr
-	config      oc.BfdConfig
+	isAdd         bool
+	peerAddress   netip.Addr
+	config        oc.BfdConfig
+	bindInterface string
 }
 
 type bfdPeerState struct {
@@ -117,7 +118,7 @@ func (s *bfdServer) Stop() {
 	})
 }
 
-func (s *bfdServer) AddPeer(ctx context.Context, peerAddress netip.Addr, config oc.BfdConfig) error {
+func (s *bfdServer) AddPeer(ctx context.Context, peerAddress netip.Addr, config oc.BfdConfig, bindInterface string) error {
 	if s.stopped.Load() {
 		return errors.New("bfd server stopped")
 	}
@@ -127,7 +128,7 @@ func (s *bfdServer) AddPeer(ctx context.Context, peerAddress netip.Addr, config 
 	}
 
 	select {
-	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: true, peerAddress: peerAddress, config: config}:
+	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: true, peerAddress: peerAddress, config: config, bindInterface: bindInterface}:
 		if s.stopped.Load() {
 			return errors.New("bfd server stopped")
 		}
@@ -206,7 +207,7 @@ func (s *bfdServer) loop() {
 			s.config = ev
 		case ev := <-s.eventPeerUpdate:
 			if ev.isAdd {
-				s.addBfdPeer(ev.peerAddress, ev.config)
+				s.addBfdPeer(ev.peerAddress, ev.config, ev.bindInterface)
 			} else {
 				s.deleteBfdPeer(ev.peerAddress)
 			}
@@ -293,7 +294,7 @@ func (s *bfdServer) stop() {
 	)
 }
 
-func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig) {
+func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, bindInterface string) {
 	s.peersMutex.RLock()
 	_, ok := s.peers[peerAddress]
 	s.peersMutex.RUnlock()
@@ -307,7 +308,7 @@ func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig) {
 		return
 	}
 
-	bfdPeer := NewBfdPeer(s.peerState, s.logger, peerAddress, config)
+	bfdPeer := NewBfdPeer(s.peerState, s.logger, peerAddress, config, bindInterface)
 	if bfdPeer != nil {
 		s.logger.Info("Insert BFD peer",
 			slog.String("Topic", "bfd"),

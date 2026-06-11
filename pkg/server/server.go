@@ -3452,7 +3452,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		if err != nil {
 			return fmt.Errorf("failed to parse IP address: %v", err)
 		}
-		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, c.Bfd.Config); err != nil {
+		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, c.Bfd.Config, c.Transport.Config.BindInterface); err != nil {
 			s.logger.Warn("failed to add BFD peer",
 				slog.String("Topic", "Peer"),
 				slog.String("Key", addr),
@@ -3478,8 +3478,12 @@ func apiBfdSessionStateToOC(state api.BfdSessionState) oc.BfdSessionState {
 	}
 }
 
-func (s *BgpServer) updateBfdPeer(addr string, oldConfig, newConfig oc.BfdConfig) error {
-	if s.bfdServer == nil || oldConfig.Equal(&newConfig) {
+func (s *BgpServer) updateBfdPeer(
+	addr string,
+	oldConfig, newConfig oc.BfdConfig,
+	oldBindInterface, newBindInterface string,
+) error {
+	if s.bfdServer == nil || (oldConfig.Equal(&newConfig) && oldBindInterface == newBindInterface) {
 		return nil
 	}
 
@@ -3495,7 +3499,7 @@ func (s *BgpServer) updateBfdPeer(addr string, oldConfig, newConfig oc.BfdConfig
 	}
 
 	if newConfig.Enabled {
-		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, newConfig); err != nil {
+		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, newConfig, newBindInterface); err != nil {
 			return err
 		}
 	}
@@ -3828,7 +3832,11 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		peer.fsm.pConf.Update(&conf)
 		peer.fsm.lock.Unlock()
 		if bfdConfigChanged {
-			err = s.updateBfdPeer(addr, original.Bfd.Config, c.Bfd.Config)
+			err = s.updateBfdPeer(
+				addr,
+				original.Bfd.Config, c.Bfd.Config,
+				original.Transport.Config.BindInterface, c.Transport.Config.BindInterface,
+			)
 		}
 		if isLimit {
 			if err == nil {
