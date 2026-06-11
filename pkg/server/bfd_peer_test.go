@@ -24,7 +24,7 @@ func Test_NewBfdPeer(t *testing.T) {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 	defer p.Stop()
 
 	assert.NotNil(p)
@@ -36,7 +36,7 @@ func Test_NewBfdPeerDefaultPort(t *testing.T) {
 	ps := &mockPeerState{}
 	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
 		Enabled: true,
-	})
+	}, "")
 	defer p.Stop()
 
 	assert.Equal(BfdServerPort, p.peerPort)
@@ -52,7 +52,7 @@ func Test_BfdPeerRemoteUDPAddrZone(t *testing.T) {
 	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("fe80::1%eth0"), oc.BfdConfig{
 		Port:    13784,
 		Enabled: true,
-	})
+	}, "")
 	defer p.Stop()
 
 	addr := p.remoteUDPAddr()
@@ -64,7 +64,7 @@ func Test_BfdPeerRemoteUDPAddrZone(t *testing.T) {
 	g := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("10.0.0.1"), oc.BfdConfig{
 		Port:    13784,
 		Enabled: true,
-	})
+	}, "")
 	defer g.Stop()
 
 	assert.Empty(g.remoteUDPAddr().Zone)
@@ -77,7 +77,7 @@ func Test_BfdPeerStopIdempotent(t *testing.T) {
 	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
 		Port:    13784,
 		Enabled: true,
-	})
+	}, "")
 
 	p.Stop()
 	p.Stop()
@@ -95,7 +95,7 @@ func Test_RxPacket(t *testing.T) {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 
 	assert.Equal(p.stats.rxPacket.Load(), uint64(0))
 
@@ -117,7 +117,7 @@ func Test_RxPacketRemoteDownResetsPeer(t *testing.T) {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 	defer p.Stop()
 
 	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
@@ -143,7 +143,7 @@ func Test_RxPacketRFCStateTransitions(t *testing.T) {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 	defer p.Stop()
 
 	p.rxPacket(&bfd.BFDHeader{
@@ -182,7 +182,7 @@ func Test_TxPacket(t *testing.T) {
 		DetectionMultiplier:      5,
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
-	})
+	}, "")
 
 	err := eventually(4*time.Second, func() error {
 		if p.stats.txPacket.Load() > 3 {
