@@ -1604,6 +1604,39 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 	}
 }
 
+func TestFilterpathSuppressedNoOldNoPanic(t *testing.T) {
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	gConf := &oc.Global{Config: oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("1.1.1.1")}}
+	nConf := &oc.Neighbor{}
+	localAddr := netip.MustParseAddr("1.1.1.1")
+	aggPeerInfo := table.NewPeerInfo(gConf, nConf, 0, 65000, localAddr, localAddr, localAddr, localAddr)
+	aggMgr := table.NewAggregateManager(logger, table.NewRoutingPolicy(logger), aggPeerInfo)
+	if err := aggMgr.AddAggregate(bgp.RF_IPv4_UC, netip.MustParsePrefix("10.0.0.0/8"), true, false, ""); err != nil {
+		t.Fatal(err)
+	}
+	rib.SetAggregateManager(aggMgr)
+
+	peer := newPeerandInfo(t, 65000, 65001, "192.168.0.1", rib)
+	pi := peer.peerInfo.Load()
+	pa := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001})}),
+	}
+	aggNlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.1.1.0/24"))
+	contributor := table.NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: aggNlri}, false, pa, time.Now(), false)
+	rib.Update(contributor)
+
+	s := NewBgpServer()
+	s.globalRib = rib
+
+	moreSpecific, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.1.1.0/24"))
+	newPath := table.NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: moreSpecific}, false, pa, time.Now(), false)
+	oldPath := newPath.Clone(false)
+
+	result := s.filterpath(peer, newPath, oldPath)
+	assert.NotNil(t, result, "suppressed path with prior advertisement must produce a withdraw, not nil")
+	assert.True(t, result.IsWithdraw, "suppressed path must be withdrawn to peer")
+}
+
 func TestPeerGroup(test *testing.T) {
 	assert := assert.New(test)
 	s := NewBgpServer()
