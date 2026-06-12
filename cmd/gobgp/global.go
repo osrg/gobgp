@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"regexp"
@@ -3447,6 +3448,64 @@ func modGlobalConfig(args []string) error {
 	return err
 }
 
+func showAggregates(_ []string) error {
+	stream, err := client.ListAggregate(ctx, &api.ListAggregateRequest{})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%-40s %-13s %-8s %-7s %s\n", "Prefix", "Contributors", "Summary", "AS-Set", "Policy")
+	for {
+		r, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		a := r.Aggregate
+		policy := a.Aggregate.PolicyName
+		if policy == "" {
+			policy = "-"
+		}
+		fmt.Printf("%-40s %-13d %-8t %-7t %s\n",
+			a.Aggregate.Prefix, a.NumContributors, a.Aggregate.SummaryOnly, a.Aggregate.AsSet, policy)
+	}
+	return nil
+}
+
+func addAggregate(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: gobgp global aggregate add <prefix> [--summary-only] [--as-set] [--policy <name>]")
+	}
+	prefix, err := netip.ParsePrefix(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid prefix: %w", err)
+	}
+	_, err = client.AddAggregate(ctx, &api.AddAggregateRequest{
+		Aggregate: &api.AggregateAddress{
+			Prefix:      prefix.String(),
+			SummaryOnly: subOpts.SummaryOnly,
+			AsSet:       subOpts.AsSet,
+			PolicyName:  subOpts.Policy,
+		},
+	})
+	return err
+}
+
+func deleteAggregate(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: gobgp global aggregate del <prefix>")
+	}
+	prefix, err := netip.ParsePrefix(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid prefix: %w", err)
+	}
+	_, err = client.DeleteAggregate(ctx, &api.DeleteAggregateRequest{
+		Prefix: prefix.String(),
+	})
+	return err
+}
+
 func newGlobalCmd() *cobra.Command {
 	globalCmd := &cobra.Command{
 		Use: cmdGlobal,
@@ -3571,6 +3630,46 @@ func newGlobalCmd() *cobra.Command {
 	}
 	delCmd.AddCommand(allCmd)
 
-	globalCmd.AddCommand(ribCmd, policyCmd, delCmd)
+	aggregateCmd := &cobra.Command{
+		Use: cmdAggregate,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := showAggregates(args); err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+
+	listAggregateCmd := &cobra.Command{
+		Use: cmdList,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := showAggregates(args); err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+
+	addAggregateCmd := &cobra.Command{
+		Use: cmdAdd,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := addAggregate(args); err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+	addAggregateCmd.Flags().BoolVarP(&subOpts.SummaryOnly, "summary-only", "s", false, "suppress more-specific contributing routes")
+	addAggregateCmd.Flags().BoolVar(&subOpts.AsSet, "as-set", false, "generate an AS_SET from contributing routes")
+	addAggregateCmd.Flags().StringVar(&subOpts.Policy, "policy", "", "policy a contributing route must pass")
+
+	delAggregateCmd := &cobra.Command{
+		Use: cmdDel,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := deleteAggregate(args); err != nil {
+				exitWithError(err)
+			}
+		},
+	}
+
+	aggregateCmd.AddCommand(listAggregateCmd, addAggregateCmd, delAggregateCmd)
+	globalCmd.AddCommand(ribCmd, policyCmd, delCmd, aggregateCmd)
 	return globalCmd
 }
