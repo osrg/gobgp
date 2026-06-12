@@ -841,6 +841,31 @@ func (s *server) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) (*api.D
 	return &api.DeleteVrfResponse{}, s.bgpServer.DeleteVrf(ctx, r)
 }
 
+func (s *server) ListAggregate(r *api.ListAggregateRequest, stream api.GoBgpService_ListAggregateServer) error {
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
+	var sendErr error
+	fn := func(a *api.AggregateAddressInfo) {
+		if sendErr = stream.Send(&api.ListAggregateResponse{Aggregate: a}); sendErr != nil {
+			cancel()
+			return
+		}
+	}
+	err := s.bgpServer.ListAggregate(ctx, r, fn)
+	if sendErr != nil {
+		return sendErr
+	}
+	return err
+}
+
+func (s *server) AddAggregate(ctx context.Context, r *api.AddAggregateRequest) (*api.AddAggregateResponse, error) {
+	return &api.AddAggregateResponse{}, s.bgpServer.AddAggregate(ctx, r)
+}
+
+func (s *server) DeleteAggregate(ctx context.Context, r *api.DeleteAggregateRequest) (*api.DeleteAggregateResponse, error) {
+	return &api.DeleteAggregateResponse{}, s.bgpServer.DeleteAggregate(ctx, r)
+}
+
 func readMpGracefulRestartFromAPIStruct(c *oc.MpGracefulRestart, a *api.MpGracefulRestart) {
 	if c == nil || a == nil {
 		return
