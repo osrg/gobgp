@@ -397,6 +397,19 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 		}
 	}
 
+	for _, a := range newConfig.Global.Aggregates {
+		if err := bgpServer.AddAggregate(ctx, &api.AddAggregateRequest{
+			Aggregate: &api.AggregateAddress{
+				Prefix:      a.Config.Prefix.String(),
+				SummaryOnly: a.Config.SummaryOnly,
+				AsSet:       a.Config.AsSet,
+				PolicyName:  a.Config.PolicyName,
+			},
+		}); err != nil {
+			return nil, err
+		}
+	}
+
 	addPeerGroups(ctx, bgpServer, addedPg)
 	addDynamicNeighbors(ctx, bgpServer, newConfig.DynamicNeighbors)
 	addNeighbors(ctx, bgpServer, added)
@@ -442,6 +455,36 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 	// keychains and new keys must exist before peers can reference them
 	addTcpAoKeychains(ctx, bgpServer, addedKeychains)
 	updateTcpAoKeychains(ctx, bgpServer, upsertKeyUpdates)
+
+	oldAggs := map[string]oc.Aggregate{}
+	for _, a := range c.Global.Aggregates {
+		oldAggs[a.Config.Prefix.String()] = a
+	}
+	newAggs := map[string]oc.Aggregate{}
+	for _, a := range newConfig.Global.Aggregates {
+		newAggs[a.Config.Prefix.String()] = a
+	}
+	for k, a := range oldAggs {
+		n, ok := newAggs[k]
+		if !ok || !a.Config.Equal(&n.Config) {
+			if err := bgpServer.DeleteAggregate(ctx, &api.DeleteAggregateRequest{Prefix: a.Config.Prefix.String()}); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for k, a := range newAggs {
+		o, ok := oldAggs[k]
+		if !ok || !o.Config.Equal(&a.Config) {
+			if err := bgpServer.AddAggregate(ctx, &api.AddAggregateRequest{Aggregate: &api.AggregateAddress{
+				Prefix:      a.Config.Prefix.String(),
+				SummaryOnly: a.Config.SummaryOnly,
+				AsSet:       a.Config.AsSet,
+				PolicyName:  a.Config.PolicyName,
+			}}); err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	addPeerGroups(ctx, bgpServer, addedPg)
 	deletePeerGroups(ctx, bgpServer, deletedPg)
