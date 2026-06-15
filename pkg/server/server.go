@@ -2602,7 +2602,14 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
 		if s.bfdServer != nil {
-			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort}); err != nil {
+			// Pass the global listen addresses so the BFD server binds its control
+			// sockets to each specific address (coexists with a host bfdd on the
+			// wildcard port); empty → wildcard bind.
+			bfdListen := make([]string, 0, len(c.Config.LocalAddressList))
+			for _, addr := range c.Config.LocalAddressList {
+				bfdListen = append(bfdListen, addr.String())
+			}
+			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort}, bfdListen...); err != nil {
 				return err
 			}
 		}

@@ -56,6 +56,14 @@ type bfdServer struct {
 
 	config *oc.BfdConfig
 
+	// listenAddrs are the global BGP listen addresses. When non-empty the BFD
+	// server binds its control sockets to each SPECIFIC address (e.g.
+	// 10.0.0.1:4784) instead of the wildcard (:4784). A specific bind wins the
+	// kernel's most-specific-match UDP demux over any wildcard listener already on
+	// the port (e.g. a host bfdd owning 0.0.0.0:3784/4784), so an embedded GoBGP
+	// can run BFD on a host that also runs a system bfdd. Empty → wildcard bind.
+	listenAddrs []string
+
 	udpServers []*net.UDPConn
 
 	peersMutex sync.RWMutex
@@ -94,10 +102,14 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 	return s
 }
 
-func (s *bfdServer) Start(ctx context.Context, config oc.BfdConfig) error {
+func (s *bfdServer) Start(ctx context.Context, config oc.BfdConfig, listenAddrs ...string) error {
 	if s.stopped.Load() {
 		return errors.New("bfd server stopped")
 	}
+
+	// Set before the channel send so it is visible (happens-before) to the
+	// serverLoop goroutine that reads it in startServer.
+	s.listenAddrs = listenAddrs
 
 	select {
 	case s.eventConfig <- &config:
@@ -251,38 +263,48 @@ func (s *bfdServer) startServer() {
 		return netutils.SetReuseAddrSockopt(sc)
 	}
 
+	// Bind each port on each specific listen address (so a host bfdd's wildcard
+	// listener does not steal our returns), or once on the wildcard when no
+	// specific address is configured.
+	hosts := s.listenAddrs
+	if len(hosts) == 0 {
+		hosts = []string{""}
+	}
+
 	s.serverStop = make(chan struct{})
 	for _, port := range ports {
-		addressString := ":" + strconv.FormatUint(uint64(port), 10)
+		for _, host := range hosts {
+			addressString := net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
 
-		l, err := lc.ListenPacket(context.Background(), "udp", addressString)
-		if err != nil {
-			s.logger.Error("Can't listen UDP",
+			l, err := lc.ListenPacket(context.Background(), "udp", addressString)
+			if err != nil {
+				s.logger.Error("Can't listen UDP",
+					slog.String("Topic", "bfd"),
+					slog.String("Address", addressString),
+					slog.Any("Error", err),
+				)
+				continue
+			}
+
+			conn, ok := l.(*net.UDPConn)
+			if !ok {
+				s.logger.Error("Unexpected connection listener",
+					slog.String("Topic", "bfd"),
+					slog.String("Address", addressString),
+				)
+				_ = l.Close()
+				continue
+			}
+
+			s.udpServers = append(s.udpServers, conn)
+			s.serverWait.Add(1)
+			go s.serverLoop(conn)
+
+			s.logger.Info("BFD server is started",
 				slog.String("Topic", "bfd"),
 				slog.String("Address", addressString),
-				slog.Any("Error", err),
 			)
-			continue
 		}
-
-		conn, ok := l.(*net.UDPConn)
-		if !ok {
-			s.logger.Error("Unexpected connection listener",
-				slog.String("Topic", "bfd"),
-				slog.String("Address", addressString),
-			)
-			_ = l.Close()
-			continue
-		}
-
-		s.udpServers = append(s.udpServers, conn)
-		s.serverWait.Add(1)
-		go s.serverLoop(conn)
-
-		s.logger.Info("BFD server is started",
-			slog.String("Topic", "bfd"),
-			slog.String("Address", addressString),
-		)
 	}
 }
 
