@@ -20,6 +20,13 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bfd"
 )
 
+// bfdMultihopPort is the RFC 5883 (multihop BFD) UDP control port. The server
+// listens on it in addition to the single-hop control port (s.config.Port, the
+// RFC 5881 port 3784) so it can receive returns from multihop peers; a peer runs
+// multihop by sending to this port (its BfdPeerConfig.Port = 4784). Dispatch is
+// by source IP, so a single rxPacket path handles both single-hop and multihop.
+const bfdMultihopPort uint16 = 4784
+
 type bfdServerStats struct {
 	rxPacket      atomic.Uint64
 	rxDrop        atomic.Uint64
@@ -49,7 +56,7 @@ type bfdServer struct {
 
 	config *oc.BfdConfig
 
-	udpServer *net.UDPConn
+	udpServers []*net.UDPConn
 
 	peersMutex sync.RWMutex
 	peers      map[netip.Addr]*bfdPeer
@@ -217,11 +224,11 @@ func (s *bfdServer) loop() {
 }
 
 func (s *bfdServer) start() bool {
-	if s.udpServer == nil {
+	if len(s.udpServers) == 0 {
 		s.startServer()
 	}
 
-	return s.udpServer != nil
+	return len(s.udpServers) > 0
 }
 
 func (s *bfdServer) startServer() {
@@ -230,53 +237,66 @@ func (s *bfdServer) startServer() {
 		return
 	}
 
-	addressString := ":" + strconv.FormatUint(uint64(s.config.Port), 10)
+	// Listen on the single-hop control port (s.config.Port, RFC 5881) AND the
+	// multihop control port (RFC 5883/4784), so the server receives returns from
+	// both single-hop and multihop peers. rxPacket dispatches by source IP, so it
+	// does not matter which socket a packet arrived on.
+	ports := []uint16{uint16(s.config.Port)}
+	if uint16(s.config.Port) != bfdMultihopPort {
+		ports = append(ports, bfdMultihopPort)
+	}
 
 	var lc net.ListenConfig
 	lc.Control = func(network, address string, sc syscall.RawConn) error {
 		return netutils.SetReuseAddrSockopt(sc)
 	}
 
-	l, err := lc.ListenPacket(context.Background(), "udp", addressString)
-	if err != nil {
-		s.logger.Error("Can't listen UDP",
-			slog.String("Topic", "bfd"),
-			slog.String("Address", addressString),
-			slog.Any("Error", err),
-		)
-		return
-	}
-
-	var ok bool
-	s.udpServer, ok = l.(*net.UDPConn)
-	if !ok {
-		s.logger.Error("Unexpected connection listener",
-			slog.String("Topic", "bfd"),
-			slog.String("Address", addressString),
-			slog.Any("Error", err),
-		)
-		return
-	}
-
-	s.logger.Info("BFD server is started",
-		slog.String("Topic", "bfd"),
-		slog.String("Address", addressString),
-	)
-
 	s.serverStop = make(chan struct{})
-	s.serverWait.Add(1)
-	go s.serverLoop()
+	for _, port := range ports {
+		addressString := ":" + strconv.FormatUint(uint64(port), 10)
+
+		l, err := lc.ListenPacket(context.Background(), "udp", addressString)
+		if err != nil {
+			s.logger.Error("Can't listen UDP",
+				slog.String("Topic", "bfd"),
+				slog.String("Address", addressString),
+				slog.Any("Error", err),
+			)
+			continue
+		}
+
+		conn, ok := l.(*net.UDPConn)
+		if !ok {
+			s.logger.Error("Unexpected connection listener",
+				slog.String("Topic", "bfd"),
+				slog.String("Address", addressString),
+			)
+			_ = l.Close()
+			continue
+		}
+
+		s.udpServers = append(s.udpServers, conn)
+		s.serverWait.Add(1)
+		go s.serverLoop(conn)
+
+		s.logger.Info("BFD server is started",
+			slog.String("Topic", "bfd"),
+			slog.String("Address", addressString),
+		)
+	}
 }
 
 func (s *bfdServer) stop() {
-	if s.udpServer == nil {
+	if len(s.udpServers) == 0 {
 		return
 	}
 
 	close(s.serverStop)
-	s.udpServer.Close()
+	for _, conn := range s.udpServers {
+		conn.Close()
+	}
 	s.serverWait.Wait()
-	s.udpServer = nil
+	s.udpServers = nil
 
 	s.logger.Info("BFD server is stopped",
 		slog.String("Topic", "bfd"),
@@ -393,13 +413,13 @@ func (s *bfdServer) shutdown() {
 	s.eventStartStop.Stop()
 }
 
-func (s *bfdServer) serverLoop() {
+func (s *bfdServer) serverLoop(conn *net.UDPConn) {
 	defer s.serverWait.Done()
 
 	// buffer size must be more than BFD Control Packet size
 	buffer := make([]byte, 4096)
 	for {
-		length, address, err := s.udpServer.ReadFromUDP(buffer)
+		length, address, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			select {
 			case <-s.serverStop:
