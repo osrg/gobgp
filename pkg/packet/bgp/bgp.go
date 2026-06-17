@@ -7314,7 +7314,10 @@ type LsTLVIPReachability struct {
 
 func (l *LsTLVIPReachability) toPrefix(ipv6 bool) netip.Prefix {
 	b := make([]byte, 16)
-	bytes := (int(l.PrefixLength)-1)/8 + 1
+	bytes := 0
+	if l.PrefixLength > 0 {
+		bytes = (int(l.PrefixLength)-1)/8 + 1
+	}
 	for i := range bytes {
 		if i >= len(l.Prefix) {
 			break
@@ -7347,16 +7350,20 @@ func (l *LsTLVIPReachability) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected TLV type")
 	}
 
-	if len(value) < 2 {
+	if len(value) < 1 {
 		return malformedAttrListErr("Incorrect IP reachability Info length")
 	}
 
 	// https://tools.ietf.org/html/rfc7752#section-3.2.3.2
-	if value[0] > 128 || value[0] == 0 {
+	// PrefixLength 0 is valid (default route 0.0.0.0/0 or ::/0).
+	if value[0] > 128 {
 		return malformedAttrListErr("Incorrect IP prefix length")
 	}
 
-	ll := (int(value[0])-1)/8 + 1
+	ll := 0
+	if value[0] > 0 {
+		ll = (int(value[0])-1)/8 + 1
+	}
 	if len(value[1:]) != ll {
 		return malformedAttrListErr("Malformed IP reachability TLV")
 	}
