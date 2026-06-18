@@ -1315,6 +1315,10 @@ module gobgp {
     leaf-list local-address {
         type inet:ip-address;
     }
+    leaf bind-to-device {
+        description "Device name for binding the BGP listener socket.";
+        type string;
+    }
   }
 
   augment "/bgp:bgp/bgp:global/bgp:config" {

@@ -2433,6 +2433,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 			RouterId:         netip.MustParseAddr(a.RouterId),
 			Port:             a.ListenPort,
 			LocalAddressList: l,
+			BindToDevice:     a.BindToDevice,
 		},
 		AfiSafis: families,
 		UseMultiplePaths: oc.UseMultiplePaths{
