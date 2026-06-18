@@ -3422,7 +3422,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if s.bgpConfig.Global.Config.Port > 0 {
 		for _, l := range s.listListeners(addr) {
 			if c.Config.AuthPassword != "" {
-				if err := netutils.SetTCPMD5SigSockopt(l, addr, c.Config.AuthPassword); err != nil {
+				if err := netutils.SetTCPMD5SigSockopt(l, c.Transport.Config.BindInterface, addr, c.Config.AuthPassword); err != nil {
 					s.logger.Warn("failed to set md5",
 						slog.String("Topic", "Peer"),
 						slog.String("Key", addr),
@@ -3552,7 +3552,7 @@ func (s *BgpServer) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNei
 			prefix := r.DynamicNeighbor.Prefix
 			addr, _, _ := net.ParseCIDR(prefix)
 			for _, l := range s.listListeners(addr.String()) {
-				if err := netutils.SetTCPMD5SigSockopt(l, prefix, pConf.Config.AuthPassword); err != nil {
+				if err := netutils.SetTCPMD5SigSockopt(l, pConf.Transport.Config.BindInterface, prefix, pConf.Config.AuthPassword); err != nil {
 					s.logger.Warn("failed to set md5",
 						slog.String("Topic", "Peer"),
 						slog.String("Key", prefix),
@@ -3608,7 +3608,7 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 	}
 	for _, l := range s.listListeners(addr) {
 		if c.Config.AuthPassword != "" {
-			if err := netutils.SetTCPMD5SigSockopt(l, addr, ""); err != nil {
+			if err := netutils.SetTCPMD5SigSockopt(l, c.Transport.Config.BindInterface, addr, ""); err != nil {
 				n.fsm.logger.Warn("failed to unset md5", slog.String("Err", err.Error()))
 			}
 		}
@@ -3679,7 +3679,7 @@ func (s *BgpServer) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDyna
 				addr, _, perr := net.ParseCIDR(prefix)
 				if perr == nil {
 					for _, l := range s.listListeners(addr.String()) {
-						if err := netutils.SetTCPMD5SigSockopt(l, prefix, ""); err != nil {
+						if err := netutils.SetTCPMD5SigSockopt(l, pConf.Transport.Config.BindInterface, prefix, ""); err != nil {
 							s.logger.Warn("failed to clear md5",
 								slog.String("Topic", "Peer"),
 								slog.String("Key", prefix),

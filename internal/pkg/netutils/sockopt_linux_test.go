@@ -23,10 +23,12 @@ import (
 	"syscall"
 	"testing"
 	"unsafe"
+
+	"github.com/vishvananda/netlink"
 )
 
 func Test_buildTcpMD5Sig(t *testing.T) {
-	s := buildTcpMD5Sig("1.2.3.4", "hello")
+	s := buildTcpMD5Sig(nil, "1.2.3.4", "hello")
 
 	if unsafe.Sizeof(*s) != 216 {
 		t.Error("TCPM5Sig struct size is wrong", unsafe.Sizeof(s))
@@ -47,7 +49,7 @@ func Test_buildTcpMD5Sig(t *testing.T) {
 }
 
 func Test_buildTcpMD5Sigv6(t *testing.T) {
-	s := buildTcpMD5Sig("fe80::4850:31ff:fe01:fc55", "helloworld")
+	s := buildTcpMD5Sig(nil, "fe80::4850:31ff:fe01:fc55", "helloworld")
 
 	buf1 := new(bytes.Buffer)
 	if err := binary.Write(buf1, binary.LittleEndian, s); err != nil {
@@ -65,14 +67,48 @@ func Test_buildTcpMD5Sigv6(t *testing.T) {
 	}
 }
 
-func Test_buildTcpMD5Sig_v6Zone(t *testing.T) {
-	s := buildTcpMD5Sig("fe80::4850:31ff:fe01:fc55%123", "helloworld")
-	if s == nil {
-		t.Fatal("Gen md5 sig failed")
+func Test_buildTcpMD5Sig_bindInterface(t *testing.T) {
+	tests := []struct {
+		name            string
+		bindInterface   netlink.Link
+		expectedIfindex int32
+	}{
+		{
+			name:            "Unspecified bindInterface",
+			bindInterface:   nil,
+			expectedIfindex: 0,
+		},
+		{
+			name: "VRF bindInterface",
+			bindInterface: &netlink.Vrf{
+				LinkAttrs: netlink.LinkAttrs{
+					Index: 123,
+				},
+			},
+			expectedIfindex: 123,
+		},
+		{
+			name: "Non-VRF bindInterface",
+			bindInterface: &netlink.GenericLink{
+				LinkAttrs: netlink.LinkAttrs{
+					Index: 123,
+				},
+			},
+			expectedIfindex: 0,
+		},
 	}
 
-	if s.Ifindex != 123 {
-		t.Error("Bad ipv6 if index")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Don't confuse IPv6 zone with ifindex
+			s := buildTcpMD5Sig(tt.bindInterface, "fe80::4850:31ff:fe01:fc55%456", "helloworld")
+			if s == nil {
+				t.Fatal("Gen md5 sig failed")
+			}
+			if s.Ifindex != tt.expectedIfindex {
+				t.Errorf("Unexpected Ifindex value for %T: got %d, want %d", tt.bindInterface, s.Ifindex, tt.expectedIfindex)
+			}
+		})
 	}
 }
 
@@ -90,7 +126,7 @@ func Test_buildTcpMD5Sig_CIDR(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sig := buildTcpMD5Sig(tt.addr, "hello")
+			sig := buildTcpMD5Sig(nil, tt.addr, "hello")
 			if sig == nil {
 				t.Fatal("Gen md5 sig failed")
 			}
