@@ -618,3 +618,25 @@ jobs:
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 test/scenario_test/mup_test.py --gobgp-image gobgp -x -s
+
+  tcp-md5:
+    name: tcp-md5
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
+      # ubuntu-24.04's system python is v3.12 which breaks the test.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get update
+          sudo apt-get install -y linux-modules-extra-$(uname -r)
+          sudo modprobe vrf
+          python -m pip install -r test/pip-requires.txt
+          PYTHONPATH=test python test/scenario_test/tcp_md5_test.py --gobgp-image gobgp -x -s

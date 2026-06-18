@@ -106,7 +106,7 @@ func Test_buildTcpMD5Sig_bindInterface(t *testing.T) {
 				t.Fatal("Gen md5 sig failed")
 			}
 			if s.Ifindex != tt.expectedIfindex {
-				t.Errorf("Unexpected Ifindex value for %T: got %d, want %d", tt.bindInterface, s.Ifindex, tt.expectedIfindex)
+				t.Errorf("Unexpected ifindex value for %T: got %d, want %d", tt.bindInterface, s.Ifindex, tt.expectedIfindex)
 			}
 		})
 	}

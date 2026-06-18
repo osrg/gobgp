@@ -454,6 +454,8 @@ class GoBGPContainer(BGPContainer):
 
             if info['passive']:
                 n['transport']['config']['passive-mode'] = True
+            if info['bind_interface']:
+                n['transport']['config']['bind-interface'] = info['bind_interface']
 
             if info['is_rs_client']:
                 n['route-server'] = {'config': {'route-server-client': True}}
