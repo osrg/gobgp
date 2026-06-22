@@ -1765,6 +1765,96 @@ func TestDynamicNeighbor(t *testing.T) {
 	establisedWaiter.Wait(t, 10*time.Second)
 }
 
+// TestDynamicNeighborBfd verifies that BFD is registered for a dynamic neighbor when the peer group has
+// BFD enabled (the accept path), and deregistered when the neighbor goes away (the stop path). Without
+// the fix, BFD never runs for dynamic peers.
+func TestDynamicNeighborBfd(t *testing.T) {
+	assert := assert.New(t)
+	s1 := NewBgpServer()
+	go s1.Serve()
+	err := s1.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: 10179,
+		},
+	})
+	assert.NoError(err)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	// peer group with BFD enabled; dynamic neighbors inherit this config.
+	g := &oc.PeerGroup{
+		Config: oc.PeerGroupConfig{
+			PeerAs:        2,
+			PeerGroupName: "g",
+		},
+		Bfd: oc.Bfd{
+			Config: oc.BfdConfig{
+				Enabled:                  true,
+				DetectionMultiplier:      3,
+				RequiredMinimumReceive:   300000,
+				DesiredMinimumTxInterval: 300000,
+			},
+		},
+	}
+	err = s1.addPeerGroup(g)
+	assert.NoError(err)
+
+	err = s1.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+		DynamicNeighbor: &api.DynamicNeighbor{
+			Prefix:    "127.0.0.0/24",
+			PeerGroup: "g",
+		},
+	})
+	assert.NoError(err)
+
+	s2 := NewBgpServer()
+	go s2.Serve()
+	err = s2.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        2,
+			RouterId:   "2.2.2.2",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	m := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr("127.0.0.1"),
+			PeerAs:          1,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{RemotePort: 10179},
+		},
+		Timers: oc.Timers{
+			Config: oc.TimersConfig{ConnectRetry: 1, IdleHoldTimeAfterReset: 1},
+		},
+	}
+	waiter := newPeerStateWaiter(s2, api.PeerState_SESSION_STATE_ESTABLISHED)
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: oc.NewPeerFromConfigStruct(m)})
+	assert.NoError(err)
+	waiter.Wait(t, 10*time.Second)
+
+	countBfd := func() int {
+		count := 0
+		s1.ListBfdPeer(context.Background(), func(string, *api.BfdPeerState) { count++ })
+
+		return count
+	}
+
+	// the accept path registers a BFD peer for the dynamic neighbor (inherited peer-group BFD).
+	assert.Eventually(func() bool { return countBfd() == 1 }, 5*time.Second, 100*time.Millisecond,
+		"expected a BFD peer registered for the dynamic neighbor")
+
+	// tearing the session down removes the dynamic neighbor and deregisters its BFD peer.
+	err = s2.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: "127.0.0.1"})
+	assert.NoError(err)
+	assert.Eventually(func() bool { return countBfd() == 0 }, 10*time.Second, 100*time.Millisecond,
+		"expected the BFD peer removed when the dynamic neighbor goes away")
+}
+
 func TestGracefulRestartTimerExpired(t *testing.T) {
 	afiSafis := []*api.AfiSafi{
 		{

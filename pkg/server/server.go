@@ -369,6 +369,16 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		}
 
 		s.neighborMap[addr] = peer
+		// register BFD for the dynamic neighbor too (explicit neighbors do this in addNeighbor): the
+		// BFD config is inherited from the peer group. Without this, BFD never runs for dynamic peers.
+		if s.bfdServer != nil && conf.Bfd.Config.Enabled {
+			if err := s.bfdServer.AddPeer(context.Background(), addr, conf.Bfd.Config); err != nil {
+				s.logger.Warn("failed to add BFD peer for dynamic neighbor",
+					slog.String("Topic", "Peer"),
+					slog.String("Key", addr.String()),
+					slog.String("Err", err.Error()))
+			}
+		}
 		s.startFsmHandler(peer)
 		peer.PassConn(conn)
 	} else {
@@ -1540,6 +1550,16 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	key := netip.MustParseAddr(peer.ID())
 	if s.neighborMap[key] == peer {
 		delete(s.neighborMap, key)
+	}
+	// deregister BFD here for both static peers (deleted) and dynamic peers (stopped on session loss);
+	// DeletePeer is a no-op for a peer without BFD, so this only errors if the BFD server is stopped.
+	if s.bfdServer != nil {
+		if err := s.bfdServer.DeletePeer(context.Background(), key); err != nil {
+			s.logger.Warn("failed to delete BFD peer",
+				slog.String("Topic", "Peer"),
+				slog.String("Key", key.String()),
+				slog.String("Err", err.Error()))
+		}
 	}
 	peer.stopFSM()
 	s.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, oldState, e)
@@ -3625,18 +3645,6 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 	}
 	n.fsm.logger.Info("Delete a peer configuration")
 
-	if s.bfdServer != nil {
-		ipAddr, err := netip.ParseAddr(addr)
-		if err != nil {
-			return fmt.Errorf("failed to parse IP address: %v", err)
-		}
-		if err := s.bfdServer.DeletePeer(context.Background(), ipAddr); err != nil {
-			s.logger.Warn("failed to delete BFD peer",
-				slog.String("Topic", "Peer"),
-				slog.String("Key", addr),
-				slog.String("Err", err.Error()))
-		}
-	}
 	if sendNotification {
 		n.fsm.deconfiguredNotification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
 	}
