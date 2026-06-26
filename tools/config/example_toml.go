@@ -148,6 +148,11 @@ func policy() oc.RoutingPolicy {
 					MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
 				},
 
+				MatchRouteTargetPrefix: oc.MatchRouteTargetPrefix{
+					ExtCommunitySet: "ecommunity1",
+					MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
+				},
+
 				MatchAsPathSet: oc.MatchAsPathSet{
 					AsPathSet:       "aspath1",
 					MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,

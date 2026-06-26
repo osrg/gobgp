@@ -1207,6 +1207,7 @@ message Conditions {
   OriginType origin = 13;
   LocalPrefEq local_pref_eq = 14;
   MedEq med_eq = 15;
+  MatchSet route_target_prefix = 16;
 }
 
 enum RouteAction {

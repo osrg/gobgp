@@ -173,6 +173,7 @@ const (
 	CONDITION_ORIGIN
 	CONDITION_LOCAL_PREF_EQ
 	CONDITION_MED_EQ
+	CONDITION_ROUTE_TARGET_PREFIX
 )
 
 type ActionType int
@@ -1752,6 +1753,31 @@ func (s *ExtCommunitySet) rebuildExtMatchers() {
 	s.anyIndex, s.needSlowScan = buildExtCommunityAnyIndexes(s.matchers)
 }
 
+// matchesRouteTarget reports whether a single Route Target extended community
+// (e.g. the one embedded in an RTC NLRI) matches this set. ANY/INVERT require a
+// match against some matcher; ALL requires a match against every matcher.
+// INVERT itself is applied by the caller. A nil rt never matches a non-empty set.
+func (s *ExtCommunitySet) matchesRouteTarget(rt bgp.ExtendedCommunityInterface, option MatchOption) bool {
+	if rt == nil {
+		return false
+	}
+	if len(s.matchers) == 0 {
+		return false
+	}
+	all := option == MATCH_OPTION_ALL
+	var xStr string
+	for _, m := range s.matchers {
+		matched := m.matchesExtCommunity(rt, &xStr)
+		if all && !matched {
+			return false
+		}
+		if !all && matched {
+			return true
+		}
+	}
+	return all
+}
+
 func NewExtCommunitySet(c oc.ExtCommunitySet) (*ExtCommunitySet, error) {
 	name := c.ExtCommunitySetName
 	if name == "" {
@@ -2399,6 +2425,63 @@ func NewLargeCommunityCondition(c oc.MatchLargeCommunitySet) (*LargeCommunityCon
 		set: &LargeCommunitySet{
 			regExpSet: regExpSet{
 				name: c.LargeCommunitySet,
+			},
+		},
+		option: o,
+	}, nil
+}
+
+// RouteTargetPrefixCondition matches Route Target Constrain (RFC 4684, RF_RTC_UC)
+// advertisements by the Route Target carried in the NLRI itself, reusing an
+// ext-community-set's matchers. It is distinct from ExtCommunityCondition,
+// which matches the path's *attribute* ext-communities (such an advertisement
+// may legitimately carry those too).
+type RouteTargetPrefixCondition struct {
+	set    *ExtCommunitySet
+	option MatchOption
+}
+
+func (c *RouteTargetPrefixCondition) Type() ConditionType {
+	return CONDITION_ROUTE_TARGET_PREFIX
+}
+
+func (c *RouteTargetPrefixCondition) Set() DefinedSet {
+	return c.set
+}
+
+func (c *RouteTargetPrefixCondition) Option() MatchOption {
+	return c.option
+}
+
+func (c *RouteTargetPrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
+	if path.GetFamily() != bgp.RF_RTC_UC {
+		return false
+	}
+	nlri, ok := path.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+	if !ok {
+		return false
+	}
+	result := c.set.matchesRouteTarget(nlri.RouteTarget, c.option)
+	if c.option == MATCH_OPTION_INVERT {
+		result = !result
+	}
+	return result
+}
+
+func (c *RouteTargetPrefixCondition) Name() string { return c.set.name }
+
+func NewRouteTargetPrefixCondition(c oc.MatchRouteTargetPrefix) (*RouteTargetPrefixCondition, error) {
+	if c.ExtCommunitySet == "" {
+		return nil, nil
+	}
+	o, err := NewMatchOption(c.MatchSetOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &RouteTargetPrefixCondition{
+		set: &ExtCommunitySet{
+			regExpSet: regExpSet{
+				name: c.ExtCommunitySet,
 			},
 		},
 		option: o,
@@ -3480,6 +3563,8 @@ func (s *Statement) ToConfig() *oc.Statement {
 					cond.BgpConditions.MatchExtCommunitySet = oc.MatchExtCommunitySet{ExtCommunitySet: v.set.Name(), MatchSetOptions: oc.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *LargeCommunityCondition:
 					cond.BgpConditions.MatchLargeCommunitySet = oc.MatchLargeCommunitySet{LargeCommunitySet: v.set.Name(), MatchSetOptions: oc.IntToMatchSetOptionsTypeMap[int(v.option)]}
+				case *RouteTargetPrefixCondition:
+					cond.BgpConditions.MatchRouteTargetPrefix = oc.MatchRouteTargetPrefix{ExtCommunitySet: v.set.Name(), MatchSetOptions: oc.IntToMatchSetOptionsTypeMap[int(v.option)]}
 				case *NextHopCondition:
 					l := make([]netip.Addr, 0, len(v.set.list))
 					for _, n := range v.set.list {
@@ -3709,6 +3794,9 @@ func NewStatement(c oc.Statement) (*Statement, error) {
 		},
 		func() (Condition, error) {
 			return NewLargeCommunityCondition(c.Conditions.BgpConditions.MatchLargeCommunitySet)
+		},
+		func() (Condition, error) {
+			return NewRouteTargetPrefixCondition(c.Conditions.BgpConditions.MatchRouteTargetPrefix)
 		},
 		func() (Condition, error) {
 			l := make([]string, 0, len(c.Conditions.BgpConditions.NextHopInList))
@@ -4087,6 +4175,14 @@ func (r *RoutingPolicy) validateCondition(v Condition) (err error) {
 		} else {
 			c := v.(*LargeCommunityCondition)
 			c.set = i.(*LargeCommunitySet)
+		}
+	case CONDITION_ROUTE_TARGET_PREFIX:
+		m := r.definedSetMap[DEFINED_TYPE_EXT_COMMUNITY]
+		if i, ok := m[v.Name()]; !ok {
+			return fmt.Errorf("not found ext-community set %s", v.Name())
+		} else {
+			c := v.(*RouteTargetPrefixCondition)
+			c.set = i.(*ExtCommunitySet)
 		}
 	case CONDITION_NEXT_HOP:
 	case CONDITION_AFI_SAFI_IN:
@@ -4819,6 +4915,13 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		cs.LargeCommunitySet = &api.MatchSet{
 			Type: o.ToApi(),
 			Name: s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
+		}
+	}
+	if s.Conditions.BgpConditions.MatchRouteTargetPrefix.ExtCommunitySet != "" {
+		o, _ := NewMatchOption(s.Conditions.BgpConditions.MatchRouteTargetPrefix.MatchSetOptions)
+		cs.RouteTargetPrefix = &api.MatchSet{
+			Type: o.ToApi(),
+			Name: s.Conditions.BgpConditions.MatchRouteTargetPrefix.ExtCommunitySet,
 		}
 	}
 	if s.Conditions.BgpConditions.RouteType != "" {
