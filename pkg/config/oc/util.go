@@ -733,11 +733,12 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			LocalRestarting:     pconf.GracefulRestart.State.LocalRestarting,
 		},
 		Transport: &api.Transport{
-			RemotePort:   uint32(pconf.Transport.Config.RemotePort),
-			LocalAddress: pconf.Transport.Config.LocalAddress.String(),
-			PassiveMode:  pconf.Transport.Config.PassiveMode,
-			TcpMss:       uint32(pconf.Transport.Config.TcpMss),
-			IpTos:        uint32(pconf.Transport.Config.IpTos),
+			RemotePort:    uint32(pconf.Transport.Config.RemotePort),
+			LocalAddress:  pconf.Transport.Config.LocalAddress.String(),
+			PassiveMode:   pconf.Transport.Config.PassiveMode,
+			BindInterface: pconf.Transport.Config.BindInterface,
+			TcpMss:        uint32(pconf.Transport.Config.TcpMss),
+			IpTos:         uint32(pconf.Transport.Config.IpTos),
 		},
 		AfiSafis: afiSafis,
 		Bfd: &api.BfdPeerConfig{

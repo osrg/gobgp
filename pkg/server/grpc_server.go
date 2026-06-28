@@ -1263,6 +1263,7 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		}
 		pconf.Transport.Config.PassiveMode = a.Transport.PassiveMode
 		pconf.Transport.Config.RemotePort = uint16(a.Transport.RemotePort)
+		pconf.Transport.Config.BindInterface = a.Transport.BindInterface
 		pconf.Transport.Config.TcpMss = uint16(a.Transport.TcpMss)
 		pconf.Transport.Config.IpTos = uint8(a.Transport.IpTos)
 	}
