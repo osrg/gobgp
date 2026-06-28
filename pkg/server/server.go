@@ -1783,6 +1783,16 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				// the Selection_Deferral_Timer referred to below has expired.
 				allEnd := func() bool {
 					for _, p := range s.neighborMap {
+						if p == peer {
+							// This peer is transitioning to ESTABLISHED inside
+							// this callback, so fsm.state.Store() has not been
+							// called yet. Apply the post-ESTABLISHED EOR check
+							// directly instead of going through receivedAllEOR().
+							if !p.allNegotiatedEORReceived() {
+								return false
+							}
+							continue
+						}
 						if !p.receivedAllEOR() {
 							return false
 						}
