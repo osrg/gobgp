@@ -177,6 +177,14 @@ $ gobgp global rib -a l2vpn-flowspec
 $ gobgp global rib -a l2vpn-flowspec del rd <RD> match <MATCH_EXPR>
 ```
 
+### gRPC API
+
+FlowSpec rules can also be managed programmatically through GoBGP's gRPC API.
+See [`tools/grpc/python/flowspec_mitigation.py`](https://github.com/osrg/gobgp/blob/master/tools/grpc/python/flowspec_mitigation.py)
+for a complete example that runs an HTTP webhook server for automated DDoS
+mitigation. Refer to [Managing GoBGP with Your Favorite Language](grpc-client.md)
+for setup instructions.
+
 ### Match (Traffic Filtering Rules)
 
 | Type | Key              | Operator/Operand Type | Value                                                  |
