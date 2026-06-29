@@ -91,6 +91,52 @@ Num Segments    : 2                     Last Change     : 03/22/2022 14:09:33
 * indicates that the corresponding row element may have been truncated.
 ```
 
+### FlowSpec Mitigation via Webhook
+
+[`tools/grpc/python/flowspec_mitigation.py`](https://github.com/osrg/gobgp/blob/master/tools/grpc/python/flowspec_mitigation.py)
+shows how to use the gRPC API for automated DDoS mitigation via FlowSpec.
+A lightweight HTTP server receives attack alerts and dynamically adds or
+removes FlowSpec rules through GoBGP.
+
+```bash
+$ cd tools/grpc/python
+$ PYTHONPATH=$PYTHONPATH:./api python3 flowspec_mitigation.py
+FlowSpec mitigation webhook listening on 0.0.0.0:8080
+```
+
+Add a FlowSpec rule to discard all UDP traffic to a target prefix:
+
+```bash
+$ curl -s -X POST http://localhost:8080/mitigate \
+    -H 'Content-Type: application/json' \
+    -d '{"destination": "203.0.113.1/32", "protocol": 17, "action": "discard"}'
+{"status": "ok", "uuid": "..."}
+```
+
+Verify the rule was installed:
+
+```bash
+$ gobgp global rib -a ipv4-flowspec
+   Network                                       Next Hop             AS_PATH              Age        Attrs
+*> [destination: 203.0.113.1/32][protocol: ==udp] fictitious                                00:00:01   [{Origin: i} {Extcomms: [discard]}]
+```
+
+Remove the rule when the attack clears:
+
+```bash
+$ curl -s -X POST http://localhost:8080/clear \
+    -H 'Content-Type: application/json' \
+    -d '{"uuid": "uuid-from-mitigate-response"}'
+{"status": "ok"}
+```
+
+Supported match fields: `destination`, `source` (CIDR prefix), `protocol`
+(IANA number), `destination_port`, `source_port`.
+Supported actions: `discard`, `rate-limit` (with `rate` in bytes/sec),
+`redirect` (with `redirect_asn` and `redirect_local_admin`), `accept`.
+Both IPv4 and IPv6 FlowSpec families are detected automatically from the
+prefix format.
+
 ## C++
 
 ### Generating Interface and Binary
