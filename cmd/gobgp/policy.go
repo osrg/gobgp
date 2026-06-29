@@ -983,8 +983,12 @@ func modAction(name, op string, args []string) error {
 		if len(args) < 2 {
 			return fmt.Errorf("%s as-prepend { <asn> | last-as } <repeat-value>", usage)
 		}
-		asn, _ := strconv.ParseUint(args[0], 10, 32)
-		stmt.Actions.AsPrepend.Asn = uint32(asn)
+		if args[0] == "last-as" {
+			stmt.Actions.AsPrepend.UseLeftMost = true
+		} else {
+			asn, _ := strconv.ParseUint(args[0], 10, 32)
+			stmt.Actions.AsPrepend.Asn = uint32(asn)
+		}
 		repeat, err := strconv.ParseUint(args[1], 10, 8)
 		if err != nil {
 			return err
