@@ -90,9 +90,10 @@ class QuaggaBGPContainer(BGPContainer):
         for line in out.split('\n')[6:-2]:
             line = line[3:]
 
-            p = line.split()[0]
-            if '/' not in p:
+            parts = line.split()
+            if not parts:
                 continue
+            p = parts[0]
 
             rib.extend(self.get_global_rib_with_prefix(p, rf))
 

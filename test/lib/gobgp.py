@@ -450,7 +450,7 @@ class GoBGPContainer(BGPContainer):
                 n['as-path-options']['config']['replace-peer-as'] = info['replace_peer_as']
 
             if ':' in info['local_addr']:
-                n['transport']['config']['local-address'] = info['local_addr'].split('/')[0]
+                n['transport']['config']['local-address'] = info['local_addr'].split('/')[0].split('%')[0]
 
             if info['passive']:
                 n['transport']['config']['passive-mode'] = True
