@@ -4878,11 +4878,12 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			return api.RouteAction_ROUTE_ACTION_UNSPECIFIED
 		}(),
 		Community: func() *api.CommunityAction {
-			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
+			t := community_action(s.Actions.BgpActions.SetCommunity.Options)
+			if t == api.CommunityAction_TYPE_UNSPECIFIED {
 				return nil
 			}
 			return &api.CommunityAction{
-				Type:        community_action(s.Actions.BgpActions.SetCommunity.Options),
+				Type:        t,
 				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList,
 			}
 		}(),
