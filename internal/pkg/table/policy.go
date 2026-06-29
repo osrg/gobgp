@@ -4857,16 +4857,12 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		cs.RpkiResult = api.ValidationState_VALIDATION_STATE_INVALID
 	}
 	community_action := func(action string) api.CommunityAction_Type {
-		fmt.Println("action0", action)
-		switch oc.BgpSetCommunityOptionType(action) {
+		switch oc.BgpSetCommunityOptionType(strings.ToLower(action)) {
 		case oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
-			fmt.Println("action1", action)
 			return api.CommunityAction_TYPE_ADD
 		case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
-			fmt.Println("action2", action)
 			return api.CommunityAction_TYPE_REMOVE
 		case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
-			fmt.Println("action3", action)
 			return api.CommunityAction_TYPE_REPLACE
 		}
 		return api.CommunityAction_TYPE_UNSPECIFIED
