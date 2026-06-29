@@ -460,6 +460,9 @@ func printStatement(indent int, s *api.Statement) {
 	if c.LargeCommunitySet != nil {
 		fmt.Printf("%sLargeCommunitySet: %s\n", ind, prettyString(c.LargeCommunitySet))
 	}
+	if c.RouteTargetPrefix != nil {
+		fmt.Printf("%sRouteTargetPrefix: %s\n", ind, prettyString(c.RouteTargetPrefix))
+	}
 	if c.NextHopInList != nil {
 		fmt.Printf("%sNextHopInList: %s\n", ind, "[ "+strings.Join(c.NextHopInList, ", ")+" ]")
 	}
@@ -659,7 +662,7 @@ func modCondition(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in | local-pref-eq | med-eq }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | route-target-prefix | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in | local-pref-eq | med-eq }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -786,6 +789,27 @@ func modCondition(name, op string, args []string) error {
 		default:
 			return fmt.Errorf("%s large-community <set-name> [{ any | all | invert }]", usage)
 		}
+	case "route-target-prefix":
+		stmt.Conditions.RouteTargetPrefix = &api.MatchSet{
+			Type: api.MatchSet_TYPE_ANY,
+		}
+		if len(args) < 1 {
+			return fmt.Errorf("%s route-target-prefix <ext-community-set-name> [{ any | all | invert }]", usage)
+		}
+		stmt.Conditions.RouteTargetPrefix.Name = args[0]
+		if len(args) == 1 {
+			break
+		}
+		switch strings.ToLower(args[1]) {
+		case "any":
+			stmt.Conditions.RouteTargetPrefix.Type = api.MatchSet_TYPE_ANY
+		case "all":
+			stmt.Conditions.RouteTargetPrefix.Type = api.MatchSet_TYPE_ALL
+		case "invert":
+			stmt.Conditions.RouteTargetPrefix.Type = api.MatchSet_TYPE_INVERT
+		default:
+			return fmt.Errorf("%s route-target-prefix <ext-community-set-name> [{ any | all | invert }]", usage)
+		}
 	case "as-path-length":
 		stmt.Conditions.AsPathLength = &api.AsPathLength{}
 		if len(args) < 2 {
@@ -863,7 +887,7 @@ func modCondition(name, op string, args []string) error {
 		}
 		stmt.Conditions.AfiSafiIn = afiSafisInList
 	default:
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | route-target-prefix | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in }", usage)
 	}
 
 	var err error

@@ -1586,6 +1586,13 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			Name: s.Conditions.BgpConditions.MatchLargeCommunitySet.LargeCommunitySet,
 		}
 	}
+	if s.Conditions.BgpConditions.MatchRouteTargetPrefix.ExtCommunitySet != "" {
+		o, _ := table.NewMatchOption(s.Conditions.BgpConditions.MatchRouteTargetPrefix.MatchSetOptions)
+		cs.RouteTargetPrefix = &api.MatchSet{
+			Type: o.ToApi(),
+			Name: s.Conditions.BgpConditions.MatchRouteTargetPrefix.ExtCommunitySet,
+		}
+	}
 	if s.Conditions.BgpConditions.RouteType != "" {
 		cs.RouteType = api.Conditions_RouteType(s.Conditions.BgpConditions.RouteType.ToInt())
 	}
@@ -1956,6 +1963,21 @@ func newLargeCommunityConditionFromApiStruct(a *api.MatchSet) (*table.LargeCommu
 	return table.NewLargeCommunityCondition(c)
 }
 
+func newRouteTargetPrefixConditionFromApiStruct(a *api.MatchSet) (*table.RouteTargetPrefixCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOption(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	c := oc.MatchRouteTargetPrefix{
+		ExtCommunitySet: a.Name,
+		MatchSetOptions: typ,
+	}
+	return table.NewRouteTargetPrefixCondition(c)
+}
+
 func newNextHopConditionFromApiStruct(a []string) (*table.NextHopCondition, error) {
 	if a == nil {
 		return nil, nil
@@ -2165,6 +2187,9 @@ func newStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
 			},
 			func() (table.Condition, error) {
 				return newLargeCommunityConditionFromApiStruct(a.Conditions.LargeCommunitySet)
+			},
+			func() (table.Condition, error) {
+				return newRouteTargetPrefixConditionFromApiStruct(a.Conditions.RouteTargetPrefix)
 			},
 			func() (table.Condition, error) {
 				return newNextHopConditionFromApiStruct(a.Conditions.NextHopInList)

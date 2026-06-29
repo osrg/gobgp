@@ -1141,6 +1141,23 @@ module gobgp {
   }
 
   augment "/rpol:routing-policy/rpol:policy-definitions/" +
+      "rpol:policy-definition/rpol:statements/rpol:statement/" +
+      "rpol:conditions/bgp-pol:bgp-conditions" {
+    container match-route-target-prefix {
+      description
+        "Match the Route Target carried in a Route Target Constrain
+        (RFC 4684) NLRI against a referenced extended community-set,
+        according to the logic defined in the match-set-options leaf.";
+      leaf ext-community-set {
+        type string;
+        description
+          "References a defined extended community set holding Route Targets.";
+      }
+      uses rpol:match-set-options-group;
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
     "rpol:policy-definition/rpol:statements/rpol:statement/" +
     "rpol:actions/bgp-pol:bgp-actions" {
     container set-large-community {

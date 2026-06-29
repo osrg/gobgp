@@ -3958,3 +3958,121 @@ func TestNewSingleAsPathMatch(t *testing.T) {
 	r = NewSingleAsPathMatch("^65100$")
 	assert.Equal(t, r.mode, ONLY)
 }
+
+// makeRouteTargetPath builds an RTC-family (RF_RTC_UC) path with origin AS `as` and Route
+// Target `rt` ("" means the AS-only/default NLRI with no RT). Any extra extended
+// communities are attached as *attributes* (to exercise attribute-vs-NLRI-key
+// separation).
+func makeRouteTargetPath(t *testing.T, as uint32, rt string, attrECs ...bgp.ExtendedCommunityInterface) *Path {
+	t.Helper()
+	var ec bgp.ExtendedCommunityInterface
+	if rt != "" {
+		var err error
+		ec, err = bgp.ParseRouteTarget(rt)
+		assert.NoError(t, err)
+	}
+	nlri := bgp.NewRouteTargetMembershipNLRI(as, ec)
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	if len(attrECs) > 0 {
+		attrs = append(attrs, bgp.NewPathAttributeExtendedCommunities(attrECs))
+	}
+	return NewPath(bgp.RF_RTC_UC, &PeerInfo{}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+}
+
+// createRouteTargetCondition builds a resolved RouteTargetPrefixCondition (bypassing config reload)
+// referencing an ext-community-set built from list.
+func createRouteTargetCondition(t *testing.T, list []string, opt MatchOption) *RouteTargetPrefixCondition {
+	t.Helper()
+	s, err := NewExtCommunitySet(oc.ExtCommunitySet{ExtCommunitySetName: "rtset", ExtCommunityList: list})
+	assert.NoError(t, err)
+	return &RouteTargetPrefixCondition{set: s, option: opt}
+}
+
+func TestRouteTargetConditionEvaluate(t *testing.T) {
+	c := createRouteTargetCondition(t, []string{"rt:65000:100"}, MATCH_OPTION_ANY)
+	assert.Equal(t, true, c.Evaluate(makeRouteTargetPath(t, 65000, "65000:100"), nil))  // same RT
+	assert.Equal(t, false, c.Evaluate(makeRouteTargetPath(t, 65000, "65000:200"), nil)) // different RT
+	assert.Equal(t, true, c.Evaluate(makeRouteTargetPath(t, 65001, "65000:100"), nil))  // RT matches regardless of origin AS
+	assert.Equal(t, false, c.Evaluate(makeRouteTargetPath(t, 0, ""), nil))              // default NLRI (no RT)
+}
+
+// Partial / wildcard Route Target matching: an ext-community-set regexp matches
+// every RT under a given global-admin.
+func TestRouteTargetConditionPartial(t *testing.T) {
+	c := createRouteTargetCondition(t, []string{"rt:65000:.*"}, MATCH_OPTION_ANY)
+	assert.Equal(t, true, c.Evaluate(makeRouteTargetPath(t, 1, "65000:100"), nil))
+	assert.Equal(t, true, c.Evaluate(makeRouteTargetPath(t, 1, "65000:65535"), nil))
+	assert.Equal(t, false, c.Evaluate(makeRouteTargetPath(t, 1, "65001:100"), nil)) // different RT global-admin
+}
+
+func TestRouteTargetConditionInvert(t *testing.T) {
+	c := createRouteTargetCondition(t, []string{"rt:65000:100"}, MATCH_OPTION_INVERT)
+	assert.Equal(t, false, c.Evaluate(makeRouteTargetPath(t, 65000, "65000:100"), nil))
+	assert.Equal(t, true, c.Evaluate(makeRouteTargetPath(t, 65000, "65000:200"), nil))
+}
+
+// A non-RTC path must never match, and the family gate is applied before INVERT.
+func TestRouteTargetConditionFamilyGate(t *testing.T) {
+	v4nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	v4path := NewPath(bgp.RF_IPv4_UC, &PeerInfo{}, bgp.PathNLRI{NLRI: v4nlri}, false,
+		[]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}, time.Now(), false)
+
+	assert.Equal(t, false, createRouteTargetCondition(t, []string{"rt:65000:100"}, MATCH_OPTION_ANY).Evaluate(v4path, nil))
+	// INVERT must NOT flip a family mismatch into a match.
+	assert.Equal(t, false, createRouteTargetCondition(t, []string{"rt:65000:100"}, MATCH_OPTION_INVERT).Evaluate(v4path, nil))
+}
+
+// The condition matches the RT carried in the NLRI key, never the path's
+// attribute ext-communities (such an advertisement may legitimately carry those).
+func TestRouteTargetConditionAttributeVsNlriKey(t *testing.T) {
+	attrRT, err := bgp.ParseRouteTarget("65000:100")
+	assert.NoError(t, err)
+	// NLRI key RT = 65000:200, but the path carries rt:65000:100 as an attribute.
+	path := makeRouteTargetPath(t, 65000, "65000:200", attrRT)
+
+	assert.Equal(t, false, createRouteTargetCondition(t, []string{"rt:65000:100"}, MATCH_OPTION_ANY).Evaluate(path, nil))
+	assert.Equal(t, true, createRouteTargetCondition(t, []string{"rt:65000:200"}, MATCH_OPTION_ANY).Evaluate(path, nil))
+}
+
+// End-to-end: build config, reload a RoutingPolicy (exercises NewRouteTargetPrefixCondition
+// + resolution against the ext-community-set), and Apply.
+func TestRouteTargetConditionEndToEnd(t *testing.T) {
+	ds := oc.DefinedSets{}
+	ds.BgpDefinedSets.ExtCommunitySets = []oc.ExtCommunitySet{
+		{ExtCommunitySetName: "rtset", ExtCommunityList: []string{"rt:65000:100"}},
+	}
+
+	st := oc.Statement{Name: "s1"}
+	st.Conditions.BgpConditions.MatchRouteTargetPrefix = oc.MatchRouteTargetPrefix{
+		ExtCommunitySet: "rtset",
+		MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
+	}
+	st.Actions.RouteDisposition = oc.ROUTE_DISPOSITION_ACCEPT_ROUTE
+
+	pl := createRoutingPolicy(ds, createPolicyDefinition("pd1", st))
+
+	r := NewRoutingPolicy(logger)
+	assert.NoError(t, r.reload(pl))
+	p := r.policyMap["pd1"]
+
+	pType, _ := p.Apply(logger, makeRouteTargetPath(t, 65000, "65000:100"), nil)
+	assert.Equal(t, ROUTE_TYPE_ACCEPT, pType)
+
+	pType, _ = p.Apply(logger, makeRouteTargetPath(t, 65000, "65000:200"), nil)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType)
+}
+
+// A match-route-target-prefix condition round-trips through ToConfig.
+func TestRouteTargetConditionToConfig(t *testing.T) {
+	st := oc.Statement{Name: "s1"}
+	st.Conditions.BgpConditions.MatchRouteTargetPrefix = oc.MatchRouteTargetPrefix{
+		ExtCommunitySet: "rtset",
+		MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
+	}
+	st.Actions.RouteDisposition = oc.ROUTE_DISPOSITION_ACCEPT_ROUTE
+
+	s, err := NewStatement(st)
+	assert.NoError(t, err)
+	got := s.ToConfig()
+	assert.Equal(t, "rtset", got.Conditions.BgpConditions.MatchRouteTargetPrefix.ExtCommunitySet)
+}

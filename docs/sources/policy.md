@@ -614,6 +614,18 @@ evaluate routes from neighbors, if matched, action will be applied.
   | ext-community-set | name for defined-sets.bgp-defined-sets.ext-community-sets that is used in this policy | "ecommunity1" |
   | match-set-options | option for the check:<br> "any" or "all" or "invert". default is "any"                | "invert"      |
 
+- policy-definitions.statements.conditions.bgp-conditions.match-route-target-prefix
+
+  Matches Route Target Constrain (RFC 4684, `rtc` family) advertisements by the
+  Route Target carried in the RTC NLRI itself. This is distinct from
+  match-ext-community-set, which matches the path's extended communities
+  attribute - an RTC advertisement may legitimately carry those as well.
+
+  | Element           | Description                                                                           | Example       |
+  | ----------------- | ------------------------------------------------------------------------------------- | ------------- |
+  | ext-community-set | name for defined-sets.bgp-defined-sets.ext-community-sets that is used in this policy | "ecommunity1" |
+  | match-set-options | option for the check:<br> "any" or "all" or "invert". default is "any"                | "invert"      |
+
 - policy-definitions.statements.conditions.bgp-conditions.match-as-path-set
 
   | Element           | Description                                                                     | Example   |
@@ -828,6 +840,27 @@ evaluate routes from neighbors, if matched, action will be applied.
       [policy-definitions.statements.actions.bgp-actions]
         set-med = "+10"
         set-next-hop = "unchanged"
+  ```
+
+- example 6
+  - This policy definition uses match-route-target-prefix as its condition and rejects
+    every RTC advertisement carrying a Route Target of `65000:*`.
+
+  ```toml
+  # example 6
+  [[defined-sets.bgp-defined-sets.ext-community-sets]]
+    ext-community-set-name = "ecommunity1"
+    ext-community-list = ["RT:65000:.*"]
+
+  [[policy-definitions]]
+    name = "policy1"
+    [[policy-definitions.statements]]
+      name = "statement1"
+      [policy-definitions.statements.conditions.bgp-conditions.match-route-target-prefix]
+        ext-community-set = "ecommunity1"
+        match-set-options = "any"
+      [policy-definitions.statements.actions]
+        route-disposition = "reject-route"
   ```
 
 ### 4. Attaching policy

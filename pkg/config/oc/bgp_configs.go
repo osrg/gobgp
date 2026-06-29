@@ -5658,6 +5658,33 @@ func (lhs *MatchLargeCommunitySet) Equal(rhs *MatchLargeCommunitySet) bool {
 	return true
 }
 
+// struct for container gobgp:match-route-target-prefix.
+// Match the Route Target carried in a Route Target Constrain
+// (RFC 4684) NLRI against a referenced extended community-set,
+// according to the logic defined in the match-set-options leaf.
+type MatchRouteTargetPrefix struct {
+	// original -> gobgp:ext-community-set
+	// References a defined extended community set holding Route Targets.
+	ExtCommunitySet string `mapstructure:"ext-community-set" json:"ext-community-set,omitempty"`
+	// original -> rpol:match-set-options
+	// Optional parameter that governs the behaviour of the
+	// match operation.
+	MatchSetOptions MatchSetOptionsType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
+}
+
+func (lhs *MatchRouteTargetPrefix) Equal(rhs *MatchRouteTargetPrefix) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.ExtCommunitySet != rhs.ExtCommunitySet {
+		return false
+	}
+	if lhs.MatchSetOptions != rhs.MatchSetOptions {
+		return false
+	}
+	return true
+}
+
 // struct for container bgp-pol:as-path-length.
 // Value and comparison operations for conditions based on the
 // length of the AS path in the route update.
@@ -5840,6 +5867,11 @@ type BgpConditions struct {
 	RpkiValidationResult RpkiValidationResultType `mapstructure:"rpki-validation-result" json:"rpki-validation-result,omitempty"`
 	// original -> gobgp:match-large-community-set
 	MatchLargeCommunitySet MatchLargeCommunitySet `mapstructure:"match-large-community-set" json:"match-large-community-set,omitempty"`
+	// original -> gobgp:match-route-target-prefix
+	// Match the Route Target carried in a Route Target Constrain
+	// (RFC 4684) NLRI against a referenced extended community-set,
+	// according to the logic defined in the match-set-options leaf.
+	MatchRouteTargetPrefix MatchRouteTargetPrefix `mapstructure:"match-route-target-prefix" json:"match-route-target-prefix,omitempty"`
 }
 
 func (lhs *BgpConditions) Equal(rhs *BgpConditions) bool {
@@ -5893,6 +5925,9 @@ func (lhs *BgpConditions) Equal(rhs *BgpConditions) bool {
 		return false
 	}
 	if !lhs.MatchLargeCommunitySet.Equal(&(rhs.MatchLargeCommunitySet)) {
+		return false
+	}
+	if !lhs.MatchRouteTargetPrefix.Equal(&(rhs.MatchRouteTargetPrefix)) {
 		return false
 	}
 	return true
