@@ -17,7 +17,6 @@ package oc
 
 import (
 	"bufio"
-	"fmt"
 	"net/netip"
 	"os"
 	"path"
@@ -25,8 +24,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-viper/mapstructure/v2"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -105,16 +102,8 @@ func TestConfigExample(t *testing.T) {
 	assert.NoError(extractTomlFromMarkdown(fileMd, fileToml))
 	defer os.Remove(fileToml)
 
-	opts := viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(mapstructure.StringToNetIPAddrHookFunc(), mapstructure.StringToNetIPPrefixHookFunc()))
-	format := detectConfigFileType(fileToml, "")
-	c := &BgpConfigSet{}
-	v := viper.New()
-	v.SetConfigFile(fileToml)
-	v.SetConfigType(format)
-	assert.NoError(v.ReadInConfig())
-	fmt.Println(v)
-	assert.NoError(v.UnmarshalExact(c, opts))
-	assert.NoError(setDefaultConfigValuesWithViper(v, c))
+	c, err := ReadConfigfile(fileToml, "")
+	assert.NoError(err)
 
 	// Test if we can set the parameters for a peer-group
 	for _, peerGroup := range c.PeerGroups {
