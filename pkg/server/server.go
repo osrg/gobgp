@@ -372,7 +372,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		// register BFD for the dynamic neighbor too (explicit neighbors do this in addNeighbor): the
 		// BFD config is inherited from the peer group. Without this, BFD never runs for dynamic peers.
 		if s.bfdServer != nil && conf.Bfd.Config.Enabled {
-			if err := s.bfdServer.AddPeer(context.Background(), addr, conf.Bfd.Config, ""); err != nil {
+			if err := s.bfdServer.AddPeer(context.Background(), addr, conf.Bfd.Config, s.bgpConfig.Global.Config.BindToDevice); err != nil {
 				s.logger.Warn("failed to add BFD peer for dynamic neighbor",
 					slog.String("Topic", "Peer"),
 					slog.String("Key", addr.String()),
@@ -3805,6 +3805,11 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if bfdConfigChanged {
 		peer.fsm.logger.Info("Update BFD configuration")
 		conf.Bfd.Config = c.Bfd.Config
+	}
+
+	if original.Transport.Config.BindInterface != c.Transport.Config.BindInterface {
+		peer.fsm.logger.Info("Update BFD interface binding")
+		bfdConfigChanged = true
 	}
 
 	if original.NeedsResendOpenMessage(c) {
