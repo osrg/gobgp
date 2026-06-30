@@ -4,15 +4,19 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/netip"
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
 	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
+	"github.com/osrg/gobgp/v4/pkg/packet/bfd"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 )
@@ -144,6 +148,138 @@ func addPeer(s *bfdServer, port uint16) error {
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
 	}, "")
+}
+
+func addBfdPeer(s *bfdServer, peerAddress string, port uint16) error {
+	return s.AddPeer(context.Background(), netip.MustParseAddr(peerAddress), oc.BfdConfig{
+		Port:                     port,
+		Enabled:                  true,
+		DetectionMultiplier:      5,
+		RequiredMinimumReceive:   200000,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+}
+
+func canBindToDevice(device string) bool {
+	var lc net.ListenConfig
+	lc.Control = func(network, address string, sc syscall.RawConn) error {
+		return netutils.SetBindToDevSockopt(sc, device)
+	}
+
+	l, err := lc.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
+	if err != nil {
+		return false
+	}
+	_ = l.Close()
+	return true
+}
+
+func sendBfdControlPacket(src, dst string, dstPort int, state bfd.StateType) error {
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(src), Port: 0})
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	packet := &bfd.BFDHeader{
+		Version:               1,
+		State:                 state,
+		DetectTimeMultiplier:  3,
+		MyDiscriminator:       99,
+		DesiredMinTxInterval:  200000,
+		RequiredMinRxInterval: 200000,
+	}
+	buffer, err := packet.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	_, err = conn.WriteToUDP(buffer, &net.UDPAddr{IP: net.ParseIP(dst), Port: dstPort})
+	return err
+}
+
+func eventuallySendBfdAndCheckState(timeout time.Duration, s *bfdServer, peerAddress netip.Addr, dstPort int, packetState bfd.StateType, expected api.BfdSessionState) error {
+	return eventually(timeout, func() error {
+		if err := sendBfdControlPacket(peerAddress.String(), "127.0.0.1", dstPort, packetState); err != nil {
+			return err
+		}
+		state, err := s.GetPeerState(peerAddress)
+		if err != nil {
+			return err
+		}
+		if state.state.SessionState != expected {
+			return fmt.Errorf("must be: peerState == %s", expected)
+		}
+		return nil
+	})
+}
+
+func Test_BfdServerAcceptsSingleHopAndMultihopPorts(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	s := NewBfdServer(ps, slog.Default())
+	s.listenAddrs = []string{"127.0.0.1"}
+	err := s.Start(context.Background(), oc.BfdConfig{Port: BfdServerPort})
+	assert.NoError(err)
+	defer s.Stop()
+
+	peerAddr := netip.MustParseAddr("127.0.0.2")
+	err = addBfdPeer(s, peerAddr.String(), bfdMultihopPort)
+	assert.NoError(err)
+
+	err = eventuallySendBfdAndCheckState(3*time.Second, s, peerAddr, BfdServerPort, bfd.StateDown, api.BfdSessionState_BFD_SESSION_STATE_INIT)
+	assert.NoError(err)
+	err = eventuallySendBfdAndCheckState(3*time.Second, s, peerAddr, int(bfdMultihopPort), bfd.StateInit, api.BfdSessionState_BFD_SESSION_STATE_UP)
+	assert.NoError(err)
+}
+
+func Test_BfdServerEstablishesMultihopSessionOnRFC5883Port(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	s := NewBfdServer(ps, slog.Default())
+	s.listenAddrs = []string{"127.0.0.1"}
+	err := s.Start(context.Background(), oc.BfdConfig{Port: BfdServerPort})
+	assert.NoError(err)
+	defer s.Stop()
+
+	peerAddr := netip.MustParseAddr("127.0.0.2")
+	err = addBfdPeer(s, peerAddr.String(), bfdMultihopPort)
+	assert.NoError(err)
+
+	err = eventuallySendBfdAndCheckState(3*time.Second, s, peerAddr, int(bfdMultihopPort), bfd.StateDown, api.BfdSessionState_BFD_SESSION_STATE_INIT)
+	assert.NoError(err)
+	err = eventuallySendBfdAndCheckState(3*time.Second, s, peerAddr, int(bfdMultihopPort), bfd.StateInit, api.BfdSessionState_BFD_SESSION_STATE_UP)
+	assert.NoError(err)
+}
+
+func Test_BfdServerListenAddrsBindToDeviceAndMultihopPort(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("SO_BINDTODEVICE is Linux-specific")
+	}
+	if !canBindToDevice("lo") {
+		t.Skip("SO_BINDTODEVICE is not permitted in this environment")
+	}
+
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	s := NewBfdServer(ps, slog.Default())
+	s.listenAddrs = []string{"127.0.0.1"}
+	s.listenInterface = "lo"
+	err := s.Start(context.Background(), oc.BfdConfig{Port: BfdServerPort})
+	assert.NoError(err)
+	defer s.Stop()
+
+	peerAddr := netip.MustParseAddr("127.0.0.2")
+	err = addBfdPeer(s, peerAddr.String(), bfdMultihopPort)
+	assert.NoError(err)
+
+	err = eventuallySendBfdAndCheckState(3*time.Second, s, peerAddr, int(bfdMultihopPort), bfd.StateDown, api.BfdSessionState_BFD_SESSION_STATE_INIT)
+	assert.NoError(err)
+	err = eventuallySendBfdAndCheckState(3*time.Second, s, peerAddr, int(bfdMultihopPort), bfd.StateInit, api.BfdSessionState_BFD_SESSION_STATE_UP)
+	assert.NoError(err)
 }
 
 func Test_AddDeletePeer(t *testing.T) {
