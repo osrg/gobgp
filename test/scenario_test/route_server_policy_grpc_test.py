@@ -22,13 +22,7 @@ import inspect
 import collections
 collections.Callable = collections.abc.Callable
 
-import nose
-from nose.tools import (
-    assert_true,
-    assert_false,
-)
-
-from lib.noseplugin import OptionParser, parser_option
+from lib.noseplugin import parser_option
 
 from lib import base
 from lib.base import (
@@ -1261,11 +1255,11 @@ class ImportPolicyCommunityAction(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        assert_true(community_exists(path, '65100:10'))
-        assert_false(community_exists(path, '65100:20'))
+        assert community_exists(path, '65100:10')
+        assert not community_exists(path, '65100:20')
         path = g1.get_adj_rib_out(q2)[0]
-        assert_true(community_exists(path, '65100:10'))
-        assert_true(community_exists(path, '65100:20'))
+        assert community_exists(path, '65100:10')
+        assert community_exists(path, '65100:20')
 
     @staticmethod
     def executor(env):
@@ -1321,11 +1315,11 @@ class ImportPolicyCommunityReplace(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        assert_true(community_exists(path, '65100:10'))
-        assert_false(community_exists(path, '65100:20'))
+        assert community_exists(path, '65100:10')
+        assert not community_exists(path, '65100:20')
         path = g1.get_adj_rib_out(q2)[0]
-        assert_false(community_exists(path, '65100:10'))
-        assert_true(community_exists(path, '65100:20'))
+        assert not community_exists(path, '65100:10')
+        assert community_exists(path, '65100:20')
 
     @staticmethod
     def executor(env):
@@ -1393,18 +1387,18 @@ class ImportPolicyCommunityRemove(object):
         q2 = env.q2
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            assert_true(community_exists(path, '65100:10'))
+            assert community_exists(path, '65100:10')
             if path['nlri']['prefix'] == '192.168.110.0/24':
-                assert_true(community_exists(path, '65100:20'))
+                assert community_exists(path, '65100:20')
             if path['nlri']['prefix'] == '192.168.120.0/24':
-                assert_true(community_exists(path, '65100:30'))
+                assert community_exists(path, '65100:30')
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            assert_false(community_exists(path, '65100:10'))
+            assert not community_exists(path, '65100:10')
             if path['nlri']['prefix'] == '192.168.110.0/24':
-                assert_false(community_exists(path, '65100:20'))
+                assert not community_exists(path, '65100:20')
             if path['nlri']['prefix'] == '192.168.120.0/24':
-                assert_true(community_exists(path, '65100:30'))
+                assert community_exists(path, '65100:30')
 
     @staticmethod
     def executor(env):
@@ -1461,18 +1455,18 @@ class ImportPolicyCommunityNull(object):
         q2 = env.q2
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            assert_true(community_exists(path, '65100:10'))
+            assert community_exists(path, '65100:10')
             if path['nlri']['prefix'] == '192.168.110.0/24':
-                assert_true(community_exists(path, '65100:20'))
+                assert community_exists(path, '65100:20')
             if path['nlri']['prefix'] == '192.168.120.0/24':
-                assert_true(community_exists(path, '65100:30'))
+                assert community_exists(path, '65100:30')
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            assert_false(community_exists(path, '65100:10'))
+            assert not community_exists(path, '65100:10')
             if path['nlri']['prefix'] == '192.168.110.0/24':
-                assert_false(community_exists(path, '65100:20'))
+                assert not community_exists(path, '65100:20')
             if path['nlri']['prefix'] == '192.168.120.0/24':
-                assert_false(community_exists(path, '65100:30'))
+                assert not community_exists(path, '65100:30')
 
     @staticmethod
     def executor(env):
@@ -1529,18 +1523,18 @@ class ExportPolicyCommunityAdd(object):
 
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            assert_true(community_exists(path, '65100:10'))
-            assert_false(community_exists(path, '65100:20'))
+            assert community_exists(path, '65100:10')
+            assert not community_exists(path, '65100:20')
 
         local_rib = g1.get_local_rib(q2)
         for path in local_rib[0]['paths']:
-            assert_true(community_exists(path, '65100:10'))
-            assert_false(community_exists(path, '65100:20'))
+            assert community_exists(path, '65100:10')
+            assert not community_exists(path, '65100:20')
 
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            assert_true(community_exists(path, '65100:10'))
-            assert_true(community_exists(path, '65100:20'))
+            assert community_exists(path, '65100:10')
+            assert community_exists(path, '65100:20')
 
     @staticmethod
     def executor(env):
@@ -1597,18 +1591,18 @@ class ExportPolicyCommunityReplace(object):
 
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            assert_true(community_exists(path, '65100:10'))
-            assert_false(community_exists(path, '65100:20'))
+            assert community_exists(path, '65100:10')
+            assert not community_exists(path, '65100:20')
 
         local_rib = g1.get_local_rib(q2)
         for path in local_rib[0]['paths']:
-            assert_true(community_exists(path, '65100:10'))
-            assert_false(community_exists(path, '65100:20'))
+            assert community_exists(path, '65100:10')
+            assert not community_exists(path, '65100:20')
 
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            assert_false(community_exists(path, '65100:10'))
-            assert_true(community_exists(path, '65100:20'))
+            assert not community_exists(path, '65100:10')
+            assert community_exists(path, '65100:20')
 
     @staticmethod
     def executor(env):
@@ -1665,21 +1659,21 @@ class ExportPolicyCommunityRemove(object):
 
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            assert_true(community_exists(path, '65100:10'))
-            assert_true(community_exists(path, '65100:20'))
-            assert_true(community_exists(path, '65100:30'))
+            assert community_exists(path, '65100:10')
+            assert community_exists(path, '65100:20')
+            assert community_exists(path, '65100:30')
 
         local_rib = g1.get_local_rib(q2)
         for path in local_rib[0]['paths']:
-            assert_true(community_exists(path, '65100:10'))
-            assert_true(community_exists(path, '65100:20'))
-            assert_true(community_exists(path, '65100:30'))
+            assert community_exists(path, '65100:10')
+            assert community_exists(path, '65100:20')
+            assert community_exists(path, '65100:30')
 
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            assert_true(community_exists(path, '65100:10'))
-            assert_false(community_exists(path, '65100:20'))
-            assert_false(community_exists(path, '65100:30'))
+            assert community_exists(path, '65100:10')
+            assert not community_exists(path, '65100:20')
+            assert not community_exists(path, '65100:30')
 
     @staticmethod
     def executor(env):
@@ -1736,21 +1730,21 @@ class ExportPolicyCommunityNull(object):
 
         adj_out = g1.get_adj_rib_out(q1)
         for path in adj_out:
-            assert_true(community_exists(path, '65100:10'))
-            assert_true(community_exists(path, '65100:20'))
-            assert_true(community_exists(path, '65100:30'))
+            assert community_exists(path, '65100:10')
+            assert community_exists(path, '65100:20')
+            assert community_exists(path, '65100:30')
 
         local_rib = g1.get_local_rib(q2)
         for path in local_rib[0]['paths']:
-            assert_true(community_exists(path, '65100:10'))
-            assert_true(community_exists(path, '65100:20'))
-            assert_true(community_exists(path, '65100:30'))
+            assert community_exists(path, '65100:10')
+            assert community_exists(path, '65100:20')
+            assert community_exists(path, '65100:30')
 
         adj_out = g1.get_adj_rib_out(q2)
         for path in adj_out:
-            assert_false(community_exists(path, '65100:10'))
-            assert_false(community_exists(path, '65100:20'))
-            assert_false(community_exists(path, '65100:30'))
+            assert not community_exists(path, '65100:10')
+            assert not community_exists(path, '65100:20')
+            assert not community_exists(path, '65100:30')
 
     @staticmethod
     def executor(env):
@@ -1811,13 +1805,13 @@ class ImportPolicyMedReplace(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        assert_true(metric(adj_out[0]) == 300)
+        assert metric(adj_out[0]) == 300
 
         local_rib = g1.get_local_rib(q2)
-        assert_true(metric(local_rib[0]['paths'][0]) == 300)
+        assert metric(local_rib[0]['paths'][0]) == 300
 
         adj_out = g1.get_adj_rib_out(q2)
-        assert_true(metric(adj_out[0]) == 100)
+        assert metric(adj_out[0]) == 100
 
     @staticmethod
     def executor(env):
@@ -1871,13 +1865,13 @@ class ImportPolicyMedAdd(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        assert_true(metric(adj_out[0]) == 300)
+        assert metric(adj_out[0]) == 300
 
         local_rib = g1.get_local_rib(q2)
-        assert_true(metric(local_rib[0]['paths'][0]) == 300)
+        assert metric(local_rib[0]['paths'][0]) == 300
 
         adj_out = g1.get_adj_rib_out(q2)
-        assert_true(metric(adj_out[0]) == 400)
+        assert metric(adj_out[0]) == 400
 
     @staticmethod
     def executor(env):
@@ -1931,13 +1925,13 @@ class ImportPolicyMedSub(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        assert_true(metric(adj_out[0]) == 300)
+        assert metric(adj_out[0]) == 300
 
         local_rib = g1.get_local_rib(q2)
-        assert_true(metric(local_rib[0]['paths'][0]) == 300)
+        assert metric(local_rib[0]['paths'][0]) == 300
 
         adj_out = g1.get_adj_rib_out(q2)
-        assert_true(metric(adj_out[0]) == 200)
+        assert metric(adj_out[0]) == 200
 
     @staticmethod
     def executor(env):
@@ -1991,13 +1985,13 @@ class ExportPolicyMedReplace(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        assert_true(metric(adj_out[0]) == 300)
+        assert metric(adj_out[0]) == 300
 
         local_rib = g1.get_local_rib(q2)
-        assert_true(metric(local_rib[0]['paths'][0]) == 300)
+        assert metric(local_rib[0]['paths'][0]) == 300
 
         adj_out = g1.get_adj_rib_out(q2)
-        assert_true(metric(adj_out[0]) == 100)
+        assert metric(adj_out[0]) == 100
 
     @staticmethod
     def executor(env):
@@ -2051,13 +2045,13 @@ class ExportPolicyMedAdd(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        assert_true(metric(adj_out[0]) == 300)
+        assert metric(adj_out[0]) == 300
 
         local_rib = g1.get_local_rib(q2)
-        assert_true(metric(local_rib[0]['paths'][0]) == 300)
+        assert metric(local_rib[0]['paths'][0]) == 300
 
         adj_out = g1.get_adj_rib_out(q2)
-        assert_true(metric(adj_out[0]) == 400)
+        assert metric(adj_out[0]) == 400
 
     @staticmethod
     def executor(env):
@@ -2111,13 +2105,13 @@ class ExportPolicyMedSub(object):
         q2 = env.q2
 
         adj_out = g1.get_adj_rib_out(q1)
-        assert_true(metric(adj_out[0]) == 300)
+        assert metric(adj_out[0]) == 300
 
         local_rib = g1.get_local_rib(q2)
-        assert_true(metric(local_rib[0]['paths'][0]) == 300)
+        assert metric(local_rib[0]['paths'][0]) == 300
 
         adj_out = g1.get_adj_rib_out(q2)
-        assert_true(metric(adj_out[0]) == 200)
+        assert metric(adj_out[0]) == 200
 
     @staticmethod
     def executor(env):
@@ -2184,19 +2178,19 @@ class ExportPolicyAsPathPrepend(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == ([65005] * 5) + [e1.asn])
+        assert path['aspath'] == ([65005] * 5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
     @staticmethod
     def executor(env):
@@ -2253,19 +2247,19 @@ class ImportPolicyAsPathPrependLastAS(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == ([e1.asn] * 5) + [e1.asn])
+        assert path['aspath'] == ([e1.asn] * 5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
     @staticmethod
     def executor(env):
@@ -2322,19 +2316,19 @@ class ExportPolicyAsPathPrependLastAS(object):
         q2 = env.q2
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert_true(path['aspath'] == ([e1.asn] * 5) + [e1.asn])
+        assert path['aspath'] == ([e1.asn] * 5 + [e1.asn])
 
         path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        assert_true(path['aspath'] == [e1.asn])
+        assert path['aspath'] == [e1.asn]
 
     @staticmethod
     def executor(env):
@@ -2488,9 +2482,9 @@ class ImportPolicyExCommunityAdd(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        assert_false(ext_community_exists(path, 'RT:65000:1'))
+        assert not ext_community_exists(path, 'RT:65000:1')
         path = g1.get_adj_rib_out(q2)[0]
-        assert_true(ext_community_exists(path, 'RT:65000:1'))
+        assert ext_community_exists(path, 'RT:65000:1')
 
     @staticmethod
     def executor(env):
@@ -2545,14 +2539,14 @@ class ImportPolicyExCommunityAdd2(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        assert_true(ext_community_exists(path, 'RT:65000:1'))
-        assert_false(ext_community_exists(path, 'RT:65100:100'))
+        assert ext_community_exists(path, 'RT:65000:1')
+        assert not ext_community_exists(path, 'RT:65100:100')
         path = g1.get_local_rib(q2)[0]['paths'][0]
-        assert_true(ext_community_exists(path, 'RT:65000:1'))
-        assert_false(ext_community_exists(path, 'RT:65100:100'))
+        assert ext_community_exists(path, 'RT:65000:1')
+        assert not ext_community_exists(path, 'RT:65100:100')
         path = g1.get_adj_rib_out(q2)[0]
-        assert_true(ext_community_exists(path, 'RT:65000:1'))
-        assert_true(ext_community_exists(path, 'RT:65100:100'))
+        assert ext_community_exists(path, 'RT:65000:1')
+        assert ext_community_exists(path, 'RT:65100:100')
 
     @staticmethod
     def executor(env):
@@ -2607,14 +2601,14 @@ class ImportPolicyExCommunityMultipleAdd(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        assert_false(ext_community_exists(path, 'RT:65100:100'))
-        assert_false(ext_community_exists(path, 'RT:100:100'))
+        assert not ext_community_exists(path, 'RT:65100:100')
+        assert not ext_community_exists(path, 'RT:100:100')
         path = g1.get_local_rib(q2)[0]['paths'][0]
-        assert_false(ext_community_exists(path, 'RT:65100:100'))
-        assert_false(ext_community_exists(path, 'RT:100:100'))
+        assert not ext_community_exists(path, 'RT:65100:100')
+        assert not ext_community_exists(path, 'RT:100:100')
         path = g1.get_adj_rib_out(q2)[0]
-        assert_true(ext_community_exists(path, 'RT:65100:100'))
-        assert_true(ext_community_exists(path, 'RT:100:100'))
+        assert ext_community_exists(path, 'RT:65100:100')
+        assert ext_community_exists(path, 'RT:100:100')
 
     @staticmethod
     def executor(env):
@@ -2669,11 +2663,11 @@ class ExportPolicyExCommunityAdd(object):
         q1 = env.q1
         q2 = env.q2
         path = g1.get_adj_rib_out(q1)[0]
-        assert_false(ext_community_exists(path, 'RT:65000:1'))
+        assert not ext_community_exists(path, 'RT:65000:1')
         path = g1.get_local_rib(q2)[0]['paths'][0]
-        assert_false(ext_community_exists(path, 'RT:65000:1'))
+        assert not ext_community_exists(path, 'RT:65000:1')
         path = g1.get_adj_rib_out(q2)[0]
-        assert_true(ext_community_exists(path, 'RT:65000:1'))
+        assert ext_community_exists(path, 'RT:65000:1')
 
     @staticmethod
     def executor(env):
@@ -2716,11 +2710,3 @@ class TestGoBGPBase(unittest.TestCase):
             print('[PASS] %s' % e.__qualname__.split('.')[0], file=sys.stderr, flush=True)
 
 
-if __name__ == '__main__':
-    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) != 0:
-        print("docker not found")
-        sys.exit(1)
-
-    nose.main(argv=sys.argv, addplugins=[OptionParser()],
-              defaultTest=sys.argv[0])

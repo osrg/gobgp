@@ -22,7 +22,6 @@ import unittest
 
 collections.Callable = collections.abc.Callable
 
-import nose
 
 from lib import base
 from lib import utils
@@ -34,7 +33,7 @@ from lib.base import (
     Bridge,
 )
 from lib.gobgp import GoBGPContainer
-from lib.noseplugin import OptionParser, parser_option
+from lib.noseplugin import parser_option
 
 
 TCP_MD5_PASSWORD = 'password'
@@ -311,11 +310,3 @@ class GoBGPTCPMD5BindInterfaceVRFTest(unittest.TestCase):
         _assert_md5keys(self, self.g2, self.g1)
 
 
-if __name__ == '__main__':
-    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) != 0:
-        print("docker not found")
-        sys.exit(1)
-
-    nose.main(argv=sys.argv, addplugins=[OptionParser()],
-              defaultTest=sys.argv[0])

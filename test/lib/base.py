@@ -22,10 +22,7 @@ import itertools
 import textwrap
 from colored import fg, attr
 
-try:
-    from docker import Client
-except ImportError:
-    from docker import APIClient as Client
+from docker import APIClient as Client
 import netaddr
 
 

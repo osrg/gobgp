@@ -1,10 +1,9 @@
-nose
+pytest
 toml
 pyyaml
 fabric == 2.4.0
 netaddr
 nsenter
-docker-py
+docker
 colored
 invoke == 1.2.0
-requests <= 2.25.1

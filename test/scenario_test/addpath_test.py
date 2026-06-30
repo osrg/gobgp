@@ -21,7 +21,6 @@ import unittest
 import collections
 collections.Callable = collections.abc.Callable
 
-import nose
 
 from lib import base
 from lib.base import (
@@ -31,7 +30,7 @@ from lib.base import (
 )
 from lib.gobgp import GoBGPContainer
 from lib.exabgp import ExaBGPContainer
-from lib.noseplugin import OptionParser, parser_option
+from lib.noseplugin import parser_option
 
 
 class GoBGPTestBase(unittest.TestCase):
@@ -346,11 +345,3 @@ class GoBGPTestBase(unittest.TestCase):
         assert_several_times(f)
 
 
-if __name__ == '__main__':
-    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) != 0:
-        print("docker not found")
-        sys.exit(1)
-
-    nose.main(argv=sys.argv, addplugins=[OptionParser()],
-              defaultTest=sys.argv[0])
