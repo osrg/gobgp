@@ -1845,7 +1845,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.Family(0), time.Second*time.Duration(deferral)))
 				}
 			}
-		} else {
+		} else if oldState == bgp.BGP_FSM_ESTABLISHED {
 			peer.fsm.lock.Lock()
 			conf := peer.fsm.pConf.ReadCopy()
 			conf.Timers.State.Downtime = time.Now().Unix()

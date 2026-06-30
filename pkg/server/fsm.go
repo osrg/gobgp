@@ -562,7 +562,7 @@ func (fsm *fsm) bmpStatsUpdate(statType uint16, increment int) {
 
 func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *slog.Logger) *fsm {
 	pConf.State.SessionState = oc.IntToSessionStateMap[int(state)]
-	pConf.Timers.State.Downtime = time.Now().Unix()
+	pConf.Timers.State.Downtime = 0
 	fsm := &fsm{
 		gConf:                    gConf,
 		outgoingCh:               channels.NewInfiniteChannel(),
@@ -774,8 +774,6 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 		if !y {
 			fsm.twoByteAsTrans = true
 		}
-	default:
-		conf.Timers.State.Downtime = time.Now().Unix()
 	}
 }
 
