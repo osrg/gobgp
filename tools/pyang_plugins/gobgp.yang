@@ -1668,4 +1668,47 @@ module gobgp {
     description "BFD configuration for neighbor";
     uses gobgp-bfd-config-set;
   }
+
+  grouping gobgp-aggregate-config {
+    description "Configuration of a locally generated aggregate route.";
+    leaf prefix {
+      type inet:ip-prefix;
+    }
+    leaf summary-only {
+      type boolean;
+      description "Suppress the more-specific contributing routes.";
+    }
+    leaf as-set {
+      type boolean;
+      description "Generate an AS_SET from the contributing routes' AS paths.";
+    }
+    leaf policy-name {
+      type string;
+      description "Policy that contributing routes must pass.";
+    }
+  }
+
+  grouping gobgp-aggregates {
+    container aggregates {
+      list aggregate {
+        key "prefix";
+        leaf prefix {
+          type leafref {
+            path "../config/prefix";
+          }
+        }
+        container config {
+          uses gobgp-aggregate-config;
+        }
+        container state {
+          config false;
+          uses gobgp-aggregate-config;
+        }
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global" {
+    uses gobgp-aggregates;
+  }
 }

@@ -67,6 +67,9 @@ const (
 	GoBgpService_AddVrf_FullMethodName                 = "/api.GoBgpService/AddVrf"
 	GoBgpService_DeleteVrf_FullMethodName              = "/api.GoBgpService/DeleteVrf"
 	GoBgpService_ListVrf_FullMethodName                = "/api.GoBgpService/ListVrf"
+	GoBgpService_AddAggregate_FullMethodName           = "/api.GoBgpService/AddAggregate"
+	GoBgpService_DeleteAggregate_FullMethodName        = "/api.GoBgpService/DeleteAggregate"
+	GoBgpService_ListAggregate_FullMethodName          = "/api.GoBgpService/ListAggregate"
 	GoBgpService_AddPolicy_FullMethodName              = "/api.GoBgpService/AddPolicy"
 	GoBgpService_DeletePolicy_FullMethodName           = "/api.GoBgpService/DeletePolicy"
 	GoBgpService_ListPolicy_FullMethodName             = "/api.GoBgpService/ListPolicy"
@@ -130,6 +133,9 @@ type GoBgpServiceClient interface {
 	AddVrf(ctx context.Context, in *AddVrfRequest, opts ...grpc.CallOption) (*AddVrfResponse, error)
 	DeleteVrf(ctx context.Context, in *DeleteVrfRequest, opts ...grpc.CallOption) (*DeleteVrfResponse, error)
 	ListVrf(ctx context.Context, in *ListVrfRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListVrfResponse], error)
+	AddAggregate(ctx context.Context, in *AddAggregateRequest, opts ...grpc.CallOption) (*AddAggregateResponse, error)
+	DeleteAggregate(ctx context.Context, in *DeleteAggregateRequest, opts ...grpc.CallOption) (*DeleteAggregateResponse, error)
+	ListAggregate(ctx context.Context, in *ListAggregateRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListAggregateResponse], error)
 	AddPolicy(ctx context.Context, in *AddPolicyRequest, opts ...grpc.CallOption) (*AddPolicyResponse, error)
 	DeletePolicy(ctx context.Context, in *DeletePolicyRequest, opts ...grpc.CallOption) (*DeletePolicyResponse, error)
 	ListPolicy(ctx context.Context, in *ListPolicyRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyResponse], error)
@@ -495,6 +501,45 @@ func (c *goBgpServiceClient) ListVrf(ctx context.Context, in *ListVrfRequest, op
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type GoBgpService_ListVrfClient = grpc.ServerStreamingClient[ListVrfResponse]
 
+func (c *goBgpServiceClient) AddAggregate(ctx context.Context, in *AddAggregateRequest, opts ...grpc.CallOption) (*AddAggregateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddAggregateResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_AddAggregate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *goBgpServiceClient) DeleteAggregate(ctx context.Context, in *DeleteAggregateRequest, opts ...grpc.CallOption) (*DeleteAggregateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteAggregateResponse)
+	err := c.cc.Invoke(ctx, GoBgpService_DeleteAggregate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *goBgpServiceClient) ListAggregate(ctx context.Context, in *ListAggregateRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListAggregateResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[7], GoBgpService_ListAggregate_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ListAggregateRequest, ListAggregateResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type GoBgpService_ListAggregateClient = grpc.ServerStreamingClient[ListAggregateResponse]
+
 func (c *goBgpServiceClient) AddPolicy(ctx context.Context, in *AddPolicyRequest, opts ...grpc.CallOption) (*AddPolicyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AddPolicyResponse)
@@ -517,7 +562,7 @@ func (c *goBgpServiceClient) DeletePolicy(ctx context.Context, in *DeletePolicyR
 
 func (c *goBgpServiceClient) ListPolicy(ctx context.Context, in *ListPolicyRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[7], GoBgpService_ListPolicy_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[8], GoBgpService_ListPolicy_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -566,7 +611,7 @@ func (c *goBgpServiceClient) DeleteDefinedSet(ctx context.Context, in *DeleteDef
 
 func (c *goBgpServiceClient) ListDefinedSet(ctx context.Context, in *ListDefinedSetRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListDefinedSetResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[8], GoBgpService_ListDefinedSet_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[9], GoBgpService_ListDefinedSet_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -605,7 +650,7 @@ func (c *goBgpServiceClient) DeleteStatement(ctx context.Context, in *DeleteStat
 
 func (c *goBgpServiceClient) ListStatement(ctx context.Context, in *ListStatementRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListStatementResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[9], GoBgpService_ListStatement_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[10], GoBgpService_ListStatement_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -644,7 +689,7 @@ func (c *goBgpServiceClient) DeletePolicyAssignment(ctx context.Context, in *Del
 
 func (c *goBgpServiceClient) ListPolicyAssignment(ctx context.Context, in *ListPolicyAssignmentRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListPolicyAssignmentResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[10], GoBgpService_ListPolicyAssignment_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[11], GoBgpService_ListPolicyAssignment_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -693,7 +738,7 @@ func (c *goBgpServiceClient) DeleteRpki(ctx context.Context, in *DeleteRpkiReque
 
 func (c *goBgpServiceClient) ListRpki(ctx context.Context, in *ListRpkiRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRpkiResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[11], GoBgpService_ListRpki_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[12], GoBgpService_ListRpki_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -742,7 +787,7 @@ func (c *goBgpServiceClient) ResetRpki(ctx context.Context, in *ResetRpkiRequest
 
 func (c *goBgpServiceClient) ListRpkiTable(ctx context.Context, in *ListRpkiTableRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListRpkiTableResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[12], GoBgpService_ListRpkiTable_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[13], GoBgpService_ListRpkiTable_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -811,7 +856,7 @@ func (c *goBgpServiceClient) DeleteBmp(ctx context.Context, in *DeleteBmpRequest
 
 func (c *goBgpServiceClient) ListBmp(ctx context.Context, in *ListBmpRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListBmpResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[13], GoBgpService_ListBmp_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &GoBgpService_ServiceDesc.Streams[14], GoBgpService_ListBmp_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -871,6 +916,9 @@ type GoBgpServiceServer interface {
 	AddVrf(context.Context, *AddVrfRequest) (*AddVrfResponse, error)
 	DeleteVrf(context.Context, *DeleteVrfRequest) (*DeleteVrfResponse, error)
 	ListVrf(*ListVrfRequest, grpc.ServerStreamingServer[ListVrfResponse]) error
+	AddAggregate(context.Context, *AddAggregateRequest) (*AddAggregateResponse, error)
+	DeleteAggregate(context.Context, *DeleteAggregateRequest) (*DeleteAggregateResponse, error)
+	ListAggregate(*ListAggregateRequest, grpc.ServerStreamingServer[ListAggregateResponse]) error
 	AddPolicy(context.Context, *AddPolicyRequest) (*AddPolicyResponse, error)
 	DeletePolicy(context.Context, *DeletePolicyRequest) (*DeletePolicyResponse, error)
 	ListPolicy(*ListPolicyRequest, grpc.ServerStreamingServer[ListPolicyResponse]) error
@@ -989,6 +1037,15 @@ func (UnimplementedGoBgpServiceServer) DeleteVrf(context.Context, *DeleteVrfRequ
 }
 func (UnimplementedGoBgpServiceServer) ListVrf(*ListVrfRequest, grpc.ServerStreamingServer[ListVrfResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ListVrf not implemented")
+}
+func (UnimplementedGoBgpServiceServer) AddAggregate(context.Context, *AddAggregateRequest) (*AddAggregateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddAggregate not implemented")
+}
+func (UnimplementedGoBgpServiceServer) DeleteAggregate(context.Context, *DeleteAggregateRequest) (*DeleteAggregateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAggregate not implemented")
+}
+func (UnimplementedGoBgpServiceServer) ListAggregate(*ListAggregateRequest, grpc.ServerStreamingServer[ListAggregateResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ListAggregate not implemented")
 }
 func (UnimplementedGoBgpServiceServer) AddPolicy(context.Context, *AddPolicyRequest) (*AddPolicyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPolicy not implemented")
@@ -1527,6 +1584,53 @@ func _GoBgpService_ListVrf_Handler(srv interface{}, stream grpc.ServerStream) er
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type GoBgpService_ListVrfServer = grpc.ServerStreamingServer[ListVrfResponse]
+
+func _GoBgpService_AddAggregate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddAggregateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoBgpServiceServer).AddAggregate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GoBgpService_AddAggregate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoBgpServiceServer).AddAggregate(ctx, req.(*AddAggregateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GoBgpService_DeleteAggregate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAggregateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoBgpServiceServer).DeleteAggregate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GoBgpService_DeleteAggregate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoBgpServiceServer).DeleteAggregate(ctx, req.(*DeleteAggregateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GoBgpService_ListAggregate_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListAggregateRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GoBgpServiceServer).ListAggregate(m, &grpc.GenericServerStream[ListAggregateRequest, ListAggregateResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type GoBgpService_ListAggregateServer = grpc.ServerStreamingServer[ListAggregateResponse]
 
 func _GoBgpService_AddPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddPolicyRequest)
@@ -2071,6 +2175,14 @@ var GoBgpService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _GoBgpService_DeleteVrf_Handler,
 		},
 		{
+			MethodName: "AddAggregate",
+			Handler:    _GoBgpService_AddAggregate_Handler,
+		},
+		{
+			MethodName: "DeleteAggregate",
+			Handler:    _GoBgpService_DeleteAggregate_Handler,
+		},
+		{
 			MethodName: "AddPolicy",
 			Handler:    _GoBgpService_AddPolicy_Handler,
 		},
@@ -2189,6 +2301,11 @@ var GoBgpService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ListVrf",
 			Handler:       _GoBgpService_ListVrf_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ListAggregate",
+			Handler:       _GoBgpService_ListAggregate_Handler,
 			ServerStreams: true,
 		},
 		{

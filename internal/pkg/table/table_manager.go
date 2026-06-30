@@ -143,12 +143,13 @@ func makeAttributeList(
 }
 
 type TableManager struct {
-	mu             sync.RWMutex // protects tables and vrfs maps
-	tables         map[bgp.Family]*Table
-	vrfs           map[string]*Vrf
-	rfList         []bgp.Family
-	maxPathCounted atomic.Uint64
-	logger         *slog.Logger
+	mu               sync.RWMutex // protects tables and vrfs maps
+	tables           map[bgp.Family]*Table
+	vrfs             map[string]*Vrf
+	rfList           []bgp.Family
+	maxPathCounted   atomic.Uint64
+	logger           *slog.Logger
+	aggregateManager *AggregateManager
 }
 
 func NewTableManager(logger *slog.Logger, rfList []bgp.Family) *TableManager {
@@ -169,6 +170,43 @@ func NewTableManager(logger *slog.Logger, rfList []bgp.Family) *TableManager {
 // no lock is needed as rfList is not mutable, callers must treat the result as read-only.
 func (manager *TableManager) GetRFlist() []bgp.Family {
 	return manager.rfList
+}
+
+func (manager *TableManager) SetAggregateManager(am *AggregateManager) {
+	manager.aggregateManager = am
+}
+
+func (manager *TableManager) GetAggregateManager() *AggregateManager {
+	return manager.aggregateManager
+}
+
+// SeedAggregate scans all destinations in the family table and returns aggregate-triggered paths.
+func (manager *TableManager) SeedAggregate(family bgp.Family) []*Path {
+	if manager.aggregateManager == nil {
+		return nil
+	}
+	manager.mu.RLock()
+	tbl, ok := manager.tables[family]
+	manager.mu.RUnlock()
+	if !ok {
+		return nil
+	}
+
+	var results []*Path
+	for _, shard := range tbl.destinations.shards {
+		shard.mu.RLock()
+		for _, dests := range shard.mp {
+			for _, dest := range dests {
+				best := dest.GetBestPath(GLOBAL_RIB_NAME, 0)
+				if best == nil {
+					continue
+				}
+				results = append(results, manager.aggregateManager.evaluate(family, prefixOf(best), best)...)
+			}
+		}
+		shard.mu.RUnlock()
+	}
+	return results
 }
 
 func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistinguisherInterface, importRt, exportRt []bgp.ExtendedCommunityInterface, info *PeerInfo) ([]*Path, error) {
@@ -252,12 +290,26 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 		return updates
 	}
 
-	updates = append(updates, table.update(newPath))
+	u := table.update(newPath)
+	updates = append(updates, u)
+
 	if family == bgp.RF_EVPN {
 		for _, p := range manager.handleMacMobility(newPath) {
 			updates = append(updates, table.update(p))
 		}
 	}
+
+	if manager.aggregateManager != nil && manager.aggregateManager.Active() {
+		var newBest *Path
+		if len(u.KnownPathList) > 0 && !u.KnownPathList[0].IsNexthopInvalid {
+			newBest = u.KnownPathList[0]
+		}
+		dest := prefixOf(newPath)
+		for _, aggPath := range manager.aggregateManager.evaluate(family, dest, newBest) {
+			updates = append(updates, table.update(aggPath))
+		}
+	}
+
 	return updates
 }
 
