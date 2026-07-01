@@ -21,18 +21,6 @@ import (
 	"syscall"
 )
 
-func setSockOptString(sc syscall.RawConn, level int, opt int, str string) error {
-	var opterr error
-	fn := func(s uintptr) {
-		opterr = syscall.SetsockoptString(int(s), level, opt, str)
-	}
-	err := sc.Control(fn)
-	if opterr == nil {
-		return err
-	}
-	return opterr
-}
-
 func setSockOptInt(sc syscall.RawConn, level, name, value int) error {
 	var opterr error
 	fn := func(s uintptr) {

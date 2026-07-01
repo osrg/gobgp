@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -81,6 +82,13 @@ func main() {
 	}
 	_, err := flags.Parse(&opts)
 	if err != nil {
+		var flagsErr *flags.Error
+		if errors.As(err, &flagsErr) {
+			if flagsErr.Type == flags.ErrHelp {
+				os.Exit(0)
+			}
+		}
+
 		logger.Error("Error parsing flags", slog.String("Error", err.Error()))
 		os.Exit(1)
 	}

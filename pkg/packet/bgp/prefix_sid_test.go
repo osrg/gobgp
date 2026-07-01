@@ -128,6 +128,39 @@ func TestNewPathAttributePrefixSID(t *testing.T) {
 	}
 }
 
+func TestSRv6L3ServiceUnknownSubTLV(t *testing.T) {
+	// SRv6L3ServiceAttribute with an unknown sub-TLV type (0xff).
+	// Previously, the default branch advanced the wrong variable (data
+	// instead of stlvs), causing an infinite loop.
+	input := []byte{
+		0x05,       // Type: TLVTypeSRv6L3Service
+		0x00, 0x07, // Length: 7 (1 reserved + 6 sub-TLV)
+		0x00, // Reserved
+		// Unknown sub-TLV: Type=0xff, Length=3, Value=0x01,0x02,0x03
+		0xff, 0x00, 0x03, 0x01, 0x02, 0x03,
+	}
+	s := &SRv6L3ServiceAttribute{}
+	err := s.DecodeFromBytes(input)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(s.SubTLVs))
+}
+
+func TestSRv6ServiceTLVUnknownSubTLV(t *testing.T) {
+	// SRv6ServiceTLV with an unknown sub-TLV type (0xff).
+	// Same bug as SRv6L3ServiceAttribute.
+	input := []byte{
+		0x05,       // Type: TLVTypeSRv6L3Service
+		0x00, 0x07, // Length: 7 (1 reserved + 6 sub-TLV)
+		0x00, // Reserved
+		// Unknown sub-TLV: Type=0xff, Length=3, Value=0x01,0x02,0x03
+		0xff, 0x00, 0x03, 0x01, 0x02, 0x03,
+	}
+	s := &SRv6ServiceTLV{}
+	err := s.DecodeFromBytes(input)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(s.SubTLVs))
+}
+
 // to make label with bottom of stack
 type prefixSidLabel struct {
 	Label uint32

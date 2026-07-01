@@ -16,7 +16,8 @@
 
 import unittest
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED, local
+from lib import utils
+from lib.base import BGP_FSM_ESTABLISHED, local, Bridge
 from lib.gobgp import GoBGPContainer
 import sys
 import os
@@ -25,8 +26,7 @@ import time
 import collections
 collections.Callable = collections.abc.Callable
 
-import nose
-from lib.noseplugin import OptionParser, parser_option
+from lib.noseplugin import parser_option
 from itertools import combinations
 
 
@@ -49,31 +49,13 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(initial_wait_time + 2)
 
-        done = False
+        br = Bridge(name='unnumbered', subnet='fd00:1::/64')
+        [br.addif(ctn) for ctn in [g1, g2]]
 
-        def f(ifname, ctn):
-            out = ctn.local('ip -6 n', capture=True)
-            l = [line for line in out.split('\n') if ifname in line]
-            if len(l) == 0:
-                return False
-            elif len(l) > 1:
-                raise Exception('not p2p link')
-            return 'REACHABLE' in l[0]
+        utils.probe_link_local_address(g1, g2, 'eth1', 'eth1')
 
-        for i in range(20):
-            g1.local('ping6 -c 1 ff02::1%eth0')
-            g2.local('ping6 -c 1 ff02::1%eth0')
-            if f('eth0', g1) and f('eth0', g2):
-                done = True
-                break
-            time.sleep(1)
-
-        if not done:
-            raise Exception('timeout')
-
-        for a, b in combinations(ctns, 2):
-            a.add_peer(b, interface='eth0')
-            b.add_peer(a, interface='eth0')
+        g1.add_peer(g2, interface='eth1')
+        g2.add_peer(g1, interface='eth1')
 
         cls.g1 = g1
         cls.g2 = g2
@@ -81,6 +63,7 @@ class GoBGPTestBase(unittest.TestCase):
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
         self.g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g2)
+        self.g2.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=self.g1)
 
     def test_02_add_ipv4_route(self):
 
@@ -92,11 +75,3 @@ class GoBGPTestBase(unittest.TestCase):
         self.assertEqual(len(rib), 1)
 
 
-if __name__ == '__main__':
-    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) != 0:
-        print("docker not found")
-        sys.exit(1)
-
-    nose.main(argv=sys.argv, addplugins=[OptionParser()],
-              defaultTest=sys.argv[0])

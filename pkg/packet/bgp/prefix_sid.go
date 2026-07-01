@@ -228,10 +228,10 @@ func (s *SRv6L3ServiceAttribute) DecodeFromBytes(data []byte) error {
 				SubSubTLVs: make([]PrefixSIDTLVInterface, 0),
 			}
 		default:
-			if len(data) < t.Len() {
+			if len(stlvs) < t.Len() {
 				return malformedAttrListErr("SRv6L3ServiceAttribute/SubTLV malformed")
 			}
-			data = data[t.Len():]
+			stlvs = stlvs[t.Len():]
 			continue
 		}
 
@@ -674,10 +674,10 @@ func (s *SRv6ServiceTLV) DecodeFromBytes(data []byte) error {
 				SubSubTLVs: make([]PrefixSIDTLVInterface, 0),
 			}
 		default:
-			if len(data) < t.Len() {
+			if len(stlvs) < t.Len() {
 				return malformedAttrListErr("SRv6ServiceTLV malformed")
 			}
-			data = data[t.Len():]
+			stlvs = stlvs[t.Len():]
 			continue
 		}
 

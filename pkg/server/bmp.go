@@ -83,6 +83,14 @@ func (r ribout) update(p *table.Path) bool {
 	return true
 }
 
+func bmpAddPathMarshallingOption(path *table.Path) *bgp.MarshallingOption {
+	return &bgp.MarshallingOption{
+		AddPath: map[bgp.Family]bgp.BGPAddPathMode{
+			path.GetFamily(): bgp.BGP_ADD_PATH_BOTH,
+		},
+	}
+}
+
 func (b *bmpClient) tryConnect() *net.TCPConn {
 	interval := 1
 	for {
@@ -124,6 +132,7 @@ func (b *bmpClient) loop() {
 		if func() bool {
 			defer func() {
 				atomic.StoreInt64(&b.downtime, time.Now().Unix())
+				conn.Close()
 			}()
 			ops := []WatchOption{WatchPeer()}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_BOTH {
@@ -179,7 +188,14 @@ func (b *bmpClient) loop() {
 			sentLocRIBPeerUp := false
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				// For now, use PD=0 and VRF/Table Name="global".
-				if err := write(bmpLocRIBPeerUp(b.s.bgpConfig.Global.Config.As, b.s.bgpConfig.Global.Config.RouterId, "global", 0, time.Now().Unix())); err != nil {
+				if err := write(bmpLocRIBPeerUp(
+					b.s.bgpConfig.Global.Config.As,
+					b.s.bgpConfig.Global.Config.RouterId,
+					"global",
+					0,
+					time.Now().Unix(),
+					table.UseMultiplePaths.Enabled,
+				)); err != nil {
 					return false
 				}
 				sentLocRIBPeerUp = true
@@ -223,9 +239,13 @@ func (b *bmpClient) loop() {
 							AS:      b.s.bgpConfig.Global.Config.As,
 							ID:      b.s.bgpConfig.Global.Config.RouterId,
 						}
-						for _, p := range msg.PathList {
-							u := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0]
-							if payload, err := u.Serialize(); err != nil {
+						for _, p := range locRIBPathsForBMP(msg) {
+							if p == nil {
+								continue
+							}
+							options := bmpAddPathMarshallingOption(p)
+							u := table.CreateUpdateMsgFromPaths([]*table.Path{p}, options)[0]
+							if payload, err := u.Serialize(options); err != nil {
 								return false
 							} else if err = write(bmpPeerRoute(bmp.BMP_PEER_TYPE_LOCAL_RIB, false, 0, true, info, p.GetTimestamp().Unix(), payload)); err != nil {
 								return false
@@ -261,7 +281,7 @@ func (b *bmpClient) loop() {
 								err = write(bmpPeerStats(bmp.BMP_PEER_TYPE_GLOBAL, 0, time.Now().Unix(), peer))
 							}
 						})
-					if listErr != nil && err != nil {
+					if listErr != nil || err != nil {
 						return false
 					}
 				case <-b.dead:
@@ -275,7 +295,6 @@ func (b *bmpClient) loop() {
 					if err := write(term); err != nil {
 						return false
 					}
-					conn.Close()
 					return true
 				}
 			}
@@ -285,7 +304,7 @@ func (b *bmpClient) loop() {
 	}
 }
 
-func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peerDist uint64, timestamp int64) *bmp.BMPMessage {
+func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peerDist uint64, timestamp int64, addPathEnabled bool) *bmp.BMPMessage {
 	const asTrans uint16 = 23456
 
 	myAS := asTrans
@@ -295,6 +314,14 @@ func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peer
 	} else {
 		opts = append(opts, bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
 			bgp.NewCapFourOctetASNumber(localAS),
+		}))
+	}
+	if addPathEnabled {
+		opts = append(opts, bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
+			bgp.NewCapAddPath([]*bgp.CapAddPathTuple{
+				bgp.NewCapAddPathTuple(bgp.RF_IPv4_UC, bgp.BGP_ADD_PATH_BOTH),
+				bgp.NewCapAddPathTuple(bgp.RF_IPv6_UC, bgp.BGP_ADD_PATH_BOTH),
+			}),
 		}))
 	}
 

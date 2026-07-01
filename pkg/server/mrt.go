@@ -139,7 +139,7 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 		rib = m.s.rsRib
 	}
 
-	for family, t := range rib.Tables {
+	for family, t := range rib.GetAllTablesMap() {
 		for _, dst := range t.GetDestinations() {
 			if paths := dst.GetKnownPathList(id, as); len(paths) > 0 {
 				entries := make([]*mrt.RibEntry, 0)

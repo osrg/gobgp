@@ -18,6 +18,7 @@ package bgp
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"math"
 	"net"
 	"net/netip"
@@ -463,6 +464,44 @@ func Test_MPLSLabelStack(t *testing.T) {
 	assert.Equal(WITHDRAW_LABEL, mpls.Labels[0])
 }
 
+func TestMPLSLabelStackMissingBOS(t *testing.T) {
+	// Three-byte label with bottom-of-stack bit clear (label 100, S=0).
+	noBOS := []byte{0x00, 0x06, 0x40} // label=100, TC=0, S=0
+
+	t.Run("DecodeFromBytes_rejects_missing_BOS", func(t *testing.T) {
+		s := &MPLSLabelStack{}
+		err := s.DecodeFromBytes(noBOS)
+		require.Error(t, err, "label stack without BOS bit must be rejected")
+	})
+
+	t.Run("Serialize_empty_returns_error_not_panic", func(t *testing.T) {
+		s := &MPLSLabelStack{Labels: []uint32{}}
+		_, err := s.Serialize()
+		require.Error(t, err, "serializing empty label stack must return error")
+	})
+
+	t.Run("LabeledIPAddrPrefix_rejects_missing_BOS", func(t *testing.T) {
+		// bits=27 (3-byte label + 3-bit prefix), then label without BOS, then prefix byte.
+		// bits field: label(3B)=24 bits + prefix bits=3 → 27
+		data := []byte{27, 0x00, 0x06, 0x40, 0xa0} // bits=27, label noBOS, prefix
+		n := &LabeledIPAddrPrefix{}
+		err := n.decodeFromBytes(data, 4)
+		require.Error(t, err)
+	})
+
+	t.Run("LabeledVPNIPAddrPrefix_rejects_bits_too_short", func(t *testing.T) {
+		// Construct a VPN NLRI where bits < 8*labelLen to trigger the
+		// "declared length too short for label stack" path.
+		// Valid label with BOS: label=100, S=1 → [0x00, 0x06, 0x41]
+		// bits=1 (way too small for a 3-byte label stack + 8-byte RD + prefix)
+		validLabel := []byte{0x00, 0x06, 0x41}   // label=100, BOS=1
+		data := append([]byte{1}, validLabel...) // bits=1
+		n := &LabeledVPNIPAddrPrefix{}
+		err := n.decodeFromBytes(data, 4)
+		require.Error(t, err)
+	})
+}
+
 func Test_FlowSpecNlri(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
@@ -585,6 +624,78 @@ func Test_IP6FlowSpecExtended(t *testing.T) {
 	assert.Equal(t, m1, m2)
 }
 
+func Test_UnknownIP6Extended_RoundTrip(t *testing.T) {
+	assert := assert.New(t)
+
+	// 20-byte unknown IPv6 Extended Community (type 0x99, 19-byte value)
+	raw := []byte{
+		0x99, 0x77, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+		0x0f, 0x10, 0x11, 0x12,
+	}
+
+	e, err := ParseIP6Extended(raw)
+	require.NoError(t, err)
+
+	unknown, ok := e.(*UnknownIP6Extended)
+	require.True(t, ok, "expected *UnknownIP6Extended")
+	assert.Equal(ExtendedCommunityAttrType(0x99), unknown.Type)
+	assert.Equal(raw[1:], unknown.Value)
+
+	serialized, err := unknown.Serialize()
+	require.NoError(t, err)
+	assert.Equal(raw, serialized, "round-trip must be byte-for-byte identical")
+}
+
+func Test_UnknownIP6Extended_PathAttribute_RoundTrip(t *testing.T) {
+	assert := assert.New(t)
+
+	// Construct a PathAttributeIP6ExtendedCommunities with an unknown type.
+	// PathAttribute header (4 bytes) + 20-byte community value.
+	// Flags: optional+transitive = 0xc0, type = 25 (0x19), length = 20 (0x14)
+	raw := []byte{
+		0xc0, 0x19, 0x14,
+		0x99, 0x77, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+		0x0f, 0x10, 0x11, 0x12,
+	}
+
+	attr := &PathAttributeIP6ExtendedCommunities{}
+	err := attr.DecodeFromBytes(raw)
+	require.NoError(t, err)
+	require.Len(t, attr.Value, 1)
+
+	_, ok := attr.Value[0].(*UnknownIP6Extended)
+	assert.True(ok, "expected *UnknownIP6Extended")
+
+	serialized, err := attr.Serialize()
+	require.NoError(t, err)
+	assert.Equal(raw, serialized, "round-trip must be byte-for-byte identical")
+}
+
+func Test_UnknownIP6FlowSpecExtended_RoundTrip(t *testing.T) {
+	assert := assert.New(t)
+
+	// EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL (0x80) with unknown subtype
+	// so that parseIP6FlowSpecExtended falls through to the UnknownIP6Extended path.
+	raw := []byte{
+		0x80, 0xff, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+		0x0f, 0x10, 0x11, 0x12,
+	}
+
+	e, err := ParseIP6Extended(raw)
+	require.NoError(t, err)
+
+	unknown, ok := e.(*UnknownIP6Extended)
+	require.True(t, ok, "expected *UnknownIP6Extended")
+	assert.Equal(raw[1:], unknown.Value)
+
+	serialized, err := unknown.Serialize()
+	require.NoError(t, err)
+	assert.Equal(raw, serialized, "round-trip must be byte-for-byte identical")
+}
+
 func Test_FlowSpecNlriv6(t *testing.T) {
 	cmp := make([]FlowSpecComponentInterface, 0)
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001::/64"))
@@ -702,6 +813,90 @@ func Test_EVPNIPPrefixRoute(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Equal(n1, n2)
+}
+
+func Test_EVPNMacIPAdvertisementRoute(t *testing.T) {
+	rd, err := ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	esi := EthernetSegmentIdentifier{Type: ESI_ARBITRARY, Value: make([]byte, 9)}
+	mac := "aa:bb:cc:dd:ee:ff"
+
+	t.Run("MAC-only NLRI", func(t *testing.T) {
+		nl, err := NewEVPNMacIPAdvertisementRoute(rd, esi, 42, mac, netip.Addr{}, []uint32{200})
+		require.NoError(t, err)
+		r := nl.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
+		assert.Equal(t, uint8(0), r.IPAddressLength)
+		assert.False(t, r.IPAddress.IsValid())
+	})
+
+	t.Run("IPv4 host address", func(t *testing.T) {
+		ip := netip.MustParseAddr("10.0.0.1")
+		nl, err := NewEVPNMacIPAdvertisementRoute(rd, esi, 42, mac, ip, nil)
+		require.NoError(t, err)
+		r := nl.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
+		assert.Equal(t, uint8(32), r.IPAddressLength)
+		assert.Equal(t, ip, r.IPAddress)
+	})
+
+	t.Run("IPv6 host address", func(t *testing.T) {
+		ip := netip.MustParseAddr("2001:db8::1")
+		nl, err := NewEVPNMacIPAdvertisementRoute(rd, esi, 42, mac, ip, nil)
+		require.NoError(t, err)
+		r := nl.RouteTypeData.(*EVPNMacIPAdvertisementRoute)
+		assert.Equal(t, uint8(128), r.IPAddressLength)
+		assert.Equal(t, ip, r.IPAddress)
+	})
+}
+
+func Test_EVPNMacIPAdvertisementRoute_MarshalJSON(t *testing.T) {
+	rd, err := ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	esi := EthernetSegmentIdentifier{Type: ESI_ARBITRARY, Value: make([]byte, 9)}
+	mac := "aa:bb:cc:dd:ee:ff"
+
+	t.Run("omits ip key when IPAddressLength is 0", func(t *testing.T) {
+		r := &EVPNMacIPAdvertisementRoute{
+			RD:               rd,
+			ESI:              esi,
+			ETag:             7,
+			MacAddressLength: 48,
+			MacAddress:       mustParseMAC(t, mac),
+			IPAddressLength:  0,
+			IPAddress:        netip.Addr{},
+			Labels:           []uint32{300},
+		}
+		b, err := r.MarshalJSON()
+		require.NoError(t, err)
+		var m map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(b, &m))
+		_, hasIP := m["ip"]
+		assert.False(t, hasIP)
+	})
+
+	t.Run("includes ip when IPAddressLength is non-zero", func(t *testing.T) {
+		r := &EVPNMacIPAdvertisementRoute{
+			RD:               rd,
+			ESI:              esi,
+			ETag:             7,
+			MacAddressLength: 48,
+			MacAddress:       mustParseMAC(t, mac),
+			IPAddressLength:  32,
+			IPAddress:        netip.MustParseAddr("192.0.2.1"),
+			Labels:           []uint32{300},
+		}
+		b, err := r.MarshalJSON()
+		require.NoError(t, err)
+		var m map[string]any
+		require.NoError(t, json.Unmarshal(b, &m))
+		assert.Equal(t, "192.0.2.1", m["ip"])
+	})
+}
+
+func mustParseMAC(t *testing.T, s string) net.HardwareAddr {
+	t.Helper()
+	m, err := net.ParseMAC(s)
+	require.NoError(t, err)
+	return m
 }
 
 func Test_CapExtendedNexthop(t *testing.T) {
@@ -1470,6 +1665,183 @@ func TestParseBogusShortData(t *testing.T) {
 	}
 }
 
+func TestUpdateWithdrawnRouteUnderflow(t *testing.T) {
+	// WithdrawnRoutesLen is 2, but the /32 prefix requires 5 bytes.
+	// Without an underflow guard, routelen wraps from 2 to 65533 and the
+	// loop silently consumes the entire remaining buffer as withdrawn
+	// routes, returning no error (silent data corruption).
+	const underflowed = 65533 // uint16(2 - 5)
+	buf := make([]byte, 2+5+underflowed+2)
+	buf[0], buf[1] = 0x00, 0x02                  // WithdrawnRoutesLen = 2
+	buf[2] = 0x20                                // /32 prefix length
+	buf[3], buf[4], buf[5], buf[6] = 10, 0, 0, 1 // 10.0.0.1
+	// bytes 7..65539: zeros, decoded as 65533 /0 prefixes
+	// bytes 65540..65541: TotalPathAttributeLen = 0
+
+	u := &BGPUpdate{}
+	err := u.DecodeFromBytes(buf)
+	require.Error(t, err)
+}
+
+func TestUpdatePathAttrLenUnderflow(t *testing.T) {
+	// TotalPathAttributeLen is 3, but the ORIGIN attribute is 4 bytes.
+	// Without an underflow guard, pathlen wraps from 3 to 65535 and the
+	// loop silently consumes the filler bytes as path attributes,
+	// returning no error (silent data corruption).
+	// 65535 is divisible by 3 (filler attr size), so the loop exits
+	// cleanly with pathlen=0 instead of hitting the pathlen<3 guard.
+	const underflowed = 65535 // uint16(3 - 4)
+	const fillerAttrLen = 3
+	buf := make([]byte, 2+2+4+underflowed)
+	buf[0], buf[1] = 0x00, 0x00                             // WithdrawnRoutesLen = 0
+	buf[2], buf[3] = 0x00, 0x03                             // TotalPathAttributeLen = 3
+	buf[4], buf[5], buf[6], buf[7] = 0x40, 0x01, 0x01, 0x00 // ORIGIN(IGP)
+	for i := 8; i+2 < len(buf); i += fillerAttrLen {
+		buf[i] = 0xc0   // flags: optional + transitive
+		buf[i+1] = 0xff // type: unknown
+		buf[i+2] = 0x00 // length: 0
+	}
+
+	u := &BGPUpdate{}
+	err := u.DecodeFromBytes(buf)
+	require.Error(t, err)
+}
+
+func TestCapFQDNRoundTrip(t *testing.T) {
+	tests := []struct {
+		host   string
+		domain string
+	}{
+		{"router1", "example.com"},
+		{"a", "b"},
+		{"gobgp", ""},
+		{"", "example.com"},
+	}
+	for _, tt := range tests {
+		cap := NewCapFQDN(tt.host, tt.domain)
+		buf, err := cap.Serialize()
+		require.NoError(t, err)
+
+		decoded := &CapFQDN{}
+		err = decoded.DecodeFromBytes(buf)
+		require.NoError(t, err)
+		require.Equal(t, tt.host, decoded.HostName)
+		require.Equal(t, tt.domain, decoded.DomainName)
+	}
+}
+
+func TestCapFQDNDomainNameTrailingBytes(t *testing.T) {
+	// Verify DomainName parsing respects DomainNameLen and does not
+	// consume trailing bytes beyond it.
+	cap := NewCapFQDN("router1", "example.com")
+	buf, err := cap.Serialize()
+	require.NoError(t, err)
+
+	// Append trailing garbage after the FQDN capability
+	buf = append(buf, 0xde, 0xad, 0xbe, 0xef)
+
+	decoded := &CapFQDN{}
+	err = decoded.DecodeFromBytes(buf)
+	require.NoError(t, err)
+	require.Equal(t, "example.com", decoded.DomainName)
+}
+
+func TestCapSoftwareVersionRoundTrip(t *testing.T) {
+	versions := []string{"GoBGP", "a", "BIRD 2.15.1", "FRRouting/10.2.1"}
+	for _, v := range versions {
+		cap := NewCapSoftwareVersion(v)
+		buf, err := cap.Serialize()
+		require.NoError(t, err)
+
+		decoded := &CapSoftwareVersion{}
+		err = decoded.DecodeFromBytes(buf)
+		require.NoError(t, err)
+		require.Equal(t, v, decoded.SoftwareVersion)
+		require.Equal(t, uint8(len(v)), decoded.SoftwareVersionLen)
+	}
+}
+
+func TestCapabilityBoundaryEnforcement(t *testing.T) {
+	// Each fixed-size capability must reject a CapLen that does not match the
+	// required size. Before the fix, decoders used data[2:] (the full remaining
+	// buffer) instead of the CapLen-bounded slice, allowing bytes from a
+	// following capability to be misread as the capability value.
+
+	t.Run("CapFourOctetASNumber_CapLen0_rejected", func(t *testing.T) {
+		// CapLen=0; the 4 bytes after the header belong to the next capability.
+		// Before the fix these were silently read as the AS number.
+		data := []byte{
+			byte(BGP_CAP_FOUR_OCTET_AS_NUMBER), 0x00, // code=65, CapLen=0
+			0x00, 0x00, 0xfd, 0xe8, // next cap bytes (AS 65000 in big-endian)
+		}
+		c := &CapFourOctetASNumber{}
+		require.Error(t, c.DecodeFromBytes(data))
+	})
+
+	t.Run("CapFourOctetASNumber_CapLen2_rejected", func(t *testing.T) {
+		data := []byte{byte(BGP_CAP_FOUR_OCTET_AS_NUMBER), 0x02, 0x00, 0x01}
+		c := &CapFourOctetASNumber{}
+		require.Error(t, c.DecodeFromBytes(data))
+	})
+
+	t.Run("CapFourOctetASNumber_valid", func(t *testing.T) {
+		cap := NewCapFourOctetASNumber(65000)
+		buf, err := cap.Serialize()
+		require.NoError(t, err)
+		decoded := &CapFourOctetASNumber{}
+		require.NoError(t, decoded.DecodeFromBytes(buf))
+		require.Equal(t, uint32(65000), decoded.CapValue)
+	})
+
+	t.Run("CapMultiProtocol_CapLen0_rejected", func(t *testing.T) {
+		data := []byte{
+			byte(BGP_CAP_MULTIPROTOCOL), 0x00, // CapLen=0
+			0x00, 0x01, 0x00, 0x01, // next cap bytes
+		}
+		c := &CapMultiProtocol{}
+		require.Error(t, c.DecodeFromBytes(data))
+	})
+
+	t.Run("CapMultiProtocol_CapLen2_rejected", func(t *testing.T) {
+		data := []byte{byte(BGP_CAP_MULTIPROTOCOL), 0x02, 0x00, 0x01}
+		c := &CapMultiProtocol{}
+		require.Error(t, c.DecodeFromBytes(data))
+	})
+
+	t.Run("CapMultiProtocol_valid", func(t *testing.T) {
+		cap := NewCapMultiProtocol(RF_IPv4_UC)
+		buf, err := cap.Serialize()
+		require.NoError(t, err)
+		decoded := &CapMultiProtocol{}
+		require.NoError(t, decoded.DecodeFromBytes(buf))
+		require.Equal(t, RF_IPv4_UC, decoded.CapValue)
+	})
+
+	t.Run("CapGracefulRestart_CapLen0_rejected", func(t *testing.T) {
+		data := []byte{
+			byte(BGP_CAP_GRACEFUL_RESTART), 0x00, // CapLen=0
+			0x80, 0x78, // next cap bytes (would be misread as Flags/Time)
+		}
+		c := &CapGracefulRestart{}
+		require.Error(t, c.DecodeFromBytes(data))
+	})
+
+	t.Run("CapGracefulRestart_CapLen1_rejected", func(t *testing.T) {
+		data := []byte{byte(BGP_CAP_GRACEFUL_RESTART), 0x01, 0x80}
+		c := &CapGracefulRestart{}
+		require.Error(t, c.DecodeFromBytes(data))
+	})
+
+	t.Run("CapGracefulRestart_valid", func(t *testing.T) {
+		cap := NewCapGracefulRestart(false, false, 120, []*CapGracefulRestartTuple{})
+		buf, err := cap.Serialize()
+		require.NoError(t, err)
+		decoded := &CapGracefulRestart{}
+		require.NoError(t, decoded.DecodeFromBytes(buf))
+		require.Equal(t, uint16(120), decoded.Time)
+	})
+}
+
 func TestFuzzCrashers(t *testing.T) {
 	crashers := []string{
 		"000000000000000000\x01",
@@ -1532,7 +1904,8 @@ func TestParseMessageWithBadLength(t *testing.T) {
 			case *MessageError:
 				switch e.TypeCode {
 				case BGP_ERROR_MESSAGE_HEADER_ERROR:
-					if e.SubTypeCode != BGP_ERROR_SUB_BAD_MESSAGE_LENGTH {
+					if e.SubTypeCode != BGP_ERROR_SUB_BAD_MESSAGE_LENGTH &&
+						e.SubTypeCode != BGP_ERROR_SUB_CONNECTION_NOT_SYNCHRONIZED {
 						t.Fatalf("got unexpected message type and data: %v", e)
 					}
 				}
@@ -2383,6 +2756,7 @@ func Test_LsTLVIPReachability(t *testing.T) {
 	}{
 		{[]byte{0x01, 0x09, 0x00, 0x02, 0x08, 0x0a}, `{"type":265,"prefix_length":8,"prefix":"[10]"}`, true, false},
 		{[]byte{0x01, 0x09, 0x00, 0x03, 0x10, 0x0a, 0x0b, 0xFF}, `{"type":265,"prefix_length":16,"prefix":"[10 11]"}`, false, false},
+		{[]byte{0x01, 0x09, 0x00, 0x01, 0x00}, `{"type":265,"prefix_length":0,"prefix":"[]"}`, true, false},
 		{[]byte{0x01, 0x09, 0x00, 0x02, 0x08}, ``, false, true},
 		{[]byte{0x01, 0x09, 0x00, 0x01, 0x01}, "", false, true},
 		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
@@ -2753,6 +3127,23 @@ func Test_LsTLVUnidirectionalLinkDelay(t *testing.T) {
 	}
 }
 
+func Test_LsTLVUnidirectionalLinkDelaySerializeMasksUndefinedFlagBits(t *testing.T) {
+	assert := assert.New(t)
+
+	tlv := LsTLVUnidirectionalLinkDelay{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_UNIDIRECTIONAL_LINK_DELAY,
+			Length: 4,
+		},
+		Flags: 0xff,
+		Delay: 0x123456,
+	}
+
+	got, err := tlv.Serialize()
+	assert.NoError(err)
+	assert.Equal([]byte{0x04, 0x5a, 0x00, 0x04, 0x80, 0x12, 0x34, 0x56}, got)
+}
+
 func Test_LsTLVMinMaxUnidirectionalLinkDelay(t *testing.T) {
 	assert := assert.New(t)
 
@@ -2763,7 +3154,7 @@ func Test_LsTLVMinMaxUnidirectionalLinkDelay(t *testing.T) {
 		err       bool
 	}{
 		{[]byte{0x04, 0x5b, 0x00, 0x08, 0x00, 0x00, 0x21, 0x3f, 0x00, 0x00, 0x21, 0x4f}, `{"type":1115,"flags":0,"min_unidirectional_link_delay":8511,"max_unidirectional_link_delay":8527}`, true, false},
-		{[]byte{0x04, 0x5b, 0x00, 0x08, 0x80, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff}, `{"type":1115,"flags":128,"min_unidirectional_link_delay":16777214,"max_unidirectional_link_delay":16777215}`, true, false},
+		{[]byte{0x04, 0x5b, 0x00, 0x08, 0x80, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff}, `{"type":1115,"flags":128,"min_unidirectional_link_delay":16777214,"max_unidirectional_link_delay":16777215}`, false, false},
 		{[]byte{0x04, 0x5b, 0x00, 0x07, 0x00, 0x00, 0x21, 0x3f, 0x00, 0x21, 0x4f}, "", false, true},
 		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
 	}
@@ -2789,6 +3180,25 @@ func Test_LsTLVMinMaxUnidirectionalLinkDelay(t *testing.T) {
 	}
 }
 
+func Test_LsTLVMinMaxUnidirectionalLinkDelaySerializeMasksUndefinedFlagBits(t *testing.T) {
+	assert := assert.New(t)
+
+	tlv := LsTLVMinMaxUnidirectionalLinkDelay{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_MIN_MAX_UNIDIRECTIONAL_LINK_DELAY,
+			Length: 8,
+		},
+		Flags:    0xff,
+		MinDelay: 0x000001,
+		Reserved: 0xff,
+		MaxDelay: 0x000002,
+	}
+
+	got, err := tlv.Serialize()
+	assert.NoError(err)
+	assert.Equal([]byte{0x04, 0x5b, 0x00, 0x08, 0x80, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02}, got)
+}
+
 func Test_LsTLVUnidirectionalDelayVariation(t *testing.T) {
 	assert := assert.New(t)
 
@@ -2799,7 +3209,7 @@ func Test_LsTLVUnidirectionalDelayVariation(t *testing.T) {
 		err       bool
 	}{
 		{[]byte{0x04, 0x5c, 0x00, 0x04, 0x00, 0x00, 0x00, 0x33}, `{"type":1116,"unidirectional_delay_variation":51}`, true, false},
-		{[]byte{0x04, 0x5c, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff}, `{"type":1116,"unidirectional_delay_variation":16777215}`, true, false},
+		{[]byte{0x04, 0x5c, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff}, `{"type":1116,"unidirectional_delay_variation":16777215}`, false, false},
 		{[]byte{0x04, 0x5c, 0x00, 0x03, 0x00, 0x00, 0x33}, "", false, true},
 		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
 	}
@@ -3027,6 +3437,20 @@ func Test_LsTLVSrCapabilities(t *testing.T) {
 			assert.Equal(test.in, s)
 		}
 	}
+}
+
+func Test_LsTLVSrCapabilitiesFlagBits(t *testing.T) {
+	assert := assert.New(t)
+
+	tlv := NewLsTLVSrCapabilities(&LsSrCapabilities{
+		IPv4Supported: true,
+		IPv6Supported: true,
+	})
+	assert.Equal(uint8(0xC0), tlv.Flags)
+
+	caps := (&LsTLVSrCapabilities{Flags: 0xC0}).Extract()
+	assert.True(caps.IPv4Supported)
+	assert.True(caps.IPv6Supported)
 }
 
 func Test_LsTLVLocalBlock(t *testing.T) {
@@ -3447,6 +3871,76 @@ func Test_LsTLVIGPFlags(t *testing.T) {
 			}
 		}
 	}
+}
+
+func Test_LsTLVIGPFlagsFlagBits(t *testing.T) {
+	assert := assert.New(t)
+
+	tlv := NewLsTLVIGPFlags(&LsIGPFlags{
+		Down:          true,
+		NoUnicast:     true,
+		LocalAddress:  true,
+		PropagateNSSA: true,
+	})
+	assert.Equal(uint8(0xF0), tlv.Flags)
+
+	flags := (&LsTLVIGPFlags{Flags: 0xF0}).Extract()
+	assert.True(flags.Down)
+	assert.True(flags.NoUnicast)
+	assert.True(flags.LocalAddress)
+	assert.True(flags.PropagateNSSA)
+}
+
+func Test_LsTLVConstructorsUseLsTLVTypes(t *testing.T) {
+	assert := assert.New(t)
+
+	nodeOpaque := []byte{0x01}
+	assert.EqualValues(LS_TLV_OPAQUE_NODE_ATTR, NewLsTLVOpaqueNodeAttr(&nodeOpaque).Type)
+
+	adminGroup := uint32(0x01020304)
+	assert.EqualValues(LS_TLV_ADMIN_GROUP, NewLsTLVAdminGroup(&adminGroup).Type)
+
+	srCaps := NewLsTLVSrCapabilities(&LsSrCapabilities{
+		IPv4Supported: true,
+		Ranges: []LsSrRange{
+			{
+				Begin: 100500,
+				End:   135500,
+			},
+		},
+	})
+	assert.EqualValues(LS_TLV_SR_CAPABILITIES, srCaps.Type)
+	if assert.Len(srCaps.Ranges, 1) {
+		assert.EqualValues(LS_TLV_SID_LABEL_TLV, srCaps.Ranges[0].FirstLabel.Type)
+	}
+
+	srLocalBlock := NewLsTLVSrLocalBlock(&LsSrLocalBlock{
+		Ranges: []LsSrRange{
+			{
+				Begin: 160000,
+				End:   170000,
+			},
+		},
+	})
+	assert.EqualValues(LS_TLV_SR_LOCAL_BLOCK, srLocalBlock.Type)
+	if assert.Len(srLocalBlock.Ranges, 1) {
+		assert.EqualValues(LS_TLV_SID_LABEL_TLV, srLocalBlock.Ranges[0].FirstLabel.Type)
+	}
+
+	prefixSID := uint32(16000)
+	assert.EqualValues(LS_TLV_PREFIX_SID, NewLsTLVPrefixSID(&prefixSID).Type)
+
+	linkOpaque := []byte{0x02}
+	assert.EqualValues(LS_TLV_OPAQUE_LINK_ATTR, NewLsTLVOpaqueLinkAttr(&linkOpaque).Type)
+
+	srlgs := []uint32{100, 200}
+	assert.EqualValues(LS_TLV_SRLG, NewLsTLVSrlg(&srlgs).Type)
+
+	igpFlags := &LsIGPFlags{Down: true}
+	assert.EqualValues(LS_TLV_IGP_FLAGS, NewLsTLVIGPFlags(igpFlags).Type)
+
+	prefixOpaque := []byte{0x03, 0x04}
+	assert.EqualValues(LS_TLV_OPAQUE_PREFIX_ATTR, NewLsTLVOpaquePrefixAttr(&prefixOpaque).Type)
 }
 
 func Test_LsTLVOpaquePrefixAttr(t *testing.T) {
@@ -3992,7 +4486,13 @@ func Test_PathAttributeLs(t *testing.T) {
 				0x04, 0x86, 0x00, 0x07, 0x01, 0x01, 0x00, 0x00, 0x01, 0x88, 0x94, // Prefix SID: 100500
 			},
 			"{LsAttributes: {IGP Flags: XXXXPLND} {Prefix opaque attribute: [1 2 3]} {Prefix SID: 100500} }",
-			`{"type":41,"flags":128,"node":{},"link":{},"prefix":{"igp_flags":{"down":true,"no_unicast":true,"local_address":true,"propagate_nssa":true},"opaque":"AQID","sr_prefix_sid":100500},"bgp_peer_segment":{},"srv6_sid":{}}`,
+			// Per RFC 9085 Section 2.1.1 the Prefix-SID TLV carries
+			// a Flags + Algorithm header. The wire bytes above set
+			// Algorithm=1 / Flags=1 / SID=100500, so the projection
+			// puts the entry into sr_prefix_sids; the singular
+			// sr_prefix_sid is reserved for the Algorithm-0
+			// (default SPF) SID and stays unset here.
+			`{"type":41,"flags":128,"node":{},"link":{},"prefix":{"igp_flags":{"down":true,"no_unicast":true,"local_address":true,"propagate_nssa":true},"opaque":"AQID","sr_prefix_sids":[{"algorithm":1,"flags":1,"sid":100500}]},"bgp_peer_segment":{},"srv6_sid":{}}`,
 			true, false,
 		},
 	}
@@ -4051,6 +4551,258 @@ func Test_PathAttributeLsDelayMetricTLVs(t *testing.T) {
 	got, err := attr.Serialize()
 	assert.NoError(err)
 	assert.Equal(in, got)
+}
+
+// Test_LsTLVFlexAlgoDef exercises the RFC 9351 Section 3 wire decode
+// for the BGP-LS FAD TLV (1039) plus every defined nested sub-TLV
+// (1040 Exclude-Any, 1041 Include-Any, 1042 Include-All, 1043 Flags,
+// 1045 Exclude SRLG, 1046 Unsupported). Round-trip serialise/decode is
+// verified for each fixture so the IANA codepoints stay byte-stable.
+func Test_LsTLVFlexAlgoDef(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name string
+		in   []byte
+		want LsTLVFlexAlgoDef
+	}{
+		{
+			name: "fixed header only (algo 128, metric IGP, calc SPF, priority 100)",
+			// Type 1039 = 0x040F, Length 4, body: algo, metric, calc, prio.
+			in: []byte{0x04, 0x0F, 0x00, 0x04, 0x80, 0x00, 0x00, 0x64},
+			want: LsTLVFlexAlgoDef{
+				LsTLV:      LsTLV{Type: LS_TLV_FLEX_ALGO_DEF, Length: 4},
+				Algorithm:  128,
+				MetricType: 0,
+				CalcType:   0,
+				Priority:   100,
+			},
+		},
+		{
+			name: "algo 129 metric Min-Delay with Exclude-Any + Include-Any + Flags + Exclude-SRLG",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x24, // TLV 1039, length 36 (4-byte header + four 8-byte sub-TLVs)
+				0x81, 0x01, 0x00, 0xC8, // algo 129, metric 1 (Min-Delay), calc 0, prio 200
+				0x04, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, 0x0F, // sub-TLV 1040 Exclude-Any, EAG 0x0000000F
+				0x04, 0x11, 0x00, 0x04, 0x00, 0x00, 0x00, 0xF0, // sub-TLV 1041 Include-Any, EAG 0x000000F0
+				0x04, 0x13, 0x00, 0x04, 0x80, 0x00, 0x00, 0x00, // sub-TLV 1043 Flags, M-flag set
+				0x04, 0x15, 0x00, 0x04, 0x00, 0x00, 0x00, 0x2A, // sub-TLV 1045 Exclude SRLG = [42]
+			},
+			want: LsTLVFlexAlgoDef{
+				LsTLV:       LsTLV{Type: LS_TLV_FLEX_ALGO_DEF, Length: 36},
+				Algorithm:   129,
+				MetricType:  1,
+				CalcType:    0,
+				Priority:    200,
+				ExcludeAny:  []uint32{0x0F},
+				IncludeAny:  []uint32{0xF0},
+				Flags:       []byte{0x80, 0x00, 0x00, 0x00},
+				ExcludeSRLG: []uint32{42},
+			},
+		},
+		{
+			name: "algo 130 metric TE with Include-All + Unsupported",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x15, // TLV 1039, length 21
+				0x82, 0x02, 0x00, 0x32, // algo 130, metric 2 (TE), calc 0, prio 50
+				0x04, 0x12, 0x00, 0x04, 0x00, 0x00, 0x00, 0xAA, // sub-TLV 1042 Include-All, EAG 0xAA
+				0x04, 0x16, 0x00, 0x05, 0x02, 0x04, 0x10, 0x04, 0x11, // sub-TLV 1046 Unsupported, proto 2, types [1040 1041]
+			},
+			want: LsTLVFlexAlgoDef{
+				LsTLV:      LsTLV{Type: LS_TLV_FLEX_ALGO_DEF, Length: 21},
+				Algorithm:  130,
+				MetricType: 2,
+				CalcType:   0,
+				Priority:   50,
+				IncludeAll: []uint32{0xAA},
+				Unsupported: &LsTLVFADUnsupported{
+					ProtocolID:  2,
+					SubTLVTypes: []uint16{0x0410, 0x0411},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := LsTLVFlexAlgoDef{}
+			assert.NoError(got.DecodeFromBytes(tc.in))
+			assert.Equal(tc.want.Algorithm, got.Algorithm)
+			assert.Equal(tc.want.MetricType, got.MetricType)
+			assert.Equal(tc.want.CalcType, got.CalcType)
+			assert.Equal(tc.want.Priority, got.Priority)
+			assert.Equal(tc.want.ExcludeAny, got.ExcludeAny)
+			assert.Equal(tc.want.IncludeAny, got.IncludeAny)
+			assert.Equal(tc.want.IncludeAll, got.IncludeAll)
+			assert.Equal(tc.want.Flags, got.Flags)
+			assert.Equal(tc.want.ExcludeSRLG, got.ExcludeSRLG)
+			assert.Equal(tc.want.Unsupported, got.Unsupported)
+
+			out, err := got.Serialize()
+			assert.NoError(err)
+			assert.Equal(tc.in, out)
+		})
+	}
+}
+
+// Test_LsTLVFlexAlgoDef_Errors covers the malformed-input paths the
+// decoder must reject per RFC 9351 (truncated headers, reserved
+// algorithm IDs, sub-TLV length violations).
+func Test_LsTLVFlexAlgoDef_Errors(t *testing.T) {
+	assert := assert.New(t)
+
+	cases := []struct {
+		name string
+		in   []byte
+	}{
+		{
+			name: "value shorter than 4-byte fixed header",
+			in:   []byte{0x04, 0x0F, 0x00, 0x02, 0x80, 0x00},
+		},
+		{
+			name: "algorithm 127 is reserved (RFC 9350 Section 4)",
+			in:   []byte{0x04, 0x0F, 0x00, 0x04, 0x7F, 0x00, 0x00, 0x64},
+		},
+		{
+			name: "Exclude-Any length not a multiple of 4",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x09,
+				0x80, 0x00, 0x00, 0x64,
+				0x04, 0x10, 0x00, 0x01, 0x00,
+			},
+		},
+		{
+			name: "Exclude SRLG length zero is malformed",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x08,
+				0x80, 0x00, 0x00, 0x64,
+				0x04, 0x15, 0x00, 0x00,
+			},
+		},
+		{
+			name: "Unsupported sub-TLV body length 0 is malformed",
+			in: []byte{
+				0x04, 0x0F, 0x00, 0x08,
+				0x80, 0x00, 0x00, 0x64,
+				0x04, 0x16, 0x00, 0x00,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := LsTLVFlexAlgoDef{}
+			assert.Error(got.DecodeFromBytes(tc.in))
+		})
+	}
+}
+
+// Test_LsTLVFlexAlgoDef_String covers the CLI render of the FAD TLV
+// so that operators see the affinity / SRLG / flags sub-TLVs and not
+// just the four fixed-header bytes.
+func Test_LsTLVFlexAlgoDef_String(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name string
+		def  LsTLVFlexAlgoDef
+		want string
+	}{
+		{
+			name: "fixed header only",
+			def: LsTLVFlexAlgoDef{
+				Algorithm: 128, MetricType: 0, CalcType: 0, Priority: 100,
+			},
+			want: "{Flex-Algo Def: 128 metric:0 calc:0 prio:100}",
+		},
+		{
+			name: "with all affinity bitmaps and SRLG",
+			def: LsTLVFlexAlgoDef{
+				Algorithm:   129,
+				MetricType:  1,
+				CalcType:    0,
+				Priority:    200,
+				ExcludeAny:  []uint32{0x0F},
+				IncludeAny:  []uint32{0xF0},
+				IncludeAll:  []uint32{0xAA},
+				Flags:       []byte{0x80, 0x00, 0x00, 0x00},
+				ExcludeSRLG: []uint32{42, 43},
+			},
+			want: "{Flex-Algo Def: 129 metric:1 calc:0 prio:200" +
+				" exclude-any:[0x0000000f] include-any:[0x000000f0]" +
+				" include-all:[0x000000aa] flags:[0x80 0x00 0x00 0x00]" +
+				" exclude-srlg:[42 43]}",
+		},
+		{
+			name: "with unsupported sub-TLV",
+			def: LsTLVFlexAlgoDef{
+				Algorithm: 130, MetricType: 2, CalcType: 0, Priority: 50,
+				Unsupported: &LsTLVFADUnsupported{
+					ProtocolID:  2,
+					SubTLVTypes: []uint16{1040, 1041},
+				},
+			},
+			want: "{Flex-Algo Def: 130 metric:2 calc:0 prio:50" +
+				" unsupported:{proto:2 types:[1040 1041]}}",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(tc.want, tc.def.String())
+		})
+	}
+}
+
+// Test_LsTLVFADPrefixMetric exercises the RFC 9351 Section 4 FAPM
+// wire format (TLV 1044, fixed 8-byte value).
+func Test_LsTLVFADPrefixMetric(t *testing.T) {
+	assert := assert.New(t)
+
+	in := []byte{
+		0x04, 0x14, 0x00, 0x08, // TLV 1044, length 8
+		0x80, 0x00, 0x00, 0x00, // algo 128, flags 0, reserved 0x0000
+		0x00, 0x00, 0x27, 0x10, // metric = 10000
+	}
+
+	got := LsTLVFADPrefixMetric{}
+	assert.NoError(got.DecodeFromBytes(in))
+	assert.Equal(uint8(128), got.Algorithm)
+	assert.Equal(uint8(0), got.Flags)
+	assert.Equal(uint32(10000), got.Metric)
+
+	out, err := got.Serialize()
+	assert.NoError(err)
+	assert.Equal(in, out)
+}
+
+// Test_PathAttributeLs_MultiPrefixSID confirms that the Extract path
+// aggregates every Prefix-SID TLV observed on the same Prefix NLRI
+// instead of overwriting earlier entries. Regression test for the
+// last-write-wins behaviour the legacy projection had.
+func Test_PathAttributeLs_MultiPrefixSID(t *testing.T) {
+	assert := assert.New(t)
+
+	in := []byte{
+		0x80, 0x29, 0x16, // Optional attribute, BGP_ATTR_TYPE_LS, length 22 (two 11-byte Prefix-SID TLVs)
+		0x04, 0x86, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x01, 0x88, 0x94, // Prefix-SID algo 0, SID 100500
+		0x04, 0x86, 0x00, 0x07, 0x40, 0x80, 0x00, 0x00, 0x01, 0x88, 0x95, // Prefix-SID algo 128, SID 100501
+	}
+
+	attr := PathAttributeLs{}
+	assert.NoError(attr.DecodeFromBytes(in))
+
+	ls := attr.Extract()
+	assert.NotNil(ls.Prefix.SrPrefixSID)
+	if ls.Prefix.SrPrefixSID != nil {
+		assert.Equal(uint32(100500), *ls.Prefix.SrPrefixSID)
+	}
+	assert.Len(ls.Prefix.SrPrefixSIDs, 2)
+	if len(ls.Prefix.SrPrefixSIDs) == 2 {
+		assert.Equal(uint8(0), ls.Prefix.SrPrefixSIDs[0].Algorithm)
+		assert.Equal(uint32(100500), ls.Prefix.SrPrefixSIDs[0].SID)
+		assert.Equal(uint8(128), ls.Prefix.SrPrefixSIDs[1].Algorithm)
+		assert.Equal(uint32(100501), ls.Prefix.SrPrefixSIDs[1].SID)
+	}
 }
 
 func Test_BGPOpenDecodeCapabilities(t *testing.T) {
@@ -4537,4 +5289,623 @@ func TestAsPathDecoding4Byte(t *testing.T) {
 			t.Errorf("AS[%d]: expected %d, got %d", i, as, actualAS[i])
 		}
 	}
+}
+
+// --- BGP-LS sub-TLV decoding bugfix tests ---
+//
+// These tests cover the bugfix in the default-branch of the sub-TLV decoder
+// loops in LsTLVNodeDescriptor / LsLinkNLRI / LsPrefixV4NLRI / LsPrefixV6NLRI.
+// The previous implementation mutated the parent Length field as a side
+// effect when skipping unknown sub-TLVs and used a wrong upper bound for the
+// length sanity check (`l.Length` instead of `len(tlv)`). After the fix the
+// parent Length must remain unchanged and unknown sub-TLVs must be silently
+// skipped without affecting the parsing of known sub-TLVs.
+
+func Test_LsTLVNodeDescriptor_UnknownSubTLV(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           []byte
+		wantLength     uint16
+		wantSubTLVsLen int
+	}{
+		{
+			name: "trailing unknown sub-TLV",
+			data: []byte{
+				0x01, 0x00, 0x00, 0x1a, // Local Node Desc TLV, value length=26
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				0x0f, 0xff, 0x00, 0x04, 0xaa, 0xbb, 0xcc, 0xdd, // Unknown sub-TLV (type 0x0fff): must be skipped
+			},
+			wantLength:     26,
+			wantSubTLVsLen: 2,
+		},
+		{
+			// Per RFC 7752 §3.2.1.4 sub-TLVs in a Node Descriptor must be in
+			// ascending order by type and have unique types, so we use two
+			// distinct unknown types in increasing order.
+			name: "two consecutive unknown sub-TLVs",
+			data: []byte{
+				0x01, 0x00, 0x00, 0x20, // Local Node Desc TLV, value length=32
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				0x0f, 0xfe, 0x00, 0x02, 0x01, 0x02, // Unknown sub-TLV #1 (type 0x0ffe): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0x03, 0x04, 0x05, 0x06, // Unknown sub-TLV #2 (type 0x0fff): must be skipped
+			},
+			wantLength:     32,
+			wantSubTLVsLen: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			tlv := &LsTLVNodeDescriptor{}
+			assert.NoError(tlv.DecodeFromBytes(tt.data))
+			// unknown sub-TLVs in the default branch.
+			assert.Equal(tt.wantLength, tlv.Length,
+				"parent TLV Length must not be mutated when skipping unknown sub-TLVs")
+			// Known sub-TLVs must still be captured.
+			assert.Len(tlv.SubTLVs, tt.wantSubTLVsLen)
+		})
+	}
+}
+
+func Test_LsLinkNLRI_UnknownSubTLV(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "trailing unknown sub-TLV",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// Remote Node Descriptor, value length=18
+				0x01, 0x01, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, // TLV IGP Router ID: 0a0b.0c0d.0e0f
+				// Unknown sub-TLV (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+			},
+		},
+		{
+			name: "two consecutive unknown sub-TLVs",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// Remote Node Descriptor, value length=18
+				0x01, 0x01, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, // TLV IGP Router ID: 0a0b.0c0d.0e0f
+				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			nlri := &LsLinkNLRI{}
+			// LsAddrPrefix.DecodeFromBytes normally sets Length to the full body size.
+			nlri.Length = uint16(len(tt.data))
+			originalLength := nlri.Length
+			assert.NoError(nlri.DecodeFromBytes(tt.data))
+			assert.Equal(originalLength, nlri.Length,
+				"LsLinkNLRI.Length must not be mutated by unknown sub-TLV skipping")
+			// Required known sub-TLVs must still be parsed.
+			assert.NotNil(nlri.LocalNodeDesc)
+			assert.NotNil(nlri.RemoteNodeDesc)
+		})
+	}
+}
+
+func Test_LsPrefixV4NLRI_UnknownSubTLV(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "trailing unknown sub-TLV",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// IP Reachability Info, value length=4: prefix-len=24, prefix=10.0.0
+				0x01, 0x09, 0x00, 0x04, 0x18, 0x0a, 0x00, 0x00,
+				// Unknown sub-TLV (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+			},
+		},
+		{
+			name: "two consecutive unknown sub-TLVs",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// IP Reachability Info, value length=4: prefix-len=24, prefix=10.0.0
+				0x01, 0x09, 0x00, 0x04, 0x18, 0x0a, 0x00, 0x00,
+				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			nlri := &LsPrefixV4NLRI{}
+			nlri.Length = uint16(len(tt.data))
+			originalLength := nlri.Length
+			assert.NoError(nlri.DecodeFromBytes(tt.data))
+			assert.Equal(originalLength, nlri.Length,
+				"LsPrefixV4NLRI.Length must not be mutated by unknown sub-TLV skipping")
+			assert.NotNil(nlri.LocalNodeDesc)
+			assert.NotEmpty(nlri.PrefixDesc)
+		})
+	}
+}
+
+func Test_LsPrefixV6NLRI_UnknownSubTLV(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "trailing unknown sub-TLV",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// IP Reachability Info, value length=9: prefix-len=64, prefix=2001:db8::/64
+				0x01, 0x09, 0x00, 0x09,
+				0x40,
+				0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+				// Unknown sub-TLV (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+			},
+		},
+		{
+			name: "two consecutive unknown sub-TLVs",
+			data: []byte{
+				// 9-byte BGP-LS NLRI header
+				0x02,                                           // Protocol: ISIS L2
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+				// Local Node Descriptor, value length=18
+				0x01, 0x00, 0x00, 0x12,
+				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
+				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
+				// IP Reachability Info, value length=9: prefix-len=64, prefix=2001:db8::/64
+				0x01, 0x09, 0x00, 0x09,
+				0x40,
+				0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
+				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			nlri := &LsPrefixV6NLRI{}
+			nlri.Length = uint16(len(tt.data))
+			originalLength := nlri.Length
+			assert.NoError(nlri.DecodeFromBytes(tt.data))
+			assert.Equal(originalLength, nlri.Length,
+				"LsPrefixV6NLRI.Length must not be mutated by unknown sub-TLV skipping")
+			assert.NotNil(nlri.LocalNodeDesc)
+			assert.NotEmpty(nlri.PrefixDesc)
+		})
+	}
+}
+
+// mtTLVBytes builds an LS Multi-Topology ID sub-TLV (RFC 7752 §3.2.1.5,
+// type 263) carrying the given MT-IDs. Used by the table-driven tests below
+// to compose synthetic NLRI payloads.
+func mtTLVBytes(ids ...uint16) []byte {
+	out := []byte{0x01, 0x07, 0x00, byte(2 * len(ids))}
+	for _, id := range ids {
+		out = append(out, byte(id>>8), byte(id))
+	}
+	return out
+}
+
+// linkIDTLVBytes builds an LS Link Local/Remote Identifier sub-TLV
+// (RFC 7752 Table 5, type 258, length 8) carrying the supplied
+// 32-bit values. Used by the table-driven test below to compose
+// NLRI payloads that exercise the coexistence of the identifier
+// sub-TLV with the IPv4 interface/neighbor address sub-TLVs (the
+// shape RFC 9086 Section 5.2 PeerAdj-SID Link NLRI mandates).
+func linkIDTLVBytes(local, remote uint32) []byte {
+	return []byte{
+		0x01, 0x02, 0x00, 0x08,
+		byte(local >> 24), byte(local >> 16), byte(local >> 8), byte(local),
+		byte(remote >> 24), byte(remote >> 16), byte(remote >> 8), byte(remote),
+	}
+}
+
+// Test_LsLinkDescriptor_StringIncludesLinkID verifies that
+// LsLinkDescriptor.String folds the Link Local/Remote Identifier
+// sub-TLV (RFC 7752 Table 5, type 258) into its output when the
+// identifier is present alongside the IPv4 interface/neighbor
+// address sub-TLVs (types 259/260). RFC 9086 Section 5.2 mandates
+// the identifier on PeerAdj-SID Link NLRIs and lets the producer
+// also include the addresses. The two NLRI shapes (PeerNode-SID
+// with addresses only vs PeerAdj-SID with addresses plus
+// identifier) reuse the addresses but are distinct prefixes in
+// adj-RIB-in. Any caller keyed on this String form (table-layer
+// dedup, RIB walkers, log correlation) collapses the two prefixes
+// into one unless the identifier surfaces too.
+func Test_LsLinkDescriptor_StringIncludesLinkID(t *testing.T) {
+	commonHeader := []byte{
+		0x02,                                           // Protocol: ISIS L2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		// Local Node Descriptor, value length=18
+		0x01, 0x00, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		// Remote Node Descriptor, value length=18
+		0x01, 0x01, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		// IPv4 Interface Address: 10.0.0.1
+		0x01, 0x03, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x01,
+		// IPv4 Neighbor Address: 10.0.0.2
+		0x01, 0x04, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x02,
+	}
+
+	tests := []struct {
+		name         string
+		extraTLV     []byte
+		wantContains string // expected substring in String()
+		wantNoLinkID bool   // String() must NOT contain "(L:" suffix
+	}{
+		{
+			name:         "addresses only (PeerNode-SID NLRI shape)",
+			extraTLV:     nil,
+			wantContains: "10.0.0.1->10.0.0.2",
+			wantNoLinkID: true,
+		},
+		{
+			name:         "addresses + Link ID 3/0 (PeerAdj-SID NLRI shape)",
+			extraTLV:     linkIDTLVBytes(3, 0),
+			wantContains: "10.0.0.1->10.0.0.2(L:3,R:0)",
+		},
+		{
+			name:         "addresses + Link ID 1/1",
+			extraTLV:     linkIDTLVBytes(1, 1),
+			wantContains: "10.0.0.1->10.0.0.2(L:1,R:1)",
+		},
+	}
+
+	keys := make(map[string]string, len(tests))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append(append([]byte{}, commonHeader...), tt.extraTLV...)
+			nlri := &LsLinkNLRI{}
+			nlri.Length = uint16(len(data))
+			assert.NoError(nlri.DecodeFromBytes(data))
+
+			desc := &LsLinkDescriptor{}
+			desc.ParseTLVs(nlri.LinkDesc)
+
+			s := desc.String()
+			assert.Contains(s, tt.wantContains)
+			if tt.wantNoLinkID {
+				assert.NotContains(s, "(L:",
+					"NLRI without Link Local/Remote Identifier must not gain (L:..,R:..) suffix")
+			}
+			keys[tt.name] = s
+		})
+	}
+
+	// Cross-case regression: every distinct NLRI shape must produce a
+	// distinct String(), or callers keyed on the human-readable form
+	// will collapse two adj-RIB-in prefixes into one.
+	t.Run("distinct Link ID sub-TLV presence yields distinct keys", func(t *testing.T) {
+		seen := make(map[string]string, len(keys))
+		for name, key := range keys {
+			if other, ok := seen[key]; ok {
+				t.Fatalf("key collision: %q and %q both produced %q", name, other, key)
+			}
+			seen[key] = name
+		}
+	})
+}
+
+// Test_LsLinkNLRI_MultiTopoID verifies that the Multi-Topology ID sub-TLV
+// (RFC 7752 §3.2.1.5, type 263) is parsed into LinkDesc, that
+// LsLinkDescriptor.String() emits the MT-ID suffix, and that two
+// otherwise-identical link NLRIs with different MT-IDs produce different
+// destination keys (regression test for RIB collision via implicit-withdraw).
+func Test_LsLinkNLRI_MultiTopoID(t *testing.T) {
+	commonHeader := []byte{
+		0x02,                                           // Protocol: ISIS L2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		// Local Node Descriptor, value length=18
+		0x01, 0x00, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		// Remote Node Descriptor, value length=18
+		0x01, 0x01, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		// IPv4 Interface Address: 10.0.0.1
+		0x01, 0x03, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x01,
+		// IPv4 Neighbor Address: 10.0.0.2
+		0x01, 0x04, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x02,
+	}
+
+	tests := []struct {
+		name         string
+		extraTLV     []byte
+		wantMTIDs    map[uint16]struct{}
+		wantContains string // expected substring in LsLinkDescriptor.String()
+		wantNoMT     bool   // String() must NOT contain "MT:"
+	}{
+		{
+			name:     "no MT-ID (backward compat)",
+			extraTLV: nil,
+			wantNoMT: true,
+		},
+		{
+			name:     "single MT-ID 0",
+			extraTLV: mtTLVBytes(0),
+			wantMTIDs: map[uint16]struct{}{
+				0: {},
+			},
+			wantContains: " MT: [0]",
+		},
+		{
+			name:     "single MT-ID 2",
+			extraTLV: mtTLVBytes(2),
+			wantMTIDs: map[uint16]struct{}{
+				2: {},
+			},
+			wantContains: " MT: [2]",
+		},
+		{
+			name:     "multiple MT-IDs",
+			extraTLV: mtTLVBytes(1, 2),
+			wantMTIDs: map[uint16]struct{}{
+				1: {},
+				2: {},
+			},
+			wantContains: " MT: [1 2]",
+		},
+	}
+
+	// Track per-case String() outputs to assert that distinct MT sets yield
+	// distinct destination keys (RIB collision regression).
+	keys := make(map[string]string, len(tests))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append(append([]byte{}, commonHeader...), tt.extraTLV...)
+			nlri := &LsLinkNLRI{}
+			nlri.Length = uint16(len(data))
+			assert.NoError(nlri.DecodeFromBytes(data))
+
+			desc := &LsLinkDescriptor{}
+			desc.ParseTLVs(nlri.LinkDesc)
+
+			assert.Equal(tt.wantMTIDs, desc.MultiTopoIDs)
+
+			s := desc.String()
+			if tt.wantNoMT {
+				assert.NotContains(s, "MT:",
+					"non-MT NLRI must not gain an MT suffix (backward compat)")
+			} else {
+				assert.Contains(s, tt.wantContains)
+			}
+			keys[tt.name] = s
+		})
+	}
+
+	// Cross-case regression: every distinct case must produce a distinct key.
+	t.Run("distinct MT sets yield distinct keys", func(t *testing.T) {
+		seen := make(map[string]string, len(keys))
+		for name, key := range keys {
+			if other, ok := seen[key]; ok {
+				t.Fatalf("RIB key collision: %q and %q both produced %q", name, other, key)
+			}
+			seen[key] = name
+		}
+	})
+}
+
+func Test_LsPrefixV4NLRI_MultiTopoID(t *testing.T) {
+	commonHeader := []byte{
+		0x02,                                           // Protocol: ISIS L2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		0x01, 0x00, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		// IP Reachability Info: prefix-len=24, prefix=10.0.0.0/24
+		0x01, 0x09, 0x00, 0x04, 0x18, 0x0a, 0x00, 0x00,
+	}
+
+	tests := []struct {
+		name         string
+		extraTLV     []byte
+		wantMTIDs    map[uint16]struct{}
+		wantContains string
+		wantNoMT     bool
+	}{
+		{
+			name:     "no MT-ID (backward compat)",
+			extraTLV: nil,
+			wantNoMT: true,
+		},
+		{
+			name:     "single MT-ID 2",
+			extraTLV: mtTLVBytes(2),
+			wantMTIDs: map[uint16]struct{}{
+				2: {},
+			},
+			wantContains: " MT: [2]",
+		},
+		{
+			name:     "multiple MT-IDs",
+			extraTLV: mtTLVBytes(0, 2),
+			wantMTIDs: map[uint16]struct{}{
+				0: {},
+				2: {},
+			},
+			wantContains: " MT: [0 2]",
+		},
+	}
+
+	keys := make(map[string]string, len(tests))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append(append([]byte{}, commonHeader...), tt.extraTLV...)
+			nlri := &LsPrefixV4NLRI{}
+			nlri.Length = uint16(len(data))
+			assert.NoError(nlri.DecodeFromBytes(data))
+
+			pd := &LsPrefixDescriptor{}
+			pd.ParseTLVs(nlri.PrefixDesc, false)
+
+			assert.Equal(tt.wantMTIDs, pd.MultiTopoIDs)
+
+			s := nlri.String()
+			if tt.wantNoMT {
+				assert.NotContains(s, "MT:")
+			} else {
+				assert.Contains(s, tt.wantContains)
+			}
+			keys[tt.name] = s
+		})
+	}
+
+	// Cross-case regression: every distinct case must produce a distinct key.
+	t.Run("distinct MT sets yield distinct keys", func(t *testing.T) {
+		seen := make(map[string]string, len(keys))
+		for name, key := range keys {
+			if other, ok := seen[key]; ok {
+				t.Fatalf("RIB key collision: %q and %q both produced %q", name, other, key)
+			}
+			seen[key] = name
+		}
+	})
+}
+
+func Test_LsPrefixV6NLRI_MultiTopoID(t *testing.T) {
+	commonHeader := []byte{
+		0x02,                                           // Protocol: ISIS L2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		0x01, 0x00, 0x00, 0x12,
+		0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07,
+		0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+		// IP Reachability Info: prefix-len=64, prefix=2001:db8::/64
+		0x01, 0x09, 0x00, 0x09,
+		0x40,
+		0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+	}
+
+	tests := []struct {
+		name         string
+		extraTLV     []byte
+		wantMTIDs    map[uint16]struct{}
+		wantContains string
+		wantNoMT     bool
+	}{
+		{
+			name:     "no MT-ID (backward compat)",
+			extraTLV: nil,
+			wantNoMT: true,
+		},
+		{
+			name:     "single MT-ID 2",
+			extraTLV: mtTLVBytes(2),
+			wantMTIDs: map[uint16]struct{}{
+				2: {},
+			},
+			wantContains: " MT: [2]",
+		},
+		{
+			name:     "multiple MT-IDs",
+			extraTLV: mtTLVBytes(0, 2),
+			wantMTIDs: map[uint16]struct{}{
+				0: {},
+				2: {},
+			},
+			wantContains: " MT: [0 2]",
+		},
+	}
+
+	keys := make(map[string]string, len(tests))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append(append([]byte{}, commonHeader...), tt.extraTLV...)
+			nlri := &LsPrefixV6NLRI{}
+			nlri.Length = uint16(len(data))
+			assert.NoError(nlri.DecodeFromBytes(data))
+
+			pd := &LsPrefixDescriptor{}
+			pd.ParseTLVs(nlri.PrefixDesc, true)
+
+			assert.Equal(tt.wantMTIDs, pd.MultiTopoIDs)
+
+			s := nlri.String()
+			if tt.wantNoMT {
+				assert.NotContains(s, "MT:")
+			} else {
+				assert.Contains(s, tt.wantContains)
+			}
+			keys[tt.name] = s
+		})
+	}
+
+	// Cross-case regression: every distinct case must produce a distinct key.
+	t.Run("distinct MT sets yield distinct keys", func(t *testing.T) {
+		seen := make(map[string]string, len(keys))
+		for name, key := range keys {
+			if other, ok := seen[key]; ok {
+				t.Fatalf("RIB key collision: %q and %q both produced %q", name, other, key)
+			}
+			seen[key] = name
+		}
+	})
 }

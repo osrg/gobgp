@@ -69,7 +69,8 @@ class ExaBGPContainer(BGPContainer):
         for peer, info in self.peers.items():
             cmd << 'neighbor {0} {{'.format(info['neigh_addr'].split('/')[0])
             cmd << '    router-id {0};'.format(self.router_id)
-            cmd << '    local-address {0};'.format(info['local_addr'].split('/')[0])
+            local_addr = info['local_addr'].split('/')[0].split('%')[0]
+            cmd << '    local-address {0};'.format(local_addr)
             cmd << '    local-as {0};'.format(self.asn)
             cmd << '    peer-as {0};'.format(peer.asn)
 

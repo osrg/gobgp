@@ -21,9 +21,8 @@ import unittest
 import collections
 collections.Callable = collections.abc.Callable
 
-import nose
 
-from lib.noseplugin import OptionParser, parser_option
+from lib.noseplugin import parser_option
 
 from lib import base
 from lib.base import (
@@ -142,6 +141,13 @@ class GoBGPTestBase(unittest.TestCase):
         g1.start_gobgp(graceful_restart=True)
         g1.add_route('10.10.20.0/24')
         g3.start_gobgp()
+        # RFC 4724 Section 4.1: the Restarting Speaker MUST defer route
+        # selection until it receives EOR from all peers that advertise GR
+        # capability (excluding those with the Restart State bit set).
+        # g2 advertises GR, so g1 must wait for g2's EOR before sending
+        # routes to any peer, including g3 which does not advertise GR.
+        g2 = self.bgpds['g2']
+        g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g2)
         g1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=g3)
         time.sleep(1)
         self.assertEqual(len(g3.get_global_rib('10.10.20.0/24')), 1)
@@ -245,11 +251,3 @@ class GoBGPTestBase(unittest.TestCase):
             time.sleep(1)
 
 
-if __name__ == '__main__':
-    output = local("which docker 2>&1 > /dev/null ; echo $?", capture=True)
-    if int(output) != 0:
-        print("docker not found")
-        sys.exit(1)
-
-    nose.main(argv=sys.argv, addplugins=[OptionParser()],
-              defaultTest=sys.argv[0])

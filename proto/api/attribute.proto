@@ -418,6 +418,28 @@ message LsAttributeNode {
   LsSrCapabilities sr_capabilities = 7;
   bytes sr_algorithms = 8;
   LsSrLocalBlock sr_local_block = 9;
+
+  // RFC 9351 Section 3 Flexible Algorithm Definition (FAD) TLVs
+  // observed for this Node NLRI. A node MAY advertise more than one
+  // FAD, one per algorithm in the [128, 255] Flex-Algorithm range.
+  repeated LsAttributeFlexAlgoDef flex_algo_defs = 10;
+}
+
+// LsAttributeFlexAlgoDef is the structured projection of a single FAD
+// TLV (TLV 1039, RFC 9351 Section 3). Reserved Metric-Type values
+// (3..127) are passed through verbatim with metric_type_known=false
+// so consumers can render them without guessing semantics.
+message LsAttributeFlexAlgoDef {
+  uint32 algorithm = 1;
+  uint32 metric_type = 2;
+  bool metric_type_known = 3;
+  uint32 calc_type = 4;
+  uint32 priority = 5;
+  repeated uint32 exclude_any_affinity = 6;
+  repeated uint32 include_any_affinity = 7;
+  repeated uint32 include_all_affinity = 8;
+  bytes definition_flags = 9;
+  repeated uint32 exclude_srlg = 10;
 }
 
 message LsAttributeLink {
@@ -452,7 +474,39 @@ message LsAttributePrefix {
   LsIGPFlags igp_flags = 1;
   bytes opaque = 2;
 
+  // sr_prefix_sid is the SR-MPLS Prefix-SID label when the originator
+  // advertised it with Algorithm = 0 (default SPF). Kept for backward
+  // compatibility with the singular Algorithm-0 lookup callers used
+  // before multi-SID aggregation landed.
   uint32 sr_prefix_sid = 3;
+
+  // sr_prefix_sids carries every Prefix-SID TLV (RFC 9085
+  // Section 2.1.1) observed on this Prefix NLRI, including the
+  // Algorithm + Flags fields the singular sr_prefix_sid field drops.
+  // Algorithm 0 entries also populate sr_prefix_sid above.
+  repeated LsAttributePrefixSID sr_prefix_sids = 4;
+
+  // fad_prefix_metrics carries every Flexible Algorithm Prefix Metric
+  // TLV (FAPM, TLV 1044, RFC 9351 Section 4) observed on this Prefix
+  // NLRI. One entry per Flex-Algorithm announced.
+  repeated LsAttributeFADPrefixMetric fad_prefix_metrics = 5;
+}
+
+// LsAttributePrefixSID is one Prefix-SID TLV (RFC 9085 Section 2.1.1)
+// projected onto the LsAttribute surface so consumers can read the
+// Algorithm and Flags fields without re-parsing the wire bytes.
+message LsAttributePrefixSID {
+  uint32 algorithm = 1;
+  uint32 flags = 2;
+  uint32 sid = 3;
+}
+
+// LsAttributeFADPrefixMetric is one FAPM TLV (RFC 9351 Section 4)
+// projected onto the LsAttribute surface.
+message LsAttributeFADPrefixMetric {
+  uint32 algorithm = 1;
+  uint32 flags = 2;
+  uint32 metric = 3;
 }
 
 message LsBgpPeerSegmentSIDFlags {

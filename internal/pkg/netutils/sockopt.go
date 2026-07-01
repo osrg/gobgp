@@ -24,8 +24,8 @@ import (
 	"syscall"
 )
 
-func SetTCPMD5SigSockopt(l *net.TCPListener, address string, key string) error {
-	return SetTcpMD5SigSockopt(l, address, key)
+func SetTCPMD5SigSockopt(l *net.TCPListener, bindInterface string, address string, key string) error {
+	return SetTcpMD5SigSockopt(l, bindInterface, address, key)
 }
 
 func SetTCPTTLSockopt(conn net.Conn, ttl int) error {
@@ -46,6 +46,14 @@ func SetTCPMSSSockopt(conn net.Conn, mss uint16) error {
 
 func SetIPTOSSockopt(conn net.Conn, tos uint8) error {
 	return SetIpTOSSockopt(conn, tos)
+}
+
+func SetUDPTTLSockopt(conn net.Conn, ttl int) error {
+	return SetUdpTTLSockopt(conn, ttl)
+}
+
+func SetReuseAddrSockopt(sc syscall.RawConn) error {
+	return SetReuseAddrSockoptImpl(sc)
 }
 
 func DialerControl(logger *slog.Logger, network, address string, c syscall.RawConn, ttl, minTtl uint8, mss uint16, password string, bindInterface string, tos uint8) error {

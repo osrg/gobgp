@@ -1075,6 +1075,23 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			nodeSrAlgorithms = &a.Node.SrAlgorithms
 		}
 
+		// RFC 9351 Section 3: rehydrate FAD entries from the api side.
+		var nodeFlexAlgoDefs []bgp.LsAttributeFlexAlgoDef
+		for _, fad := range a.Node.FlexAlgoDefs {
+			nodeFlexAlgoDefs = append(nodeFlexAlgoDefs, bgp.LsAttributeFlexAlgoDef{
+				Algorithm:       uint8(fad.Algorithm),
+				MetricType:      uint8(fad.MetricType),
+				MetricTypeKnown: fad.MetricTypeKnown,
+				CalcType:        uint8(fad.CalcType),
+				Priority:        uint8(fad.Priority),
+				ExcludeAny:      append([]uint32(nil), fad.ExcludeAnyAffinity...),
+				IncludeAny:      append([]uint32(nil), fad.IncludeAnyAffinity...),
+				IncludeAll:      append([]uint32(nil), fad.IncludeAllAffinity...),
+				Flags:           append([]byte(nil), fad.DefinitionFlags...),
+				ExcludeSRLG:     append([]uint32(nil), fad.ExcludeSrlg...),
+			})
+		}
+
 		lsAttr.Node = bgp.LsAttributeNode{
 			Flags:           flags,
 			Opaque:          nodeOpaque,
@@ -1085,6 +1102,7 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			SrCapabilties:   srCapabilities,
 			SrAlgorithms:    nodeSrAlgorithms,
 			SrLocalBlock:    lsSrLocalBlock,
+			FlexAlgoDefs:    nodeFlexAlgoDefs,
 		}
 	}
 
@@ -1224,6 +1242,28 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 
 	// For AttributePrefix
 	if a.Prefix != nil {
+		// RFC 9085 Section 2.1.1: rehydrate every Prefix-SID entry
+		// from the api side, plus the FAPM entries from RFC 9351
+		// Section 4. These are populated independently of IgpFlags
+		// because a Prefix NLRI can advertise SR or FAPM without
+		// carrying an IGP-Flags TLV.
+		var prefixSIDs []bgp.LsAttributePrefixSID
+		for _, sid := range a.Prefix.SrPrefixSids {
+			prefixSIDs = append(prefixSIDs, bgp.LsAttributePrefixSID{
+				Algorithm: uint8(sid.Algorithm),
+				Flags:     uint8(sid.Flags),
+				SID:       sid.Sid,
+			})
+		}
+		var fapms []bgp.LsAttributeFADPrefixMetric
+		for _, fapm := range a.Prefix.FadPrefixMetrics {
+			fapms = append(fapms, bgp.LsAttributeFADPrefixMetric{
+				Algorithm: uint8(fapm.Algorithm),
+				Flags:     uint8(fapm.Flags),
+				Metric:    fapm.Metric,
+			})
+		}
+
 		if a.Prefix.IgpFlags != nil {
 			lsAttr.Prefix = bgp.LsAttributePrefix{
 				IGPFlags: &bgp.LsIGPFlags{
@@ -1232,8 +1272,16 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 					LocalAddress:  a.Prefix.IgpFlags.LocalAddress,
 					PropagateNSSA: a.Prefix.IgpFlags.PropagateNssa,
 				},
-				Opaque:      &a.Prefix.Opaque,
-				SrPrefixSID: &a.Prefix.SrPrefixSid,
+				Opaque:           &a.Prefix.Opaque,
+				SrPrefixSID:      &a.Prefix.SrPrefixSid,
+				SrPrefixSIDs:     prefixSIDs,
+				FadPrefixMetrics: fapms,
+			}
+		} else if len(prefixSIDs) > 0 || len(fapms) > 0 {
+			// IgpFlags absent but SR / FAPM TLVs present.
+			lsAttr.Prefix = bgp.LsAttributePrefix{
+				SrPrefixSIDs:     prefixSIDs,
+				FadPrefixMetrics: fapms,
 			}
 		}
 	}
@@ -1344,12 +1392,17 @@ func MarshalNLRI(value bgp.NLRI) (*api.NLRI, error) {
 				return nil, err
 			}
 
+			ipAddr := ""
+			if r.IPAddressLength != 0 {
+				ipAddr = r.IPAddress.String()
+			}
+
 			nlri.Nlri = &api.NLRI_EvpnMacadv{EvpnMacadv: &api.EVPNMACIPAdvertisementRoute{
 				Rd:          rd,
 				Esi:         esi,
 				EthernetTag: r.ETag,
 				MacAddress:  r.MacAddress.String(),
-				IpAddress:   r.IPAddress.String(),
+				IpAddress:   ipAddr,
 				Labels:      r.Labels,
 			}}
 		case *bgp.EVPNMulticastEthernetTagRoute:
@@ -1660,9 +1713,12 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 			if err != nil {
 				return nil, err
 			}
-			addr, err := netip.ParseAddr(v.IpAddress)
-			if err != nil {
-				return nil, err
+			var addr netip.Addr
+			if v.IpAddress != "" {
+				addr, err = netip.ParseAddr(v.IpAddress)
+				if err != nil {
+					return nil, err
+				}
 			}
 			nlri, _ = bgp.NewEVPNMacIPAdvertisementRoute(rd, *esi, v.EthernetTag, v.MacAddress, addr, v.Labels)
 		}
@@ -2819,6 +2875,45 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 		}
 	}
 
+	// RFC 9351 Section 3: surface every FAD observed for this Node
+	// NLRI. The packet layer keeps reserved Metric-Type values
+	// verbatim with MetricTypeKnown=false; pass that through.
+	for _, fad := range attr.Node.FlexAlgoDefs {
+		apiAttr.Node.FlexAlgoDefs = append(apiAttr.Node.FlexAlgoDefs, &api.LsAttributeFlexAlgoDef{
+			Algorithm:          uint32(fad.Algorithm),
+			MetricType:         uint32(fad.MetricType),
+			MetricTypeKnown:    fad.MetricTypeKnown,
+			CalcType:           uint32(fad.CalcType),
+			Priority:           uint32(fad.Priority),
+			ExcludeAnyAffinity: append([]uint32(nil), fad.ExcludeAny...),
+			IncludeAnyAffinity: append([]uint32(nil), fad.IncludeAny...),
+			IncludeAllAffinity: append([]uint32(nil), fad.IncludeAll...),
+			DefinitionFlags:    append([]byte(nil), fad.Flags...),
+			ExcludeSrlg:        append([]uint32(nil), fad.ExcludeSRLG...),
+		})
+	}
+
+	// RFC 9085 Section 2.1.1: surface every Prefix-SID TLV; the
+	// singular sr_prefix_sid field above is already populated for
+	// Algorithm-0 by the projection path.
+	for _, sid := range attr.Prefix.SrPrefixSIDs {
+		apiAttr.Prefix.SrPrefixSids = append(apiAttr.Prefix.SrPrefixSids, &api.LsAttributePrefixSID{
+			Algorithm: uint32(sid.Algorithm),
+			Flags:     uint32(sid.Flags),
+			Sid:       sid.SID,
+		})
+	}
+
+	// RFC 9351 Section 4: surface every FAPM TLV observed for this
+	// Prefix NLRI.
+	for _, fapm := range attr.Prefix.FadPrefixMetrics {
+		apiAttr.Prefix.FadPrefixMetrics = append(apiAttr.Prefix.FadPrefixMetrics, &api.LsAttributeFADPrefixMetric{
+			Algorithm: uint32(fapm.Algorithm),
+			Flags:     uint32(fapm.Flags),
+			Metric:    fapm.Metric,
+		})
+	}
+
 	return apiAttr, nil
 }
 
@@ -3124,16 +3219,19 @@ func UnmarshalSRSegments(s []*api.TunnelEncapSubTLVSRSegmentList_Segment) ([]bgp
 				},
 				Label: v.A.Label,
 			}
-			if v.A.Flags.VFlag {
+			// Flags is an optional sub-message; chain through the
+			// generated nil-safe getters so that an unset Flags does
+			// not panic with a nil pointer dereference.
+			if v.A.GetFlags().GetVFlag() {
 				seg.Flags += 0x80
 			}
-			if v.A.Flags.AFlag {
+			if v.A.GetFlags().GetAFlag() {
 				seg.Flags += 0x40
 			}
-			if v.A.Flags.SFlag {
+			if v.A.GetFlags().GetSFlag() {
 				seg.Flags += 0x20
 			}
-			if v.A.Flags.BFlag {
+			if v.A.GetFlags().GetBFlag() {
 				seg.Flags += 0x10
 			}
 			segments[i] = seg
@@ -3145,16 +3243,16 @@ func UnmarshalSRSegments(s []*api.TunnelEncapSubTLVSRSegmentList_Segment) ([]bgp
 				},
 				SID: v.B.GetSid(),
 			}
-			if v.B.Flags.VFlag {
+			if v.B.GetFlags().GetVFlag() {
 				seg.Flags += 0x80
 			}
-			if v.B.Flags.AFlag {
+			if v.B.GetFlags().GetAFlag() {
 				seg.Flags += 0x40
 			}
-			if v.B.Flags.SFlag {
+			if v.B.GetFlags().GetSFlag() {
 				seg.Flags += 0x20
 			}
-			if v.B.Flags.BFlag {
+			if v.B.GetFlags().GetBFlag() {
 				seg.Flags += 0x10
 			}
 			if v.B.EndpointBehaviorStructure != nil {

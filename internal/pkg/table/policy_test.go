@@ -2696,11 +2696,24 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 		ExtCommunitySetName: "ecomSet12",
 		ExtCommunityList:    []string{"LB:65001:125000"},
 	}
+	ecomSet13 := oc.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet13",
+		ExtCommunityList:    []string{"RT:65001:200", "SoO:65010:300"},
+	}
+	ecomSet14 := oc.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet14",
+		ExtCommunityList:    []string{"RT:65001:200", "RT:99999:999"},
+	}
+	ecomSet15 := oc.ExtCommunitySet{
+		ExtCommunitySetName: "ecomSet15",
+		ExtCommunityList:    []string{"RT:65001:200"},
+	}
 
 	m := make(map[string]DefinedSet)
 	for _, c := range []oc.ExtCommunitySet{
 		ecomSet1, ecomSet2, ecomSet3, ecomSet4, ecomSet5, ecomSet6, ecomSet7,
 		ecomSet8, ecomSet9, ecomSet10, ecomSet11, ecomSet12,
+		ecomSet13, ecomSet14, ecomSet15,
 	} {
 		s, _ := NewExtCommunitySet(c)
 		m[s.Name()] = s
@@ -2730,9 +2743,12 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 
 	// ALL case
 	p10 := createExtCommunityC("ecomSet10", oc.MATCH_SET_OPTIONS_TYPE_ALL)
+	p13 := createExtCommunityC("ecomSet13", oc.MATCH_SET_OPTIONS_TYPE_ALL)
+	p14 := createExtCommunityC("ecomSet14", oc.MATCH_SET_OPTIONS_TYPE_ALL)
 
 	// INVERT case
 	p11 := createExtCommunityC("ecomSet11", oc.MATCH_SET_OPTIONS_TYPE_INVERT)
+	p15 := createExtCommunityC("ecomSet15", oc.MATCH_SET_OPTIONS_TYPE_INVERT)
 
 	// test
 	assert.Equal(t, true, p1.Evaluate(path1, nil))
@@ -2746,6 +2762,9 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	assert.Equal(t, true, p9.Evaluate(path1, nil))
 	assert.Equal(t, true, p10.Evaluate(path1, nil))
 	assert.Equal(t, true, p11.Evaluate(path1, nil))
+	assert.Equal(t, true, p13.Evaluate(path1, nil))
+	assert.Equal(t, false, p14.Evaluate(path1, nil))
+	assert.Equal(t, false, p15.Evaluate(path1, nil))
 }
 
 func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {

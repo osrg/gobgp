@@ -22,10 +22,7 @@ import itertools
 import textwrap
 from colored import fg, attr
 
-try:
-    from docker import Client
-except ImportError:
-    from docker import APIClient as Client
+from docker import APIClient as Client
 import netaddr
 
 
@@ -388,6 +385,7 @@ class BGPContainer(Container):
         treat_as_withdraw=False,
         remote_as=None,
         mup=False,
+        bind_interface="",
     ):
         neigh_addr = ''
         local_addr = ''
@@ -436,7 +434,8 @@ class BGPContainer(Container):
                             'addpath': addpath,
                             'treat_as_withdraw': treat_as_withdraw,
                             'remote_as': remote_as or peer.asn,
-                            'mup': mup}
+                            'mup': mup,
+                            'bind_interface': bind_interface}
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()

@@ -2,8 +2,10 @@ package bgp
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/go-test/deep"
@@ -26,7 +28,7 @@ func TestBindingSIDRoundTrip(t *testing.T) {
 					Length: 2,
 				},
 				Flags: 0x0,
-				BSID:  nil,
+				BSID:  &BSID{Value: make([]byte, 0)},
 			},
 			fail: false,
 		},
@@ -85,6 +87,32 @@ func TestBindingSIDRoundTrip(t *testing.T) {
 				t.Fatalf("expected: %+v does not match result: %+v", tt.input, result)
 			}
 		})
+	}
+}
+
+func TestSRBSIDNoBSIDRendering(t *testing.T) {
+	// A length-2 SR Binding SID sub-TLV has flags and reserved byte but no
+	// BSID value. String() and MarshalJSON() must not panic when BSID is absent.
+	tlv := &TunnelEncapSubTLVSRBSID{
+		TunnelEncapSubTLV: TunnelEncapSubTLV{Type: 1, Length: 2},
+		Flags:             0x80,
+	}
+	b, err := tlv.Serialize()
+	if err != nil {
+		t.Fatalf("Serialize failed: %v", err)
+	}
+	result := &TunnelEncapSubTLVSRBSID{}
+	if err := result.DecodeFromBytes(b); err != nil {
+		t.Fatalf("DecodeFromBytes failed: %v", err)
+	}
+
+	s := result.String()
+	if !strings.Contains(s, "n/a") {
+		t.Errorf("String() should contain \"n/a\" for absent BSID, got: %s", s)
+	}
+
+	if _, err := json.Marshal(result); err != nil {
+		t.Errorf("MarshalJSON() returned error: %v", err)
 	}
 }
 

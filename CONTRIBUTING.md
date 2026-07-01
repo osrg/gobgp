@@ -7,7 +7,7 @@ $ git clone https://github.com/osrg/gobgp.git
 $ cd gobgp && go mod download
 ```
 
-Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`.
+Now ready to modify the code and build two binaries, `cmd/gobgp` and `cmd/gobgpd`. For maximum performance on modern AMD64 processors, set `GOAMD64=v3` before running `go build` (see [Go minimum requirements](https://go.dev/wiki/MinimumRequirements#architectures)).
 
 ## Design Considerations
 

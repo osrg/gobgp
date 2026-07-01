@@ -1079,7 +1079,7 @@ func parseMUPInterworkSegmentDiscoveryRouteArgs(args []string, afi uint16, nexth
 		"locator-node-length": paramSingle,
 		"function-length":     paramSingle,
 		"behavior":            paramSingle,
-		"rt":                  paramSingle,
+		"rt":                  paramList,
 	})
 	if err != nil {
 		return nil, nil, nil, err
@@ -1159,7 +1159,7 @@ func parseMUPDirectSegmentDiscoveryRouteArgs(args []string, afi uint16, nexthop 
 	}
 	m, err := extractReserved(args, map[string]int{
 		"rd":                  paramSingle,
-		"rt":                  paramSingle,
+		"rt":                  paramList,
 		"prefix":              paramSingle,
 		"locator-node-length": paramSingle,
 		"function-length":     paramSingle,
@@ -1273,7 +1273,7 @@ func parseMUPType1SessionTransformedRouteArgs(args []string, afi uint16) (bgp.NL
 	}
 	m, err := extractReserved(args, map[string]int{
 		"rd":       paramSingle,
-		"rt":       paramSingle,
+		"rt":       paramList,
 		"teid":     paramSingle,
 		"qfi":      paramSingle,
 		"endpoint": paramSingle,
@@ -1344,7 +1344,7 @@ func parseMUPType2SessionTransformedRouteArgs(args []string, afi uint16) (bgp.NL
 	}
 	m, err := extractReserved(args, map[string]int{
 		"rd":                      paramSingle,
-		"rt":                      paramSingle,
+		"rt":                      paramList,
 		"endpoint-address-length": paramSingle,
 		"teid":                    paramSingle,
 		"mup":                     paramSingle,
@@ -2146,6 +2146,9 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 		}
 		if maxDelay > maxDelayMetricValue {
 			return nil, nil, fmt.Errorf("invalid max-unidirectional-link-delay: must be <= %d", maxDelayMetricValue)
+		}
+		if minDelay > maxDelay {
+			return nil, nil, fmt.Errorf("invalid min/max unidirectional-link-delay: min must be <= max")
 		}
 		flags := uint8(0)
 		if _, ok := m["min-max-unidirectional-link-delay-anomalous"]; ok {

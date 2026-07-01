@@ -24,14 +24,15 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateAdjTable(t *testing.T) {
-	table := NewAdjTable(logger, bgp.RF_RTC_UC)
-	assert.NotNil(t, table.adjRts)
+	table := NewTable(logger, bgp.RF_RTC_UC)
+	assert.Equal(t, bgp.RF_RTC_UC, table.GetFamily())
 
-	table = NewAdjTable(logger, bgp.RF_FS_IPv4_VPN)
-	assert.Nil(t, table.adjRts)
+	table = NewTable(logger, bgp.RF_FS_IPv4_VPN)
+	assert.Equal(t, bgp.RF_FS_IPv4_VPN, table.GetFamily())
 }
 
 func TestAddPath(t *testing.T) {
@@ -172,54 +173,35 @@ func TestLLGRStale(t *testing.T) {
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
 	assert.Equal(t, adj.Accepted([]bgp.Family{family}), 1)
 	assert.Equal(t, 2, len(adj.table[family].GetDestinations()))
+
+	retained := adj.PathList([]bgp.Family{family}, false)
+	require.Len(t, retained, 2)
+	var retainedRejected *Path
+	for _, p := range retained {
+		if p.IsRejected() {
+			retainedRejected = p
+			break
+		}
+	}
+	require.NotNil(t, retainedRejected)
+	assert.Contains(t, retainedRejected.GetCommunities(), uint32(bgp.COMMUNITY_LLGR_STALE))
 }
 
-func TestAdjRTC(t *testing.T) {
+func TestUpdateUnknownFamily(t *testing.T) {
+	// A path whose address family is not registered in adj.table must be
+	// silently skipped — not panic — in both Update and UpdateAdjRibOut.
+	// This covers the treat-as-withdraw path triggered by a malformed BGP
+	// UPDATE (RFC 7606): the peer may send NLRI for a family the local side
+	// never negotiated, causing a nil table lookup.
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
 
-	rt1, _ := bgp.ParseRouteTarget("65520:1000000")
-	_, err := extCommRouteTargetKey(rt1)
-	assert.NoError(t, err)
-	nlri1 := bgp.NewRouteTargetMembershipNLRI(65000, rt1)
-	p1 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
-	p1.remoteID = 1
-
-	rt2, _ := bgp.ParseRouteTarget("65520:1000001")
-	nlri2 := bgp.NewRouteTargetMembershipNLRI(65000, rt2)
-	p2 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri2}, false, attrs, time.Now(), false)
-	p2.remoteID = 2
-
-	nlri3 := bgp.NewRouteTargetMembershipNLRI(0, nil)
-	p3 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri3}, false, attrs, time.Now(), false)
-	p3.remoteID = 3
-
-	family := p1.GetFamily()
-	assert.Equal(t, family, bgp.RF_RTC_UC)
-	families := []bgp.Family{family}
-	adj := NewAdjRib(logger, families)
-
-	adj.Update([]*Path{p1, p2, p3})
-	assert.Equal(t, adj.Count([]bgp.Family{family}), 3)
-
-	assert.True(t, adj.HasDefaultRT())
-	assert.True(t, adj.HasRTinRtcTable(rt1))
-	assert.True(t, adj.HasRTinRtcTable(rt2))
-
-	adj.Update([]*Path{p1.Clone(true)})
-	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
-	assert.True(t, adj.HasDefaultRT())
-	assert.True(t, !adj.HasRTinRtcTable(rt1))
-	assert.True(t, adj.HasRTinRtcTable(rt2))
-
-	adj.Update([]*Path{p3.Clone(true)})
-	assert.Equal(t, adj.Count([]bgp.Family{family}), 1)
-	assert.False(t, adj.HasDefaultRT())
-	assert.True(t, adj.HasRTinRtcTable(rt2))
-
-	adj.Update([]*Path{p2.Clone(true)})
-	assert.Equal(t, adj.Count([]bgp.Family{family}), 0)
-	assert.True(t, !adj.HasRTinRtcTable(rt2))
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	p4 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
+	// AdjRib only knows about IPv6; IPv4 path is unconfigured.
+	adj := NewAdjRib(slog.Default(), []bgp.Family{bgp.RF_IPv6_UC})
+	assert.NotPanics(t, func() { adj.Update([]*Path{p4}) })
+	assert.NotPanics(t, func() { adj.UpdateAdjRibOut([]*Path{p4}) })
 }
 
 func TestWithdrawUnknownPath(t *testing.T) {
@@ -233,5 +215,7 @@ func TestWithdrawUnknownPath(t *testing.T) {
 
 	adj := NewAdjRib(logger, families)
 	adj.Update([]*Path{p1})
-	assert.Equal(t, len(adj.table[family].destinations), 0)
+	// Check that the table is empty (no destinations across all shards)
+	dests := adj.table[family].GetDestinations()
+	assert.Equal(t, 0, len(dests))
 }

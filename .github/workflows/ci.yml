@@ -2,6 +2,11 @@ name: ci
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
 jobs:
   crossbuild:
     name: crossbuild
@@ -9,10 +14,10 @@ jobs:
       matrix:
         GOOS: ["freebsd", "openbsd", "darwin", "windows"]
         GOARCH: ["amd64"]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - run: |
@@ -25,10 +30,10 @@ jobs:
 
   unit:
     name: unit
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - run: |
@@ -37,13 +42,13 @@ jobs:
 
   unit386:
     name: unit386
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       GOARCH: 386
       CGO_ENABLED: 1
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - run: |
@@ -54,12 +59,13 @@ jobs:
 
   protobuf-check:
     name: protobuf lint and format check
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: bufbuild/buf-setup-action@v1
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          version: latest
+          go-version: "stable"
+      - run: go install github.com/bufbuild/buf/cmd/buf@latest
 
       - name: buf lint
         run: buf lint proto/
@@ -74,23 +80,23 @@ jobs:
 
   golangci:
     name: lint
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           skip-cache: true
 
   embedded:
     name: embedded
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - run: |
@@ -99,9 +105,9 @@ jobs:
 
   lintdoc:
     name: lintdoc
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
       - run: |
           npm install markdownlint-cli
           ./node_modules/.bin/markdownlint $(find . -type d -name 'node_modules' -prune -o -type f -name '*.md' -print)
@@ -112,23 +118,25 @@ jobs:
 
   build:
     name: build container image
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: write
+      checks: write
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "stable"
       - name: container image
         run: |
-          sudo apt-get install python3-setuptools
-          sudo pip3 install -r test/pip-requires.txt
-          fab -r test/lib make-gobgp-ctn --tag gobgp --from-image osrg/quagga
+          test/lib/make-gobgp-ctn.sh --tag gobgp --from-image osrg/quagga
           docker save gobgp > gobgp.tar
-          fab -r test/lib make-gobgp-ctn --tag gobgp-oq --from-image osrg/quagga:v1.0
+          test/lib/make-gobgp-ctn.sh --tag gobgp-oq --from-image osrg/quagga:v1.0
           docker save gobgp-oq > gobgp-oq.tar
 
       - name: upload image file
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: artifact
           path: |
@@ -137,123 +145,141 @@ jobs:
 
   router:
     name: router
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/bgp_router_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/bgp_router_test.py --gobgp-image gobgp -x -s
 
   evpn:
     name: evpn
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/evpn_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/evpn_test.py --gobgp-image gobgp -x -s
 
   flowspec:
     name: flowspec
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/flow_spec_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/flow_spec_test.py --gobgp-image gobgp -x -s
 
   global-policy:
     name: global-policy
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/global_policy_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/global_policy_test.py --gobgp-image gobgp -x -s
 
   graceful-restart:
     name: graceful-restart
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/graceful_restart_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/graceful_restart_test.py --gobgp-image gobgp -x -s
 
   ibgp:
     name: ibgp
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/ibgp_router_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/ibgp_router_test.py --gobgp-image gobgp -x -s
 
   rr:
     name: route-refector
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_reflector_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_reflector_test.py --gobgp-image gobgp -x -s
 
   as2:
     name: as2
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_server_as2_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_server_as2_test.py --gobgp-image gobgp -x -s
 
   ipv4-v6:
     name: ipv4-v6
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
@@ -262,155 +288,184 @@ jobs:
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_server_ipv4_v6_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_server_ipv4_v6_test.py --gobgp-image gobgp -x -s
 
   malformed:
     name: malformed
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_server_malformed_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_server_malformed_test.py --gobgp-image gobgp -x -s
 
   rs-policy-grpc:
     name: rs-policy-grpc
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_server_policy_grpc_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_server_policy_grpc_test.py --gobgp-image gobgp -x -s
 
   rs-policy:
     name: rs-policy
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
+      - name: enable IPv6
+        run: |
+          sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
+          sudo sysctl -w net.ipv6.conf.all.forwarding=1
+          echo '{"ipv6": true, "fixed-cidr-v6": "2001:db8:1::/64"}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_server_policy_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_server_policy_test.py --gobgp-image gobgp -x -s
 
   softreset:
     name: softreset
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_server_softreset_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_server_softreset_test.py --gobgp-image gobgp -x -s
 
   rs1:
     name: routeserver1
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_server_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_server_test.py --gobgp-image gobgp -x -s
 
   rs2:
     name: routeserver2
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/route_server_test2.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/route_server_test2.py --gobgp-image gobgp -x -s
 
   llgr:
     name: llgr
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/long_lived_graceful_restart_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/long_lived_graceful_restart_test.py --gobgp-image gobgp -x -s
 
   vrf-neighbor1:
     name: vrf-neighbor1
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/vrf_neighbor_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/vrf_neighbor_test.py --gobgp-image gobgp -x -s
 
   vrf-neighbor2:
     name: vrf-neighbor2
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/vrf_neighbor_test2.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/vrf_neighbor_test2.py --gobgp-image gobgp -x -s
 
   rtc:
     name: rtc
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/rtc_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/rtc_test.py --gobgp-image gobgp -x -s
 
   unnumbered:
     name: unnumbered
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           echo  "{\"ipv6\": true,\"fixed-cidr-v6\": \"2001:db8:1::/64\"}" > daemon.json
@@ -423,130 +478,166 @@ jobs:
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/bgp_unnumbered_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/bgp_unnumbered_test.py --gobgp-image gobgp -x -s
 
   aspath:
     name: aspath
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/aspath_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/aspath_test.py --gobgp-image gobgp -x -s
 
   addpath:
     name: addpath
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/addpath_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/addpath_test.py --gobgp-image gobgp -x -s
 
   malformed-handling:
     name: malformed-handling
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/bgp_malformed_msg_handling_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/bgp_malformed_msg_handling_test.py --gobgp-image gobgp -x -s
 
   confederation:
     name: confederation
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/bgp_confederation_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/bgp_confederation_test.py --gobgp-image gobgp -x -s
 
   zebra:
     name: zebra
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/bgp_zebra_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/bgp_zebra_test.py --gobgp-image gobgp -x -s
 
   zebra-nht:
     name: zebra-nht
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/bgp_zebra_nht_test.py --gobgp-image gobgp-oq -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/bgp_zebra_nht_test.py --gobgp-image gobgp-oq -x -s
 
   zapi-v3:
     name: zapi-v3
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/zapi_v3_test.py --gobgp-image gobgp-oq -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/zapi_v3_test.py --gobgp-image gobgp-oq -x -s
 
   zapi-v3-multipath:
     name: zapi-v3-multipath
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp-oq.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/zapi_v3_multipath_test.py --gobgp-image gobgp-oq -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/zapi_v3_multipath_test.py --gobgp-image gobgp-oq -x -s
 
   mup:
     name: mup
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
       - name: test
         run: |
           docker load < artifact/gobgp.tar
           sudo apt-get install python3-setuptools
           sudo pip3 install -r test/pip-requires.txt
-          PYTHONPATH=test python3 test/scenario_test/mup_test.py --gobgp-image gobgp -x -s
+          PYTHONPATH=test python3 -m pytest test/scenario_test/mup_test.py --gobgp-image gobgp -x -s
+
+  tcp-md5:
+    name: tcp-md5
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get update
+          sudo apt-get install -y linux-modules-extra-$(uname -r)
+          sudo modprobe vrf
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 -m pytest test/scenario_test/tcp_md5_test.py --gobgp-image gobgp -x -s

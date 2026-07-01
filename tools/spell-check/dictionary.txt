@@ -14,6 +14,7 @@ enlp
 ethernet
 etree
 evpn
+fapm
 flowspec
 gobgp
 gobgpd
@@ -38,7 +39,9 @@ ospf
 pmsi
 prepend
 reachability
+regexp
 reservable
+reuseaddr
 rpki
 sadb
 safi
@@ -54,3 +57,4 @@ vpls
 zapi
 buflen
 mgmt
+messageloop

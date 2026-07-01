@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net"
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -34,7 +36,27 @@ import (
 
 // nexthopStateCache stores a map of nexthop IP to metric value. Especially,
 // the metric value of math.MaxUint32 means the nexthop is unreachable.
-type nexthopStateCache map[string]uint32
+type nexthopStateCache map[netip.Addr]uint32
+
+// applyToNewPathList applies cached nexthop state to newly added paths
+// in-place. This is called before propagateUpdate so that paths with
+// unreachable nexthops are marked invalid before being advertised.
+func (m nexthopStateCache) applyToNewPathList(paths []*table.Path) {
+	for _, path := range paths {
+		if path == nil || path.IsWithdraw {
+			continue
+		}
+		metric, ok := m[path.GetNexthop()]
+		if !ok {
+			continue
+		}
+		if metric == math.MaxUint32 {
+			path.IsNexthopInvalid = true
+		} else {
+			_ = path.SetMed(int64(metric), true)
+		}
+	}
+}
 
 func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 	updated := make([]*table.Path, 0, len(paths))
@@ -42,15 +64,18 @@ func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 		if path == nil || path.IsWithdraw {
 			continue
 		}
-		metric, ok := m[path.GetNexthop().String()]
+		metric, ok := m[path.GetNexthop()]
 		if !ok {
 			continue
 		}
 		isNexthopInvalid := metric == math.MaxUint32
+		if isNexthopInvalid && path.IsNexthopInvalid {
+			// Path is already correctly marked as invalid; nothing to do.
+			continue
+		}
 		med, err := path.GetMed()
-		if err == nil && med == metric && path.IsNexthopInvalid == isNexthopInvalid {
-			// If the nexthop state of the given path is already up to date,
-			// skips this path.
+		if !isNexthopInvalid && err == nil && med == metric && !path.IsNexthopInvalid {
+			// Path MED already reflects the current nexthop metric; nothing to do.
 			continue
 		}
 		newPath := path.Clone(false)
@@ -71,14 +96,14 @@ func (m nexthopStateCache) updateByNexthopUpdate(body *zebra.NexthopUpdateBody) 
 	if len(body.Nexthops) == 0 {
 		// If NEXTHOP_UPDATE message does not contain any nexthop, the given
 		// nexthop is unreachable.
-		if _, ok := m[body.Prefix.Prefix.String()]; !ok {
+		if _, ok := m[body.Prefix.Prefix]; !ok {
 			// Zebra will send an empty NEXTHOP_UPDATE message as the fist
 			// response for the NEXTHOP_REGISTER message. Here ignores it.
 			return false
 		}
-		m[body.Prefix.Prefix.String()] = math.MaxUint32 // means unreachable
+		m[body.Prefix.Prefix] = math.MaxUint32 // means unreachable
 	} else {
-		m[body.Prefix.Prefix.String()] = body.Metric
+		m[body.Prefix.Prefix] = body.Metric
 	}
 	return true
 }
@@ -96,7 +121,7 @@ func (m nexthopStateCache) filterPathToRegister(paths []*table.Path) []*table.Pa
 			continue
 		} else if nexthop := path.GetNexthop(); nexthop.IsUnspecified() {
 			continue
-		} else if _, ok := m[nexthop.String()]; ok {
+		} else if _, ok := m[nexthop]; ok {
 			continue
 		}
 		filteredPaths = append(filteredPaths, path)
@@ -160,17 +185,32 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 		return nil, false
 	}
 	nhVrfID := uint32(zebra.DefaultVrf)
-	for vrfPath, pathVrfID := range z.pathVrfMap {
-		if path.Equal(vrfPath) {
-			nhVrfID = pathVrfID
-			break
-		} else {
-			continue
+	func() {
+		z.pathVrfMu.RLock()
+		defer z.pathVrfMu.RUnlock()
+		for vrfPath, pathVrfID := range z.pathVrfMap {
+			if path.Equal(vrfPath) {
+				nhVrfID = pathVrfID
+				break
+			} else {
+				continue
+			}
 		}
-	}
+	}()
 	for _, p := range paths {
 		nexthop.Gate = p.GetNexthop()
 		nexthop.VrfID = nhVrfID
+		// link-local next-hop requires an interface index for kernel route installation
+		nexthop.Ifindex = 0
+		if nexthop.Gate.Is6() && nexthop.Gate.IsLinkLocalUnicast() {
+			if zone := p.GetSource().Address.Zone(); zone != "" {
+				if id, err := strconv.ParseUint(zone, 10, 32); err == nil {
+					nexthop.Ifindex = uint32(id)
+				} else if ifi, err := net.InterfaceByName(zone); err == nil {
+					nexthop.Ifindex = uint32(ifi.Index)
+				}
+			}
+		}
 		if nhVrfID != vrfID {
 			addLabelToNexthop(path, z, &msgFlags, &nexthop)
 		}
@@ -317,15 +357,15 @@ type zebraClient struct {
 	client       *zebra.Client
 	server       *BgpServer
 	nexthopCache nexthopStateCache
+	cacheLock    sync.Mutex
 	pathVrfMap   map[*table.Path]uint32 // vpn paths and nexthop vpn id
+	pathVrfMu    sync.RWMutex
 	mplsLabel    mplsLabelParameter
 	dead         chan struct{}
 }
 
 func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody) []*table.Path {
-	rib := &table.TableManager{
-		Tables: make(map[bgp.Family]*table.Table),
-	}
+	rib := table.NewTableManager(z.server.logger, nil)
 
 	var rfList []bgp.Family
 	switch body.Prefix.Family {
@@ -345,14 +385,16 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 			)
 			continue
 		}
-		rib.Tables[rf] = tbl
+		rib.SetTable(rf, tbl)
 	}
 
 	return rib.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix.Prefix)
 }
 
 func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
+	z.cacheLock.Lock()
 	paths = z.nexthopCache.applyToPathList(paths)
+	z.cacheLock.Unlock()
 	if len(paths) > 0 {
 		if err := z.server.updatePath("", paths); err != nil {
 			z.server.logger.Error("failed to update nexthop reachability",
@@ -391,13 +433,19 @@ func (z *zebraClient) loop() {
 					}
 				}
 			case *zebra.NexthopUpdateBody:
-				if updated := z.nexthopCache.updateByNexthopUpdate(body); !updated {
+				z.cacheLock.Lock()
+				updated := z.nexthopCache.updateByNexthopUpdate(body)
+				z.cacheLock.Unlock()
+				if !updated {
 					continue
 				}
 				paths := z.getPathListWithNexthopUpdate(body)
 				if len(paths) == 0 {
 					// If there is no path bound for the given nexthop, send
 					// NEXTHOP_UNREGISTER message.
+					z.cacheLock.Lock()
+					delete(z.nexthopCache, body.Prefix.Prefix)
+					z.cacheLock.Unlock()
 					err := z.client.SendNexthopRegister(msg.Header.VrfID, newNexthopUnregisterBody(uint16(body.Prefix.Family), body.Prefix.Prefix), true)
 					if err != nil {
 						z.server.logger.Error("failed to send nexthop unregister",
@@ -405,7 +453,7 @@ func (z *zebraClient) loop() {
 							slog.String("Error", err.Error()),
 						)
 					}
-					delete(z.nexthopCache, body.Prefix.Prefix.String())
+					continue
 				}
 				z.updatePathByNexthopCache(paths)
 			case *zebra.GetLabelChunkBody:
@@ -443,7 +491,10 @@ func (z *zebraClient) loop() {
 									continue
 								}
 							}
-							if body := newNexthopRegisterBody(paths, z.nexthopCache); body != nil {
+							z.cacheLock.Lock()
+							body := newNexthopRegisterBody(paths, z.nexthopCache)
+							z.cacheLock.Unlock()
+							if body != nil {
 								err := z.client.SendNexthopRegister(i, body, false)
 								if err != nil {
 									z.server.logger.Error("failed to send nexthop register",
@@ -469,7 +520,10 @@ func (z *zebraClient) loop() {
 									continue
 								}
 							}
-							if body := newNexthopRegisterBody([]*table.Path{path}, z.nexthopCache); body != nil {
+							z.cacheLock.Lock()
+							body := newNexthopRegisterBody([]*table.Path{path}, z.nexthopCache)
+							z.cacheLock.Unlock()
+							if body != nil {
 								err := z.client.SendNexthopRegister(i, body, false)
 								if err != nil {
 									z.server.logger.Error("failed to send nexthop register",
@@ -483,7 +537,10 @@ func (z *zebraClient) loop() {
 					}
 				}
 			case *watchEventUpdate:
-				if body := newNexthopRegisterBody(msg.PathList, z.nexthopCache); body != nil {
+				z.cacheLock.Lock()
+				body := newNexthopRegisterBody(msg.PathList, z.nexthopCache)
+				z.cacheLock.Unlock()
+				if body != nil {
 					vrfID := uint32(0)
 					err := z.server.ListVrf(context.Background(), &api.ListVrfRequest{Name: msg.Neighbor.Config.Vrf}, func(v *api.Vrf) {
 						vrfID = v.Id

@@ -42,6 +42,7 @@ message Capability {
     RouteRefreshCiscoCapability route_refresh_cisco = 11;
     FqdnCapability fqdn = 12;
     SoftwareVersionCapability software_version = 13;
+    ExtendedMessageCapability extended_message = 14;
   }
 }
 
@@ -50,6 +51,12 @@ message MultiProtocolCapability {
 }
 
 message RouteRefreshCapability {}
+
+// ExtendedMessageCapability mirrors the empty TLV for the BGP
+// Extended Message Capability (Capability Code 6, Capability Length 0)
+// defined by RFC 8654. The presence of this oneof on a Capability
+// signals that the peer advertised it; there is no payload.
+message ExtendedMessageCapability {}
 
 message CarryingLabelInfoCapability {}
 

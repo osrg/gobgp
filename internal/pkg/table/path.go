@@ -26,6 +26,7 @@ import (
 	"net/netip"
 	"slices"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -87,6 +88,7 @@ func NewBitmap(size int) *Bitmap {
 
 type originInfo struct {
 	nlri               bgp.NLRI
+	nlriString         string
 	source             *PeerInfo
 	timestamp          int64
 	noImplicitWithdraw bool
@@ -136,7 +138,7 @@ type Path struct {
 	parent    *Path
 	pathAttrs []bgp.PathAttributeInterface
 	dels      []bgp.BGPAttrType
-	attrsHash uint64
+	attrsHash atomic.Uint64
 	localID   uint32
 	remoteID  uint32
 	family    bgp.Family
@@ -182,9 +184,14 @@ func NewPath(family bgp.Family, source *PeerInfo, pathnlri bgp.PathNLRI, isWithd
 	if !isWithdraw && pattrs == nil {
 		return nil
 	}
+	nlriString := ""
+	if pathnlri.NLRI != nil {
+		nlriString = pathnlri.NLRI.String()
+	}
 	return &Path{
 		info: &originInfo{
 			nlri:               pathnlri.NLRI,
+			nlriString:         nlriString,
 			source:             source,
 			timestamp:          timestamp.Unix(),
 			noImplicitWithdraw: noImplicitWithdraw,
@@ -223,8 +230,8 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
-func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, info *PeerInfo, original *Path) *Path {
-	if peer.RouteServer.Config.RouteServerClient {
+func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, original *Path) *Path {
+	if info.RouteServerClient {
 		return original
 	}
 	path := original.Clone(original.IsWithdraw)
@@ -237,7 +244,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 		} else {
 			switch a.GetType() {
 			case bgp.BGP_ATTR_TYPE_CLUSTER_LIST, bgp.BGP_ATTR_TYPE_ORIGINATOR_ID:
-				if peer.State.PeerType != oc.PEER_TYPE_INTERNAL || !peer.RouteReflector.Config.RouteReflectorClient {
+				if info.PeerType != oc.PEER_TYPE_INTERNAL || !info.RouteReflectorClient {
 					// send these attributes to only rr clients
 					path.delPathAttr(a.GetType())
 				}
@@ -247,7 +254,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 
 	localAddress := info.LocalAddress
 	nexthop := path.GetNexthop()
-	switch peer.State.PeerType {
+	switch info.PeerType {
 	case oc.PEER_TYPE_EXTERNAL:
 		// NEXTHOP handling
 		if !path.IsLocal() || nexthop.IsUnspecified() {
@@ -255,11 +262,11 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 		}
 
 		// remove-private-as handling
-		path.RemovePrivateAS(peer.Config.LocalAs, peer.State.RemovePrivateAs)
+		path.RemovePrivateAS(info.LocalAS, info.RemovePrivateAs)
 
 		// AS_PATH handling
-		confed := peer.IsConfederationMember(global)
-		path.PrependAsn(peer.Config.LocalAs, 1, confed)
+		confed := global.IsConfederationMember(info.AS)
+		path.PrependAsn(info.LocalAS, 1, confed)
 		if !confed {
 			path.removeConfedAs()
 		}
@@ -293,8 +300,8 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 
 		// RFC4456: BGP Route Reflection
 		// 8. Avoiding Routing Information Loops
-		info := path.GetSource()
-		if peer.RouteReflector.Config.RouteReflectorClient {
+		src := path.GetSource()
+		if info.RouteReflectorClient {
 			// This attribute will carry the BGP Identifier of the originator of the route in the local AS.
 			// A BGP speaker SHOULD NOT create an ORIGINATOR_ID attribute if one already exists.
 			//
@@ -303,37 +310,43 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, peer *oc.Neighbor, 
 			// the Originator attribute shall be set to the router-id of the
 			// advertiser, and the Next-hop attribute shall be set of the local
 			// address for that session.
+			var attr *bgp.PathAttributeOriginatorId
 			if path.GetFamily() == bgp.RF_RTC_UC {
 				path.SetNexthop(localAddress)
-				attr, _ := bgp.NewPathAttributeOriginatorId(info.LocalID)
-				path.setPathAttr(attr)
+				if path.IsLocal() {
+					attr, _ = bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
+				} else {
+					attr, _ = bgp.NewPathAttributeOriginatorId(src.LocalID)
+				}
 			} else if path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID) == nil {
 				if path.IsLocal() {
-					attr, _ := bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
-					path.setPathAttr(attr)
+					attr, _ = bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
 				} else {
-					attr, _ := bgp.NewPathAttributeOriginatorId(info.ID)
-					path.setPathAttr(attr)
+					attr, _ = bgp.NewPathAttributeOriginatorId(src.ID)
 				}
+			}
+
+			if attr != nil {
+				path.setPathAttr(attr)
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
 			// TODO: needs to validated earlier.
-			clusterID := peer.RouteReflector.State.RouteReflectorClusterId
+			clusterID := info.RouteReflectorClusterID
+			var pa *bgp.PathAttributeClusterList
 			if p := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); p == nil {
-				pa, _ := bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
-				path.setPathAttr(pa)
+				pa, _ = bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
 			} else {
 				clusterList := p.(*bgp.PathAttributeClusterList)
-				pa, _ := bgp.NewPathAttributeClusterList(append([]netip.Addr{clusterID}, clusterList.Value...))
-				path.setPathAttr(pa)
+				pa, _ = bgp.NewPathAttributeClusterList(append([]netip.Addr{clusterID}, clusterList.Value...))
 			}
+			path.setPathAttr(pa)
 		}
 	default:
 		logger.Warn("invalid peer type",
 			slog.String("Topic", "Peer"),
-			slog.String("Key", peer.State.NeighborAddress.String()),
-			slog.Any("Type", peer.State.PeerType))
+			slog.String("Key", info.Address.String()),
+			slog.Any("Type", info.PeerType))
 	}
 	return path
 }
@@ -357,15 +370,16 @@ func (path *Path) IsIBGP() bool {
 
 // create new PathAttributes
 func (path *Path) Clone(isWithdraw bool) *Path {
-	return &Path{
+	p := &Path{
 		parent:           path,
 		family:           path.family,
 		IsWithdraw:       isWithdraw,
 		IsNexthopInvalid: path.IsNexthopInvalid,
-		attrsHash:        path.attrsHash,
 		localID:          path.localID,
 		remoteID:         path.remoteID,
 	}
+	p.attrsHash.Store(path.attrsHash.Load())
+	return p
 }
 
 func (path *Path) root() *Path {
@@ -560,7 +574,7 @@ func (path *Path) getPathAttr(typ bgp.BGPAttrType) bgp.PathAttributeInterface {
 }
 
 func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
-	path.attrsHash = 0
+	path.attrsHash.Store(0)
 	if len(path.pathAttrs) == 0 {
 		path.pathAttrs = []bgp.PathAttributeInterface{a}
 	} else {
@@ -575,7 +589,7 @@ func (path *Path) setPathAttr(a bgp.PathAttributeInterface) {
 }
 
 func (path *Path) delPathAttr(typ bgp.BGPAttrType) {
-	path.attrsHash = 0
+	path.attrsHash.Store(0)
 	if len(path.dels) == 0 {
 		path.dels = []bgp.BGPAttrType{typ}
 	} else {
@@ -615,7 +629,7 @@ func (path *Path) GetLocalKey() PathLocalKey {
 func (path *Path) GetDestLocalKey() PathDestLocalKey {
 	return PathDestLocalKey{
 		Family: path.GetFamily(),
-		Prefix: path.GetNlri().String(),
+		Prefix: path.OriginInfo().nlriString,
 	}
 }
 
@@ -821,12 +835,10 @@ func (path *Path) ReplaceAS(localAS, peerAS uint32) *Path {
 }
 
 func (path *Path) GetCommunities() []uint32 {
-	communityList := []uint32{}
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_COMMUNITIES); attr != nil {
-		communities := attr.(*bgp.PathAttributeCommunities)
-		communityList = append(communityList, communities.Value...)
+		return attr.(*bgp.PathAttributeCommunities).Value
 	}
-	return communityList
+	return nil
 }
 
 // SetCommunities adds or replaces communities with new ones.
@@ -891,12 +903,10 @@ func (path *Path) RemoveCommunities(communities []uint32) int {
 }
 
 func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
-	eCommunityList := make([]bgp.ExtendedCommunityInterface, 0)
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES); attr != nil {
-		eCommunities := attr.(*bgp.PathAttributeExtendedCommunities).Value
-		eCommunityList = append(eCommunityList, eCommunities...)
+		return attr.(*bgp.PathAttributeExtendedCommunities).Value
 	}
-	return eCommunityList
+	return nil
 }
 
 func (path *Path) SetExtCommunities(exts []bgp.ExtendedCommunityInterface, doReplace bool) {
@@ -926,10 +936,7 @@ func (path *Path) GetRouteTargets() []bgp.ExtendedCommunityInterface {
 
 func (path *Path) GetLargeCommunities() []*bgp.LargeCommunity {
 	if a := path.getPathAttr(bgp.BGP_ATTR_TYPE_LARGE_COMMUNITY); a != nil {
-		v := a.(*bgp.PathAttributeLargeCommunities).Values
-		ret := make([]*bgp.LargeCommunity, 0, len(v))
-		ret = append(ret, v...)
-		return ret
+		return a.(*bgp.PathAttributeLargeCommunities).Values
 	}
 	return nil
 }
@@ -1059,8 +1066,10 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		return false
 	}
 	// The idea here is to calculate the hash of the attributes on demand
-	if lhs.attrsHash > 0 && rhs.attrsHash > 0 { // direct access to the hash to avoid unnecessary hash calculation
-		return lhs.attrsHash == rhs.attrsHash
+	lhsHash := lhs.attrsHash.Load()
+	rhsHash := rhs.attrsHash.Load()
+	if lhsHash > 0 && rhsHash > 0 { // avoid unnecessary hash calculation
+		return lhsHash == rhsHash
 	}
 	// slow path comparison, could happen as attributes flags is not part of the hash
 	for t, a := range lhsPathAttrs {
@@ -1321,23 +1330,24 @@ func (p *Path) ToLocal() *Path {
 }
 
 func (p *Path) updateHash() {
-	p.attrsHash = fnv1a.Init64
+	hash := fnv1a.Init64
 	for _, a := range p.GetPathAttrs() {
 		d, _ := a.Serialize()
-		p.attrsHash = fnv1a.AddBytes64(p.attrsHash, d)
+		hash = fnv1a.AddBytes64(hash, d)
 	}
+	p.attrsHash.Store(hash)
 }
 
 func (p *Path) SetHash(v uint64) {
-	p.attrsHash = v
+	p.attrsHash.Store(v)
 }
 
 // GetHash returns the hash value of the path attributes.
 func (p *Path) GetHash() uint64 {
-	if p.attrsHash == 0 {
+	if p.attrsHash.Load() == 0 {
 		p.updateHash()
 	}
-	return p.attrsHash
+	return p.attrsHash.Load()
 }
 
 func (p *Path) SetSource(peerInfo *PeerInfo) {
@@ -1373,4 +1383,16 @@ func nlriToIPNet(nlri bgp.NLRI) *net.IPNet {
 		}
 	}
 	return nil
+}
+
+func nlriToPrefix(nlri bgp.NLRI) netip.Prefix {
+	switch T := nlri.(type) {
+	case *bgp.IPAddrPrefix:
+		return T.Prefix
+	case *bgp.LabeledIPAddrPrefix:
+		return T.Prefix
+	case *bgp.LabeledVPNIPAddrPrefix:
+		return T.Prefix
+	}
+	return netip.Prefix{}
 }

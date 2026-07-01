@@ -16,44 +16,6 @@ This page explains how to set up a scenario test environment and run the test.
 
 Go, Docker, and Python3 need to be set up.
 
-```shell
-$ python --version
-Python 3.9.7
-
-$ go version
-go version go1.17 linux/arm64
-
-$ docker version
-Client:
- Version:           20.10.7
- API version:       1.41
- Go version:        go1.13.8
- Git commit:        20.10.7-0ubuntu5.1
- Built:             Mon Nov  1 00:34:28 2021
- OS/Arch:           linux/arm64
- Context:           default
- Experimental:      true
-
-Server:
- Engine:
-  Version:          20.10.7
-  API version:      1.41 (minimum version 1.12)
-  Go version:       go1.13.8
-  Git commit:       20.10.7-0ubuntu5.1
-  Built:            Thu Oct 21 23:58:58 2021
-  OS/Arch:          linux/arm64
-  Experimental:     false
- containerd:
-  Version:          1.5.5-0ubuntu3
-  GitCommit:
- runc:
-  Version:          1.0.1-0ubuntu2
-  GitCommit:
- docker-init:
-  Version:          0.19.0
-  GitCommit:
-```
-
 ## Set up dependencies
 
 Execute the following commands to install the dependencies:
@@ -71,7 +33,7 @@ $ pip install -r test/pip-requires.txt
 You need to build GoBGP docker image to test from the source code that you modified. You need run the following command every time you modify the source code.
 
 ```shell
-$ fab -r ./test/lib make-gobgp-ctn
+$ test/lib/make-gobgp-ctn.sh
 ```
 
 ## Run tests

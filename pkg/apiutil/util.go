@@ -80,6 +80,21 @@ const (
 	LOOKUP_SHORTER
 )
 
+// LookupOptionFromAPI converts a protobuf TableLookupPrefix_Type to a
+// LookupOption. A direct cast is wrong because the proto enum reserves 0 for
+// UNSPECIFIED and starts meaningful values at 1, while LookupOption's iota
+// starts at 0 (EXACT).
+func LookupOptionFromAPI(t api.TableLookupPrefix_Type) LookupOption {
+	switch t {
+	case api.TableLookupPrefix_TYPE_LONGER:
+		return LOOKUP_LONGER
+	case api.TableLookupPrefix_TYPE_SHORTER:
+		return LOOKUP_SHORTER
+	default:
+		return LOOKUP_EXACT
+	}
+}
+
 type LookupPrefix struct {
 	Prefix string
 	RD     string
@@ -114,6 +129,7 @@ type PeerConf struct {
 	LocalASN          uint32
 	NeighborAddress   netip.Addr
 	NeighborInterface string
+	PeerGroup         string
 }
 type PeerState struct {
 	PeerASN           uint32
@@ -122,7 +138,9 @@ type PeerState struct {
 	SessionState      bgp.FSMState
 	AdminState        api.PeerState_AdminState
 	RouterID          netip.Addr
+	PeerGroup         string
 	RemoteCap         []bgp.ParameterCapabilityInterface
+	LocalCap          []bgp.ParameterCapabilityInterface
 	DisconnectReason  api.PeerState_DisconnectReason
 	DisconnectMessage string
 }

@@ -27,7 +27,7 @@ const (
 	ipv6MinHopCount = 73   // Generalized TTL Security Mechanism (RFC5082)
 )
 
-func SetTcpMD5SigSockopt(l *net.TCPListener, address string, key string) error {
+func SetTcpMD5SigSockopt(l *net.TCPListener, bindInterface string, address string, key string) error {
 	sc, err := l.SyscallConn()
 	if err != nil {
 		return err
@@ -76,4 +76,17 @@ func SetIpTOSSockopt(conn net.Conn, tos uint8) error {
 		return err
 	}
 	return setSockOptIpTos(sc, family, tos)
+}
+
+func SetUdpTTLSockopt(conn net.Conn, ttl int) error {
+	family := extractFamilyFromConn(conn)
+	sc, err := conn.(syscall.Conn).SyscallConn()
+	if err != nil {
+		return err
+	}
+	return setSockOptIpTtl(sc, family, ttl)
+}
+
+func SetReuseAddrSockoptImpl(sc syscall.RawConn) error {
+	return setSockOptInt(sc, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
 }
