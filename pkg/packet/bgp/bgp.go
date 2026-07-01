@@ -5197,7 +5197,8 @@ func (l *LsLinkNLRI) String() string {
 	link := &LsLinkDescriptor{}
 	link.ParseTLVs(l.LinkDesc)
 
-	return fmt.Sprintf("LINK { LOCAL_NODE: %v REMOTE_NODE: %v LINK: %v}", local, remote, link)
+	// return fmt.Sprintf("LINK { LOCAL_NODE: %v REMOTE_NODE: %v LINK: %v}", local, remote, link)
+        return fmt.Sprintf("LINK { LOCAL_NODE: %v REMOTE_NODE: %v LINK: %v %v:%v}", local, remote, link, l.ProtocolID.String(), l.Identifier)
 }
 
 func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
@@ -5381,7 +5382,10 @@ func (l *LsPrefixV4NLRI) String() string {
 		ospf = fmt.Sprintf("OSPF_ROUTE_TYPE:%v ", prefix.OSPFRouteType)
 	}
 
-	return fmt.Sprintf("PREFIXv4 { LOCAL_NODE: %s PREFIX: %v %s%s}", local.IGPRouterID, ips, ospf, multiTopoIDsToString(prefix.MultiTopoIDs))
+
+	// return fmt.Sprintf("PREFIXv4 { LOCAL_NODE: %s PREFIX: %v %s%s}", local.IGPRouterID, ips, ospf, multiTopoIDsToString(prefix.MultiTopoIDs))
+    return fmt.Sprintf("PREFIXv4 { LOCAL_NODE: %s PREFIX: %v %s%s %s:%v}", local.IGPRouterID, ips, ospf, multiTopoIDsToString(prefix.MultiTopoIDs), l.ProtocolID.String(), l.Identifier)
+
 }
 
 func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
@@ -5558,7 +5562,9 @@ func (l *LsPrefixV6NLRI) String() string {
 		ospf = fmt.Sprintf("OSPF_ROUTE_TYPE:%v ", prefix.OSPFRouteType)
 	}
 
-	return fmt.Sprintf("PREFIXv6 { LOCAL_NODE: %v PREFIX: %v %v%s}", local.IGPRouterID, ips, ospf, multiTopoIDsToString(prefix.MultiTopoIDs))
+
+	//return fmt.Sprintf("PREFIXv6 { LOCAL_NODE: %v PREFIX: %v %v%s}", local.IGPRouterID, ips, ospf, multiTopoIDsToString(prefix.MultiTopoIDs))
+    return fmt.Sprintf("PREFIXv6 { LOCAL_NODE: %v PREFIX: %v %v%s %s:%v}", local.IGPRouterID, ips, ospf, multiTopoIDsToString(prefix.MultiTopoIDs), l.ProtocolID.String(), l.Identifier)
 }
 
 func (l *LsPrefixV6NLRI) DecodeFromBytes(data []byte) error {
