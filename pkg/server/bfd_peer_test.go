@@ -172,6 +172,65 @@ func Test_RxPacketRFCStateTransitions(t *testing.T) {
 	assert.Equal(uint32(444), p.yourDiscriminator)
 }
 
+// Test_RxPacketDetectionTimeFromRemote pins RFC 5880 Section 6.8.4: the detection time
+// must be the remote Detect Mult multiplied by max(local RequiredMinRx,
+// remote DesiredMinTx), not our own multiplier multiplied by our own rxInterval.
+// With local rx=300ms/mult=3 and remote tx=1000ms, the old detector expired at
+// 900ms, before the next remote packet. After the fix it stretches to 3000ms.
+func Test_RxPacketDetectionTimeFromRemote(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   300000, // 300ms
+		DesiredMinimumTxInterval: 300000,
+	}, "")
+	defer p.Stop()
+
+	// Before any packet: our-config-only baseline (the old, buggy value).
+	assert.Equal(3*300*time.Millisecond, p.expiryInterval)
+
+	// Peer advertises a SLOWER cadence (BIRD default on the tap): tx=1000ms, mult=3.
+	p.rxPacket(&bfd.BFDHeader{
+		State:                 bfd.StateDown,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DesiredMinTxInterval:  1000000, // 1000ms
+		DetectTimeMultiplier:  3,
+		RequiredMinRxInterval: 1000000,
+	})
+	// Detection must now track the peer: 3 * max(300ms, 1000ms) = 3000ms.
+	assert.Equal(3*1000*time.Millisecond, p.expiryInterval)
+
+	// A zero-timer keepalive must NOT collapse the detector back to a bogus value:
+	// missing remote fields fall back to our local config, not to 0.
+	p.rxPacket(&bfd.BFDHeader{
+		State:             bfd.StateUp,
+		MyDiscriminator:   111,
+		YourDiscriminator: p.myDiscriminator,
+	})
+	assert.Equal(3*300*time.Millisecond, p.expiryInterval)
+}
+
+func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:    13784,
+		Enabled: true,
+	}, "")
+	defer p.Stop()
+
+	p.setStateDown()
+	p.expiry()
+
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.resetPeerCount))
+}
+
 func Test_TxPacket(t *testing.T) {
 	assert := assert.New(t)
 

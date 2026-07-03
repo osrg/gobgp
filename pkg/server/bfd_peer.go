@@ -291,7 +291,18 @@ func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
 
 	p.stats.rxPacket.Add(1)
 
-	// NOTE: remote DesiredMinTxInterval and RequiredMinRxInterval ignored
+	// RFC 5880 Section 6.8.4: Detection Time is the remote Detect Mult
+	// multiplied by the negotiated receive interval, i.e. the greater of our
+	// RequiredMinRxInterval and the remote DesiredMinTxInterval.
+	negotiatedRx := p.rxInterval
+	if remoteTx := time.Duration(h.DesiredMinTxInterval) * time.Microsecond; remoteTx > negotiatedRx {
+		negotiatedRx = remoteTx
+	}
+	remoteMult := time.Duration(h.DetectTimeMultiplier)
+	if remoteMult == 0 {
+		remoteMult = time.Duration(p.multiplier)
+	}
+	p.expiryInterval = remoteMult * negotiatedRx
 
 	switch h.State {
 	case bfd.StateAdminDown:
@@ -338,6 +349,11 @@ func (p *bfdPeer) tx() {
 }
 
 func (p *bfdPeer) expiry() {
+	if p.sessionState() == api.BfdSessionState_BFD_SESSION_STATE_DOWN {
+		p.eventExpiry.Stop()
+		return
+	}
+
 	p.logger.Warn("Expired",
 		slog.String("Topic", "bfd"),
 		slog.String("Peer", p.peerAddress.String()),
