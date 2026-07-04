@@ -19,7 +19,7 @@ func TestRTMSetAddSubHas(t *testing.T) {
 	rt, err := bgp.ParseRouteTarget("65520:1000000")
 	assert.NoError(t, err)
 	nlri := bgp.NewRouteTargetMembershipNLRI(65000, rt)
-	rtHash, err := nlriRouteTargetKey(nlri)
+	rtHash, err := nlri.RouteTargetKey()
 	assert.NoError(t, err)
 
 	var nilSet *rtmSet
@@ -87,7 +87,7 @@ func TestRTMSetConcurrent(t *testing.T) {
 
 	rt, _ := bgp.ParseRouteTarget("65520:1000000")
 	nlri := bgp.NewRouteTargetMembershipNLRI(65000, rt)
-	rtHash, err := nlriRouteTargetKey(nlri)
+	rtHash, err := nlri.RouteTargetKey()
 	assert.NoError(t, err)
 
 	s := newRtmSet()
@@ -131,7 +131,7 @@ func TestRouteTargetMembershipHandlerDefaultAndRTs(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
 
 	rt1, _ := bgp.ParseRouteTarget("65520:1000000")
-	_, err := extCommRouteTargetKey(rt1)
+	_, err := bgp.ExtCommRouteTargetKey(rt1)
 	assert.NoError(t, err)
 	nlri1 := bgp.NewRouteTargetMembershipNLRI(65000, rt1)
 	p1 := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)

@@ -17,6 +17,7 @@ package table
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1461,6 +1462,15 @@ func nlriToPrefix(nlri bgp.NLRI) netip.Prefix {
 		return T.Prefix
 	case *bgp.LabeledVPNIPAddrPrefix:
 		return T.Prefix
+	case *bgp.RouteTargetMembershipNLRI:
+		var addr [16]byte
+		binary.BigEndian.PutUint32(addr[:4], T.AS)
+		rtKey, err := T.RouteTargetKey()
+		if err != nil {
+			return netip.Prefix{}
+		}
+		binary.BigEndian.PutUint64(addr[4:12], rtKey)
+		return netip.PrefixFrom(netip.AddrFrom16(addr), int(T.Length))
 	}
 	return netip.Prefix{}
 }

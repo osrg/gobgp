@@ -1048,6 +1048,30 @@ module gobgp {
     }
   }
 
+  // ip-prefix and rtc-prefix are mutually exclusive; relax mandatory so a
+  // prefix entry may be rtc-only. The existing match-prefix-set condition is
+  // reused for RTC (RF_RTC_UC) paths.
+  deviation "/rpol:routing-policy/rpol:defined-sets/rpol:prefix-sets/" +
+      "rpol:prefix-set/rpol:prefixes/rpol:prefix/rpol:config/rpol:ip-prefix" {
+    deviate delete {
+      mandatory true;
+    }
+  }
+
+  augment "/rpol:routing-policy/rpol:defined-sets/rpol:prefix-sets/" +
+      "rpol:prefix-set/rpol:prefixes/rpol:prefix/rpol:config" {
+    leaf rtc-prefix {
+      type string {
+        pattern '\d+(\.\d+)?:(\d+\.\d+\.\d+\.\d+|\d+(\.\d+)?):\d+(/\d+)?';
+      }
+      description
+        "Route Target in RFC 4684 NLRI key form:
+        <origin-as>:<route-target>[/<masklen>], where <route-target> follows
+        the extended community Route Target notation. Mutually exclusive with
+        ip-prefix.";
+    }
+  }
+
   augment "/rpol:routing-policy/rpol:defined-sets/" +
     "bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set" {
     description "alternative for the existing community-member";

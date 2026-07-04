@@ -2779,7 +2779,7 @@ func parseLsArgs(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 
 func parseRtcArgs(args []string) (bgp.NLRI, error) {
 	// Format:
-	// asn <asn> rt <rt> | default
+	// <as>:<rt>[/len] | asn <asn> rt <rt> | default
 	m, err := extractReserved(args, map[string]int{
 		"asn":     paramSingle,
 		"rt":      paramSingle,
@@ -2793,13 +2793,21 @@ func parseRtcArgs(args []string) (bgp.NLRI, error) {
 		return bgp.NewRouteTargetMembershipNLRI(0, nil), nil
 	}
 
+	if len(m[""]) != 0 {
+		nlri, _, err := bgp.ParseRouteTargetMembershipNLRI(m[""][0])
+		if err != nil {
+			return nil, err
+		}
+		return nlri, nil
+	}
+
 	for _, f := range []string{"asn", "rt"} {
 		if len(m[f]) == 0 {
 			return nil, fmt.Errorf("specify %s", f)
 		}
 	}
 
-	asn, err := toAs4Value(m["asn"][0])
+	asn, err := bgp.ParseAs4Value(m["asn"][0])
 	if err != nil {
 		return nil, err
 	}
@@ -2832,26 +2840,6 @@ func extractOrigin(args []string) ([]string, bgp.PathAttributeInterface, error) 
 	return args, bgp.NewPathAttributeOrigin(typ), nil
 }
 
-func toAs4Value(s string) (uint32, error) {
-	if strings.Contains(s, ".") {
-		v := strings.Split(s, ".")
-		upper, err := strconv.ParseUint(v[0], 10, 16)
-		if err != nil {
-			return 0, nil
-		}
-		lower, err := strconv.ParseUint(v[1], 10, 16)
-		if err != nil {
-			return 0, nil
-		}
-		return uint32(upper<<16 | lower), nil
-	}
-	i, err := strconv.ParseUint(s, 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	return uint32(i), nil
-}
-
 var (
 	_regexpASPathGroups  = regexp.MustCompile("[{}]")
 	_regexpASPathSegment = regexp.MustCompile(`,|\s+`)
@@ -2872,7 +2860,7 @@ func newAsPath(aspath string) (bgp.PathAttributeInterface, error) {
 			if n == "" {
 				continue
 			}
-			if asn, err := toAs4Value(n); err != nil {
+			if asn, err := bgp.ParseAs4Value(n); err != nil {
 				return nil, err
 			} else {
 				asNums = append(asNums, asn)
@@ -3472,7 +3460,7 @@ usage: %s rib -a %%s %s %%s [origin { igp | egp | incomplete }] [aspath <ASPATH>
 			cmdstr,
 			modtype,
 		)
-		helpErrMap[bgp.RF_RTC_UC] = fmt.Errorf(rtcHelpMsgFmt, "rtc", "{ asn <ASN> rt <RT> | default }")
+		helpErrMap[bgp.RF_RTC_UC] = fmt.Errorf(rtcHelpMsgFmt, "rtc", "{ <ASN>:<RT>[/len] | asn <ASN> rt <RT> | default }")
 
 		if err, ok := helpErrMap[rf]; ok {
 			return err
