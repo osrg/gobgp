@@ -1119,6 +1119,7 @@ message AddPaths {
 
 message Prefix {
   string ip_prefix = 1;
+  string rtc_prefix = 4;
   uint32 mask_length_min = 2;
   uint32 mask_length_max = 3;
 }

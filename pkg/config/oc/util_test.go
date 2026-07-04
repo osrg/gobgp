@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -244,4 +245,90 @@ func TestNewPeerGroupFromConfigStruct_BfdConfig(t *testing.T) {
 		assert.Equal(t, uint32(0), cfg.RequiredMinimumReceive)
 		assert.Equal(t, uint32(0), cfg.DetectionMultiplier)
 	})
+}
+
+func TestParseMaskLength(t *testing.T) {
+	assert := assert.New(t)
+	cases := []struct {
+		prefix string
+		mask   string
+		min    int
+		max    int
+		err    bool
+	}{
+		// IPv4: default mask = prefix length.
+		{"10.0.0.0/24", "", 24, 24, false},
+		// IPv4: range within 0..32.
+		{"10.0.0.0/24", "24..32", 24, 32, false},
+		// IPv4: out-of-scope (>32) rejected.
+		{"10.0.0.0/24", "24..40", 0, 0, true},
+
+		// IPv6: default mask = prefix length.
+		{"2001:db8::/32", "", 32, 32, false},
+		// IPv6: range within 0..128.
+		{"2001:db8::/32", "32..128", 32, 128, false},
+		// IPv6: out-of-scope (>128) rejected.
+		{"2001:db8::/32", "32..200", 0, 0, true},
+
+		// RTC: default mask = prefix length.
+		{"65000:65000:100/96", "", 96, 96, false},
+		// RTC: explicit range within 0..96.
+		{"65000:65000:100/96", "32..96", 32, 96, false},
+		{"0:0:0/0", "32..96", 32, 96, false},
+		// RTC: out-of-scope (>96) rejected.
+		{"65000:65000:100/96", "90..128", 0, 0, true},
+		// RTC: malformed prefix.
+		{"65000:65000", "96..96", 0, 0, true},
+
+		// inverted range rejected for any family.
+		{"10.0.0.0/24", "32..24", 0, 0, true},
+		{"65000:65000:100/96", "96..32", 0, 0, true},
+		// malformed range.
+		{"10.0.0.0/24", "24", 0, 0, true},
+	}
+	for _, c := range cases {
+		min, max, err := ParseMaskLength(c.prefix, c.mask)
+		if c.err {
+			assert.Error(err, "%s %s", c.prefix, c.mask)
+			continue
+		}
+		assert.NoError(err, c.prefix)
+		assert.Equal(c.min, min, c.prefix)
+		assert.Equal(c.max, max, c.prefix)
+	}
+}
+
+func TestPrefixToPrefix(t *testing.T) {
+	assert := assert.New(t)
+	pfx, rf, err := (&Prefix{IpPrefix: netip.MustParsePrefix("10.0.0.0/24")}).ToPrefix()
+	assert.NoError(err)
+	assert.Equal("10.0.0.0/24", pfx.String())
+	assert.Equal(bgp.RF_IPv4_UC, rf)
+
+	pfx, rf, err = (&Prefix{IpPrefix: netip.MustParsePrefix("2001:db8::/32")}).ToPrefix()
+	assert.NoError(err)
+	assert.Equal("2001:db8::/32", pfx.String())
+	assert.Equal(bgp.RF_IPv6_UC, rf)
+
+	pfx, rf, err = (&Prefix{RtcPrefix: "123:65000:100/96"}).ToPrefix()
+	assert.NoError(err)
+	assert.Equal(bgp.RF_RTC_UC, rf)
+	assert.Equal(96, pfx.Bits())
+
+	_, _, err = (&Prefix{IpPrefix: netip.MustParsePrefix("10.0.0.0/24"), RtcPrefix: "123:65000:100/96"}).ToPrefix()
+	assert.Error(err)
+	_, _, err = (&Prefix{}).ToPrefix()
+	assert.Error(err)
+}
+
+func TestNewAPIPrefixFromConfigStructRtc(t *testing.T) {
+	assert := assert.New(t)
+	// rtc-prefix config round-trips into the api.Prefix RtcPrefix field
+	out, err := newAPIPrefixFromConfigStruct(Prefix{RtcPrefix: "65000:65000:100/96", MasklengthRange: "96..96"})
+	assert.NoError(err)
+	assert.Equal(&api.Prefix{RtcPrefix: "65000:65000:100/96", MaskLengthMin: 96, MaskLengthMax: 96}, out)
+	// ip-prefix config unchanged
+	out, err = newAPIPrefixFromConfigStruct(Prefix{IpPrefix: netip.MustParsePrefix("10.0.0.0/24"), MasklengthRange: "24..24"})
+	assert.NoError(err)
+	assert.Equal(&api.Prefix{IpPrefix: "10.0.0.0/24", MaskLengthMin: 24, MaskLengthMax: 24}, out)
 }

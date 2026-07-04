@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"regexp"
 	"strconv"
 	"strings"
@@ -140,7 +141,11 @@ func formatDefinedSet(head bool, typ string, indent int, list []*api.DefinedSet)
 				fmt.Fprintf(buff, format, s.GetName(), "")
 			}
 			for i, x := range l {
-				prefix := fmt.Sprintf("%s %d..%d", x.GetIpPrefix(), x.GetMaskLengthMin(), x.GetMaskLengthMax())
+				prefix := x.GetIpPrefix()
+				if prefix == "" {
+					prefix = x.GetRtcPrefix()
+				}
+				prefix = fmt.Sprintf("%s %d..%d", prefix, x.GetMaskLengthMin(), x.GetMaskLengthMax())
 				if i == 0 {
 					fmt.Fprintf(buff, format, s.GetName(), prefix)
 				} else {
@@ -260,9 +265,16 @@ func parsePrefixSet(args []string) (*api.DefinedSet, error) {
 			return nil, err
 		}
 		prefix := &api.Prefix{
-			IpPrefix:      args[0],
 			MaskLengthMax: uint32(max),
 			MaskLengthMin: uint32(min),
+		}
+		// CIDR and rtc-prefix forms are unambiguous; pick by which parses.
+		if _, perr := netip.ParsePrefix(args[0]); perr == nil {
+			prefix.IpPrefix = args[0]
+		} else if _, perr := bgp.ParseRTCPrefix(args[0]); perr == nil {
+			prefix.RtcPrefix = args[0]
+		} else {
+			return nil, fmt.Errorf("invalid ip-prefix or rtc-prefix: %s", args[0])
 		}
 		list = []*api.Prefix{prefix}
 	}
@@ -397,7 +409,7 @@ func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
 }
 
 var modPolicyUsageFormat = map[string]string{
-	cmdPrefix:         "usage: policy prefix %s <name> [<prefix> [<mask range>]]",
+	cmdPrefix:         "usage: policy prefix %s <name> [<ip-prefix>|<rtc-prefix> [<mask range>]]",
 	cmdNeighbor:       "usage: policy neighbor %s <name> [<neighbor address>...]",
 	cmdAspath:         "usage: policy aspath %s <name> [<regexp>...]",
 	cmdCommunity:      "usage: policy community %s <name> [<regexp>...]",

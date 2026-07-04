@@ -369,6 +369,35 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	pType2, newPath2 := p.Apply(logger, path2, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType2)
 	assert.Equal(t, newPath2, path2)
+
+	// rtc-prefix-set: reject the matching RTC NLRI, pass the non-matching one.
+	rtcPs := oc.PrefixSet{
+		PrefixSetName: "ps2",
+		PrefixList: []oc.Prefix{{
+			RtcPrefix:       "65001:65000:100/96",
+			MasklengthRange: "96..96",
+		}},
+	}
+	ds2 := oc.DefinedSets{PrefixSets: []oc.PrefixSet{rtcPs}}
+	s2 := createStatement("statement2", "ps2", "", false)
+	pd2 := createPolicyDefinition("pd2", s2)
+	pl2 := createRoutingPolicy(ds2, pd2)
+	r2 := NewRoutingPolicy(logger)
+	err = r2.reload(pl2)
+	assert.NoError(t, err)
+	p2 := r2.policyMap["pd2"]
+
+	rt, _ := bgp.ParseRouteTarget("65000:100")
+	rtcMatch := NewPath(bgp.RF_RTC_UC, peer, bgp.PathNLRI{NLRI: bgp.NewRouteTargetMembershipNLRI(65001, rt)}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	pType3, newPath3 := p2.Apply(logger, rtcMatch, nil)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType3)
+	assert.Equal(t, newPath3, rtcMatch)
+
+	rt2, _ := bgp.ParseRouteTarget("65000:200")
+	rtcNoMatch := NewPath(bgp.RF_RTC_UC, peer, bgp.PathNLRI{NLRI: bgp.NewRouteTargetMembershipNLRI(65001, rt2)}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	pType4, newPath4 := p2.Apply(logger, rtcNoMatch, nil)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType4)
+	assert.Equal(t, newPath4, rtcNoMatch)
 }
 
 func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
@@ -3762,6 +3791,101 @@ func TestPrefixSetMatchVPNV6Prefix(t *testing.T) {
 	assert.False(t, m.Evaluate(path, nil))
 }
 
+// TestPrefixSetMatchRtcPrefix exercises rtc-prefix matching across the
+// origin-as × route-target matrix at depths /0, /32, /64, /80, /96.
+func TestPrefixSetMatchRtcPrefix(t *testing.T) {
+	rtm := func(as uint32, rt string) *bgp.RouteTargetMembershipNLRI {
+		r, err := bgp.ParseRouteTarget(rt)
+		assert.NoError(t, err)
+		return bgp.NewRouteTargetMembershipNLRI(as, r)
+	}
+	cases := []struct {
+		rtcPrefix string
+		maskRange string
+		nlri      bgp.NLRI
+		want      bool
+	}{
+		// /0 matches any RTC NLRI.
+		{"0:0:0/0", "0..96", bgp.NewRouteTargetMembershipNLRI(0, nil), true},
+		{"0:0:0/0", "0..96", rtm(123, "65000:100"), true},
+		// /32: origin-as only.
+		{"123:65000:0/32", "96..96", rtm(123, "65000:100"), true},
+		{"123:65000:0/32", "96..96", rtm(123, "65001:200"), true},
+		{"123:65000:0/32", "96..96", rtm(999, "65000:100"), false},
+		{"123:65000:0/32", "32..32", bgp.NewRouteTargetMembershipNLRI(123, nil), true},
+		// 4-octet origin-as: 6500000 == 100.1000 == 6554600.
+		{"6500000:65000:0/32", "96..96", rtm(6500000, "65000:100"), true},
+		{"100.1000:65000:0/32", "96..96", rtm(100*65536+1000, "65000:100"), true},
+		// /64: origin-as + 2-octet RT AS (local-admin ignored).
+		{"123:65000:0/64", "96..96", rtm(123, "65000:200"), true},
+		{"123:65000:0/64", "96..96", rtm(123, "65001:200"), false},
+		// /80: 4-octet/IPv4 RT keep full AS, local-admin ignored.
+		{"123:100.1000:0/80", "96..96", rtm(123, "100.1000:200"), true},
+		{"123:1.2.3.4:0/80", "96..96", rtm(123, "1.2.3.4:200"), true},
+		// /96 exact.
+		{"123:65000:100/96", "96..96", rtm(123, "65000:100"), true},
+		{"123:65000:100/96", "96..96", rtm(123, "65000:200"), false},
+		{"123:1.2.3.4:100/96", "96..96", rtm(123, "1.2.3.4:100"), true},
+		{"123:1.2.3.4:100/96", "96..96", rtm(123, "1.2.3.5:100"), false},
+		{"123:100.1000:100/96", "96..96", rtm(123, "100.1000:100"), true},
+		// no /n defaults to /96.
+		{"123:65000:100", "96..96", rtm(123, "65000:100"), true},
+		{"123:65000:100", "96..96", rtm(123, "65000:200"), false},
+		{"123:65000:100", "32..32", rtm(123, "65000:100"), false},
+	}
+	for _, c := range cases {
+		t.Run(c.rtcPrefix+" "+c.maskRange, func(t *testing.T) {
+			ps, err := NewPrefixSet(oc.PrefixSet{
+				PrefixSetName: "ps1",
+				PrefixList:    []oc.Prefix{{RtcPrefix: c.rtcPrefix, MasklengthRange: c.maskRange}},
+			})
+			assert.NoError(t, err)
+			m := &PrefixCondition{set: ps}
+			path := NewPath(bgp.RF_RTC_UC, nil, bgp.PathNLRI{NLRI: c.nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+			assert.Equal(t, c.want, m.Evaluate(path, nil))
+		})
+	}
+
+	// IPv4 path must not match an RTC set despite shared AFI_IP.
+	ps, err := NewPrefixSet(oc.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList:    []oc.Prefix{{RtcPrefix: "0:0:0/0", MasklengthRange: "0..96"}},
+	})
+	assert.NoError(t, err)
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	path := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	assert.False(t, (&PrefixCondition{set: ps}).Evaluate(path, nil))
+}
+
+func TestPrefixSetRtcRejectMixedFamily(t *testing.T) {
+	_, err := NewPrefixSet(oc.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []oc.Prefix{
+			{IpPrefix: netip.MustParsePrefix("10.10.10.0/24")},
+			{RtcPrefix: "123:65000:100/96"},
+		},
+	})
+	assert.NotNil(t, err)
+
+	_, _, err = (&oc.Prefix{IpPrefix: netip.MustParsePrefix("10.10.10.0/24"), RtcPrefix: "123:65000:100/96"}).ToPrefix()
+	assert.NotNil(t, err)
+}
+
+func TestPrefixSetRtcRoundTrip(t *testing.T) {
+	ps, err := NewPrefixSet(oc.PrefixSet{
+		PrefixSetName: "ps1",
+		PrefixList: []oc.Prefix{
+			{RtcPrefix: "65000:65000:100/96", MasklengthRange: "96..96"},
+		},
+	})
+	assert.NoError(t, err)
+	cfg := ps.ToConfig()
+	assert.Len(t, cfg.PrefixList, 1)
+	assert.Equal(t, "65000:65000:100/96", cfg.PrefixList[0].RtcPrefix)
+	assert.False(t, cfg.PrefixList[0].IpPrefix.IsValid())
+	assert.Equal(t, "96..96", cfg.PrefixList[0].MasklengthRange)
+}
+
 func TestLargeCommunityMatchAction(t *testing.T) {
 	coms := []*bgp.LargeCommunity{
 		{ASN: 100, LocalData1: 100, LocalData2: 100},
@@ -3957,4 +4081,57 @@ func TestNewSingleAsPathMatch(t *testing.T) {
 	assert.Equal(t, r.mode, INCLUDE)
 	r = NewSingleAsPathMatch("^65100$")
 	assert.Equal(t, r.mode, ONLY)
+}
+
+func BenchmarkPrefixConditionEvaluate(b *testing.B) {
+	rt, _ := bgp.ParseRouteTarget("65000:100")
+	cases := []struct {
+		name   string
+		set    oc.PrefixSet
+		family bgp.Family
+		nlri   bgp.NLRI
+	}{
+		{
+			name:   "IPv4",
+			family: bgp.RF_IPv4_UC,
+			set: oc.PrefixSet{PrefixSetName: "v4", PrefixList: []oc.Prefix{
+				{IpPrefix: netip.MustParsePrefix("10.0.0.0/8"), MasklengthRange: "8..32"},
+				{IpPrefix: netip.MustParsePrefix("0.0.0.0/0"), MasklengthRange: "0..32"},
+			}},
+			nlri: mustIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24")),
+		},
+		{
+			name:   "IPv6",
+			family: bgp.RF_IPv6_UC,
+			set: oc.PrefixSet{PrefixSetName: "v6", PrefixList: []oc.Prefix{
+				{IpPrefix: netip.MustParsePrefix("2001:db8::/32"), MasklengthRange: "32..128"},
+				{IpPrefix: netip.MustParsePrefix("::/0"), MasklengthRange: "0..128"},
+			}},
+			nlri: mustIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64")),
+		},
+		{
+			name:   "RTC",
+			family: bgp.RF_RTC_UC,
+			set: oc.PrefixSet{PrefixSetName: "rtc", PrefixList: []oc.Prefix{
+				{RtcPrefix: "65000:65000:100/96", MasklengthRange: "96..96"},
+				{RtcPrefix: "65000:65000:0/32", MasklengthRange: "32..96"},
+				{RtcPrefix: "0:0:0/0", MasklengthRange: "0..96"},
+			}},
+			nlri: bgp.NewRouteTargetMembershipNLRI(65000, rt),
+		},
+	}
+	for _, c := range cases {
+		b.Run(c.name, func(b *testing.B) {
+			ps, err := NewPrefixSet(c.set)
+			if err != nil {
+				b.Fatal(err)
+			}
+			m := &PrefixCondition{set: ps}
+			path := NewPath(c.family, nil, bgp.PathNLRI{NLRI: c.nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+			b.ResetTimer()
+			for range b.N {
+				_ = m.Evaluate(path, nil)
+			}
+		})
+	}
 }
