@@ -248,6 +248,158 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert.Equal("65546:0:0", r.String())
 }
 
+func TestParseRouteTargetMembershipNLRI(t *testing.T) {
+	assert := assert.New(t)
+	cases := []struct {
+		in      string
+		as      uint32
+		masklen uint8
+		str     string
+		rtNil   bool
+		length  uint8
+	}{
+		{"65000:65000:100/96", 65000, 96, "65000:65000:100", false, 96},
+		{"65000:65000:100", 65000, 96, "65000:65000:100", false, 96},
+		{"100.1000:65000:100/80", 100*65536 + 1000, 80, "6554600:65000:100", false, 96},
+		{"65000:1.2.3.4:100/96", 65000, 96, "65000:1.2.3.4:100", false, 96},
+		// masklen <= 32: Route Target is outside the prefix, RT left nil.
+		{"0:0:0/0", 0, 0, "default", true, 0},
+		{"0:0:0/32", 0, 32, "default", true, 0},
+		{"65000:0:0/32", 65000, 32, "65000:0:0", true, 32},
+	}
+	for _, c := range cases {
+		nlri, masklen, err := ParseRouteTargetMembershipNLRI(c.in)
+		assert.NoError(err, c.in)
+		assert.Equal(c.as, nlri.AS, c.in)
+		assert.Equal(c.masklen, masklen, c.in)
+		assert.Equal(c.str, nlri.String(), c.in)
+		assert.Equal(c.rtNil, nlri.RouteTarget == nil, c.in)
+		assert.Equal(c.length, nlri.Length, c.in)
+		buf, err := nlri.Serialize()
+		assert.NoError(err, c.in)
+		decoded := &RouteTargetMembershipNLRI{}
+		assert.NoError(decoded.decodeFromBytes(buf), c.in)
+		assert.Equal(c.str, decoded.String(), c.in)
+	}
+	for _, in := range []string{"", "65000", "65000:", ":65000:100", "65000:65000:100/128", "65000:65000:100/abc"} {
+		_, _, err := ParseRouteTargetMembershipNLRI(in)
+		assert.Error(err, in)
+	}
+}
+
+func TestParseRTCPrefix(t *testing.T) {
+	assert := assert.New(t)
+	p1, err := ParseRTCPrefix("123:65000:100/96")
+	assert.NoError(err)
+	p2, err := ParseRTCPrefix("123:65000:100")
+	assert.NoError(err)
+	assert.Equal(p1, p2)
+	assert.Equal(96, p1.Bits())
+	// /32 matches the origin-AS only.
+	p32, err := ParseRTCPrefix("123:65000:0/32")
+	assert.NoError(err)
+	assert.Equal(32, p32.Bits())
+	path, err := ParseRTCPrefix("123:65000:100/96")
+	assert.NoError(err)
+	assert.True(p32.Contains(path.Addr()))
+	assert.False(path.Contains(p32.Addr()))
+}
+
+func TestRouteTargetKey(t *testing.T) {
+	assert := assert.New(t)
+
+	// TwoOctetAsSpecificExtended
+	buf := make([]byte, 13)
+	buf[0] = 96
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)
+	binary.BigEndian.PutUint16(buf[7:9], 0x1314)
+	binary.BigEndian.PutUint32(buf[9:], 0x15161718)
+	r, err := NLRIFromSlice(RF_RTC_UC, buf)
+	assert.NoError(err)
+	key, err := r.(*RouteTargetMembershipNLRI).RouteTargetKey()
+	assert.NoError(err)
+	assert.Equal(uint64(0x0002131415161718), key)
+
+	// IPv4AddressSpecificExtended
+	buf = make([]byte, 13)
+	buf[0] = 96
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC)
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)
+	ip := net.ParseIP("10.1.2.3").To4()
+	copy(buf[7:11], []byte(ip))
+	binary.BigEndian.PutUint16(buf[11:], 0x1314)
+	r, err = NLRIFromSlice(RF_RTC_UC, buf)
+	assert.NoError(err)
+	key, err = r.(*RouteTargetMembershipNLRI).RouteTargetKey()
+	assert.NoError(err)
+	assert.Equal(uint64(0x01020a0102031314), key)
+
+	// FourOctetAsSpecificExtended
+	buf = make([]byte, 13)
+	buf[0] = 96
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC)
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)
+	binary.BigEndian.PutUint32(buf[7:], 0x15161718)
+	binary.BigEndian.PutUint16(buf[11:], 0x1314)
+	r, err = NLRIFromSlice(RF_RTC_UC, buf)
+	assert.NoError(err)
+	key, err = r.(*RouteTargetMembershipNLRI).RouteTargetKey()
+	assert.NoError(err)
+	assert.Equal(uint64(0x0202151617181314), key)
+
+	// non-Route Target
+	buf = make([]byte, 13)
+	buf[0] = 96
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
+	binary.BigEndian.PutUint32(buf[9:], 1000000)
+	r, err = NLRIFromSlice(RF_RTC_UC, buf)
+	assert.NoError(err)
+	_, err = r.(*RouteTargetMembershipNLRI).RouteTargetKey()
+	assert.NotNil(err)
+
+	// default NLRI
+	r = &RouteTargetMembershipNLRI{}
+	key, err = r.(*RouteTargetMembershipNLRI).RouteTargetKey()
+	assert.NoError(err)
+	assert.Equal(uint64(0), key)
+
+	_, err = ExtCommRouteTargetKey(nil)
+	assert.Equal(ErrNilCommunity, err)
+}
+
+func TestParseAs4Value(t *testing.T) {
+	assert := assert.New(t)
+	cases := []struct {
+		in  string
+		out uint32
+	}{
+		// asplain
+		{"0", 0},
+		{"65000", 65000},
+		{"4294967295", 4294967295},
+		// asdot (high.low)
+		{"0.0", 0},
+		{"1.0", 1 << 16},
+		{"1.1000", 1<<16 | 1000},
+		{"65535.65535", 4294967295},
+		{"100.1000", 100*65536 + 1000},
+	}
+	for _, c := range cases {
+		v, err := ParseAs4Value(c.in)
+		assert.NoError(err, c.in)
+		assert.Equal(c.out, v, c.in)
+	}
+	for _, in := range []string{"", "abc", "1.2.3", ".1", "1.", "65536.1", "1.65536", "4294967296"} {
+		_, err := ParseAs4Value(in)
+		assert.Error(err, in)
+	}
+}
+
 func Test_MalformedUpdateMsg(t *testing.T) {
 	assert := assert.New(t)
 	var bufin []byte
@@ -5908,4 +6060,12 @@ func Test_LsPrefixV6NLRI_MultiTopoID(t *testing.T) {
 			seen[key] = name
 		}
 	})
+}
+
+func BenchmarkExtCommRouteTargetKey(b *testing.B) {
+	rt, _ := ParseRouteTarget("65000:100")
+	b.ResetTimer()
+	for range b.N {
+		_, _ = ExtCommRouteTargetKey(rt)
+	}
 }

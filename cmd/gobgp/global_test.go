@@ -148,3 +148,26 @@ func Test_ParseLsLinkPathDelayMetricTLVsMinGreaterThanMax(t *testing.T) {
 	assert.Nil(path)
 	assert.Contains(err.Error(), "min must be <= max")
 }
+
+func Test_parseRtcArgs(t *testing.T) {
+	assert := assert.New(t)
+	tests := []struct {
+		args string
+		asn  uint32
+		str  string
+	}{
+		{"65000:65000:100/96", 65000, "65000:65000:100"},
+		{"65000:65000:100", 65000, "65000:65000:100"},
+		{"asn 65000 rt 65000:100", 65000, "65000:65000:100"},
+		{"default", 0, "default"},
+	}
+	for _, tt := range tests {
+		t.Run("RtcArgs/"+tt.args, func(t *testing.T) {
+			nlri, err := parseRtcArgs(strings.Split(tt.args, " "))
+			assert.NoError(err)
+			r := nlri.(*bgp.RouteTargetMembershipNLRI)
+			assert.Equal(tt.asn, r.AS)
+			assert.Equal(tt.str, r.String())
+		})
+	}
+}

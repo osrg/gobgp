@@ -211,10 +211,33 @@ prefix-sets has either v4 or v6 addresses.
 
 **PrefixList** has 2 elements.
 
-| Element          | Description     | Example        | Optional |
-| ---------------- | --------------- | -------------- | -------- |
-| ip-prefix        | prefix value    | "10.33.0.0/16" |          |
-| masklength-range | range of length | "21..24"       | Yes      |
+| Element          | Description     | Example               | Optional |
+| ---------------- | --------------- | --------------------- | -------- |
+| ip-prefix        | prefix value    | "10.33.0.0/16"        | Yes \*   |
+| rtc-prefix       | rtc nlri value  | "65000:65000:100/96"  | Yes \*   |
+| masklength-range | range of length | "21..24"              | Yes      |
+
+\* `ip-prefix` and `rtc-prefix` are mutually exclusive; exactly one of them
+must be specified per prefix-list entry. `rtc-prefix` matches Route Target
+Constrain (RFC 4684) NLRI and reuses the same prefix-set machinery as
+`ip-prefix`, so a prefix-set may contain either IP prefixes or RTC prefixes,
+but not both.
+
+The `rtc-prefix` format is `<origin-as>:<route-target>[/<masklen>]`, where:
+
+- `<origin-as>` is a 4-octet AS number, either as a plain decimal (`65000`)
+  or in asdot dotted form (`100.1000` = 6554600).
+- `<route-target>` is a Route Target extended community in the same notation
+  accepted elsewhere (e.g. `65000:100`, `100.1000:100`, `1.2.3.4:100`).
+- `<masklen>` is the match depth over the 96-bit NLRI key
+  `[origin-as:4][route-target:8]` and defaults to `96` (exact). Natural
+  boundaries: `0` matches any RTC NLRI, `32` matches the origin-AS only,
+  `64` matches a 2-octet-AS Route Target (local-admin ignored), `80` matches a
+  4-octet-AS or IPv4-AS Route Target (local-admin ignored), `96` matches the
+  full NLRI exactly.
+
+`masklength-range` for an `rtc-prefix` entry ranges over the path NLRI Length
+field (in bits), the same `min..max` notation as `ip-prefix`.
 
 ##### Examples
 
@@ -268,6 +291,26 @@ prefix-sets has either v4 or v6 addresses.
     [[defined-sets.prefix-sets.prefix-list]]
       ip-prefix = "10.50.0.0/16"
       masklength-range = "21..24"
+  ```
+
+- example 4
+  - Match Route Target Constrain (RFC 4684) NLRI.
+  - `/96` depth matches the full NLRI exactly; the `masklength-range` filters
+    the path NLRI Length field, so `96..96` admits only full NLRI.
+  - `/32` depth matches by origin-AS only; pair it with `32..96` to also admit
+    full NLRI from that origin-AS (a bare `32..32` would only match AS-only
+    NLRI, which carries no Route Target).
+
+  ```toml
+  # example 4
+  [[defined-sets.prefix-sets]]
+    prefix-set-name = "rtc1"
+    [[defined-sets.prefix-sets.prefix-list]]
+      rtc-prefix = "65000:65000:100/96"
+      masklength-range = "96..96"
+    [[defined-sets.prefix-sets.prefix-list]]
+      rtc-prefix = "65000:0:0/32"
+      masklength-range = "32..96"
   ```
 
 #### neighbor-sets

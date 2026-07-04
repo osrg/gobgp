@@ -4030,7 +4030,16 @@ func (s *BgpServer) ListDefinedSet(ctx context.Context, r *api.ListDefinedSetReq
 					min, _ := strconv.ParseUint(elems[1], 10, 32)
 					max, _ := strconv.ParseUint(elems[2], 10, 32)
 
-					l = append(l, &api.Prefix{IpPrefix: p.IpPrefix.String(), MaskLengthMin: uint32(min), MaskLengthMax: uint32(max)})
+					ipPrefix := ""
+					if p.IpPrefix.IsValid() {
+						ipPrefix = p.IpPrefix.String()
+					}
+					l = append(l, &api.Prefix{
+						IpPrefix:      ipPrefix,
+						RtcPrefix:     p.RtcPrefix,
+						MaskLengthMin: uint32(min),
+						MaskLengthMax: uint32(max),
+					})
 				}
 				return l
 			}(),

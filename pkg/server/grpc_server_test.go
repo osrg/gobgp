@@ -601,3 +601,37 @@ func TestNewCommunityCountConditionFromApiStruct(t *testing.T) {
 		}
 	}
 }
+
+func TestNewConfigPrefixFromAPIStruct(t *testing.T) {
+	c, err := newConfigPrefixFromAPIStruct(&api.Prefix{IpPrefix: "10.1.2.3/24", MaskLengthMin: 24, MaskLengthMax: 24})
+	assert.NoError(t, err)
+	assert.Equal(t, "10.1.2.3/24", c.IpPrefix.String())
+	assert.Equal(t, "", c.RtcPrefix)
+	assert.Equal(t, "24..24", c.MasklengthRange)
+
+	// rtc-prefix is canonicalized (dotted AS -> asplain, default len -> /96).
+	c, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "100.1000:65000:100/80", MaskLengthMin: 80, MaskLengthMax: 80})
+	assert.NoError(t, err)
+	assert.Equal(t, "6554600:65000:100/80", c.RtcPrefix)
+	assert.False(t, c.IpPrefix.IsValid())
+
+	c, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "65000:65000:100", MaskLengthMin: 96, MaskLengthMax: 96})
+	assert.NoError(t, err)
+	assert.Equal(t, "65000:65000:100/96", c.RtcPrefix)
+
+	_, err = newConfigPrefixFromAPIStruct(&api.Prefix{IpPrefix: "10.0.0.0/8", RtcPrefix: "65000:65000:100/96"})
+	assert.NotNil(t, err)
+	_, err = newConfigPrefixFromAPIStruct(&api.Prefix{})
+	assert.NotNil(t, err)
+	_, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "65000:65000"})
+	assert.NotNil(t, err)
+}
+
+func TestNewPrefixFromApiStructRTC(t *testing.T) {
+	p, err := newPrefixFromApiStruct(&api.Prefix{RtcPrefix: "65000:65000:100/96", MaskLengthMin: 96, MaskLengthMax: 96})
+	assert.NoError(t, err)
+	assert.Equal(t, bgp.RF_RTC_UC, p.AddressFamily)
+	assert.Equal(t, uint8(96), p.MasklengthRangeMin)
+	assert.Equal(t, uint8(96), p.MasklengthRangeMax)
+	assert.Equal(t, "65000:65000:100/96", p.PrefixString())
+}
