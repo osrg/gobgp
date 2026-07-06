@@ -83,6 +83,27 @@ func (r ribout) update(p *table.Path) bool {
 	return true
 }
 
+func (r ribout) dropPeer(peer netip.Addr) {
+	for key, paths := range r {
+		n := paths[:0]
+		for _, p := range paths {
+			if p == nil {
+				continue
+			}
+			src := p.GetSource()
+			if src != nil && src.Address == peer {
+				continue
+			}
+			n = append(n, p)
+		}
+		if len(n) == 0 {
+			delete(r, key)
+		} else {
+			r[key] = n
+		}
+	}
+}
+
 func bmpAddPathMarshallingOption(path *table.Path) *bgp.MarshallingOption {
 	return &bgp.MarshallingOption{
 		AddPath: map[bgp.Family]bgp.BGPAddPathMode{
@@ -258,6 +279,7 @@ func (b *bmpClient) loop() {
 									return false
 								}
 							} else if msg.Type != apiutil.PEER_EVENT_INIT && msg.OldState == bgp.BGP_FSM_ESTABLISHED {
+								b.ribout.dropPeer(msg.PeerAddress)
 								if err := write(bmpPeerDown(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
 									return false
 								}

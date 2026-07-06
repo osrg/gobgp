@@ -140,3 +140,31 @@ func TestBMPLocRIBPeerUpCarriesAddPathCapabilityWhenEnabled(t *testing.T) {
 	require.Equal(t, bgp.RF_IPv6_UC, addPath.Tuples[1].Family)
 	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[1].Mode)
 }
+
+func TestRiboutDropPeerRemovesCachedPaths(t *testing.T) {
+	out := newribout()
+	peer1 := netip.MustParseAddr("198.51.100.1")
+	p1 := makeIPv4Path(t, "10.0.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
+	p2 := makeIPv4Path(t, "10.0.0.0/24", "192.0.2.2", "198.51.100.2", 65002, 2)
+
+	require.True(t, out.update(p1))
+	require.True(t, out.update(p2))
+
+	out.dropPeer(peer1)
+
+	require.True(t, out.update(p1))
+	require.False(t, out.update(p2))
+}
+
+func TestRiboutDropPeerAllowsIdenticalResendAfterFlap(t *testing.T) {
+	out := newribout()
+	peer := netip.MustParseAddr("198.51.100.1")
+	p := makeIPv4Path(t, "10.0.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
+
+	require.True(t, out.update(p))
+	require.False(t, out.update(p))
+
+	out.dropPeer(peer)
+
+	require.True(t, out.update(p))
+}
