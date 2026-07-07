@@ -83,6 +83,54 @@ func (r ribout) update(p *table.Path) bool {
 	return true
 }
 
+func (r ribout) dropPeer(peer netip.Addr) {
+	for key, paths := range r {
+		n := paths[:0]
+		for _, p := range paths {
+			if p == nil {
+				continue
+			}
+			src := p.GetSource()
+			if src != nil && src.Address == peer {
+				continue
+			}
+			n = append(n, p)
+		}
+		if len(n) == 0 {
+			delete(r, key)
+		} else {
+			r[key] = n
+		}
+	}
+}
+
+func bmpShouldSendPeerDown(msg *watchEventPeer) bool {
+	if msg.Type == apiutil.PEER_EVENT_INIT {
+		return false
+	}
+	if msg.StateReason != nil && msg.StateReason.Type == fsmGracefulRestart {
+		return false
+	}
+	if msg.OldState == bgp.BGP_FSM_ESTABLISHED {
+		return true
+	}
+	if msg.StateReason != nil && msg.StateReason.Type == fsmRestartTimerExpired {
+		return true
+	}
+	return false
+}
+
+func bmpShouldSendPeerUp(msg *watchEventPeer, grPending map[netip.Addr]struct{}) bool {
+	if msg.State != bgp.BGP_FSM_ESTABLISHED {
+		return false
+	}
+	if msg.Type == apiutil.PEER_EVENT_INIT {
+		return true
+	}
+	_, pending := grPending[msg.PeerAddress]
+	return !pending
+}
+
 func bmpAddPathMarshallingOption(path *table.Path) *bgp.MarshallingOption {
 	return &bgp.MarshallingOption{
 		AddPath: map[bgp.Family]bgp.BGPAddPathMode{
@@ -254,13 +302,20 @@ func (b *bmpClient) loop() {
 					case *watchEventPeer:
 						if msg.Type != apiutil.PEER_EVENT_END_OF_INIT {
 							if msg.State == bgp.BGP_FSM_ESTABLISHED {
-								if err := write(bmpPeerUp(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
-									return false
+								if bmpShouldSendPeerUp(msg, b.grPending) {
+									if err := write(bmpPeerUp(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
+										return false
+									}
 								}
-							} else if msg.Type != apiutil.PEER_EVENT_INIT && msg.OldState == bgp.BGP_FSM_ESTABLISHED {
+								delete(b.grPending, msg.PeerAddress)
+							} else if bmpShouldSendPeerDown(msg) {
+								delete(b.grPending, msg.PeerAddress)
+								b.ribout.dropPeer(msg.PeerAddress)
 								if err := write(bmpPeerDown(msg, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)); err != nil {
 									return false
 								}
+							} else if msg.StateReason != nil && msg.StateReason.Type == fsmGracefulRestart {
+								b.grPending[msg.PeerAddress] = struct{}{}
 							}
 						}
 					case *watchEventMessage:
@@ -367,13 +422,14 @@ func bmpLocRIBPeerDown(localAS uint32, routerID netip.Addr, tableName string, pe
 }
 
 type bmpClient struct {
-	s        *BgpServer
-	dead     chan struct{}
-	host     netip.AddrPort
-	c        *oc.BmpServerConfig
-	ribout   ribout
-	uptime   int64
-	downtime int64
+	s         *BgpServer
+	dead      chan struct{}
+	host      netip.AddrPort
+	c         *oc.BmpServerConfig
+	ribout    ribout
+	grPending map[netip.Addr]struct{}
+	uptime    int64
+	downtime  int64
 }
 
 func bmpPeerUp(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMessage {
@@ -462,11 +518,12 @@ func (b *bmpClientManager) addServer(c *oc.BmpServerConfig) error {
 		return fmt.Errorf("bmp client %s is already configured", host)
 	}
 	b.clientMap[host] = &bmpClient{
-		s:      b.s,
-		dead:   make(chan struct{}),
-		host:   host,
-		c:      c,
-		ribout: newribout(),
+		s:         b.s,
+		dead:      make(chan struct{}),
+		host:      host,
+		c:         c,
+		ribout:    newribout(),
+		grPending: make(map[netip.Addr]struct{}),
 	}
 	go b.clientMap[host].loop()
 	return nil

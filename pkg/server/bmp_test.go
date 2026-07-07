@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	packetbmp "github.com/osrg/gobgp/v4/pkg/packet/bmp"
 	"github.com/stretchr/testify/require"
@@ -139,4 +140,108 @@ func TestBMPLocRIBPeerUpCarriesAddPathCapabilityWhenEnabled(t *testing.T) {
 	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[0].Mode)
 	require.Equal(t, bgp.RF_IPv6_UC, addPath.Tuples[1].Family)
 	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[1].Mode)
+}
+
+func TestBmpShouldSendPeerDown(t *testing.T) {
+	peerDown := func(oldState bgp.FSMState, reasonType fsmStateReasonType) *watchEventPeer {
+		return &watchEventPeer{
+			Type:        apiutil.PEER_EVENT_STATE,
+			OldState:    oldState,
+			State:       bgp.BGP_FSM_ACTIVE,
+			StateReason: &fsmStateReason{Type: reasonType},
+		}
+	}
+
+	require.False(t, bmpShouldSendPeerDown(peerDown(bgp.BGP_FSM_ESTABLISHED, fsmGracefulRestart)))
+	require.True(t, bmpShouldSendPeerDown(peerDown(bgp.BGP_FSM_ESTABLISHED, fsmHoldTimerExpired)))
+	require.True(t, bmpShouldSendPeerDown(peerDown(bgp.BGP_FSM_ACTIVE, fsmRestartTimerExpired)))
+	require.False(t, bmpShouldSendPeerDown(&watchEventPeer{Type: apiutil.PEER_EVENT_INIT}))
+}
+
+func TestBmpShouldSendPeerUp(t *testing.T) {
+	peer := netip.MustParseAddr("198.51.100.1")
+	grPending := map[netip.Addr]struct{}{peer: {}}
+	established := func(eventType apiutil.PeerEventType) *watchEventPeer {
+		return &watchEventPeer{
+			Type:        eventType,
+			State:       bgp.BGP_FSM_ESTABLISHED,
+			PeerAddress: peer,
+		}
+	}
+
+	require.True(t, bmpShouldSendPeerUp(established(apiutil.PEER_EVENT_INIT), grPending))
+	require.False(t, bmpShouldSendPeerUp(established(apiutil.PEER_EVENT_STATE), grPending))
+	require.True(t, bmpShouldSendPeerUp(established(apiutil.PEER_EVENT_STATE), nil))
+}
+
+func TestBmpGRPendingLifecycle(t *testing.T) {
+	peer := netip.MustParseAddr("198.51.100.1")
+	grPending := make(map[netip.Addr]struct{})
+
+	grStart := &watchEventPeer{
+		Type:        apiutil.PEER_EVENT_STATE,
+		State:       bgp.BGP_FSM_IDLE,
+		OldState:    bgp.BGP_FSM_ESTABLISHED,
+		PeerAddress: peer,
+		StateReason: &fsmStateReason{Type: fsmGracefulRestart},
+	}
+	require.False(t, bmpShouldSendPeerDown(grStart))
+	grPending[peer] = struct{}{}
+
+	grRecovery := &watchEventPeer{
+		Type:        apiutil.PEER_EVENT_STATE,
+		State:       bgp.BGP_FSM_ESTABLISHED,
+		OldState:    bgp.BGP_FSM_OPENCONFIRM,
+		PeerAddress: peer,
+		StateReason: &fsmStateReason{Type: fsmOpenMsgNegotiated},
+	}
+	require.False(t, bmpShouldSendPeerUp(grRecovery, grPending))
+	delete(grPending, peer)
+
+	realDown := &watchEventPeer{
+		Type:        apiutil.PEER_EVENT_STATE,
+		State:       bgp.BGP_FSM_IDLE,
+		OldState:    bgp.BGP_FSM_ESTABLISHED,
+		PeerAddress: peer,
+		StateReason: &fsmStateReason{Type: fsmHoldTimerExpired},
+	}
+	require.True(t, bmpShouldSendPeerDown(realDown))
+	delete(grPending, peer)
+
+	reconnect := &watchEventPeer{
+		Type:        apiutil.PEER_EVENT_STATE,
+		State:       bgp.BGP_FSM_ESTABLISHED,
+		OldState:    bgp.BGP_FSM_OPENCONFIRM,
+		PeerAddress: peer,
+		StateReason: &fsmStateReason{Type: fsmOpenMsgNegotiated},
+	}
+	require.True(t, bmpShouldSendPeerUp(reconnect, grPending))
+}
+
+func TestRiboutDropPeerRemovesCachedPaths(t *testing.T) {
+	out := newribout()
+	peer1 := netip.MustParseAddr("198.51.100.1")
+	p1 := makeIPv4Path(t, "10.0.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
+	p2 := makeIPv4Path(t, "10.0.0.0/24", "192.0.2.2", "198.51.100.2", 65002, 2)
+
+	require.True(t, out.update(p1))
+	require.True(t, out.update(p2))
+
+	out.dropPeer(peer1)
+
+	require.True(t, out.update(p1))
+	require.False(t, out.update(p2))
+}
+
+func TestRiboutDropPeerAllowsIdenticalResendAfterFlap(t *testing.T) {
+	out := newribout()
+	peer := netip.MustParseAddr("198.51.100.1")
+	p := makeIPv4Path(t, "10.0.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
+
+	require.True(t, out.update(p))
+	require.False(t, out.update(p))
+
+	out.dropPeer(peer)
+
+	require.True(t, out.update(p))
 }
