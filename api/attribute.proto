@@ -266,6 +266,19 @@ message FlowSpecComponent {
   repeated FlowSpecComponentItem items = 2;
 }
 
+// Packet-content (payload) match — draft-cui-idr-content-filter-flowspec
+// experimental component type 254 (as adopted by DNOS). Carries N-byte
+// content+mask arrays that FlowSpecComponent (single u64) cannot express,
+// plus a flags byte (ptype/otype) selecting address family and offset anchor.
+// Valid only in IPv4/IPv6 (unicast/VPN) flowspec.
+message FlowSpecContentFilter {
+  uint32 type   = 1;   // 254 (experimental packet-content, draft-cui / DNOS)
+  uint32 offset = 2;   // byte offset relative to the otype anchor
+  bytes  content = 3;  // value bytes, length N
+  bytes  mask    = 4;  // per-position mask bytes, length N
+  uint32 flags  = 5;   // ptype (high nibble: AFI) | otype (low nibble: offset anchor)
+}
+
 // FlowSpecNLRI represents the NLRI for:
 // - AFI=1, SAFI=133
 // - AFI=2, SAFI=133

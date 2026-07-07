@@ -608,6 +608,14 @@ func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) ([]*apb.Any, 
 				Type:  uint32(v.Type()),
 				Items: items,
 			}
+		case *bgp.FlowSpecContentFilter:
+			rule = &api.FlowSpecContentFilter{
+				Type:    uint32(v.Type()),
+				Offset:  uint32(v.Offset),
+				Content: v.Content,
+				Mask:    v.Mask,
+				Flags:   uint32(v.Flags),
+			}
 		}
 		a, _ := apb.New(rule)
 		rules = append(rules, a)
@@ -655,6 +663,8 @@ func UnmarshalFlowSpecRules(values []*apb.Any) ([]bgp.FlowSpecComponentInterface
 				items = append(items, bgp.NewFlowSpecComponentItem(uint8(item.Op), item.Value))
 			}
 			rule = bgp.NewFlowSpecComponent(bgp.BGPFlowSpecType(v.Type), items)
+		case *api.FlowSpecContentFilter:
+			rule = bgp.NewFlowSpecContentFilter(uint8(v.Flags), uint16(v.Offset), v.Content, v.Mask)
 		}
 		if rule == nil {
 			return nil, fmt.Errorf("invalid flow spec component: %v", value)

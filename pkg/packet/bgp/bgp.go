@@ -3626,6 +3626,7 @@ var FlowSpecNameMap = map[BGPFlowSpecType]string{
 	FLOW_SPEC_TYPE_COS:           "cos",
 	FLOW_SPEC_TYPE_INNER_VID:     "inner-vid",
 	FLOW_SPEC_TYPE_INNER_COS:     "inner-cos",
+	FLOW_SPEC_TYPE_CONTENT_FILTER: "content-filter",
 }
 
 var FlowSpecValueMap = map[string]BGPFlowSpecType{
@@ -3653,6 +3654,7 @@ var FlowSpecValueMap = map[string]BGPFlowSpecType{
 	FlowSpecNameMap[FLOW_SPEC_TYPE_COS]:           FLOW_SPEC_TYPE_COS,
 	FlowSpecNameMap[FLOW_SPEC_TYPE_INNER_VID]:     FLOW_SPEC_TYPE_INNER_VID,
 	FlowSpecNameMap[FLOW_SPEC_TYPE_INNER_COS]:     FLOW_SPEC_TYPE_INNER_COS,
+	FlowSpecNameMap[FLOW_SPEC_TYPE_CONTENT_FILTER]: FLOW_SPEC_TYPE_CONTENT_FILTER,
 }
 
 // Joins the given and args into a single string and normalize it.
@@ -4452,6 +4454,11 @@ func NewFlowSpecComponentItem(op uint8, value uint64) *FlowSpecComponentItem {
 	return v
 }
 
+// FLOW_SPEC_TYPE_CONTENT_FILTER is the draft-cui packet-content component. DNOS
+// (SW-280145) assigns it the experimental wire type 254 — it has no IANA code
+// point and does not collide with any RFC 8955/8956 or L2VPN flowspec type.
+const FLOW_SPEC_TYPE_CONTENT_FILTER BGPFlowSpecType = 254
+
 type FlowSpecComponent struct {
 	Items []*FlowSpecComponentItem
 	typ   BGPFlowSpecType
@@ -4610,6 +4617,75 @@ func NewFlowSpecComponent(typ BGPFlowSpecType, items []*FlowSpecComponentItem) *
 	}
 }
 
+// FlowSpecContentFilter is the draft-cui packet-content component (DNOS wire
+// type 254). Wire: [type=254][ptype/otype:1B][offset:2B BE][len:1B][content:N][mask:N].
+// Flags packs ptype (high nibble = address family) and otype (low nibble =
+// offset base): the byte is carried as-is from/to the API so the originator
+// (detector) controls the address-family and offset-base semantics.
+type FlowSpecContentFilter struct {
+	Flags   uint8
+	Offset  uint16
+	Content []byte
+	Mask    []byte
+}
+
+func NewFlowSpecContentFilter(flags uint8, offset uint16, content, mask []byte) *FlowSpecContentFilter {
+	return &FlowSpecContentFilter{Flags: flags, Offset: offset, Content: content, Mask: mask}
+}
+
+func (p *FlowSpecContentFilter) Type() BGPFlowSpecType { return FLOW_SPEC_TYPE_CONTENT_FILTER }
+
+func (p *FlowSpecContentFilter) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	n := len(p.Content)
+	if n > 255 {
+		return nil, fmt.Errorf("flowspec content-filter content too long: %d", n)
+	}
+	if len(p.Mask) != n {
+		return nil, fmt.Errorf("flowspec content-filter mask len %d != content len %d", len(p.Mask), n)
+	}
+	buf := make([]byte, 0, 5+2*n)
+	buf = append(buf, byte(FLOW_SPEC_TYPE_CONTENT_FILTER), p.Flags)
+	buf = binary.BigEndian.AppendUint16(buf, p.Offset)
+	buf = append(buf, byte(n))
+	buf = append(buf, p.Content...)
+	buf = append(buf, p.Mask...)
+	return buf, nil
+}
+
+func (p *FlowSpecContentFilter) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if len(data) < 5 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec content-filter bytes available")
+	}
+	// data[0] = type (254); data[1] = ptype/otype byte.
+	p.Flags = data[1]
+	p.Offset = binary.BigEndian.Uint16(data[2:4])
+	n := int(data[4])
+	if len(data) < 5+2*n {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all flowspec content-filter bytes available")
+	}
+	p.Content = append([]byte(nil), data[5:5+n]...)
+	p.Mask = append([]byte(nil), data[5+n:5+2*n]...)
+	return nil
+}
+
+func (p *FlowSpecContentFilter) Len(options ...*MarshallingOption) int {
+	return 5 + 2*len(p.Content)
+}
+
+func (p *FlowSpecContentFilter) String() string {
+	return fmt.Sprintf("[content-filter: flags=0x%02x offset=%d content=%x mask=%x]", p.Flags, p.Offset, p.Content, p.Mask)
+}
+
+func (p *FlowSpecContentFilter) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type    BGPFlowSpecType `json:"type"`
+		Flags   uint8           `json:"flags"`
+		Offset  uint16          `json:"offset"`
+		Content []byte          `json:"content"`
+		Mask    []byte          `json:"mask"`
+	}{Type: p.Type(), Flags: p.Flags, Offset: p.Offset, Content: p.Content, Mask: p.Mask})
+}
+
 type FlowSpecUnknown struct {
 	Value []byte
 }
@@ -4747,6 +4823,15 @@ func (n *FlowSpecNLRI) decodeFromBytes(rf RouteFamily, data []byte, options ...*
 			FLOW_SPEC_TYPE_LLC_DSAP, FLOW_SPEC_TYPE_LLC_SSAP, FLOW_SPEC_TYPE_LLC_CONTROL, FLOW_SPEC_TYPE_SNAP,
 			FLOW_SPEC_TYPE_VID, FLOW_SPEC_TYPE_COS, FLOW_SPEC_TYPE_INNER_VID, FLOW_SPEC_TYPE_INNER_COS:
 			i = NewFlowSpecComponent(t, nil)
+		case FLOW_SPEC_TYPE_CONTENT_FILTER: // draft-cui packet-content, DNOS wire type 254
+			// Only defined for IPv4/IPv6 unicast/VPN flowspec; 254 is unused
+			// elsewhere, so any other AFI/SAFI is treated as an unknown component.
+			switch rf {
+			case RF_FS_IPv4_UC, RF_FS_IPv6_UC, RF_FS_IPv4_VPN, RF_FS_IPv6_VPN:
+				i = &FlowSpecContentFilter{}
+			default:
+				i = &FlowSpecUnknown{}
+			}
 		default:
 			i = &FlowSpecUnknown{}
 		}

@@ -526,6 +526,20 @@ func Test_NewFlowSpecComponentItemLength(t *testing.T) {
 	assert.Equal(t, 8, item.Len())
 }
 
+func Test_FlowSpecContentFilterSerialize(t *testing.T) {
+	assert := assert.New(t)
+	// type=254, flags=0x12 (ptype=1 IPv4 / otype=2 UDP-payload), offset=8, len=2.
+	cf := &FlowSpecContentFilter{Flags: 0x12, Offset: 8, Content: []byte{0xAA, 0xBB}, Mask: []byte{0xFF, 0x00}}
+	buf, err := cf.Serialize()
+	require.NoError(t, err)
+	assert.Equal([]byte{0xfe, 0x12, 0x00, 0x08, 0x02, 0xAA, 0xBB, 0xFF, 0x00}, buf)
+
+	dec := &FlowSpecContentFilter{}
+	err = dec.DecodeFromBytes(buf)
+	require.NoError(t, err)
+	assert.Equal(cf, dec)
+}
+
 func Test_LinkBandwidthExtended(t *testing.T) {
 	assert := assert.New(t)
 	exts := make([]ExtendedCommunityInterface, 0)
