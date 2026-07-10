@@ -4148,7 +4148,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x02, 0x02, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV OSPF Area ID: 117901063
 			0x02, 0x03, 0x00, 0x06, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, // TLV IGP Router ID: 0605.0403.0201
 			0x01, 0x02, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, // LinkID TLV, Local: 1, Remote: 2
-		}, "NLRI { LINK { LOCAL_NODE: 0102.0304.0506 REMOTE_NODE: 0605.0403.0201 LINK: 1->2} }", false, true},
+		}, "NLRI { LINK { LOCAL_NODE: 0102.0304.0506 REMOTE_NODE: 0605.0403.0201 LINK: 1->2 ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x02, 0x00, 0x65, // Link NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4165,7 +4165,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x02, 0x03, 0x00, 0x06, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, // TLV IGP Router ID: 0605.0403.0201
 			0x01, 0x03, 0x00, 0x04, 0x01, 0x01, 0x01, 0x01, // IPv4 Interface Addr TLV: 1.1.1.1
 			0x01, 0x04, 0x00, 0x04, 0x02, 0x02, 0x02, 0x02, // IPv4 Neighbor Addr TLV: 2.2.2.2
-		}, "NLRI { LINK { LOCAL_NODE: 0102.0304.0506 REMOTE_NODE: 0605.0403.0201 LINK: 1.1.1.1->2.2.2.2} }", false, true},
+		}, "NLRI { LINK { LOCAL_NODE: 0102.0304.0506 REMOTE_NODE: 0605.0403.0201 LINK: 1.1.1.1->2.2.2.2 ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x02, 0x00, 0x7d, // Link NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4182,7 +4182,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x02, 0x03, 0x00, 0x06, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, // TLV IGP Router ID: 0605.0403.0201
 			0x01, 0x05, 0x00, 0x10, 0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xBE, 0xEF, // IPv6 Interface Addr TLV: 2001:db8::beef
 			0x01, 0x06, 0x00, 0x10, 0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xDE, 0xAD, // IPv6 Interface Addr TLV: 2001:db8::dead
-		}, "NLRI { LINK { LOCAL_NODE: 0102.0304.0506 REMOTE_NODE: 0605.0403.0201 LINK: 2001:db8::beef->2001:db8::dead} }", false, true},
+		}, "NLRI { LINK { LOCAL_NODE: 0102.0304.0506 REMOTE_NODE: 0605.0403.0201 LINK: 2001:db8::beef->2001:db8::dead ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x02, 0x00, 0x55, // Link NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4197,7 +4197,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x02, 0x01, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV BGP LS ID: 117901063
 			0x02, 0x02, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV OSPF Area ID: 117901063
 			0x02, 0x03, 0x00, 0x06, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, // TLV IGP Router ID: 0605.0403.0201
-		}, "NLRI { LINK { LOCAL_NODE: 0102.0304.0506 REMOTE_NODE: 0605.0403.0201 LINK: UNKNOWN} }", false, true},
+		}, "NLRI { LINK { LOCAL_NODE: 0102.0304.0506 REMOTE_NODE: 0605.0403.0201 LINK: UNKNOWN ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x02, 0x00, 0x2f, // Link NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4219,7 +4219,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x02, 0x02, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV OSPF Area ID: 117901063
 			0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
 			0x01, 0x09, 0x00, 0x02, 0x08, 0x0a, // IP ReachabilityInfo TLV, 10.0.0.0/8
-		}, "NLRI { PREFIXv4 { LOCAL_NODE: 0102.0304.0506 PREFIX: [10.0.0.0/8] } }", false, true},
+		}, "NLRI { PREFIXv4 { LOCAL_NODE: 0102.0304.0506 PREFIX: [10.0.0.0/8]  ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x03, 0x00, 0x43, // Prefix IPv4 NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4232,7 +4232,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x01, 0x09, 0x00, 0x02, 0x08, 0x0a, // IP ReachabilityInfo TLV, 10.0.0.0/8
 			0x01, 0x09, 0x00, 0x05, 0x1f, 0xc0, 0xa8, 0x07, 0xfe, // IP ReachabilityInfo TLV, 192.168.7.254/31
 			0x01, 0x08, 0x00, 0x01, 0x06, // OSPF Route Type TLV (NSSA2)
-		}, "NLRI { PREFIXv4 { LOCAL_NODE: 0102.0304.0506 PREFIX: [10.0.0.0/8 192.168.7.254/31] OSPF_ROUTE_TYPE:NSSA2 } }", false, true},
+		}, "NLRI { PREFIXv4 { LOCAL_NODE: 0102.0304.0506 PREFIX: [10.0.0.0/8 192.168.7.254/31] OSPF_ROUTE_TYPE:NSSA2  ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x03, 0x00, 0x35, // Prefix IPv4 NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4243,7 +4243,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x02, 0x02, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV OSPF Area ID: 117901063
 			0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
 			0x01, 0x09, 0x00, 0x02, 0x08, 0x0a, // IP ReachabilityInfo TLV, 10.0.0.0/8
-		}, "NLRI { PREFIXv4 { LOCAL_NODE: 0102.0304.0506 PREFIX: [10.0.0.0/8] } }", false, true},
+		}, "NLRI { PREFIXv4 { LOCAL_NODE: 0102.0304.0506 PREFIX: [10.0.0.0/8]  ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x03, 0x00, 0x2f, // Prefix IPv4 NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4277,7 +4277,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x02, 0x02, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV OSPF Area ID: 117901063
 			0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
 			0x01, 0x09, 0x00, 0x02, 0x08, 0x0a, // IP ReachabilityInfo TLV, 10.0.0.0/8
-		}, "NLRI { PREFIXv6 { LOCAL_NODE: 0102.0304.0506 PREFIX: [a00::/8] } }", false, true},
+		}, "NLRI { PREFIXv6 { LOCAL_NODE: 0102.0304.0506 PREFIX: [a00::/8]  ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x04, 0x00, 0x43, // Prefix IPv6 NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4290,7 +4290,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x01, 0x09, 0x00, 0x02, 0x08, 0x0a, // IP ReachabilityInfo TLV, 10.0.0.0/8
 			0x01, 0x09, 0x00, 0x05, 0x1f, 0xc0, 0xa8, 0x07, 0xfe, // IP ReachabilityInfo TLV, 192.168.7.254/31
 			0x01, 0x08, 0x00, 0x01, 0x06, // OSPF Route Type TLV (NSSA2)
-		}, "NLRI { PREFIXv6 { LOCAL_NODE: 0102.0304.0506 PREFIX: [a00::/8 c0a8:7fe::/31] OSPF_ROUTE_TYPE:NSSA2 } }", false, true},
+		}, "NLRI { PREFIXv6 { LOCAL_NODE: 0102.0304.0506 PREFIX: [a00::/8 c0a8:7fe::/31] OSPF_ROUTE_TYPE:NSSA2  ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x04, 0x00, 0x35, // Prefix IPv6 NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
@@ -4301,7 +4301,7 @@ func Test_LsAddrPrefix(t *testing.T) {
 			0x02, 0x02, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV OSPF Area ID: 117901063
 			0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
 			0x01, 0x09, 0x00, 0x02, 0x08, 0x0a, // IP ReachabilityInfo TLV, 10.0.0.0/8
-		}, "NLRI { PREFIXv6 { LOCAL_NODE: 0102.0304.0506 PREFIX: [a00::/8] } }", false, true},
+		}, "NLRI { PREFIXv6 { LOCAL_NODE: 0102.0304.0506 PREFIX: [a00::/8]  ISIS-L2:0} }", false, true},
 		{[]byte{
 			0x00, 0x04, 0x00, 0x2f, // Prefix IPv6 NLRI, correct length
 			0x02,                                           // Protocol ISIS Level 2
