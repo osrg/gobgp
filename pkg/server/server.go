@@ -3256,6 +3256,7 @@ func (s *BgpServer) GetBgp(ctx context.Context, r *api.GetBgpRequest) (rsp *api.
 				ListenPort:       g.Config.Port,
 				ListenAddresses:  l,
 				UseMultiplePaths: g.UseMultiplePaths.Config.Enabled,
+				BindToDevice:     g.Config.BindToDevice,
 			},
 		}
 		return nil
