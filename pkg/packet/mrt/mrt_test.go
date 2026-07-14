@@ -135,6 +135,28 @@ func TestParsePeerIndexTable_LargeViewNameDoesNotPanic(t *testing.T) {
 	}
 }
 
+func TestParseRibEntry_OversizedAttrLengthRejected(t *testing.T) {
+	// Regression: p.Len() is an int, and an extended-length path attribute can
+	// be up to 65539 bytes. Casting it to uint16 before the "exceeds remaining
+	// attribute length" check wraps the value (65539 -> 3), letting an attribute
+	// that overruns the declared attribute region slip past the bound. The parser
+	// then consumes bytes past the region (belonging to following records) and
+	// mis-frames every subsequent RIB entry.
+	valueLen := 0xffff // p.Len() == 4 + 0xffff == 65539
+
+	var data []byte
+	data = append(data, 0x00, 0x01)             // PeerIndex
+	data = append(data, 0x00, 0x00, 0x00, 0x00) // OriginatedTime
+	data = append(data, 0x00, 0x03)             // Attribute Length: region declared as 3 bytes
+	// optional extended-length unknown attribute overrunning the 3-byte region
+	data = append(data, 0x90, 0xff, 0xff, 0xff) // flags(OPTIONAL|EXTENDED_LENGTH), type, length=0xffff
+	data = append(data, bytes.Repeat([]byte{0}, valueLen)...)
+
+	if _, _, err := parseRibEntry(data, bgp.RF_IPv4_UC, false); err == nil {
+		t.Fatal("parseRibEntry accepted an attribute overrunning the declared attribute length")
+	}
+}
+
 func TestMrtRibEntry(t *testing.T) {
 	aspath1 := []bgp.AsPathParamInterface{
 		bgp.NewAs4PathParam(2, []uint32{1000}),
