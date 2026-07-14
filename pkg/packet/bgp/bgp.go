@@ -2133,6 +2133,9 @@ func NewLabeledIPAddrPrefix(prefix netip.Prefix, label MPLSLabelStack) (*Labeled
 	}, nil
 }
 
+// RouteTargetMembershipPrefixLen is the RTC NLRI bit length: 4-byte AS + 8-byte Route Target.
+const RouteTargetMembershipPrefixLen = 96
+
 type RouteTargetMembershipNLRI struct {
 	Length      uint8
 	AS          uint32
@@ -2156,7 +2159,7 @@ func (n *RouteTargetMembershipNLRI) decodeFromBytes(data []byte, options ...*Mar
 		return NewMessageError(eCode, eSubCode, nil, "bad RouteTargetMembershipNLRI length")
 	}
 	n.AS = binary.BigEndian.Uint32(data[:4])
-	if n.Length < 96 {
+	if n.Length < RouteTargetMembershipPrefixLen {
 		return nil
 	}
 	rt, err := ParseExtended(data[4:])
@@ -2209,6 +2212,14 @@ func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// RouteTargetKey returns the 64-bit serialized Route Target, or 0 for default/AS-only NLRI.
+func (n *RouteTargetMembershipNLRI) RouteTargetKey() (uint64, error) {
+	if n.RouteTarget == nil {
+		return 0, nil
+	}
+	return ExtCommRouteTargetKey(n.RouteTarget)
+}
+
 func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
 	l := 12 * 8
 	if as == 0 && target == nil {
@@ -2221,6 +2232,60 @@ func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) 
 		AS:          as,
 		RouteTarget: target,
 	}
+}
+
+// ParseRouteTargetMembershipNLRI parses "<origin-as>:<route-target>[/len]" into an NLRI
+// and masklen (defaults to /96). Inverse of RouteTargetMembershipNLRI.String.
+// For masklen <= 32 the Route Target is outside the prefix and left nil.
+func ParseRouteTargetMembershipNLRI(s string) (*RouteTargetMembershipNLRI, uint8, error) {
+	masklen := uint8(RouteTargetMembershipPrefixLen)
+	parts := strings.SplitN(s, "/", 2)
+	if len(parts) > 1 {
+		m, err := strconv.ParseUint(parts[1], 10, 8)
+		if err != nil {
+			return nil, 0, fmt.Errorf("invalid rtc-prefix mask length %q: %w", parts[1], err)
+		}
+		if m > RouteTargetMembershipPrefixLen {
+			return nil, 0, fmt.Errorf("rtc-prefix mask length %d exceeds %d", m, RouteTargetMembershipPrefixLen)
+		}
+		masklen = uint8(m)
+	}
+	elems := strings.SplitN(parts[0], ":", 2)
+	if len(elems) != 2 {
+		return nil, 0, fmt.Errorf("invalid rtc-prefix format %q: expected <origin-as>:<route-target>", s)
+	}
+	as, err := ParseAs4Value(elems[0])
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid rtc-prefix origin-as %q: %w", elems[0], err)
+	}
+	var rt ExtendedCommunityInterface
+	if masklen > 32 {
+		rt, err = ParseRouteTarget(elems[1])
+		if err != nil {
+			return nil, 0, fmt.Errorf("invalid rtc-prefix route-target %q: %w", elems[1], err)
+		}
+	}
+	return NewRouteTargetMembershipNLRI(as, rt), masklen, nil
+}
+
+// ParseRTCPrefix parses "<origin-as>:<route-target>[/len]" into a netip.Prefix for the
+// prefix-set trie. The 96-bit NLRI key [AS:4][RouteTarget:8] is padded to 16 bytes; /len
+// defaults to /96 and /32 matches the origin-AS only.
+func ParseRTCPrefix(s string) (netip.Prefix, error) {
+	nlri, masklen, err := ParseRouteTargetMembershipNLRI(s)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	var addr [16]byte
+	binary.BigEndian.PutUint32(addr[:4], nlri.AS)
+	if nlri.RouteTarget != nil {
+		rtKey, err := ExtCommRouteTargetKey(nlri.RouteTarget)
+		if err != nil {
+			return netip.Prefix{}, err
+		}
+		binary.BigEndian.PutUint64(addr[4:12], rtKey)
+	}
+	return netip.PrefixFrom(netip.AddrFrom16(addr), int(masklen)), nil
 }
 
 //go:generate stringer -type=ESIType
@@ -13069,8 +13134,8 @@ type TwoOctetAsSpecificExtended struct {
 	IsTransitive bool
 }
 
-func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
-	buf := [8]byte{}
+// serializeTo is the allocation-free core of Serialize.
+func (e *TwoOctetAsSpecificExtended) serializeTo(buf []byte) {
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)
 	} else {
@@ -13079,6 +13144,11 @@ func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint16(buf[2:], e.AS)
 	binary.BigEndian.PutUint32(buf[4:], e.LocalAdmin)
+}
+
+func (e *TwoOctetAsSpecificExtended) Serialize() ([]byte, error) {
+	var buf [8]byte
+	e.serializeTo(buf[:])
 	return buf[:], nil
 }
 
@@ -13123,8 +13193,7 @@ type IPv4AddressSpecificExtended struct {
 	IsTransitive bool
 }
 
-func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
-	buf := [8]byte{}
+func (e *IPv4AddressSpecificExtended) serializeTo(buf []byte) {
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC)
 	} else {
@@ -13133,6 +13202,11 @@ func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	copy(buf[2:6], e.IPv4.AsSlice())
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
+}
+
+func (e *IPv4AddressSpecificExtended) Serialize() ([]byte, error) {
+	var buf [8]byte
+	e.serializeTo(buf[:])
 	return buf[:], nil
 }
 
@@ -13237,8 +13311,7 @@ type FourOctetAsSpecificExtended struct {
 	IsTransitive bool
 }
 
-func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
-	buf := [8]byte{}
+func (e *FourOctetAsSpecificExtended) serializeTo(buf []byte) {
 	if e.IsTransitive {
 		buf[0] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC)
 	} else {
@@ -13247,6 +13320,11 @@ func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
 	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint32(buf[2:], e.AS)
 	binary.BigEndian.PutUint16(buf[6:], e.LocalAdmin)
+}
+
+func (e *FourOctetAsSpecificExtended) Serialize() ([]byte, error) {
+	var buf [8]byte
+	e.serializeTo(buf[:])
 	return buf[:], nil
 }
 
@@ -13398,6 +13476,30 @@ func SerializeExtendedCommunities(comms []ExtendedCommunityInterface) ([][]byte,
 		}
 	}
 	return bufs, err
+}
+
+var (
+	ErrInvalidRouteTarget = errors.New("ExtendedCommunity is not RouteTarget")
+	ErrNilCommunity       = errors.New("RouteTarget could not be nil")
+)
+
+// ExtCommRouteTargetKey returns the 64-bit serialized Route Target for use as a trie key.
+func ExtCommRouteTargetKey(routeTarget ExtendedCommunityInterface) (uint64, error) {
+	if routeTarget == nil {
+		return 0, ErrNilCommunity
+	}
+	var buf [8]byte
+	switch rt := routeTarget.(type) {
+	case *TwoOctetAsSpecificExtended:
+		rt.serializeTo(buf[:])
+	case *IPv4AddressSpecificExtended:
+		rt.serializeTo(buf[:])
+	case *FourOctetAsSpecificExtended:
+		rt.serializeTo(buf[:])
+	default:
+		return 0, ErrInvalidRouteTarget
+	}
+	return binary.BigEndian.Uint64(buf[:]), nil
 }
 
 type ValidationState uint8
@@ -14923,6 +15025,30 @@ func NewPathAttributeAs4Aggregator(as uint32, address netip.Addr) (*PathAttribut
 			Address: address,
 		},
 	}, nil
+}
+
+// ParseAs4Value parses a four-octet AS in asplain or asdot (high.low) form.
+func ParseAs4Value(s string) (uint32, error) {
+	if strings.Contains(s, ".") {
+		v := strings.Split(s, ".")
+		if len(v) != 2 {
+			return 0, fmt.Errorf("invalid asplain %q: expected high.low", s)
+		}
+		upper, err := strconv.ParseUint(v[0], 10, 16)
+		if err != nil {
+			return 0, err
+		}
+		lower, err := strconv.ParseUint(v[1], 10, 16)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(upper<<16 | lower), nil
+	}
+	i, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(i), nil
 }
 
 type TunnelEncapSubTLVInterface interface {

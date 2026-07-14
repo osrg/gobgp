@@ -87,6 +87,32 @@ func policy() oc.RoutingPolicy {
 		},
 	}
 
+	rps := oc.PrefixSet{
+		PrefixSetName: "rtc1",
+		PrefixList: []oc.Prefix{
+			// /96: full NLRI (origin-AS + Route Target).
+			{
+				RtcPrefix:       "65000:65000:100/96",
+				MasklengthRange: "96..96",
+			},
+			// /32: origin-AS only; Route Target is outside the prefix, use 0.
+			{
+				RtcPrefix:       "65000:0:0/32",
+				MasklengthRange: "32..96",
+			},
+			// /64: origin-AS + 2-octet-AS Route Target AS (local-admin ignored).
+			{
+				RtcPrefix:       "65000:65000:0/64",
+				MasklengthRange: "64..96",
+			},
+			// /80: + 4-octet/IPv4 Route Target AS (local-admin ignored).
+			{
+				RtcPrefix:       "65000:100.1000:0/80",
+				MasklengthRange: "80..96",
+			},
+		},
+	}
+
 	ns := oc.NeighborSet{
 		NeighborSetName:  "ns1",
 		NeighborInfoList: []string{"10.0.0.2"},
@@ -114,7 +140,7 @@ func policy() oc.RoutingPolicy {
 	}
 
 	ds := oc.DefinedSets{
-		PrefixSets:     []oc.PrefixSet{ps},
+		PrefixSets:     []oc.PrefixSet{ps, rps},
 		NeighborSets:   []oc.NeighborSet{ns},
 		BgpDefinedSets: bds,
 	}

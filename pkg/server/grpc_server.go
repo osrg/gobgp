@@ -1328,13 +1328,32 @@ func (s *server) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDynamic
 }
 
 func newPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
-	prefix, err := netip.ParsePrefix(a.IpPrefix)
-	if err != nil {
-		return nil, err
+	if a.IpPrefix != "" && a.RtcPrefix != "" {
+		return nil, fmt.Errorf("ip-prefix and rtc-prefix are mutually exclusive")
 	}
-	rf := bgp.RF_IPv4_UC
-	if prefix.Addr().Is6() {
-		rf = bgp.RF_IPv6_UC
+	var (
+		prefix netip.Prefix
+		rf     bgp.Family
+		err    error
+	)
+	switch {
+	case a.IpPrefix != "":
+		prefix, err = netip.ParsePrefix(a.IpPrefix)
+		if err != nil {
+			return nil, err
+		}
+		rf = bgp.RF_IPv4_UC
+		if prefix.Addr().Is6() {
+			rf = bgp.RF_IPv6_UC
+		}
+	case a.RtcPrefix != "":
+		prefix, err = bgp.ParseRTCPrefix(a.RtcPrefix)
+		if err != nil {
+			return nil, err
+		}
+		rf = bgp.RF_RTC_UC
+	default:
+		return nil, fmt.Errorf("prefix requires ip-prefix or rtc-prefix")
 	}
 	return &table.Prefix{
 		Prefix:             prefix,
@@ -1345,12 +1364,32 @@ func newPrefixFromApiStruct(a *api.Prefix) (*table.Prefix, error) {
 }
 
 func newConfigPrefixFromAPIStruct(a *api.Prefix) (*oc.Prefix, error) {
-	_, prefix, err := net.ParseCIDR(a.IpPrefix)
-	if err != nil {
-		return nil, err
+	if a.IpPrefix != "" && a.RtcPrefix != "" {
+		return nil, fmt.Errorf("ip-prefix and rtc-prefix are mutually exclusive")
+	}
+	var (
+		ipPrefix  netip.Prefix
+		rtcPrefix string
+	)
+	switch {
+	case a.IpPrefix != "":
+		prefix, err := netip.ParsePrefix(a.IpPrefix)
+		if err != nil {
+			return nil, err
+		}
+		ipPrefix = prefix
+	case a.RtcPrefix != "":
+		nlri, masklen, err := bgp.ParseRouteTargetMembershipNLRI(a.RtcPrefix)
+		if err != nil {
+			return nil, err
+		}
+		rtcPrefix = fmt.Sprintf("%s/%d", nlri.String(), masklen)
+	default:
+		return nil, fmt.Errorf("prefix requires ip-prefix or rtc-prefix")
 	}
 	return &oc.Prefix{
-		IpPrefix:        netip.MustParsePrefix(prefix.String()),
+		IpPrefix:        ipPrefix,
+		RtcPrefix:       rtcPrefix,
 		MasklengthRange: fmt.Sprintf("%d..%d", a.MaskLengthMin, a.MaskLengthMax),
 	}, nil
 }
