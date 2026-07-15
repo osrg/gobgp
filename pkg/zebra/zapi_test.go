@@ -78,6 +78,20 @@ func Test_Header(t *testing.T) {
 		h3 := &Header{}
 		err = h3.decodeFromBytes(buf)
 		assert.NotEqual(nil, err, "err should be nil")
+
+		// on-wire Len smaller than the header size must be rejected,
+		// otherwise ReceiveSingleMsg computes int(h.Len-HeaderSize) in
+		// uint16 and wraps to a ~64KiB body read instead of a short one.
+		buf = make([]byte, HeaderSize(v))
+		binary.BigEndian.PutUint16(buf[0:], HeaderSize(v)-1) // Len < header size
+		buf[2] = headerMarker
+		if v >= 4 {
+			buf[2] = frrHeaderMarker
+		}
+		buf[3] = v
+		h4 := &Header{}
+		err = h4.decodeFromBytes(buf)
+		assert.Error(err)
 	}
 }
 
