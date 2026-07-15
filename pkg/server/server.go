@@ -133,30 +133,31 @@ func (d *sharedData) propagateBucket(path *table.Path) *sync.Mutex {
 }
 
 type BgpServer struct {
-	shared       *sharedData
-	apiServer    *server
-	bgpConfig    oc.Bgp
-	acceptCh     chan net.Conn
-	mgmtCh       chan *mgmtOp
-	closeCh      chan struct{}
-	policy       *table.RoutingPolicy
-	listeners    []*netutils.TCPListener
-	neighborMap  map[netip.Addr]*peer
-	peerGroupMap map[string]*peerGroup
-	globalRib    *table.TableManager
-	rsRib        *table.TableManager
-	roaManager   *roaManager
-	watcherMap   map[watchEventType][]*watcher
-	watcherMu    sync.RWMutex
-	zclient      *zebraClient
-	bmpManager   *bmpClientManager
-	mrtManager   *mrtManager
-	roaTable     *table.ROATable
-	uuidMap      map[string]uuid.UUID
-	bfdServer    *bfdServer
-	logger       *slog.Logger
-	logLevelVar  *slog.LevelVar
-	timingHook   FSMTimingHook
+	shared        *sharedData
+	apiServer     *server
+	bgpConfig     oc.Bgp
+	acceptCh      chan net.Conn
+	mgmtCh        chan *mgmtOp
+	closeCh       chan struct{}
+	policy        *table.RoutingPolicy
+	listeners     []*netutils.TCPListener
+	neighborMap   map[netip.Addr]*peer
+	peerGroupMap  map[string]*peerGroup
+	globalRib     *table.TableManager
+	rsRib         *table.TableManager
+	roaManager    *roaManager
+	watcherMap    map[watchEventType][]*watcher
+	watcherMu     sync.RWMutex
+	zclient       *zebraClient
+	bmpManager    *bmpClientManager
+	mrtManager    *mrtManager
+	roaTable      *table.ROATable
+	uuidMap       map[string]uuid.UUID
+	bfdServer     *bfdServer
+	keyChainStore *tcpAoKeychainStore
+	logger        *slog.Logger
+	logLevelVar   *slog.LevelVar
+	timingHook    FSMTimingHook
 	// manage lifecycle of the server
 	isServing     atomic.Bool
 	shutdownWG    *sync.WaitGroup
@@ -199,6 +200,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
 	s.bfdServer = NewBfdServer(s, logger)
+	s.keyChainStore = newTcpAoKeychainStore()
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
 		s.apiServer = newAPIserver(s, shared, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
@@ -2154,6 +2156,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		for _, l := range s.listeners {
 			l.Close()
 		}
+		s.keyChainStore.clearAllKeychains()
 		s.bgpConfig.Global = oc.Global{}
 		return nil
 	}, false)
@@ -5232,4 +5235,175 @@ func (s *BgpServer) ListBfdPeer(ctx context.Context, fn func(string, *api.BfdPee
 	for _, state := range list {
 		fn(state.peerAddress.String(), &state.state)
 	}
+}
+
+func (s *BgpServer) AddTcpAoKeychain(_ context.Context, r *api.AddTcpAoKeychainRequest) (*api.AddTcpAoKeychainResponse, error) {
+	if r == nil {
+		return nil, status.Error(codes.InvalidArgument, "nil request")
+	}
+	if r.Keychain == nil {
+		return nil, status.Error(codes.InvalidArgument, "TCP-AO keychain is required")
+	}
+	if r.Keychain.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "TCP-AO keychain name is required")
+	}
+
+	var response *api.AddTcpAoKeychainResponse
+	err := s.mgmtOperation(func() error {
+		chain, err := newTcpAoKeychain(r.Keychain)
+		if err != nil {
+			return err
+		}
+		if _, exists := s.keyChainStore.getKeychain(chain.name); exists {
+			return status.Errorf(codes.AlreadyExists, "TCP-AO keychain %q already exists", chain.name)
+		}
+		s.keyChainStore.addKeychain(chain)
+		response = &api.AddTcpAoKeychainResponse{Keychain: chain.toAPIKeychain()}
+		return nil
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (s *BgpServer) UpdateTcpAoKeychain(_ context.Context, r *api.UpdateTcpAoKeychainRequest) (*api.UpdateTcpAoKeychainResponse, error) {
+	if r == nil {
+		return nil, status.Error(codes.InvalidArgument, "nil request")
+	}
+	if r.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "TCP-AO keychain name is required")
+	}
+
+	var response *api.UpdateTcpAoKeychainResponse
+	err := s.mgmtOperation(func() error {
+		keychain, ok := s.keyChainStore.getKeychain(r.Name)
+		if !ok {
+			return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
+		}
+		added, deleted, err := s.validateTcpAoKeychainUpdate(keychain, r)
+		if err != nil {
+			return err
+		}
+		keychain.updateKeys(added, deleted)
+		response = &api.UpdateTcpAoKeychainResponse{Keychain: keychain.toAPIKeychain()}
+		return nil
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (s *BgpServer) DeleteTcpAoKeychain(_ context.Context, r *api.DeleteTcpAoKeychainRequest) error {
+	if r == nil {
+		return status.Error(codes.InvalidArgument, "nil request")
+	}
+	if r.Name == "" {
+		return status.Error(codes.InvalidArgument, "TCP-AO keychain name is required")
+	}
+
+	return s.mgmtOperation(func() error {
+		if _, exists := s.keyChainStore.getKeychain(r.Name); !exists {
+			return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
+		}
+		if !s.keyChainStore.deleteKeychain(r.Name) {
+			return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
+		}
+		return nil
+	}, false)
+}
+
+func (s *BgpServer) ListTcpAoKeychain(ctx context.Context, r *api.ListTcpAoKeychainRequest, fn func(*api.TcpAoKeychain)) error {
+	if r == nil {
+		return status.Error(codes.InvalidArgument, "nil request")
+	}
+	if fn == nil {
+		return status.Error(codes.InvalidArgument, "nil callback")
+	}
+
+	var chains []*api.TcpAoKeychain
+	err := s.mgmtOperation(func() error {
+		if r.Name != "" {
+			keychain, ok := s.keyChainStore.getKeychain(r.Name)
+			if !ok {
+				return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
+			}
+			chains = []*api.TcpAoKeychain{keychain.toAPIKeychain()}
+			return nil
+		}
+		for _, chain := range s.keyChainStore.getAllKeychains() {
+			chains = append(chains, chain.toAPIKeychain())
+		}
+		return nil
+	}, false)
+	if err != nil {
+		return err
+	}
+	for _, chain := range chains {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		fn(chain)
+	}
+	return nil
+}
+
+func (s *BgpServer) validateTcpAoKeychainUpdate(keychain *tcpAoKeychain, request *api.UpdateTcpAoKeychainRequest) (added, deleted []tcpAoKey, err error) {
+	sendIDs := make(map[uint8]struct{}, len(keychain.keys))
+	receiveIDs := make(map[uint8]struct{}, len(keychain.keys))
+	for _, key := range keychain.keys {
+		sendIDs[key.sendID] = struct{}{}
+		receiveIDs[key.receiveID] = struct{}{}
+	}
+	for i, delKey := range request.DeleteKeys {
+		if delKey == nil {
+			err = status.Errorf(codes.InvalidArgument, "TCP-AO delete key request %q contains a nil key at index %d", keychain.name, i)
+			return
+		}
+		if delKey.SendId > 255 {
+			err = status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q delete key %d has send ID %d outside 0..255", keychain.name, i, delKey.SendId)
+			return
+		}
+		if delKey.ReceiveId > 255 {
+			err = status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q delete key %d has receive ID %d outside 0..255", keychain.name, i, delKey.ReceiveId)
+			return
+		}
+		key, exists := keychain.getKey(uint8(delKey.SendId), uint8(delKey.ReceiveId))
+		if !exists {
+			err = status.Errorf(codes.NotFound, "TCP-AO keychain %q does not contain key with send ID %d and receive ID %d", request.Name, delKey.SendId, delKey.ReceiveId)
+			return
+		}
+		if _, exists := sendIDs[key.sendID]; !exists {
+			err = status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q delete request contains duplicate key with send ID %d and receive ID %d", request.Name, delKey.SendId, delKey.ReceiveId)
+			return
+		}
+		delete(sendIDs, key.sendID)
+		delete(receiveIDs, key.receiveID)
+		deleted = append(deleted, key)
+	}
+	for i, addKey := range request.AddKeys {
+		if addKey == nil {
+			err = status.Errorf(codes.InvalidArgument, "TCP-AO add key request %q contains a nil key at index %d", keychain.name, i)
+			return
+		}
+		if _, ok := sendIDs[uint8(addKey.SendId)]; ok {
+			err = status.Errorf(codes.AlreadyExists, "TCP-AO keychain %q already contains send ID %d", keychain.name, addKey.SendId)
+			return
+		}
+		if _, ok := receiveIDs[uint8(addKey.ReceiveId)]; ok {
+			err = status.Errorf(codes.AlreadyExists, "TCP-AO keychain %q already contains receive ID %d", keychain.name, addKey.ReceiveId)
+			return
+		}
+		sendIDs[uint8(addKey.SendId)] = struct{}{}
+		receiveIDs[uint8(addKey.ReceiveId)] = struct{}{}
+	}
+	if len(sendIDs) < 1 || len(sendIDs) > 256 {
+		err = status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q must contain between 1 and 256 keys", request.Name)
+		return
+	}
+	if len(request.AddKeys) > 0 {
+		added, err = newTcpAoKeys(keychain.name, request.AddKeys)
+	}
+	return
 }
