@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 
@@ -379,6 +380,13 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 
 	assignGlobalpolicy(ctx, bgpServer, &newConfig.Global.ApplyPolicy.Config)
 
+	// keychains and new keys must exist before peers can reference them
+	keychains, err := oc.NewTcpAoKeychainsFromConfigStruct(newConfig.Keychains)
+	if err != nil {
+		return nil, err
+	}
+	addTcpAoKeychains(ctx, bgpServer, keychains)
+
 	added := newConfig.Neighbors
 	addedPg := newConfig.PeerGroups
 	if isGracefulRestart {
@@ -404,6 +412,10 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig *oc.BgpConfigSet) (*oc.BgpConfigSet, error) {
 	addedPg, deletedPg, updatedPg := oc.UpdatePeerGroupConfig(bgpServer.Log(), c, newConfig)
 	added, deleted, updated := oc.UpdateNeighborConfig(bgpServer.Log(), c, newConfig)
+	addedKeychains, deletedKeychains, upsertKeyUpdates, deleteKeyUpdates, err := tcpAoKeychainConfigChanges(c.Keychains, newConfig.Keychains)
+	if err != nil {
+		return c, err
+	}
 	updatePolicy := oc.CheckPolicyDifference(bgpServer.Log(), oc.ConfigSetToRoutingPolicy(c), oc.ConfigSetToRoutingPolicy(newConfig))
 
 	if updatePolicy {
@@ -427,6 +439,10 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 		updatePolicy = true
 	}
 
+	// keychains and new keys must exist before peers can reference them
+	addTcpAoKeychains(ctx, bgpServer, addedKeychains)
+	updateTcpAoKeychains(ctx, bgpServer, upsertKeyUpdates)
+
 	addPeerGroups(ctx, bgpServer, addedPg)
 	deletePeerGroups(ctx, bgpServer, deletedPg)
 	needsSoftResetIn := updatePeerGroups(ctx, bgpServer, updatedPg)
@@ -436,6 +452,10 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 	deleteNeighbors(ctx, bgpServer, deleted)
 	needsSoftResetIn = updateNeighbors(ctx, bgpServer, updated)
 	updatePolicy = updatePolicy || needsSoftResetIn
+
+	// keys and keychains can only be removed after peers stop referencing them
+	updateTcpAoKeychains(ctx, bgpServer, deleteKeyUpdates)
+	deleteTcpAoKeychains(ctx, bgpServer, deletedKeychains)
 
 	if updatePolicy {
 		if err := bgpServer.ResetPeer(ctx, &api.ResetPeerRequest{
@@ -448,4 +468,126 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 		}
 	}
 	return newConfig, nil
+}
+
+func addTcpAoKeychains(ctx context.Context, bgpServer *server.BgpServer, chains []*api.TcpAoKeychain) {
+	for _, chain := range chains {
+		if err := bgpServer.AddTcpAoKeychain(ctx, &api.AddTcpAoKeychainRequest{Keychain: chain}); err != nil {
+			bgpServer.Log().Error("failed to add TCP-AO keychain",
+				slog.String("Topic", "config"),
+				slog.String("Key", chain.Name),
+				slog.Any("Error", err),
+			)
+		}
+	}
+}
+
+func updateTcpAoKeychains(ctx context.Context, bgpServer *server.BgpServer, updates []*api.UpdateTcpAoKeychainRequest) {
+	for _, update := range updates {
+		if _, err := bgpServer.UpdateTcpAoKeychain(ctx, update); err != nil {
+			bgpServer.Log().Error("failed to update TCP-AO keychain",
+				slog.String("Topic", "config"),
+				slog.String("Key", update.Name),
+				slog.Any("Error", err),
+			)
+		}
+	}
+}
+
+func deleteTcpAoKeychains(ctx context.Context, bgpServer *server.BgpServer, chains []string) {
+	for _, name := range chains {
+		if err := bgpServer.DeleteTcpAoKeychain(ctx, &api.DeleteTcpAoKeychainRequest{Name: name}); err != nil {
+			bgpServer.Log().Error("failed to delete TCP-AO keychain",
+				slog.String("Topic", "config"),
+				slog.String("Key", name),
+				slog.Any("Error", err),
+			)
+		}
+	}
+}
+
+func tcpAoKeychainConfigChanges(current, desired []oc.Keychain) (
+	added []*api.TcpAoKeychain,
+	deleted []string,
+	upsertKeyUpdates []*api.UpdateTcpAoKeychainRequest,
+	deleteKeyUpdates []*api.UpdateTcpAoKeychainRequest,
+	err error,
+) {
+	currentChains, err := oc.NewTcpAoKeychainsFromConfigStruct(current)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	desiredChains, err := oc.NewTcpAoKeychainsFromConfigStruct(desired)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	for _, desiredChain := range desiredChains {
+		currentChain := findAPITcpAoKeychain(currentChains, desiredChain.Name)
+		if currentChain == nil {
+			added = append(added, desiredChain)
+			continue
+		}
+		addKeys, deleteKeys := tcpAoKeyChanges(currentChain.Keys, desiredChain.Keys)
+		if len(addKeys) == 0 && len(deleteKeys) == 0 {
+			continue
+		}
+		update := &api.UpdateTcpAoKeychainRequest{
+			Name:       desiredChain.Name,
+			DeleteKeys: deleteKeys,
+		}
+		if len(addKeys) != 0 {
+			update.AddKeys = addKeys
+			upsertKeyUpdates = append(upsertKeyUpdates, update)
+		} else {
+			deleteKeyUpdates = append(deleteKeyUpdates, update)
+		}
+	}
+	for _, currentChain := range currentChains {
+		if findAPITcpAoKeychain(desiredChains, currentChain.Name) != nil {
+			continue
+		}
+		deleted = append(deleted, currentChain.Name)
+	}
+	return added, deleted, upsertKeyUpdates, deleteKeyUpdates, nil
+}
+
+func findAPITcpAoKeychain(chains []*api.TcpAoKeychain, name string) *api.TcpAoKeychain {
+	for _, chain := range chains {
+		if chain.Name == name {
+			return chain
+		}
+	}
+	return nil
+}
+
+func tcpAoKeyChanges(current, desired []*api.TcpAoKey) (added, deleted []*api.TcpAoKey) {
+	find := func(keys []*api.TcpAoKey, sendID, receiveID uint32) *api.TcpAoKey {
+		for _, key := range keys {
+			if key.SendId == sendID && key.ReceiveId == receiveID {
+				return key
+			}
+		}
+		return nil
+	}
+	for _, key := range current {
+		desiredKey := find(desired, key.SendId, key.ReceiveId)
+		if desiredKey == nil || !tcpAoKeysEqual(key, desiredKey) {
+			deleted = append(deleted, &api.TcpAoKey{SendId: key.SendId, ReceiveId: key.ReceiveId})
+		}
+	}
+	for _, key := range desired {
+		currentKey := find(current, key.SendId, key.ReceiveId)
+		if currentKey == nil || !tcpAoKeysEqual(key, currentKey) {
+			added = append(added, key)
+		}
+	}
+	return added, deleted
+}
+
+func tcpAoKeysEqual(a, b *api.TcpAoKey) bool {
+	return a.SendId == b.SendId &&
+		a.ReceiveId == b.ReceiveId &&
+		a.Algorithm == b.Algorithm &&
+		bytes.Equal(a.MasterKey, b.MasterKey) &&
+		a.ExcludeTcpOptions == b.ExcludeTcpOptions
 }
