@@ -4525,6 +4525,12 @@ func (n *FlowSpecNLRI) decodeFromBytes(data []byte, options ...*MarshallingOptio
 		length -= 8
 	}
 
+	// keep the component parser within the declared NLRI length. a component's
+	// own operator/value bytes are self-terminating, so without this a
+	// component reaching past `length` consumes bytes from the next NLRI in the
+	// same MP_(UN)REACH attribute and mis-frames it.
+	data = data[:length]
+
 	for l := length; l > 0; {
 		if len(data) == 0 {
 			return malformedAttrListErr("not all flowspec component bytes available")

@@ -542,6 +542,29 @@ func Test_FlowSpecNlri(t *testing.T) {
 	assert.Equal(n1, n2)
 }
 
+func Test_FlowSpecNlriComponentsClampedToDeclaredLength(t *testing.T) {
+	assert := assert.New(t)
+	item := NewFlowSpecComponentItem(DEC_NUM_OP_EQ, 6)
+	comp := NewFlowSpecComponent(FLOW_SPEC_TYPE_IP_PROTO, []*FlowSpecComponentItem{item})
+	n1, err := NewFlowSpecUnicast(RF_FS_IPv4_UC, []FlowSpecComponentInterface{comp})
+	assert.NoError(err)
+	one, err := n1.Serialize()
+	assert.NoError(err)
+	declared := int(one[0])
+
+	// Declare one byte fewer than the component occupies, then append a byte
+	// that belongs to the next NLRI. The component must not reach past the
+	// declared length into that following byte.
+	buf := make([]byte, len(one))
+	copy(buf, one)
+	buf[0] = byte(declared - 1)
+	buf = append(buf, 0xEE)
+
+	nlri, err := NLRIFromSlice(RF_FS_IPv4_UC, buf)
+	assert.NoError(err)
+	assert.LessOrEqual(nlri.Len(), 1+(declared-1))
+}
+
 func Test_NewFlowSpecComponentItemLength(t *testing.T) {
 	item := NewFlowSpecComponentItem(0, 0)
 	assert.Equal(t, 1, item.Len())
