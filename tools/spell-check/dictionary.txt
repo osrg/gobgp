@@ -24,6 +24,7 @@ ibgp
 interwork
 ipproto
 isis
+keychain
 keepalive
 keepalives
 llgr
