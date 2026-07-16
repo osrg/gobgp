@@ -16,6 +16,7 @@
 package main
 
 import (
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -147,4 +148,129 @@ func Test_ParseLsLinkPathDelayMetricTLVsMinGreaterThanMax(t *testing.T) {
 	assert.Error(err)
 	assert.Nil(path)
 	assert.Contains(err.Error(), "min must be <= max")
+}
+
+func Test_mupParser(t *testing.T) {
+	ipv4Addr := netip.MustParseAddr("10.0.0.1")
+	ipv4DirectExt, _ := bgp.NewMUPIPv4AddressSpecificExtended(bgp.EC_SUBTYPE_MUP_DIRECT_SEG_IPV4, ipv4Addr, 100)
+	ipv4InterworkExt, _ := bgp.NewMUPIPv4AddressSpecificExtended(bgp.EC_SUBTYPE_MUP_INTERWORK_SEG_IPV4, ipv4Addr, 100)
+
+	tests := []struct {
+		name    string
+		args    []string
+		want    bgp.ExtendedCommunityInterface
+		wantErr bool
+	}{
+		{"direct 2-octet AS (default keyword)", []string{"mup", "10:10"}, bgp.NewMUPExtended(bgp.EC_SUBTYPE_MUP_DIRECT_SEG, 10, 10), false},
+		{"direct 2-octet AS (explicit keyword)", []string{"mup", "direct", "10:20"}, bgp.NewMUPExtended(bgp.EC_SUBTYPE_MUP_DIRECT_SEG, 10, 20), false},
+		{"direct IPv4", []string{"mup", "10.0.0.1:100"}, ipv4DirectExt, false},
+		{"direct 4-octet AS (plain integer)", []string{"mup", "70000:100"}, bgp.NewMUPFourOctetAsSpecificExtended(bgp.EC_SUBTYPE_MUP_DIRECT_SEG_4_OCTET_AS, 70000, 100), false},
+		{"direct 4-octet AS (AS-dot notation)", []string{"mup", "1.100:100"}, bgp.NewMUPFourOctetAsSpecificExtended(bgp.EC_SUBTYPE_MUP_DIRECT_SEG_4_OCTET_AS, 1<<16|100, 100), false},
+		{"interwork 2-octet AS", []string{"mup", "interwork", "10:20"}, bgp.NewMUPExtended(bgp.EC_SUBTYPE_MUP_INTERWORK_SEG, 10, 20), false},
+		{"interwork IPv4", []string{"mup", "interwork", "10.0.0.1:100"}, ipv4InterworkExt, false},
+		{"interwork 4-octet AS", []string{"mup", "interwork", "70000:100"}, bgp.NewMUPFourOctetAsSpecificExtended(bgp.EC_SUBTYPE_MUP_INTERWORK_SEG_4_OCTET_AS, 70000, 100), false},
+		{"invalid global admin", []string{"mup", "abc:100"}, nil, true},
+		{"local admin overflow (2-octet AS form)", []string{"mup", "10:99999999999"}, nil, true},
+		{"local admin overflow (IPv4 form)", []string{"mup", "10.0.0.1:99999"}, nil, true},
+		{"invalid segment type keyword", []string{"mup", "badkeyword", "10:10"}, nil, true},
+		{"missing colon", []string{"mup", "1000"}, nil, true},
+		{"too few args", []string{"mup"}, nil, true},
+		{"too many args", []string{"mup", "direct", "10:10", "extra"}, nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			exts, err := mupParser(tt.args)
+			if tt.wantErr {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			if assert.Len(exts, 1) {
+				assert.Equal(tt.want, exts[0])
+			}
+		})
+	}
+}
+
+func Test_ParseMUPType2SessionTransformedRouteArgsTLVs(t *testing.T) {
+	base := []string{"10.0.0.1", "rd", "1.1.1.1:65000", "rt", "65000:1", "endpoint-address-length", "32", "teid", "100", "mup", "10:10"}
+	sessionTeid, _ := parseTeid("300")
+	interworkAddr := netip.MustParseAddr("10.0.0.2")
+	sourceAddr := netip.MustParseAddr("10.0.0.3")
+
+	tests := []struct {
+		name      string
+		extraArgs []string
+		wantErr   bool
+		wantTLVs  []bgp.MUPTLVInterface
+	}{
+		{
+			name:      "session-teid and session-qfi",
+			extraArgs: []string{"session-teid", "300", "session-qfi", "5"},
+			wantTLVs:  []bgp.MUPTLVInterface{bgp.NewMUPSessionParametersTLV(sessionTeid, 5)},
+		},
+		{
+			name:      "interwork-endpoint",
+			extraArgs: []string{"interwork-endpoint", "10.0.0.2"},
+			wantTLVs:  []bgp.MUPTLVInterface{bgp.NewMUPInterworkEndpointTLV(interworkAddr)},
+		},
+		{
+			name:      "source-address",
+			extraArgs: []string{"source-address", "10.0.0.3"},
+			wantTLVs:  []bgp.MUPTLVInterface{bgp.NewMUPSourceAddressTLV(sourceAddr)},
+		},
+		{
+			name:      "all three TLVs",
+			extraArgs: []string{"session-teid", "300", "session-qfi", "5", "interwork-endpoint", "10.0.0.2", "source-address", "10.0.0.3"},
+			wantTLVs: []bgp.MUPTLVInterface{
+				bgp.NewMUPSessionParametersTLV(sessionTeid, 5),
+				bgp.NewMUPInterworkEndpointTLV(interworkAddr),
+				bgp.NewMUPSourceAddressTLV(sourceAddr),
+			},
+		},
+		{
+			name:      "session-teid without session-qfi",
+			extraArgs: []string{"session-teid", "300"},
+			wantErr:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			args := append(append([]string{}, base...), tt.extraArgs...)
+			nlri, _, _, err := parseMUPType2SessionTransformedRouteArgs(args, bgp.AFI_IP)
+			if tt.wantErr {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			mupNlri, ok := nlri.(*bgp.MUPNLRI)
+			if !assert.True(ok) {
+				return
+			}
+			route, ok := mupNlri.RouteTypeData.(*bgp.MUPType2SessionTransformedRoute)
+			if !assert.True(ok) {
+				return
+			}
+			assert.Equal(tt.wantTLVs, route.TLVs)
+		})
+	}
+}
+
+func Test_ParseMUPType2SessionTransformedRouteArgsMUPExtcomm(t *testing.T) {
+	assert := assert.New(t)
+	args := []string{
+		"10.0.0.1", "rd", "1.1.1.1:65000", "rt", "65000:1",
+		"endpoint-address-length", "32", "teid", "100",
+		"mup", "interwork", "10.0.0.2:100",
+	}
+	_, _, extcomms, err := parseMUPType2SessionTransformedRouteArgs(args, bgp.AFI_IP)
+	assert.NoError(err)
+	assert.Equal([]string{"rt", "65000:1", "mup", "interwork", "10.0.0.2:100"}, extcomms)
+
+	exts, err := parseExtendedCommunities(extcomms)
+	assert.NoError(err)
+	want, _ := bgp.NewMUPIPv4AddressSpecificExtended(bgp.EC_SUBTYPE_MUP_INTERWORK_SEG_IPV4, netip.MustParseAddr("10.0.0.2"), 100)
+	assert.Contains(exts, bgp.ExtendedCommunityInterface(want))
 }
