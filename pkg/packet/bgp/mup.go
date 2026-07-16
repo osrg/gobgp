@@ -7,8 +7,10 @@ import (
 	"net/netip"
 )
 
-// MUPExtended represents BGP MUP Extended Community as described in
-// https://datatracker.ietf.org/doc/html/draft-ietf-bess-mup-safi-01#section-3.2
+// MUPExtended represents 2-Octet AS Specific BGP MUP Extended Community as described in
+// https://datatracker.ietf.org/doc/html/draft-ietf-bess-mup-safi-01#section-3.2.1
+// The name predates the draft-ietf sub-type restructuring; the encoding is
+// identical to the former Direct-Type Segment Identifier extended community.
 type MUPExtended struct {
 	SubType    ExtendedCommunityAttrSubType
 	SegmentID2 uint16
@@ -18,7 +20,7 @@ type MUPExtended struct {
 func (e *MUPExtended) Serialize() ([]byte, error) {
 	buf := make([]byte, 8)
 	buf[0] = byte(EC_TYPE_MUP)
-	buf[1] = byte(EC_SUBTYPE_MUP_DIRECT_SEG)
+	buf[1] = byte(e.SubType)
 	binary.BigEndian.PutUint16(buf[2:4], e.SegmentID2)
 	binary.BigEndian.PutUint32(buf[4:8], e.SegmentID4)
 	return buf, nil
@@ -42,18 +44,123 @@ func (e *MUPExtended) MarshalJSON() ([]byte, error) {
 }
 
 func (e *MUPExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
-	return EC_TYPE_MUP, EC_SUBTYPE_MUP_DIRECT_SEG
+	return EC_TYPE_MUP, e.SubType
 }
 
 func (e *MUPExtended) Flat() map[string]string {
 	return map[string]string{}
 }
 
-func NewMUPExtended(sid2 uint16, sid4 uint32) *MUPExtended {
+func NewMUPExtended(subType ExtendedCommunityAttrSubType, sid2 uint16, sid4 uint32) *MUPExtended {
 	return &MUPExtended{
-		SubType:    EC_SUBTYPE_MUP_DIRECT_SEG,
+		SubType:    subType,
 		SegmentID2: sid2,
 		SegmentID4: sid4,
+	}
+}
+
+// MUPIPv4AddressSpecificExtended represents IPv4 Address Specific BGP MUP Extended Community as described in
+// https://datatracker.ietf.org/doc/html/draft-ietf-bess-mup-safi-01#section-3.2.2
+type MUPIPv4AddressSpecificExtended struct {
+	SubType    ExtendedCommunityAttrSubType
+	IPv4       netip.Addr
+	LocalAdmin uint16
+}
+
+func (e *MUPIPv4AddressSpecificExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_MUP)
+	buf[1] = byte(e.SubType)
+	copy(buf[2:6], e.IPv4.AsSlice())
+	binary.BigEndian.PutUint16(buf[6:8], e.LocalAdmin)
+	return buf, nil
+}
+
+func (e *MUPIPv4AddressSpecificExtended) String() string {
+	return fmt.Sprintf("%s:%d", e.IPv4, e.LocalAdmin)
+}
+
+func (e *MUPIPv4AddressSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type      ExtendedCommunityAttrType    `json:"type"`
+		Subtype   ExtendedCommunityAttrSubType `json:"subtype"`
+		SegmentID string                       `json:"segment_id"`
+	}{
+		Type:      t,
+		Subtype:   s,
+		SegmentID: e.String(),
+	})
+}
+
+func (e *MUPIPv4AddressSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_MUP, e.SubType
+}
+
+func (e *MUPIPv4AddressSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func NewMUPIPv4AddressSpecificExtended(subType ExtendedCommunityAttrSubType, ip netip.Addr, localAdmin uint16) (*MUPIPv4AddressSpecificExtended, error) {
+	if !ip.Is4() {
+		return nil, fmt.Errorf("invalid IPv4 address: %s", ip)
+	}
+	return &MUPIPv4AddressSpecificExtended{
+		SubType:    subType,
+		IPv4:       ip,
+		LocalAdmin: localAdmin,
+	}, nil
+}
+
+// MUPFourOctetAsSpecificExtended represents 4-Octet AS Specific BGP MUP Extended Community as described in
+// https://datatracker.ietf.org/doc/html/draft-ietf-bess-mup-safi-01#section-3.2.3
+type MUPFourOctetAsSpecificExtended struct {
+	SubType    ExtendedCommunityAttrSubType
+	AS         uint32
+	LocalAdmin uint16
+}
+
+func (e *MUPFourOctetAsSpecificExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_MUP)
+	buf[1] = byte(e.SubType)
+	binary.BigEndian.PutUint32(buf[2:6], e.AS)
+	binary.BigEndian.PutUint16(buf[6:8], e.LocalAdmin)
+	return buf, nil
+}
+
+func (e *MUPFourOctetAsSpecificExtended) String() string {
+	asUpper := e.AS >> 16
+	asLower := e.AS & 0xffff
+	return fmt.Sprintf("%d.%d:%d", asUpper, asLower, e.LocalAdmin)
+}
+
+func (e *MUPFourOctetAsSpecificExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type      ExtendedCommunityAttrType    `json:"type"`
+		Subtype   ExtendedCommunityAttrSubType `json:"subtype"`
+		SegmentID string                       `json:"segment_id"`
+	}{
+		Type:      t,
+		Subtype:   s,
+		SegmentID: e.String(),
+	})
+}
+
+func (e *MUPFourOctetAsSpecificExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_MUP, e.SubType
+}
+
+func (e *MUPFourOctetAsSpecificExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func NewMUPFourOctetAsSpecificExtended(subType ExtendedCommunityAttrSubType, as uint32, localAdmin uint16) *MUPFourOctetAsSpecificExtended {
+	return &MUPFourOctetAsSpecificExtended{
+		SubType:    subType,
+		AS:         as,
+		LocalAdmin: localAdmin,
 	}
 }
 
@@ -63,10 +170,22 @@ func parseMUPExtended(data []byte) (ExtendedCommunityInterface, error) {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_MUP: %d", data[0]))
 	}
 	subType := ExtendedCommunityAttrSubType(data[1])
-	if subType == EC_SUBTYPE_MUP_DIRECT_SEG {
+	switch subType {
+	case EC_SUBTYPE_MUP_DIRECT_SEG, EC_SUBTYPE_MUP_INTERWORK_SEG:
 		sid2 := binary.BigEndian.Uint16(data[2:4])
 		sid4 := binary.BigEndian.Uint32(data[4:8])
-		return NewMUPExtended(sid2, sid4), nil
+		return NewMUPExtended(subType, sid2, sid4), nil
+	case EC_SUBTYPE_MUP_DIRECT_SEG_IPV4, EC_SUBTYPE_MUP_INTERWORK_SEG_IPV4:
+		ipv4, ok := netip.AddrFromSlice(data[2:6])
+		if !ok {
+			return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("invalid IPv4 address: %x", data[2:6]))
+		}
+		localAdmin := binary.BigEndian.Uint16(data[6:8])
+		return NewMUPIPv4AddressSpecificExtended(subType, ipv4, localAdmin)
+	case EC_SUBTYPE_MUP_DIRECT_SEG_4_OCTET_AS, EC_SUBTYPE_MUP_INTERWORK_SEG_4_OCTET_AS:
+		as := binary.BigEndian.Uint32(data[2:6])
+		localAdmin := binary.BigEndian.Uint16(data[6:8])
+		return NewMUPFourOctetAsSpecificExtended(subType, as, localAdmin), nil
 	}
 	return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("unknown mup subtype: %d", subType))
 }

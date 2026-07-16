@@ -2430,7 +2430,7 @@ func unmarshalExComm(a *api.ExtendedCommunitiesAttribute) (*bgp.PathAttributeExt
 			community = bgp.NewTrafficRemarkExtended(uint8(v.Dscp))
 		case *api.ExtendedCommunity_Mup:
 			v := comm.Mup
-			community = bgp.NewMUPExtended(uint16(v.SegmentId2), v.SegmentId4)
+			community = bgp.NewMUPExtended(bgp.ExtendedCommunityAttrSubType(v.SubType), uint16(v.SegmentId2), v.SegmentId4)
 		case *api.ExtendedCommunity_Vpls:
 			v := comm.Vpls
 			community = bgp.NewVPLSExtended(uint8(v.ControlFlags), uint16(v.Mtu))

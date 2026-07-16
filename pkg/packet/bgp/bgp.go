@@ -209,7 +209,12 @@ const (
 
 	EC_SUBTYPE_ORIGIN_VALIDATION ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x43
 
-	EC_SUBTYPE_MUP_DIRECT_SEG ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x0c
+	EC_SUBTYPE_MUP_DIRECT_SEG               ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x0c
+	EC_SUBTYPE_MUP_DIRECT_SEG_IPV4          ExtendedCommunityAttrSubType = 0x01 // EC_TYPE: 0x0c
+	EC_SUBTYPE_MUP_DIRECT_SEG_4_OCTET_AS    ExtendedCommunityAttrSubType = 0x02 // EC_TYPE: 0x0c
+	EC_SUBTYPE_MUP_INTERWORK_SEG            ExtendedCommunityAttrSubType = 0x03 // EC_TYPE: 0x0c
+	EC_SUBTYPE_MUP_INTERWORK_SEG_IPV4       ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x0c
+	EC_SUBTYPE_MUP_INTERWORK_SEG_4_OCTET_AS ExtendedCommunityAttrSubType = 0x05 // EC_TYPE: 0x0c
 
 	EC_SUBTYPE_FLOWSPEC_TRAFFIC_RATE   ExtendedCommunityAttrSubType = 0x06 // EC_TYPE: 0x80
 	EC_SUBTYPE_FLOWSPEC_TRAFFIC_ACTION ExtendedCommunityAttrSubType = 0x07 // EC_TYPE: 0x80

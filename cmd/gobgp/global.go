@@ -384,7 +384,7 @@ func mupParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid mup segment ID")
 	}
-	return []bgp.ExtendedCommunityInterface{bgp.NewMUPExtended(uint16(sid2), uint32(sid4))}, nil
+	return []bgp.ExtendedCommunityInterface{bgp.NewMUPExtended(bgp.EC_SUBTYPE_MUP_DIRECT_SEG, uint16(sid2), uint32(sid4))}, nil
 }
 
 var extCommParserMap = map[extCommType]func([]string) ([]bgp.ExtendedCommunityInterface, error){

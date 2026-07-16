@@ -9,21 +9,64 @@ import (
 )
 
 func Test_MUPExtended(t *testing.T) {
-	assert := assert.New(t)
-	exts := make([]ExtendedCommunityInterface, 0)
-	exts = append(exts, NewMUPExtended(100, 10000))
-	m1 := NewPathAttributeExtendedCommunities(exts)
-	buf1, err := m1.Serialize()
-	require.NoError(t, err)
+	mustMUPIPv4AddressSpecificExtended := func(subType ExtendedCommunityAttrSubType, ip netip.Addr, localAdmin uint16) *MUPIPv4AddressSpecificExtended {
+		e, err := NewMUPIPv4AddressSpecificExtended(subType, ip, localAdmin)
+		require.NoError(t, err)
+		return e
+	}
+	tests := []struct {
+		name string
+		in   ExtendedCommunityInterface
+	}{
+		{
+			name: "direct segment 2-octet AS",
+			in:   NewMUPExtended(EC_SUBTYPE_MUP_DIRECT_SEG, 100, 10000),
+		},
+		{
+			name: "direct segment IPv4",
+			in:   mustMUPIPv4AddressSpecificExtended(EC_SUBTYPE_MUP_DIRECT_SEG_IPV4, netip.MustParseAddr("10.0.0.1"), 100),
+		},
+		{
+			name: "direct segment 4-octet AS",
+			in:   NewMUPFourOctetAsSpecificExtended(EC_SUBTYPE_MUP_DIRECT_SEG_4_OCTET_AS, 65550, 100),
+		},
+		{
+			name: "interwork segment 2-octet AS",
+			in:   NewMUPExtended(EC_SUBTYPE_MUP_INTERWORK_SEG, 100, 10000),
+		},
+		{
+			name: "interwork segment IPv4",
+			in:   mustMUPIPv4AddressSpecificExtended(EC_SUBTYPE_MUP_INTERWORK_SEG_IPV4, netip.MustParseAddr("10.0.0.1"), 100),
+		},
+		{
+			name: "interwork segment 4-octet AS",
+			in:   NewMUPFourOctetAsSpecificExtended(EC_SUBTYPE_MUP_INTERWORK_SEG_4_OCTET_AS, 65550, 100),
+		},
+	}
 
-	m2 := NewPathAttributeExtendedCommunities(nil)
-	err = m2.DecodeFromBytes(buf1)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			m1 := NewPathAttributeExtendedCommunities([]ExtendedCommunityInterface{tt.in})
+			buf1, err := m1.Serialize()
+			require.NoError(t, err)
 
-	_, err = m2.Serialize()
-	require.NoError(t, err)
+			m2 := NewPathAttributeExtendedCommunities(nil)
+			err = m2.DecodeFromBytes(buf1)
+			require.NoError(t, err)
 
-	assert.Equal(m1, m2)
+			_, err = m2.Serialize()
+			require.NoError(t, err)
+
+			assert.Equal(m1, m2)
+		})
+	}
+}
+
+func Test_MUPExtendedUnknownSubType(t *testing.T) {
+	buf := []byte{byte(EC_TYPE_MUP), 0x06, 0, 100, 0, 0, 0x27, 0x10}
+	_, err := parseMUPExtended(buf)
+	assert.Error(t, err)
 }
 
 func Test_MUPInterworkSegmentDiscoveryRouteIPv4(t *testing.T) {
