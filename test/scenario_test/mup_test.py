@@ -79,6 +79,8 @@ class GoBGPTestBase(unittest.TestCase):
                 ('mup_t2st_route_ipv4', 'ipv4-mup', 't2st 10.0.0.1 rd 100:100 rt 10:10 endpoint-address-length 64 teid 12345 mup 10:10 nexthop 10.0.0.2', '10.0.0.2'),
                 ('mup_t2st_route_ipv4_hex_teid', 'ipv4-mup', 't2st 10.0.0.1 rd 100:100 rt 10:10 endpoint-address-length 48 teid 0xbeef mup 10:10 nexthop 10.0.0.2', '10.0.0.2'),
                 ('mup_t2st_route_ipv4_ip_teid', 'ipv4-mup', 't2st 10.0.0.1 rd 100:100 rt 10:10 endpoint-address-length 64 teid 0.0.0.100 mup 10:10 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_t2st_route_ipv4_with_tlvs', 'ipv4-mup', 't2st 10.0.0.1 rd 100:100 rt 10:10 endpoint-address-length 64 teid 12345 mup 10:10 session-teid 100 session-qfi 5 interwork-endpoint 10.0.1.1 source-address 10.0.2.1 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_t2st_route_ipv4_with_interwork_extcomm', 'ipv4-mup', 't2st 10.0.0.1 rd 100:100 rt 10:10 endpoint-address-length 64 teid 12345 mup interwork 10.0.0.1:100 nexthop 10.0.0.2', '10.0.0.2'),
                 ('mup_isd_route_ipv6', 'ipv6-mup', 'isd 2001::/64 rd 100:100 prefix 2001:db8:1:1::/64 locator-node-length 24 function-length 16 behavior ENDM_GTP6E rt 10:10 nexthop 2001::2', '2001::2'),
                 ('mup_dsd_route_ipv6', 'ipv6-mup', 'dsd 2001::1 rd 100:100 prefix 2001:db8:2:2::/64 locator-node-length 24 function-length 16 behavior END_DT6 rt 10:10 mup 10:10 nexthop 2001::2', '2001::2'),
                 ('mup_t1st_route_ipv6', 'ipv6-mup', 't1st 2001:db8:1:1::1/128 rd 100:100 rt 10:10 teid 12345 qfi 9 endpoint 2001::1 nexthop 10.0.0.2', '10.0.0.2'),
@@ -88,6 +90,8 @@ class GoBGPTestBase(unittest.TestCase):
                 ('mup_t2st_route_ipv6', 'ipv6-mup', 't2st 2001::1 rd 100:100 rt 10:10 endpoint-address-length 160 teid 12345 mup 10:10 nexthop 10.0.0.2', '10.0.0.2'),
                 ('mup_t2st_route_ipv6_hex_teid', 'ipv6-mup', 't2st 2001::1 rd 100:100 rt 10:10 endpoint-address-length 144 teid 0xbeef mup 10:10 nexthop 10.0.0.2', '10.0.0.2'),
                 ('mup_t2st_route_ipv6_ip_teid', 'ipv6-mup', 't2st 2001::1 rd 100:100 rt 10:10 endpoint-address-length 160 teid 0.0.0.100 mup 10:10 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_t2st_route_ipv6_with_tlvs', 'ipv6-mup', 't2st 2001::1 rd 100:100 rt 10:10 endpoint-address-length 160 teid 12345 mup 10:10 session-teid 100 session-qfi 5 interwork-endpoint 2001::2 source-address 2001::3 nexthop 10.0.0.2', '10.0.0.2'),
+                ('mup_t2st_route_ipv6_with_interwork_extcomm', 'ipv6-mup', 't2st 2001::1 rd 100:100 rt 10:10 endpoint-address-length 160 teid 12345 mup interwork 10.0.0.1:100 nexthop 10.0.0.2', '10.0.0.2'),
                 ]
         for msg, rf, route, nh in tests:
             with self.subTest(msg):
