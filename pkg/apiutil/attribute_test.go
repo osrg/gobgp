@@ -1131,6 +1131,23 @@ func Test_MpReachNLRIAttribute_MUPType1SessionTransformedRoute(t *testing.T) {
 				SourceAddress:         "10.0.0.2",
 			},
 		},
+		{
+			name: "IPv4_with_TLVs",
+			in: &api.MUPType1SessionTransformedRoute{
+				Rd:                    rd,
+				Prefix:                "192.168.100.1/32",
+				Teid:                  12345,
+				Qfi:                   9,
+				EndpointAddressLength: 32,
+				EndpointAddress:       "10.0.0.1",
+				Tlvs: []*api.MUPTLV{
+					{Tlv: &api.MUPTLV_Unknown{Unknown: &api.MUPUnknownTLV{
+						Type:  200,
+						Value: []byte{0xde, 0xad, 0xbe, 0xef},
+					}}},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		nlris := []*api.NLRI{{Nlri: &api.NLRI_MupType_1SessionTransformed{MupType_1SessionTransformed: tt.in}}}
@@ -1160,28 +1177,64 @@ func Test_MpReachNLRIAttribute_MUPType2SessionTransformedRoute(t *testing.T) {
 		Admin:    65000,
 		Assigned: 100,
 	}}}
-	nlris := []*api.NLRI{{Nlri: &api.NLRI_MupType_2SessionTransformed{MupType_2SessionTransformed: &api.MUPType2SessionTransformedRoute{
-		Rd:                    rd,
-		Teid:                  12345,
-		EndpointAddressLength: 64,
-		EndpointAddress:       "10.0.0.1",
-	}}}}
-
-	input := &api.MpReachNLRIAttribute{
-		Family: &api.Family{
-			Afi:  api.Family_AFI_IP,
-			Safi: api.Family_SAFI_MUP,
+	tests := []struct {
+		name string
+		in   *api.MUPType2SessionTransformedRoute
+	}{
+		{
+			name: "IPv4",
+			in: &api.MUPType2SessionTransformedRoute{
+				Rd:                    rd,
+				Teid:                  12345,
+				EndpointAddressLength: 64,
+				EndpointAddress:       "10.0.0.1",
+			},
 		},
-		NextHops: []string{"0.0.0.0"},
-		Nlris:    nlris,
+		{
+			name: "IPv4_with_TLVs",
+			in: &api.MUPType2SessionTransformedRoute{
+				Rd:                    rd,
+				Teid:                  12345,
+				EndpointAddressLength: 64,
+				EndpointAddress:       "10.0.0.1",
+				Tlvs: []*api.MUPTLV{
+					{Tlv: &api.MUPTLV_SessionParameters{SessionParameters: &api.MUPSessionParametersTLV{
+						Teid: 54321,
+						Qfi:  9,
+					}}},
+					{Tlv: &api.MUPTLV_InterworkEndpoint{InterworkEndpoint: &api.MUPInterworkEndpointTLV{
+						Address: "10.20.30.40",
+					}}},
+					{Tlv: &api.MUPTLV_SourceAddress{SourceAddress: &api.MUPSourceAddressTLV{
+						Address: "2001::100",
+					}}},
+					{Tlv: &api.MUPTLV_Unknown{Unknown: &api.MUPUnknownTLV{
+						Type:  200,
+						Value: []byte{0xde, 0xad, 0xbe, 0xef},
+					}}},
+				},
+			},
+		},
 	}
+	for _, tt := range tests {
+		nlris := []*api.NLRI{{Nlri: &api.NLRI_MupType_2SessionTransformed{MupType_2SessionTransformed: tt.in}}}
 
-	a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
-	n, err := UnmarshalAttribute(a)
-	assert.NoError(err)
+		input := &api.MpReachNLRIAttribute{
+			Family: &api.Family{
+				Afi:  api.Family_AFI_IP,
+				Safi: api.Family_SAFI_MUP,
+			},
+			NextHops: []string{"0.0.0.0"},
+			Nlris:    nlris,
+		}
 
-	output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
-	assert.True(proto.Equal(input, output))
+		a := &api.Attribute{Attr: &api.Attribute_MpReach{MpReach: input}}
+		n, err := UnmarshalAttribute(a)
+		assert.NoError(err)
+
+		output, _ := NewMpReachNLRIAttributeFromNative(n.(*bgp.PathAttributeMpReachNLRI))
+		assert.True(proto.Equal(input, output), tt.name)
+	}
 }
 
 func Test_MpUnreachNLRIAttribute_IPv4_UC(t *testing.T) {
@@ -1289,9 +1342,20 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 		{Extcom: &api.ExtendedCommunity_TrafficRemark{TrafficRemark: &api.TrafficRemarkExtended{
 			Dscp: 0x0a, // AF11
 		}}},
-		{Extcom: &api.ExtendedCommunity_Mup{Mup: &api.MUPExtended{
-			SegmentId2: 10,
-			SegmentId4: 100,
+		{Extcom: &api.ExtendedCommunity_MupTwoOctetAsSpecific{MupTwoOctetAsSpecific: &api.MUPTwoOctetAsSpecificExtended{
+			SubType:    0x00, // Direct Segment
+			Asn:        10,
+			LocalAdmin: 100,
+		}}},
+		{Extcom: &api.ExtendedCommunity_MupIpv4AddressSpecific{MupIpv4AddressSpecific: &api.MUPIPv4AddressSpecificExtended{
+			SubType:    0x04, // Interwork Segment
+			Address:    "7.7.7.7",
+			LocalAdmin: 100,
+		}}},
+		{Extcom: &api.ExtendedCommunity_MupFourOctetAsSpecific{MupFourOctetAsSpecific: &api.MUPFourOctetAsSpecificExtended{
+			SubType:    0x05, // Interwork Segment
+			Asn:        65550,
+			LocalAdmin: 100,
 		}}},
 		{Extcom: &api.ExtendedCommunity_Unknown{Unknown: &api.UnknownExtended{
 			Type:  0xff, // Max of uint8
@@ -1956,6 +2020,48 @@ func TestFullCycleSRv6InformationSubTLV(t *testing.T) {
 			if !bytes.Equal(tt.input, recovered) {
 				t.Fatalf("round trip conversion test failed as expected prefix sid attribute %+v does not match actual: %+v", tt.input, recovered)
 			}
+		})
+	}
+}
+
+func Test_ExtendedCommunitiesAttribute_MUPInvalidSubType(t *testing.T) {
+	assert := assert.New(t)
+	tests := []struct {
+		name string
+		in   *api.ExtendedCommunity
+	}{
+		{
+			name: "two-octet AS with IPv4 sub type",
+			in: &api.ExtendedCommunity{Extcom: &api.ExtendedCommunity_MupTwoOctetAsSpecific{MupTwoOctetAsSpecific: &api.MUPTwoOctetAsSpecificExtended{
+				SubType:    0x01,
+				Asn:        10,
+				LocalAdmin: 100,
+			}}},
+		},
+		{
+			name: "IPv4 with two-octet AS sub type",
+			in: &api.ExtendedCommunity{Extcom: &api.ExtendedCommunity_MupIpv4AddressSpecific{MupIpv4AddressSpecific: &api.MUPIPv4AddressSpecificExtended{
+				SubType:    0x00,
+				Address:    "10.0.0.1",
+				LocalAdmin: 100,
+			}}},
+		},
+		{
+			name: "4-octet AS with IPv4 sub type",
+			in: &api.ExtendedCommunity{Extcom: &api.ExtendedCommunity_MupFourOctetAsSpecific{MupFourOctetAsSpecific: &api.MUPFourOctetAsSpecificExtended{
+				SubType:    0x04,
+				Asn:        65550,
+				LocalAdmin: 100,
+			}}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &api.Attribute{Attr: &api.Attribute_ExtendedCommunities{ExtendedCommunities: &api.ExtendedCommunitiesAttribute{
+				Communities: []*api.ExtendedCommunity{tt.in},
+			}}}
+			_, err := UnmarshalAttribute(a)
+			assert.ErrorContains(err, "sub type")
 		})
 	}
 }
