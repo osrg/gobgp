@@ -1,6 +1,6 @@
 # BGP Extensions for the Mobile User Plane (MUP) SAFI
 
-This feature is implementation of [the Internet-Draft, BGP Extensions for the Mobile User Plane (MUP) SAFI](https://datatracker.ietf.org/doc/html/draft-mpmz-bess-mup-safi-03).
+This feature is implementation of [the Internet-Draft, BGP Extensions for the Mobile User Plane (MUP) SAFI](https://datatracker.ietf.org/doc/html/draft-ietf-bess-mup-safi-01).
 
 ## Contents
 
@@ -17,16 +17,16 @@ This feature is implementation of [the Internet-Draft, BGP Extensions for the Mo
 
 ```shell
 # Add a route
-gobgp global rib add -a ipv4-mup isd <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...]
-gobgp global rib add -a ipv6-mup isd <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...]
+gobgp global rib add -a ipv4-mup isd <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup [direct|interwork] <global administrator>:<local administrator>]
+gobgp global rib add -a ipv6-mup isd <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup [direct|interwork] <global administrator>:<local administrator>]
 
 # Show routes
 gobgp global rib -a ipv4-mup
 gobgp global rib -a ipv6-mup
 
 # Delete a route
-gobgp global rib del -a ipv4-mup isd <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...]
-gobgp global rib del -a ipv6-mup isd <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...]
+gobgp global rib del -a ipv4-mup isd <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup [direct|interwork] <global administrator>:<local administrator>]
+gobgp global rib del -a ipv6-mup isd <ip prefix> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup [direct|interwork] <global administrator>:<local administrator>]
 ```
 
 #### Example - Interwork Segment Discovery route
@@ -49,17 +49,19 @@ $ gobgp global rib -a ipv6-mup
 
 ```shell
 # Add a route
-gobgp global rib add -a ipv4-mup dsd <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup <segment identifier>]
-gobgp global rib add -a ipv6-mup dsd <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup <segment identifier>]
+gobgp global rib add -a ipv4-mup dsd <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup [direct|interwork] <global administrator>:<local administrator>]
+gobgp global rib add -a ipv6-mup dsd <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup [direct|interwork] <global administrator>:<local administrator>]
 
 # Show routes
 gobgp global rib -a ipv4-mup
 gobgp global rib -a ipv6-mup
 
 # Delete a route
-gobgp global rib del -a ipv4-mup dsd <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup <segment identifier>]
-gobgp global rib del -a ipv6-mup dsd <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup <segment identifier>]
+gobgp global rib del -a ipv4-mup dsd <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup [direct|interwork] <global administrator>:<local administrator>]
+gobgp global rib del -a ipv6-mup dsd <ip address> rd <rd> prefix <prefix> locator-node-length <locator-node-length> function-length <function-length> behavior <behavior> [rt <rt>...] [mup [direct|interwork] <global administrator>:<local administrator>]
 ```
+
+The format of the BGP MUP Extended Community: `[direct|interwork] <global administrator>:<local administrator>`. The `direct`/`interwork` keyword is optional and defaults to `direct`. The encoding is inferred from the Global Administrator: an IPv4 address selects the IPv4 Address Specific format, an integer greater than 65535 selects the 4-Octet AS Specific format, and otherwise the 2-Octet AS Specific format is used.
 
 #### Example - Direct Segment Discovery route
 
@@ -119,19 +121,23 @@ $ gobgp global rib -a ipv6-mup
 
 ```shell
 # Add a route
-gobgp global rib add -a ipv4-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
-gobgp global rib add -a ipv6-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
+gobgp global rib add -a ipv4-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup [direct|interwork] <global administrator>:<local administrator>] [session-teid <teid> session-qfi <qfi>] [interwork-endpoint <addr>] [source-address <addr>]
+gobgp global rib add -a ipv6-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup [direct|interwork] <global administrator>:<local administrator>] [session-teid <teid> session-qfi <qfi>] [interwork-endpoint <addr>] [source-address <addr>]
 
 # Show routes
 gobgp global rib -a ipv4-mup
 gobgp global rib -a ipv6-mup
 
 # Delete a route
-gobgp global rib del -a ipv4-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
-gobgp global rib del -a ipv6-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup <segment identifier>]
+gobgp global rib del -a ipv4-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup [direct|interwork] <global administrator>:<local administrator>] [session-teid <teid> session-qfi <qfi>] [interwork-endpoint <addr>] [source-address <addr>]
+gobgp global rib del -a ipv6-mup t2st <endpoint address> rd <rd> [rt <rt>...] endpoint-address-length <endpoint-address-length> teid <teid> [mup [direct|interwork] <global administrator>:<local administrator>] [session-teid <teid> session-qfi <qfi>] [interwork-endpoint <addr>] [source-address <addr>]
 ```
 
-The format of the TEID: hexadecimal (beginning with '0x'), decimal (uint32), or IPv4.
+The format of the TEID: hexadecimal (beginning with '0x'), decimal (uint32), or IPv4. This also applies to the `session-teid` TLV.
+
+The format of the BGP MUP Extended Community: `[direct|interwork] <global administrator>:<local administrator>`. The `direct`/`interwork` keyword is optional and defaults to `direct`. The encoding is inferred from the Global Administrator: an IPv4 address selects the IPv4 Address Specific format, an integer greater than 65535 selects the 4-Octet AS Specific format, and otherwise the 2-Octet AS Specific format is used.
+
+`session-teid` and `session-qfi` add a 3gpp-5g Session Parameters TLV and must be specified together. `interwork-endpoint` and `source-address` add an Interwork Endpoint TLV and a Source Address TLV respectively. All three TLVs are optional and defined in [Section 3.1.5 of the draft](https://datatracker.ietf.org/doc/html/draft-ietf-bess-mup-safi-01#section-3.1.5); they apply only to the Type 2 Session Transformed Route.
 
 #### Example - Type 2 Session Transformed Route
 
@@ -150,6 +156,19 @@ $ gobgp global rib -a ipv6-mup
    Network                                                                                TEID       QFI        Endpoint             Next Hop             AS_PATH              Age        Attrs
 *> [type:t2st][rd:100:100][endpoint-address-length:160][endpoint:2001::1][teid:0.0.48.57]                                            10.0.0.2                                  00:00:47   [{Origin: ?} {Extcomms: [10:10], [10:10]}]
 ```
+
+#### Example - Type 2 Session Transformed Route with optional TLVs and the Interwork Segment Extended Community
+
+```console
+# IPv4
+$ gobgp global rib add -a ipv4-mup t2st 10.0.0.1 rd 100:100 rt 10:10 endpoint-address-length 64 teid 12345 mup interwork 10.0.0.2:100 session-teid 100 session-qfi 5 interwork-endpoint 10.0.1.1 source-address 10.0.2.1 nexthop 10.0.0.2
+
+$ gobgp global rib -a ipv4-mup
+   Network                                                                                Next Hop             AS_PATH              Age        Attrs
+*> [type:t2st][rd:100:100][endpoint-address-length:64][endpoint:10.0.0.1][teid:0.0.48.57] 10.0.0.2                                  00:00:01   [{Origin: ?} {Extcomms: [10:10], [10.0.0.2:100]}]
+```
+
+The `mup interwork 10.0.0.2:100` argument attaches an Interwork Segment Extended Community in the IPv4 Address Specific format (inferred from the IPv4 Global Administrator). The `session-teid`, `session-qfi`, `interwork-endpoint` and `source-address` values are carried in the route's optional TLVs; they are not part of the route key and do not appear in the table output, but the JSON output (`gobgp global rib -a ipv4-mup -j`) shows them in the `tlvs` field of the NLRI.
 
 ## Example setup with netns
 
