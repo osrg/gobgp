@@ -98,10 +98,29 @@ message TrafficRemarkExtended {
   uint32 dscp = 1;
 }
 
-message MUPExtended {
+// BGP MUP Extended Communities as described in
+// draft-ietf-bess-mup-safi-01 Section 3.2. The sub_type distinguishes
+// both the value format and the semantics: 0x00, 0x01 and 0x02
+// identify a Direct Segment and 0x03, 0x04 and 0x05 an Interwork
+// Segment, in the 2-octet AS, IPv4 address and 4-octet AS formats
+// respectively.
+
+message MUPTwoOctetAsSpecificExtended {
   uint32 sub_type = 1;
-  uint32 segment_id2 = 2;
-  uint32 segment_id4 = 3;
+  uint32 asn = 2;
+  uint32 local_admin = 3;
+}
+
+message MUPIPv4AddressSpecificExtended {
+  uint32 sub_type = 1;
+  string address = 2;
+  uint32 local_admin = 3;
+}
+
+message MUPFourOctetAsSpecificExtended {
+  uint32 sub_type = 1;
+  uint32 asn = 2;
+  uint32 local_admin = 3;
 }
 
 message VPLSExtended {
@@ -125,6 +144,11 @@ message UnknownExtended {
 }
 
 message ExtendedCommunity {
+  // Field 21 was the MUPExtended message, superseded by
+  // MUPTwoOctetAsSpecificExtended.
+  reserved 21;
+  reserved "mup";
+
   oneof extcom {
     UnknownExtended unknown = 1;
     TwoOctetAsSpecificExtended two_octet_as_specific = 2;
@@ -146,10 +170,12 @@ message ExtendedCommunity {
     RedirectIPv4AddressSpecificExtended redirect_ipv4_address_specific = 18;
     RedirectFourOctetAsSpecificExtended redirect_four_octet_as_specific = 19;
     TrafficRemarkExtended traffic_remark = 20;
-    MUPExtended mup = 21;
     VPLSExtended vpls = 22;
     ETreeExtended etree = 23;
     MulticastFlagsExtended multicast_flags = 24;
+    MUPTwoOctetAsSpecificExtended mup_two_octet_as_specific = 25;
+    MUPIPv4AddressSpecificExtended mup_ipv4_address_specific = 26;
+    MUPFourOctetAsSpecificExtended mup_four_octet_as_specific = 27;
   }
 }
 
