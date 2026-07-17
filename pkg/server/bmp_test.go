@@ -96,18 +96,41 @@ func TestBMPAddPathMarshallingOptionCarriesPathIDOnWithdraw(t *testing.T) {
 	_ = update.WithdrawnRoutes[0].ID
 }
 
-func localRIBPeerUpOpen(t *testing.T, addPathEnabled bool) *bgp.BGPOpen {
+const (
+	locRIBTestAS       = uint32(65002)
+	locRIBTestRouterID = "100.1.1.102"
+)
+
+func localRIBPeerUp(t *testing.T) *packetbmp.BMPMessage {
 	t.Helper()
-	msg := bmpLocRIBPeerUp(
-		65002,
-		netip.MustParseAddr("100.1.1.102"),
+	return bmpLocRIBPeerUp(
+		locRIBTestAS,
+		netip.MustParseAddr(locRIBTestRouterID),
 		"global",
 		0,
 		time.Now().Unix(),
-		addPathEnabled,
 	)
-	up := msg.Body.(*packetbmp.BMPPeerUpNotification)
+}
+
+func localRIBPeerUpOpen(t *testing.T) *bgp.BGPOpen {
+	t.Helper()
+	up := localRIBPeerUp(t).Body.(*packetbmp.BMPPeerUpNotification)
 	return up.SentOpenMsg.Body.(*bgp.BGPOpen)
+}
+
+func findFourOctetASCapability(open *bgp.BGPOpen) *bgp.CapFourOctetASNumber {
+	for _, p := range open.OptParams {
+		param, ok := p.(*bgp.OptionParameterCapability)
+		if !ok {
+			continue
+		}
+		for _, c := range param.Capability {
+			if fourOctet, ok := c.(*bgp.CapFourOctetASNumber); ok {
+				return fourOctet
+			}
+		}
+	}
+	return nil
 }
 
 func findAddPathCapability(open *bgp.BGPOpen) *bgp.CapAddPath {
@@ -165,13 +188,12 @@ func TestRiboutWithdrawKeepsOtherPeersPath(t *testing.T) {
 	require.True(t, r.update(p1))
 }
 
-func TestBMPLocRIBPeerUpOmitsAddPathCapabilityWhenDisabled(t *testing.T) {
-	open := localRIBPeerUpOpen(t, false)
-	require.Nil(t, findAddPathCapability(open))
-}
-
-func TestBMPLocRIBPeerUpCarriesAddPathCapabilityWhenEnabled(t *testing.T) {
-	open := localRIBPeerUpOpen(t, true)
+// Loc-RIB Route Monitoring messages are always marshalled with add-path (see
+// TestBMPAddPathMarshallingOptionCarriesPathIDOnWithdraw), so the fabricated
+// OPEN must always advertise the capability. Omitting it left receivers parsing
+// the NLRIs 4 octets out of step. RFC 9069 5.2.
+func TestBMPLocRIBPeerUpAlwaysCarriesAddPathCapability(t *testing.T) {
+	open := localRIBPeerUpOpen(t)
 	addPath := findAddPathCapability(open)
 	require.NotNil(t, addPath)
 	require.Len(t, addPath.Tuples, 2)
@@ -179,4 +201,69 @@ func TestBMPLocRIBPeerUpCarriesAddPathCapabilityWhenEnabled(t *testing.T) {
 	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[0].Mode)
 	require.Equal(t, bgp.RF_IPv6_UC, addPath.Tuples[1].Family)
 	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[1].Mode)
+}
+
+// RFC 9069 5.2: "Capabilities MUST include the 4-octet ASN and all necessary
+// capabilities to represent the Loc-RIB Route Monitoring messages."
+//
+// RFC 6793 3: the capability is advertised whatever the ASN is, and carries the
+// real AS number. Only the 2-octet My Autonomous System field changes: it holds
+// the AS when it fits, and AS_TRANS (23456) when it does not.
+func TestBMPLocRIBPeerUpAlwaysCarriesFourOctetASCapability(t *testing.T) {
+	const asTrans = uint16(23456)
+
+	tests := []struct {
+		name     string
+		localAS  uint32
+		wantMyAS uint16
+	}{
+		{"two-octet AS is carried in My AS", 65002, 65002},
+		{"four-octet AS falls back to AS_TRANS in My AS", 4200000000, asTrans},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := bmpLocRIBPeerUp(tt.localAS, netip.MustParseAddr(locRIBTestRouterID), "global", 0, time.Now().Unix())
+			open := msg.Body.(*packetbmp.BMPPeerUpNotification).SentOpenMsg.Body.(*bgp.BGPOpen)
+
+			require.Equal(t, tt.wantMyAS, open.MyAS)
+
+			fourOctet := findFourOctetASCapability(open)
+			require.NotNil(t, fourOctet, "the capability is advertised whatever the ASN is")
+			require.Equal(t, tt.localAS, fourOctet.CapValue, "the capability carries the real AS number")
+
+			// and the per-peer header always carries the real AS, never AS_TRANS
+			require.Equal(t, tt.localAS, msg.PeerHeader.PeerAS)
+		})
+	}
+}
+
+// RFC 9069 5.1: only the Peer Address is zero-filled for a Loc-RIB Instance
+// Peer. The Peer AS is the router's ASN and the Peer BGP ID is its router-id,
+// and both must match the header carried by the Loc-RIB Route Monitoring
+// messages, or a receiver cannot correlate the two and loses the capabilities
+// negotiated in this Peer Up.
+func TestBMPLocRIBPeerUpHeaderIdentifiesTheRouter(t *testing.T) {
+	ph := localRIBPeerUp(t).PeerHeader
+	require.Equal(t, packetbmp.BMP_PEER_TYPE_LOCAL_RIB, ph.PeerType)
+	require.Equal(t, locRIBTestAS, ph.PeerAS)
+	require.Equal(t, netip.MustParseAddr(locRIBTestRouterID), ph.PeerBGPID)
+	require.False(t, ph.PeerAddress.IsValid(), "peer address must be zero-filled")
+}
+
+// bmpLocRIBPeerDown carries the same per-peer header as the Peer Up and the
+// Route Monitoring messages, so a receiver can tie the teardown to the instance
+// it was told about. RFC 9069 5.1.
+func TestBMPLocRIBPeerDownHeaderIdentifiesTheRouter(t *testing.T) {
+	msg := bmpLocRIBPeerDown(
+		locRIBTestAS,
+		netip.MustParseAddr(locRIBTestRouterID),
+		"global",
+		0,
+		time.Now().Unix(),
+	)
+	ph := msg.PeerHeader
+	require.Equal(t, packetbmp.BMP_PEER_TYPE_LOCAL_RIB, ph.PeerType)
+	require.Equal(t, locRIBTestAS, ph.PeerAS)
+	require.Equal(t, netip.MustParseAddr(locRIBTestRouterID), ph.PeerBGPID)
+	require.False(t, ph.PeerAddress.IsValid(), "peer address must be zero-filled")
 }
