@@ -2,10 +2,13 @@
 package table
 
 import (
+	"bytes"
 	"net"
 	"net/netip"
 	"testing"
 	"time"
+
+	"github.com/dgryski/go-farm"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -521,4 +524,136 @@ func TestUnknownPathAttributes(t *testing.T) {
 		}
 	}
 	assert.True(t, found255, "Unknown attribute of type 255 should be present in the path attributes list")
+}
+
+// attrsHashLikeEagerSites mirrors the eager hash computation used for
+// paths originating from ProcessMessage: farm.Hash64 over the serialized
+// path attributes excluding MP_REACH_NLRI.
+func attrsHashLikeEagerSites(p *Path) uint64 {
+	total := bytes.NewBuffer(make([]byte, 0))
+	for _, a := range p.GetPathAttrs() {
+		if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+			continue
+		}
+		b, _ := a.Serialize()
+		total.Write(b)
+	}
+	return farm.Hash64(total.Bytes())
+}
+
+func mupT1stPath(t *testing.T, teid netip.Addr, nexthop netip.Addr) *Path {
+	t.Helper()
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(65000, 100)
+	nlri := bgp.NewMUPType1SessionTransformedRoute(rd, netip.MustParsePrefix("10.10.10.1/32"), teid, 9, netip.MustParseAddr("10.10.10.1"), nil)
+	mpreach, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_MUP_IPv4, []bgp.PathNLRI{{NLRI: nlri}}, nexthop)
+	assert.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		mpreach,
+	}
+	return NewPath(bgp.RF_MUP_IPv4, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+}
+
+func ipv4Path(t *testing.T, nexthop netip.Addr) *Path {
+	t.Helper()
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.20.30.0/24"))
+	nh, err := bgp.NewPathAttributeNextHop(nexthop)
+	assert.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		nh,
+	}
+	return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+}
+
+func TestPathEqual(t *testing.T) {
+	teid1 := netip.MustParseAddr("0.0.0.100")
+	teid2 := netip.MustParseAddr("0.0.0.200")
+	nh1 := netip.MustParseAddr("10.0.0.1")
+	nh2 := netip.MustParseAddr("10.0.0.2")
+
+	t.Run("same pointer", func(t *testing.T) {
+		p := ipv4Path(t, nh1)
+		assert.True(t, p.Equal(p))
+	})
+
+	t.Run("clone", func(t *testing.T) {
+		p := ipv4Path(t, nh1)
+		assert.True(t, p.Equal(p.Clone(false)))
+	})
+
+	t.Run("identical, independently built", func(t *testing.T) {
+		assert.True(t, ipv4Path(t, nh1).Equal(ipv4Path(t, nh1)))
+		assert.True(t, mupT1stPath(t, teid1, nh1).Equal(mupT1stPath(t, teid1, nh1)))
+	})
+
+	t.Run("NEXT_HOP attribute differs", func(t *testing.T) {
+		assert.False(t, ipv4Path(t, nh1).Equal(ipv4Path(t, nh2)))
+	})
+
+	t.Run("MP_REACH nexthop differs", func(t *testing.T) {
+		lhs := mupT1stPath(t, teid1, nh1)
+		rhs := mupT1stPath(t, teid1, nh2)
+		// eager hashes collide because MP_REACH_NLRI is excluded from them
+		lhs.SetHash(attrsHashLikeEagerSites(lhs))
+		rhs.SetHash(attrsHashLikeEagerSites(rhs))
+		assert.Equal(t, lhs.GetHash(), rhs.GetHash())
+		assert.False(t, lhs.Equal(rhs))
+	})
+
+	t.Run("MP_REACH nexthop differs with NEXT_HOP present", func(t *testing.T) {
+		// an UPDATE carrying both IPv4 NLRI and MP_REACH_NLRI is valid; the MP
+		// paths built from it then hold a NEXT_HOP attribute alongside MP_REACH
+		newMixedPath := func(mpNexthop string) *Path {
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:10::/64"))
+			panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+			mpreach, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri}},
+				netip.MustParseAddr(mpNexthop))
+			assert.NoError(t, err)
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+				panh,
+				mpreach,
+			}
+			p := NewPath(bgp.RF_IPv6_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+			p.SetHash(attrsHashLikeEagerSites(p))
+			return p
+		}
+		lhs := newMixedPath("2001:db8::1")
+		rhs := newMixedPath("2001:db8::2")
+		assert.Equal(t, lhs.GetHash(), rhs.GetHash())
+		assert.False(t, lhs.Equal(rhs))
+	})
+
+	t.Run("MP_REACH link-local nexthop differs", func(t *testing.T) {
+		newV6Path := func(ll string) *Path {
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:10::/64"))
+			mpreach, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri}},
+				netip.MustParseAddr("2001:db8::1"), netip.MustParseAddr(ll))
+			assert.NoError(t, err)
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+				mpreach,
+			}
+			p := NewPath(bgp.RF_IPv6_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+			p.SetHash(attrsHashLikeEagerSites(p))
+			return p
+		}
+		lhs := newV6Path("fe80::1")
+		rhs := newV6Path("fe80::2")
+		assert.Equal(t, lhs.GetHash(), rhs.GetHash())
+		assert.Equal(t, lhs.GetNexthop(), rhs.GetNexthop())
+		assert.False(t, lhs.Equal(rhs))
+	})
+
+	t.Run("NLRI payload outside the route key differs", func(t *testing.T) {
+		lhs := mupT1stPath(t, teid1, nh1)
+		rhs := mupT1stPath(t, teid2, nh1)
+		// same route key (TEID is not part of it), same eager hash
+		assert.Equal(t, lhs.GetNlri().String(), rhs.GetNlri().String())
+		lhs.SetHash(attrsHashLikeEagerSites(lhs))
+		rhs.SetHash(attrsHashLikeEagerSites(rhs))
+		assert.Equal(t, lhs.GetHash(), rhs.GetHash())
+		assert.False(t, lhs.Equal(rhs))
+	})
 }

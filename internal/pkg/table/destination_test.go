@@ -916,3 +916,43 @@ func TestUpdateGetMultiBestPathDiff(t *testing.T) {
 	assert.Equal(t, oldA.GetNexthop(), withdraw[0].GetNexthop())
 	assert.True(t, withdraw[0].IsWithdraw)
 }
+
+// TestGetChanges_NonKeyNlriOrNexthopOnlyChange reproduces update suppression
+// for a locally re-added path whose route key is unchanged but whose NLRI
+// payload (MUP TEID) or MP_REACH nexthop is: such a change must be
+// re-advertised, even though the attributes hash (which excludes
+// MP_REACH_NLRI) stays the same.
+func TestGetChanges_NonKeyNlriOrNexthopOnlyChange(t *testing.T) {
+	newPath := func(teid, nexthop netip.Addr) *Path {
+		p := mupT1stPath(t, teid, nexthop)
+		p.SetHash(attrsHashLikeEagerSites(p))
+		return p
+	}
+
+	p1 := newPath(netip.MustParseAddr("0.0.0.100"), netip.MustParseAddr("10.0.0.1"))
+	d := &destination{nlri: p1.GetNlri(), localIdMap: NewBitmap(64)}
+	d.localIdMap.Flag(0)
+
+	u1, _ := d.Calculate(logger, p1)
+	best1, _, _ := u1.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	assert.NotNil(t, best1, "initial add should be advertised")
+
+	// same route key and nexthop, TEID changed
+	p2 := newPath(netip.MustParseAddr("0.0.0.200"), netip.MustParseAddr("10.0.0.1"))
+	assert.Equal(t, p1.GetHash(), p2.GetHash())
+	u2, _ := d.Calculate(logger, p2)
+	best2, _, _ := u2.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	assert.NotNil(t, best2, "TEID-only change should be advertised")
+
+	// same route key and TEID, nexthop changed
+	p3 := newPath(netip.MustParseAddr("0.0.0.200"), netip.MustParseAddr("10.0.0.2"))
+	u3, _ := d.Calculate(logger, p3)
+	best3, _, _ := u3.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	assert.NotNil(t, best3, "nexthop-only change should be advertised")
+
+	// unchanged re-add stays suppressed
+	p4 := newPath(netip.MustParseAddr("0.0.0.200"), netip.MustParseAddr("10.0.0.2"))
+	u4, _ := d.Calculate(logger, p4)
+	best4, _, _ := u4.GetChanges(GLOBAL_RIB_NAME, 0, false)
+	assert.Nil(t, best4, "identical re-add should stay suppressed")
+}
