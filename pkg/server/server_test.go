@@ -74,6 +74,62 @@ func TestWatchPostUpdateWithLocalRoute(t *testing.T) {
 	s.watch(WatchPostUpdate(true, "10.2.2.2", ""))
 }
 
+// TestWatchBestPathNexthopOnlyChange verifies that re-adding a local path
+// with only its nexthop changed produces a new best path event. For MP
+// families the nexthop lives in MP_REACH_NLRI, which is excluded from the
+// path attributes hash, so this used to be suppressed as a no-op change.
+func TestWatchBestPathNexthopOnlyChange(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	w := s.watch(WatchBestPath(false))
+	defer w.Stop()
+
+	waitEvent := func() *watchEventBestPath {
+		t.Helper()
+		select {
+		case ev := <-w.Event():
+			return ev.(*watchEventBestPath)
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for best path event")
+			return nil
+		}
+	}
+
+	addPath := func(nexthop string) {
+		t.Helper()
+		panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop))
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			panh,
+		}
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:10::/64"))
+		path, _ := apiutil.NewPath(bgp.RF_IPv6_UC, nlri, false, attrs, time.Now())
+		_, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}})
+		require.NoError(t, err)
+	}
+
+	addPath("2001:db8::1")
+	ev := waitEvent()
+	require.Len(t, ev.PathList, 1)
+	assert.Equal(t, "2001:db8::1", ev.PathList[0].GetNexthop().String())
+
+	// re-add the same prefix with only the nexthop changed
+	addPath("2001:db8::2")
+	ev = waitEvent()
+	require.Len(t, ev.PathList, 1)
+	assert.Equal(t, "2001:db8::2", ev.PathList[0].GetNexthop().String())
+}
+
 func TestStop(t *testing.T) {
 	assert := assert.New(t)
 	s := NewBgpServer()

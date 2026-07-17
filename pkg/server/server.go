@@ -2449,17 +2449,6 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 	if p == nil {
 		return nil, fmt.Errorf("invalid path: %v", path)
 	}
-	if !doWithdraw {
-		total := bytes.NewBuffer(make([]byte, 0))
-		for _, a := range pattrs {
-			if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-				continue
-			}
-			b, _ := a.Serialize()
-			total.Write(b)
-		}
-		p.SetHash(farm.Hash64(total.Bytes()))
-	}
 	p.SetIsFromExternal(path.IsFromExternal)
 	return p, nil
 }
