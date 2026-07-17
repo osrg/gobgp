@@ -29,9 +29,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dgryski/go-farm"
+
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
-	"github.com/segmentio/fasthash/fnv1a"
 )
 
 const (
@@ -1361,13 +1362,21 @@ func (p *Path) ToLocal() *Path {
 	return path
 }
 
+// updateHash must stay in sync with the shared per-UPDATE hash in
+// ProcessMessage (table_manager.go) so that lazily and eagerly hashed
+// paths compare equal. MP_REACH_NLRI is excluded so the hash can double
+// as the UPDATE batching key (see CreateUpdateMsgFromPaths); Equal
+// compares the nexthop and the NLRI explicitly instead.
 func (p *Path) updateHash() {
-	hash := fnv1a.Init64
+	total := bytes.NewBuffer(make([]byte, 0))
 	for _, a := range p.GetPathAttrs() {
+		if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+			continue
+		}
 		d, _ := a.Serialize()
-		hash = fnv1a.AddBytes64(hash, d)
+		total.Write(d)
 	}
-	p.attrsHash.Store(hash)
+	p.attrsHash.Store(farm.Hash64(total.Bytes()))
 }
 
 func (p *Path) SetHash(v uint64) {

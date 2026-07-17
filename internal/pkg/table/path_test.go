@@ -657,3 +657,18 @@ func TestPathEqual(t *testing.T) {
 		assert.False(t, lhs.Equal(rhs))
 	})
 }
+
+// A path hashed eagerly in ProcessMessage and an identical one hashed
+// lazily via updateHash must produce the same value, or Equal reports a
+// spurious difference and packerV4 batching splits buckets.
+func TestPathAttrsHashConsistency(t *testing.T) {
+	teid := netip.MustParseAddr("0.0.0.100")
+	nh := netip.MustParseAddr("10.0.0.1")
+
+	eager := mupT1stPath(t, teid, nh)
+	eager.SetHash(attrsHashLikeEagerSites(eager))
+	lazy := mupT1stPath(t, teid, nh)
+
+	assert.Equal(t, eager.GetHash(), lazy.GetHash())
+	assert.True(t, eager.Equal(lazy))
+}
