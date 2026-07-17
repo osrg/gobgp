@@ -709,6 +709,7 @@ message Peer {
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
   BfdPeerConfig bfd = 12;
+  TcpAoPeerConfig tcp_ao = 13;
 }
 
 message PeerGroup {
@@ -724,6 +725,7 @@ message PeerGroup {
   repeated AfiSafi afi_safis = 10;
   TtlSecurity ttl_security = 11;
   BfdPeerConfig bfd = 12;
+  TcpAoPeerConfig tcp_ao = 13;
 }
 
 message DynamicNeighbor {
@@ -874,6 +876,7 @@ message PeerState {
   DisconnectReason disconnect_reason = 21;
   string disconnect_message = 22;
   BfdPeerState bfd_state = 23;
+  TcpAoPeerState tcp_ao_state = 24;
 }
 
 message Messages {
@@ -1496,4 +1499,25 @@ message ListTcpAoKeychainRequest {
 
 message ListTcpAoKeychainResponse {
   TcpAoKeychain keychain = 1;
+}
+
+message TcpAoPeerConfig {
+  string keychain = 1;
+  uint32 send_id = 2;
+}
+
+message TcpAoPeerState {
+  repeated TcpAoKeyState keys = 1;
+  uint64 packets_key_not_found = 2;
+  uint64 packets_ao_required = 3;
+  uint64 packets_dropped_icmp = 4;
+}
+
+message TcpAoKeyState {
+  uint32 send_id = 1;
+  uint32 receive_id = 2;
+  bool current = 3;
+  bool receive_next = 4;
+  uint64 packets_good = 5;
+  uint64 packets_bad = 6;
 }
