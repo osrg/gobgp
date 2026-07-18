@@ -3007,6 +3007,9 @@ func (er *EVPNIPPrefixRoute) DecodeFromBytes(data []byte) error {
 	er.ETag = binary.BigEndian.Uint32(data[18:22])
 
 	er.IPPrefixLength = data[22]
+	if int(er.IPPrefixLength) > addrLen*8 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("Invalid IP Prefix length: %d", er.IPPrefixLength))
+	}
 
 	offset := 23 // RD(8) + ESI(10) + ETag(4) + IPPrefixLength(1)
 	er.IPPrefix, _ = netip.AddrFromSlice(data[offset : offset+addrLen])
