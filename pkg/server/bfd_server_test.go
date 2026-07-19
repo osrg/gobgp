@@ -282,6 +282,40 @@ func Test_BfdServerListenAddrsBindToDeviceAndMultihopPort(t *testing.T) {
 	assert.NoError(err)
 }
 
+// Test_BfdServerStartFailsWhenSingleHopPortUnavailable pins the required/best-effort
+// split: if the single-hop control port cannot bind on a configured address, startServer
+// must report failure and roll back every listener it opened — including the best-effort
+// multihop socket that did bind — so the caller retries instead of running half-up.
+func Test_BfdServerStartFailsWhenSingleHopPortUnavailable(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("relies on Linux SO_REUSEADDR semantics for a same-address bind conflict")
+	}
+
+	assert := assert.New(t)
+
+	// Occupy the single-hop port on 127.0.0.1 so the server's bind there fails,
+	// while leaving the multihop port (4784) free so it binds successfully.
+	occupier, err := net.ListenPacket("udp", "127.0.0.1:0")
+	assert.NoError(err)
+	defer occupier.Close()
+	primaryPort := uint16(occupier.LocalAddr().(*net.UDPAddr).Port)
+	assert.NotEqual(bfdMultihopPort, primaryPort)
+
+	// Build the server directly (no loop goroutine) so startServer is exercised in isolation.
+	s := &bfdServer{
+		peerState:   &mockPeerState{},
+		logger:      slog.Default(),
+		peers:       make(map[netip.Addr]*bfdPeer),
+		listenAddrs: []string{"127.0.0.1"},
+		config:      &oc.BfdConfig{Port: primaryPort},
+	}
+
+	ready := s.startServer()
+
+	assert.False(ready, "single-hop bind failed, so the server must not report ready")
+	assert.Empty(s.udpServers, "the best-effort multihop socket must be rolled back too")
+}
+
 func Test_AddDeletePeer(t *testing.T) {
 	assert := assert.New(t)
 
