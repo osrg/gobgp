@@ -99,7 +99,7 @@ func Test_RxPacket(t *testing.T) {
 
 	assert.Equal(p.stats.rxPacket.Load(), uint64(0))
 
-	p.Rx(&bfd.BFDHeader{})
+	p.Rx(&bfd.BFDHeader{DetectTimeMultiplier: 5})
 
 	time.Sleep(2 * time.Second)
 	p.Stop()
@@ -124,9 +124,10 @@ func Test_RxPacketRemoteDownResetsPeer(t *testing.T) {
 	p.yourDiscriminator = 12345
 
 	p.rxPacket(&bfd.BFDHeader{
-		State:             bfd.StateDown,
-		MyDiscriminator:   67890,
-		YourDiscriminator: p.myDiscriminator,
+		State:                bfd.StateDown,
+		MyDiscriminator:      67890,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 5,
 	})
 
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, api.BfdSessionState(p.state.Load()))
@@ -147,26 +148,29 @@ func Test_RxPacketRFCStateTransitions(t *testing.T) {
 	defer p.Stop()
 
 	p.rxPacket(&bfd.BFDHeader{
-		State:             bfd.StateDown,
-		MyDiscriminator:   111,
-		YourDiscriminator: p.myDiscriminator,
+		State:                bfd.StateDown,
+		MyDiscriminator:      111,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 5,
 	})
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_INIT, api.BfdSessionState(p.state.Load()))
 	assert.Equal(uint32(111), p.yourDiscriminator)
 
 	p.setStateDown()
 	p.rxPacket(&bfd.BFDHeader{
-		State:             bfd.StateUp,
-		MyDiscriminator:   222,
-		YourDiscriminator: p.myDiscriminator,
+		State:                bfd.StateUp,
+		MyDiscriminator:      222,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 5,
 	})
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, api.BfdSessionState(p.state.Load()))
 
 	p.setStateInit(333)
 	p.rxPacket(&bfd.BFDHeader{
-		State:             bfd.StateUp,
-		MyDiscriminator:   444,
-		YourDiscriminator: p.myDiscriminator,
+		State:                bfd.StateUp,
+		MyDiscriminator:      444,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 5,
 	})
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_UP, api.BfdSessionState(p.state.Load()))
 	assert.Equal(uint32(444), p.yourDiscriminator)
@@ -205,14 +209,43 @@ func Test_RxPacketDetectionTimeFromRemote(t *testing.T) {
 	// Detection must now track the peer: 3 * max(300ms, 1000ms) = 3000ms.
 	assert.Equal(3*1000*time.Millisecond, p.expiryInterval)
 
-	// A zero-timer keepalive must NOT collapse the detector back to a bogus value:
-	// missing remote fields fall back to our local config, not to 0.
+	// RFC 5880 Section 6.8.6: a packet with Detect Mult == 0 MUST be discarded,
+	// so it must NOT collapse the detector to a bogus value — the previously
+	// negotiated detection time stays in effect.
 	p.rxPacket(&bfd.BFDHeader{
 		State:             bfd.StateUp,
 		MyDiscriminator:   111,
 		YourDiscriminator: p.myDiscriminator,
 	})
-	assert.Equal(3*300*time.Millisecond, p.expiryInterval)
+	assert.Equal(3*1000*time.Millisecond, p.expiryInterval)
+	assert.Equal(uint64(1), p.stats.invalidMultiplier.Load())
+}
+
+func Test_RxPacketZeroMultiplierDiscarded(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   300000,
+		DesiredMinimumTxInterval: 300000,
+	}, "")
+	defer p.Stop()
+
+	// RFC 5880 Section 6.8.6: Detect Mult == 0 MUST be discarded before it can
+	// drive any state transition or reset the detection timer.
+	p.rxPacket(&bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      111,
+		YourDiscriminator:    p.myDiscriminator,
+		DesiredMinTxInterval: 1000000,
+		DetectTimeMultiplier: 0,
+	})
+	assert.Equal(uint64(1), p.stats.invalidMultiplier.Load())
+	assert.Equal(uint64(0), p.stats.rxPacket.Load())
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
 }
 
 func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
