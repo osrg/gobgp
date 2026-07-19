@@ -34,6 +34,7 @@ type bfdPeerStats struct {
 	txDrop               atomic.Uint64
 	txError              atomic.Uint64
 	invalidDiscriminator atomic.Uint64
+	invalidMultiplier    atomic.Uint64
 	expired              atomic.Uint64
 }
 
@@ -289,6 +290,13 @@ func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
 		return
 	}
 
+	// RFC 5880 Section 6.8.6: if the Detect Mult field is zero, the packet
+	// MUST be discarded.
+	if h.DetectTimeMultiplier == 0 {
+		p.stats.invalidMultiplier.Add(1)
+		return
+	}
+
 	p.stats.rxPacket.Add(1)
 
 	// RFC 5880 Section 6.8.4: Detection Time is the remote Detect Mult
@@ -298,11 +306,7 @@ func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
 	if remoteTx := time.Duration(h.DesiredMinTxInterval) * time.Microsecond; remoteTx > negotiatedRx {
 		negotiatedRx = remoteTx
 	}
-	remoteMult := time.Duration(h.DetectTimeMultiplier)
-	if remoteMult == 0 {
-		remoteMult = time.Duration(p.multiplier)
-	}
-	p.expiryInterval = remoteMult * negotiatedRx
+	p.expiryInterval = time.Duration(h.DetectTimeMultiplier) * negotiatedRx
 
 	switch h.State {
 	case bfd.StateAdminDown:
