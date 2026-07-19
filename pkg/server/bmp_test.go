@@ -125,6 +125,46 @@ func findAddPathCapability(open *bgp.BGPOpen) *bgp.CapAddPath {
 	return nil
 }
 
+// A withdraw generated on peer down (DropAll clones the Adj-RIB-In path with
+// IsWithdraw=true) must clear the ribout cache so that an identical path sent
+// after the session re-establishes is reported to the BMP server again.
+func TestRiboutWithdrawAllowsIdenticalResendAfterFlap(t *testing.T) {
+	r := newribout()
+	p := makeIPv4Path(t, "10.0.3.0/24", "192.0.2.31", "198.51.100.31", 65301, 0)
+
+	// First advertisement is reported.
+	require.True(t, r.update(p))
+	// Identical re-advertisement while the session is up is suppressed.
+	require.False(t, r.update(p))
+
+	// Peer goes down: DropAll yields a withdraw clone sharing the same source.
+	w := p.Clone(true)
+	require.True(t, w.IsWithdraw)
+	require.Equal(t, p.GetSource(), w.GetSource())
+	require.True(t, r.update(w))
+
+	// After the flap the identical path must be reported again.
+	require.True(t, r.update(p))
+}
+
+// A withdraw for one peer must not evict another peer's cached path for the
+// same prefix.
+func TestRiboutWithdrawKeepsOtherPeersPath(t *testing.T) {
+	r := newribout()
+	p1 := makeIPv4Path(t, "10.0.4.0/24", "192.0.2.41", "198.51.100.41", 65401, 0)
+	p2 := makeIPv4Path(t, "10.0.4.0/24", "192.0.2.42", "198.51.100.42", 65402, 0)
+
+	require.True(t, r.update(p1))
+	require.True(t, r.update(p2))
+
+	// Withdraw p1 only.
+	require.True(t, r.update(p1.Clone(true)))
+
+	// p2 is still cached (suppressed), p1 can be reported again.
+	require.False(t, r.update(p2))
+	require.True(t, r.update(p1))
+}
+
 func TestBMPLocRIBPeerUpOmitsAddPathCapabilityWhenDisabled(t *testing.T) {
 	open := localRIBPeerUpOpen(t, false)
 	require.Nil(t, findAddPathCapability(open))

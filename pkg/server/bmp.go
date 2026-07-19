@@ -140,6 +140,11 @@ func (b *bmpClient) loop() {
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_PRE_POLICY || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, WatchUpdate(true, "", ""))
+				// Adj-RIB-In withdrawals generated on peer down / graceful-restart
+				// expiry are not received on the wire, so they arrive on a separate
+				// watch type. They clear the ribout cache so identical routes are
+				// reported again after the session re-establishes.
+				ops = append(ops, WatchAdjInWithdraw())
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				ops = append(ops, WatchPostUpdate(true, "", ""))
