@@ -235,24 +235,33 @@ func (s *bfdServer) loop() {
 
 func (s *bfdServer) start() bool {
 	if len(s.udpServers) == 0 {
-		s.startServer()
+		return s.startServer()
 	}
 
 	return len(s.udpServers) > 0
 }
 
-func (s *bfdServer) startServer() {
+// startServer binds the BFD listeners and reports whether the server is ready.
+//
+// The single-hop control port (s.config.Port, RFC 5881) is required: it must
+// bind on every configured listen address, otherwise we cannot reliably receive
+// single-hop returns and startServer rolls back and reports failure so the
+// caller retries. The multihop control port (RFC 5883/4784) is best-effort — it
+// is commonly already owned by a host BFD daemon — so a failure there is logged
+// but does not, on its own, fail startup.
+func (s *bfdServer) startServer() bool {
 	if s.config == nil {
 		// BFD server not configured
-		return
+		return false
 	}
 
 	// Listen on the single-hop control port (s.config.Port, RFC 5881) AND the
 	// multihop control port (RFC 5883/4784), so the server receives returns from
 	// both single-hop and multihop peers. rxPacket dispatches by source IP, so it
 	// does not matter which socket a packet arrived on.
-	ports := []uint16{s.config.Port}
-	if s.config.Port != bfdMultihopPort {
+	primaryPort := s.config.Port
+	ports := []uint16{primaryPort}
+	if primaryPort != bfdMultihopPort {
 		ports = append(ports, bfdMultihopPort)
 	}
 
@@ -277,6 +286,7 @@ func (s *bfdServer) startServer() {
 	}
 
 	s.serverStop = make(chan struct{})
+	primaryBound := 0
 	for _, port := range ports {
 		for _, host := range hosts {
 			addressString := net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
@@ -304,6 +314,9 @@ func (s *bfdServer) startServer() {
 			s.udpServers = append(s.udpServers, conn)
 			s.serverWait.Add(1)
 			go s.serverLoop(conn)
+			if port == primaryPort {
+				primaryBound++
+			}
 
 			s.logger.Info("BFD server is started",
 				slog.String("Topic", "bfd"),
@@ -311,6 +324,23 @@ func (s *bfdServer) startServer() {
 			)
 		}
 	}
+
+	// The single-hop port must have bound on every configured listen address.
+	// A partial bind here means we cannot reliably receive single-hop returns,
+	// so roll back every listener (including any best-effort multihop sockets)
+	// and report failure; the caller retries on the next tick.
+	if primaryBound < len(hosts) {
+		s.logger.Error("Can't listen on BFD single-hop port; retrying",
+			slog.String("Topic", "bfd"),
+			slog.Int("Port", int(primaryPort)),
+			slog.Int("Bound", primaryBound),
+			slog.Int("Wanted", len(hosts)),
+		)
+		s.stop()
+		return false
+	}
+
+	return true
 }
 
 func (s *bfdServer) stop() {
