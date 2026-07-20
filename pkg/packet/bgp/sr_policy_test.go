@@ -312,3 +312,37 @@ func TestSegmentListRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func Test_SRPolicyNLRIEndpointClampedToLength(t *testing.T) {
+	// Two SR Policy IPv4 NLRIs packed in one MP_REACH buffer. Each NLRI is
+	// 13 bytes: length(1) + distinguisher(4) + color(4) + endpoint(4).
+	mkV4 := func(ep [4]byte) []byte {
+		b := []byte{SRPolicyIPv4NLRILen, 0, 0, 0, 1, 0, 0, 0, 2}
+		return append(b, ep[:]...)
+	}
+	buf := append(mkV4([4]byte{10, 0, 0, 1}), mkV4([4]byte{10, 0, 0, 2})...)
+
+	n, err := NLRIFromSlice(RF_SR_POLICY_IPv4, buf)
+	if err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	s := n.(*SRPolicyNLRI)
+	if len(s.Endpoint) != 4 {
+		t.Fatalf("endpoint absorbed sibling NLRI bytes: got %d bytes (%x), want 4", len(s.Endpoint), s.Endpoint)
+	}
+	if got := net.IP(s.Endpoint).To4().String(); got != "10.0.0.1" {
+		t.Fatalf("endpoint mismatch: got %s, want 10.0.0.1", got)
+	}
+
+	// IPv6 endpoint is 16 bytes.
+	v6 := []byte{SRPolicyIPv6NLRILen, 0, 0, 0, 1, 0, 0, 0, 2}
+	v6 = append(v6, net.ParseIP("2001:db8::1").To16()...)
+	v6 = append(v6, 0xde, 0xad) // trailing bytes from a following NLRI
+	n, err = NLRIFromSlice(RF_SR_POLICY_IPv6, v6)
+	if err != nil {
+		t.Fatalf("decode v6 failed: %v", err)
+	}
+	if got := len(n.(*SRPolicyNLRI).Endpoint); got != 16 {
+		t.Fatalf("v6 endpoint absorbed trailing bytes: got %d bytes, want 16", got)
+	}
+}
