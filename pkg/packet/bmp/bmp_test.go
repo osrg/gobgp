@@ -222,6 +222,27 @@ func Test_RouteMonitoringUnknownType(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_TLV16RejectsShortLength(t *testing.T) {
+	// The Termination "Reason" and Route-Mirroring "Information" TLVs both
+	// carry a fixed 2-octet value, but their value parsers read those two
+	// octets without checking the declared TLV length. The enclosing loop
+	// only guarantees len(data) >= Length, so a TLV announcing a length
+	// below 2 made ParseValue read past its own value into the following
+	// TLV. Reject the mismatched length up front, like the Stats TLV parsers.
+
+	// type=Reason(1), length=1, then a String(0) TLV; the 2-octet read
+	// straddles the TLV boundary.
+	shortReason := []byte{0x00, 0x01, 0x00, 0x01, 0xaa, 0x00, 0x00, 0x00, 0x01, 0x58}
+	require.Error(t, (&BMPTermination{}).ParseBody(nil, shortReason))
+	// A correctly sized Reason still decodes.
+	require.NoError(t, (&BMPTermination{}).ParseBody(nil, []byte{0x00, 0x01, 0x00, 0x02, 0x00, 0x01}))
+
+	// type=Information(1), length=1, followed by another Information TLV.
+	shortInfo := []byte{0x00, 0x01, 0x00, 0x01, 0xaa, 0x00, 0x01, 0x00, 0x02, 0xbb, 0xcc}
+	require.Error(t, (&BMPRouteMirroring{}).ParseBody(nil, shortInfo))
+	require.NoError(t, (&BMPRouteMirroring{}).ParseBody(nil, []byte{0x00, 0x01, 0x00, 0x02, 0x00, 0x01}))
+}
+
 //nolint:errcheck
 func FuzzParseBMPMessage(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
