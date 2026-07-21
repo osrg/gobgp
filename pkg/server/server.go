@@ -3453,15 +3453,14 @@ func (s *BgpServer) addPeerGroup(c *oc.PeerGroup) error {
 }
 
 func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
-	addr, err := c.ExtractNeighborAddress()
-	if err != nil {
-		return err
-	}
-
-	if _, y := s.neighborMap[netip.MustParseAddr(addr)]; y {
-		return fmt.Errorf("can't overwrite the existing peer: %s", addr)
-	}
-
+	// Resolve config defaults BEFORE extracting/validating the neighbor address.
+	// For an unnumbered (interface-only) neighbor added via the gRPC AddPeer API
+	// - NeighborInterface set, NeighborAddress empty - SetDefaultNeighborConfigValues
+	// resolves the peer's IPv6 link-local from the interface into
+	// State.NeighborAddress and derives the local link-local as the transport
+	// source address. ExtractNeighborAddress would otherwise reject the addressless
+	// neighbor up front with "NeighborAddress is not configured". The config-file
+	// path already defaults before addNeighbor; this makes the gRPC path match.
 	var pgConf *oc.PeerGroup
 	if c.Config.PeerGroup != "" {
 		pg, ok := s.peerGroupMap[c.Config.PeerGroup]
@@ -3473,6 +3472,15 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 
 	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
 		return err
+	}
+
+	addr, err := c.ExtractNeighborAddress()
+	if err != nil {
+		return err
+	}
+
+	if _, y := s.neighborMap[netip.MustParseAddr(addr)]; y {
+		return fmt.Errorf("can't overwrite the existing peer: %s", addr)
 	}
 
 	if vrf := c.Config.Vrf; vrf != "" {
