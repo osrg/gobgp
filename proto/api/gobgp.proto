@@ -105,6 +105,11 @@ service GoBgpService {
   rpc ListBmp(ListBmpRequest) returns (stream ListBmpResponse);
 
   rpc SetLogLevel(SetLogLevelRequest) returns (SetLogLevelResponse);
+
+  rpc AddTcpAoKeychain(AddTcpAoKeychainRequest) returns (AddTcpAoKeychainResponse);
+  rpc UpdateTcpAoKeychain(UpdateTcpAoKeychainRequest) returns (UpdateTcpAoKeychainResponse);
+  rpc DeleteTcpAoKeychain(DeleteTcpAoKeychainRequest) returns (DeleteTcpAoKeychainResponse);
+  rpc ListTcpAoKeychain(ListTcpAoKeychainRequest) returns (stream ListTcpAoKeychainResponse);
 }
 
 message StartBgpRequest {
@@ -1441,4 +1446,55 @@ message BfdState {
   uint64 received_error = 3;
   uint64 invalid_packet = 4;
   uint64 unknown_peer = 5;
+}
+
+enum TcpAoAlgorithm {
+  TCP_AO_ALGORITHM_UNSPECIFIED = 0;
+  TCP_AO_ALGORITHM_HMAC_SHA1_96 = 1;
+  TCP_AO_ALGORITHM_AES_128_CMAC_96 = 2;
+}
+
+message TcpAoKey {
+  uint32 send_id = 1;
+  uint32 receive_id = 2;
+  TcpAoAlgorithm algorithm = 3;
+  bool exclude_tcp_options = 4;
+  bytes master_key = 5 [debug_redact = true]; // write-only
+}
+
+message TcpAoKeychain {
+  string name = 1;
+  repeated TcpAoKey keys = 2;
+}
+
+message AddTcpAoKeychainRequest {
+  TcpAoKeychain keychain = 1;
+}
+
+message AddTcpAoKeychainResponse {
+  TcpAoKeychain keychain = 1;
+}
+
+message UpdateTcpAoKeychainRequest {
+  string name = 1;
+  repeated TcpAoKey add_keys = 2;
+  repeated TcpAoKey delete_keys = 3; // only send_id and receive_id are used
+}
+
+message UpdateTcpAoKeychainResponse {
+  TcpAoKeychain keychain = 1;
+}
+
+message DeleteTcpAoKeychainRequest {
+  string name = 1;
+}
+
+message DeleteTcpAoKeychainResponse {}
+
+message ListTcpAoKeychainRequest {
+  string name = 1;
+}
+
+message ListTcpAoKeychainResponse {
+  TcpAoKeychain keychain = 1;
 }
