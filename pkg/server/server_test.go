@@ -179,6 +179,49 @@ func TestStop(t *testing.T) {
 	assert.Error(err)
 }
 
+// TestAddPeerUnnumberedInterface verifies that an unnumbered (interface-only)
+// neighbor added via the AddPeer API is not rejected before its interface is
+// resolved. Such a neighbor carries NeighborInterface with an empty
+// NeighborAddress; the address is derived from the interface's IPv6 link-local
+// by SetDefaultNeighborConfigValues. Previously addNeighbor validated the
+// address via ExtractNeighborAddress *before* defaulting ran, rejecting the
+// peer with "NeighborAddress is not configured" and making unnumbered peering
+// unreachable over the API (only the config-file path worked). See #3023.
+//
+// Driving the peer to establishment would require a real interface with a
+// discovered IPv6 link-local neighbor in the netlink table, which is not
+// available in a unit test. Instead we assert that the peer gets past the
+// premature address gate: with a non-existent interface, AddPeer must fail at
+// interface resolution, not at address validation.
+func TestAddPeerUnnumberedInterface(t *testing.T) {
+	assert := assert.New(t)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	p := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborInterface: "gobgp-nonexistent0",
+			PeerAsn:           2,
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p})
+	// Resolution of a non-existent interface cannot succeed in a unit test, so
+	// an error is expected - but it must come from interface resolution, not
+	// from the address-validation gate that used to run first.
+	require.Error(t, err)
+	assert.NotContains(err.Error(), "NeighborAddress is not configured",
+		"interface-only neighbor must reach interface resolution, not be rejected by the address gate")
+}
+
 func TestWatchUpdateCurrentDeliversInitBeforeLiveEvents(t *testing.T) {
 	ctx := context.Background()
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
