@@ -61,7 +61,7 @@ func TestTCPAOKeyLifecycle(t *testing.T) {
 
 	// add another key
 	addConfig := TCPAOConfig{Keys: []TCPAOKey{{
-		SendID: 8, ReceiveID: 10, Algorithm: TCPAOAlgorithmHMACSHA1, MasterKey: []byte("secret"),
+		SendID: 8, ReceiveID: 10, Algorithm: TCPAOAlgorithmHMACSHA256MAC96, MasterKey: []byte("secret"),
 	}}}
 	err = AddTCPAOKeysSockopt(raw, peer, "", addConfig)
 	require.NoError(t, err)
@@ -152,8 +152,8 @@ func TestTCPAOKeySelection(t *testing.T) {
 	// create server socket with two TCP-AO keys
 	peer := netip.MustParsePrefix("127.0.0.1/32")
 	serverConfig := TCPAOConfig{Keys: []TCPAOKey{
-		{SendID: 20, ReceiveID: 10, Algorithm: TCPAOAlgorithmHMACSHA1, MasterKey: []byte("secret")},
-		{SendID: 21, ReceiveID: 11, Algorithm: TCPAOAlgorithmHMACSHA1, MasterKey: []byte("secret")},
+		{SendID: 20, ReceiveID: 10, Algorithm: TCPAOAlgorithmHMACSHA256MAC96, MasterKey: []byte("secret")},
+		{SendID: 21, ReceiveID: 11, Algorithm: TCPAOAlgorithmHMACSHA256MAC128, MasterKey: []byte("secret")},
 	}}
 	listenConfig := net.ListenConfig{Control: func(_, _ string, raw syscall.RawConn) error {
 		return AddTCPAOKeysSockopt(raw, peer, "", serverConfig)
@@ -167,8 +167,8 @@ func TestTCPAOKeySelection(t *testing.T) {
 	current := uint8(10)
 	clientConfig := TCPAOConfig{
 		Keys: []TCPAOKey{
-			{SendID: 10, ReceiveID: 20, Algorithm: TCPAOAlgorithmHMACSHA1, MasterKey: []byte("secret")},
-			{SendID: 11, ReceiveID: 21, Algorithm: TCPAOAlgorithmHMACSHA1, MasterKey: []byte("secret")},
+			{SendID: 10, ReceiveID: 20, Algorithm: TCPAOAlgorithmHMACSHA256MAC96, MasterKey: []byte("secret")},
+			{SendID: 11, ReceiveID: 21, Algorithm: TCPAOAlgorithmHMACSHA256MAC128, MasterKey: []byte("secret")},
 		},
 		PreferredSendID: &current,
 	}
@@ -235,4 +235,10 @@ func TestTCPAOKeySelection(t *testing.T) {
 		statesBySendID[state.SendID] = state
 	}
 	require.True(t, statesBySendID[serverNext].Current)
+
+	require.NoError(t, clientConn.SetReadDeadline(time.Now().Add(time.Second)))
+	_, err = serverConn.Write([]byte{1})
+	require.NoError(t, err)
+	_, err = clientConn.Read(make([]byte, 1))
+	require.NoError(t, err)
 }

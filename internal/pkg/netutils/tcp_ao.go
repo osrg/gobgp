@@ -27,13 +27,15 @@ const TCPAOMaxKeyLen = 80
 // ErrTCPAONotSupported is returned when TCP-AO is requested on a platform for which GoBGP does not provide support.
 var ErrTCPAONotSupported = errors.New("TCP-AO is not supported on this platform")
 
-// TCPAOAlgorithm identifies an RFC 5926 TCP-AO algorithm profile.
+// TCPAOAlgorithm identifies a TCP-AO algorithm profile.
 type TCPAOAlgorithm uint8
 
 const (
 	TCPAOAlgorithmUnspecified TCPAOAlgorithm = iota
 	TCPAOAlgorithmHMACSHA1
 	TCPAOAlgorithmAES128CMAC
+	TCPAOAlgorithmHMACSHA256MAC96
+	TCPAOAlgorithmHMACSHA256MAC128
 )
 
 // TCPAOKey contains socket-level properties of one TCP-AO key.
@@ -83,7 +85,8 @@ func ValidateTCPAOKeys(keys []TCPAOKey) error {
 			return fmt.Errorf("TCP-AO key with SendID %d must contain 1-%d master-key bytes", key.SendID, TCPAOMaxKeyLen)
 		}
 		switch key.Algorithm {
-		case TCPAOAlgorithmHMACSHA1, TCPAOAlgorithmAES128CMAC:
+		case TCPAOAlgorithmHMACSHA1, TCPAOAlgorithmAES128CMAC,
+			TCPAOAlgorithmHMACSHA256MAC96, TCPAOAlgorithmHMACSHA256MAC128:
 		default:
 			return fmt.Errorf("unsupported TCP-AO algorithm for SendID %d", key.SendID)
 		}
