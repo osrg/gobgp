@@ -185,7 +185,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		neighborMap:  make(map[netip.Addr]*peer),
 		peerGroupMap: make(map[string]*peerGroup),
 		policy:       table.NewRoutingPolicy(logger),
-		mgmtCh:       make(chan *mgmtOp, 1),
+		mgmtCh:       make(chan *mgmtOp),
 		closeCh:      make(chan struct{}),
 		watcherMap:   make(map[watchEventType][]*watcher),
 		uuidMap:      make(map[string]uuid.UUID),
@@ -5016,6 +5016,7 @@ type watcher struct {
 	realCh chan watchEvent
 	ch     *channels.InfiniteChannel
 	s      *BgpServer
+	stop   sync.Once
 	// filters are used for notifyWatcher by using the filter for the given watchEvent,
 	// call notify method for skipping filtering.
 	filters map[watchEventType]func(w watchEvent) bool
@@ -5039,27 +5040,35 @@ func (w *watcher) loop() {
 	close(w.realCh)
 }
 
-//nolint:errcheck // we don't care about the error here.
 func (w *watcher) Stop() {
-	w.s.mgmtOperation(func() error {
-		w.s.watcherMu.Lock()
-		for k, l := range w.s.watcherMap {
-			for i, v := range l {
-				if w == v {
-					w.s.watcherMap[k] = append(l[:i], l[i+1:]...)
-					break
+	cleanup := func() error {
+		w.stop.Do(func() {
+			w.s.watcherMu.Lock()
+			for k, l := range w.s.watcherMap {
+				for i, v := range l {
+					if w == v {
+						w.s.watcherMap[k] = append(l[:i], l[i+1:]...)
+						break
+					}
 				}
 			}
-		}
-		w.s.watcherMu.Unlock()
+			w.s.watcherMu.Unlock()
 
-		cleanInfiniteChannel(w.ch)
-		// the loop function goroutine might be blocked for
-		// writing to realCh. make sure it finishes.
-		for range w.realCh {
-		}
+			cleanInfiniteChannel(w.ch)
+			// the loop function goroutine might be blocked for
+			// writing to realCh. make sure it finishes.
+			for range w.realCh {
+			}
+		})
+
 		return nil
-	}, false)
+	}
+
+	if err := w.s.mgmtOperation(cleanup, false); err != nil {
+		// Serve has stopped, so there is no management loop left to serialize cleanup.
+		// No new watcher notifications can be produced after the server has stopped.
+		_ = cleanup()
+	}
 }
 
 func (s *BgpServer) isWatched(typ watchEventType) bool {
