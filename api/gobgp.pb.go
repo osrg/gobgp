@@ -653,6 +653,8 @@ const (
 	TcpAoAlgorithm_TCP_AO_ALGORITHM_UNSPECIFIED     TcpAoAlgorithm = 0
 	TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96    TcpAoAlgorithm = 1
 	TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96 TcpAoAlgorithm = 2
+	TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA256_96  TcpAoAlgorithm = 3
+	TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA256_128 TcpAoAlgorithm = 4
 )
 
 // Enum value maps for TcpAoAlgorithm.
@@ -661,11 +663,15 @@ var (
 		0: "TCP_AO_ALGORITHM_UNSPECIFIED",
 		1: "TCP_AO_ALGORITHM_HMAC_SHA1_96",
 		2: "TCP_AO_ALGORITHM_AES_128_CMAC_96",
+		3: "TCP_AO_ALGORITHM_HMAC_SHA256_96",
+		4: "TCP_AO_ALGORITHM_HMAC_SHA256_128",
 	}
 	TcpAoAlgorithm_value = map[string]int32{
 		"TCP_AO_ALGORITHM_UNSPECIFIED":     0,
 		"TCP_AO_ALGORITHM_HMAC_SHA1_96":    1,
 		"TCP_AO_ALGORITHM_AES_128_CMAC_96": 2,
+		"TCP_AO_ALGORITHM_HMAC_SHA256_96":  3,
+		"TCP_AO_ALGORITHM_HMAC_SHA256_128": 4,
 	}
 )
 
@@ -14754,11 +14760,13 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x1dBFD_DIAGNOSTIC_CODE_PATH_DOWN\x10\x05\x12.\n" +
 	"*BFD_DIAGNOSTIC_CODE_CONCATENATED_PATH_DOWN\x10\x06\x12-\n" +
 	")BFD_DIAGNOSTIC_CODE_ADMINISTRATIVELY_DOWN\x10\a\x126\n" +
-	"2BFD_DIAGNOSTIC_CODE_REVERSE_CONCATENATED_PATH_DOWN\x10\b*{\n" +
+	"2BFD_DIAGNOSTIC_CODE_REVERSE_CONCATENATED_PATH_DOWN\x10\b*\xc6\x01\n" +
 	"\x0eTcpAoAlgorithm\x12 \n" +
 	"\x1cTCP_AO_ALGORITHM_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dTCP_AO_ALGORITHM_HMAC_SHA1_96\x10\x01\x12$\n" +
-	" TCP_AO_ALGORITHM_AES_128_CMAC_96\x10\x022\xef\x1f\n" +
+	" TCP_AO_ALGORITHM_AES_128_CMAC_96\x10\x02\x12#\n" +
+	"\x1fTCP_AO_ALGORITHM_HMAC_SHA256_96\x10\x03\x12$\n" +
+	" TCP_AO_ALGORITHM_HMAC_SHA256_128\x10\x042\xef\x1f\n" +
 	"\fGoBgpService\x127\n" +
 	"\bStartBgp\x12\x14.api.StartBgpRequest\x1a\x15.api.StartBgpResponse\x124\n" +
 	"\aStopBgp\x12\x13.api.StopBgpRequest\x1a\x14.api.StopBgpResponse\x121\n" +

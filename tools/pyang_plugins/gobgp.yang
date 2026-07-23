@@ -1722,6 +1722,18 @@ module gobgp {
       "RFC 4494 - The AES-CMAC-96 Algorithm and Its Use with IPsec";
   }
 
+  identity hmac-sha-256-96 {
+    base crypto-type;
+    description
+      "HMAC-SHA-256 with a 96-bit MAC.";
+  }
+
+  identity hmac-sha-256-128 {
+    base crypto-type;
+    description
+      "HMAC-SHA-256 with a 128-bit MAC.";
+  }
+
   typedef keychain-ref {
     type leafref {
       path "/gobgp:keychains/gobgp:keychain/" +

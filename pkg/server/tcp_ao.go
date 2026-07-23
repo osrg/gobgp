@@ -149,6 +149,10 @@ func tcpAoAlgorithm(algorithm api.TcpAoAlgorithm) (netutils.TCPAOAlgorithm, bool
 		return netutils.TCPAOAlgorithmHMACSHA1, true
 	case api.TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96:
 		return netutils.TCPAOAlgorithmAES128CMAC, true
+	case api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA256_96:
+		return netutils.TCPAOAlgorithmHMACSHA256MAC96, true
+	case api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA256_128:
+		return netutils.TCPAOAlgorithmHMACSHA256MAC128, true
 	default:
 		return netutils.TCPAOAlgorithmUnspecified, false
 	}
@@ -160,6 +164,10 @@ func apiTcpAoAlgorithm(algorithm netutils.TCPAOAlgorithm) api.TcpAoAlgorithm {
 		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96
 	case netutils.TCPAOAlgorithmAES128CMAC:
 		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96
+	case netutils.TCPAOAlgorithmHMACSHA256MAC96:
+		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA256_96
+	case netutils.TCPAOAlgorithmHMACSHA256MAC128:
+		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA256_128
 	default:
 		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_UNSPECIFIED
 	}

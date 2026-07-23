@@ -742,6 +742,10 @@ func tcpAoAlgorithmToAPI(algorithm CryptoType) (api.TcpAoAlgorithm, error) {
 		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, nil
 	case CRYPTO_TYPE_AES_128_CMAC_96:
 		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96, nil
+	case CRYPTO_TYPE_HMAC_SHA_256_96:
+		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA256_96, nil
+	case CRYPTO_TYPE_HMAC_SHA_256_128:
+		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA256_128, nil
 	default:
 		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_UNSPECIFIED, fmt.Errorf("unsupported algorithm %q", algorithm)
 	}
