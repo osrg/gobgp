@@ -12751,7 +12751,19 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 	}
 
 	switch nexthoplen {
-	case 0: // no nexthop, skip (FlowSpec)
+	case 0:
+		// RFC 4760 section 3 (and RFC 8955): a zero-length next hop is only
+		// valid for families that do not carry a next hop, i.e. the FlowSpec
+		// families and the gobgp opaque key/value family. It is malformed for
+		// any other family (e.g. IPv4/IPv6 unicast). The AFI/SAFI is not
+		// decoded on the MRT-only next hop path, so that path is left
+		// unchanged.
+		if !onlyNexthop &&
+			p.SAFI != SAFI_FLOW_SPEC_UNICAST &&
+			p.SAFI != SAFI_FLOW_SPEC_VPN &&
+			p.SAFI != SAFI_KEY_VALUE {
+			return NewMessageError(eCode, eSubCode, eData, "mpreach nexthop length is zero for a family that requires a next hop")
+		}
 	case BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL: // 16 bytes IPv6 Global + 16 bytes IPv6 Link Local
 		p.LinkLocalNexthop, _ = netip.AddrFromSlice(nexthopbin[BGP_ATTR_NHLEN_IPV6_GLOBAL:BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL])
 		fallthrough
