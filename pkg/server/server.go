@@ -582,6 +582,17 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 }
 
 func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*table.Path, *table.PolicyOptions, bool) {
+	if path != nil && !path.IsWithdraw && s.globalRib != nil {
+		if aggMgr := s.globalRib.GetAggregateManager(); aggMgr != nil && aggMgr.Active() {
+			if pfx, ok := path.GetNlri().(*bgp.IPAddrPrefix); ok && aggMgr.Suppressed(path.GetFamily(), pfx.Prefix) {
+				peerInfo := peer.peerInfo.Load()
+				if peerInfo == nil {
+					return nil, nil, true
+				}
+				return nil, &table.PolicyOptions{Info: peerInfo}, false
+			}
+		}
+	}
 	// Special handling for RTM NLRI.
 	if path != nil && path.GetFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
 		// If the given "path" is locally generated and the same with "old", we
@@ -2671,6 +2682,8 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		if err := s.policy.Initialize(); err != nil {
 			return err
 		}
+		peerInfo := &table.PeerInfo{AS: c.Config.As, LocalAS: c.Config.As, LocalID: c.Config.RouterId}
+		s.globalRib.SetAggregateManager(table.NewAggregateManager(s.logger, s.policy, peerInfo))
 		s.bgpConfig.Global = *c
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
@@ -4302,6 +4315,105 @@ func (s *BgpServer) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest
 
 		return s.policy.DeletePolicy(p, r.All, r.PreserveStatements, l)
 	}, false)
+}
+
+func (s *BgpServer) AddAggregate(ctx context.Context, r *api.AddAggregateRequest) error {
+	if r == nil || r.Aggregate == nil {
+		return fmt.Errorf("nil request")
+	}
+	return s.mgmtOperation(func() error {
+		aggMgr := s.globalRib.GetAggregateManager()
+		if aggMgr == nil {
+			return fmt.Errorf("aggregate manager not initialized")
+		}
+		prefix, err := netip.ParsePrefix(r.Aggregate.Prefix)
+		if err != nil {
+			return fmt.Errorf("invalid prefix: %w", err)
+		}
+		family := bgp.RF_IPv4_UC
+		if prefix.Addr().Is6() {
+			family = bgp.RF_IPv6_UC
+		}
+		if err := aggMgr.AddAggregate(family, prefix, r.Aggregate.SummaryOnly, r.Aggregate.AsSet, r.Aggregate.PolicyName); err != nil {
+			return err
+		}
+		if paths := s.globalRib.SeedAggregate(family); len(paths) > 0 {
+			s.propagateUpdate(nil, paths)
+		}
+		return nil
+	}, true)
+}
+
+func (s *BgpServer) DeleteAggregate(ctx context.Context, r *api.DeleteAggregateRequest) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
+	return s.mgmtOperation(func() error {
+		aggMgr := s.globalRib.GetAggregateManager()
+		if aggMgr == nil {
+			return fmt.Errorf("aggregate manager not initialized")
+		}
+		prefix, err := netip.ParsePrefix(r.Prefix)
+		if err != nil {
+			return fmt.Errorf("invalid prefix: %w", err)
+		}
+		family := bgp.RF_IPv4_UC
+		if prefix.Addr().Is6() {
+			family = bgp.RF_IPv6_UC
+		}
+		withdraw, err := aggMgr.DeleteAggregate(family, prefix)
+		if err != nil {
+			return err
+		}
+		if withdraw != nil {
+			s.propagateUpdate(nil, []*table.Path{withdraw})
+		}
+		return nil
+	}, true)
+}
+
+func (s *BgpServer) ListAggregate(ctx context.Context, r *api.ListAggregateRequest, fn func(*api.AggregateAddressInfo)) error {
+	if r == nil {
+		return fmt.Errorf("nil request")
+	}
+	var l []*api.AggregateAddressInfo
+	err := s.mgmtOperation(func() error {
+		aggMgr := s.globalRib.GetAggregateManager()
+		if aggMgr == nil {
+			return nil
+		}
+		var familyPtr *bgp.Family
+		if r.Family != nil {
+			f := bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
+			familyPtr = &f
+		}
+		infos := aggMgr.List(familyPtr)
+		l = make([]*api.AggregateAddressInfo, 0, len(infos))
+		for _, info := range infos {
+			l = append(l, &api.AggregateAddressInfo{
+				Aggregate: &api.AggregateAddress{
+					Prefix:      info.Prefix.String(),
+					SummaryOnly: info.SummaryOnly,
+					AsSet:       info.AsSet,
+					PolicyName:  info.PolicyName,
+				},
+				NumContributors: uint32(info.Contributors),
+			})
+		}
+		return nil
+	}, false)
+	if err != nil {
+		return err
+	}
+	for _, a := range l {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			fn(a)
+		}
+	}
+	return nil
 }
 
 func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, table.PolicyDirection, error) {
