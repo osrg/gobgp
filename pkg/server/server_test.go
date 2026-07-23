@@ -179,6 +179,64 @@ func TestStop(t *testing.T) {
 	assert.Error(err)
 }
 
+func TestMgmtOperationReturnsAfterServerStops(t *testing.T) {
+	s := NewBgpServer()
+
+	result := make(chan error, 1)
+	started := make(chan struct{})
+
+	go func() {
+		close(started)
+		result <- s.mgmtOperation(func() error { return nil }, false)
+	}()
+
+	<-started
+	close(s.closeCh)
+
+	select {
+	case err := <-result:
+		require.Error(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("management operation did not return after server stopped")
+	}
+}
+
+func TestWatcherStopAfterServerStops(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	w := s.watch(WatchPeer())
+
+	require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		w.Stop()
+		w.Stop()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("watcher cleanup did not finish after server stopped")
+	}
+
+	s.watcherMu.RLock()
+	defer s.watcherMu.RUnlock()
+
+	for _, watchers := range s.watcherMap {
+		assert.NotContains(t, watchers, w)
+	}
+
+	select {
+	case _, ok := <-w.Event():
+		assert.False(t, ok)
+	default:
+		t.Fatal("watcher event channel is not closed")
+	}
+}
+
 func TestWatchUpdateCurrentDeliversInitBeforeLiveEvents(t *testing.T) {
 	ctx := context.Background()
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
