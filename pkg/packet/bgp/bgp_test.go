@@ -1227,6 +1227,55 @@ func TestMpReachDecodeDoesNotMutateInputWhenDeletingSecondRD(t *testing.T) {
 	require.Equal(t, before, data, "DecodeFromBytes must not mutate the input buffer")
 }
 
+func TestMpReachZeroNexthopFamilyValidation(t *testing.T) {
+	// A zero-length next hop is only valid for families that carry no next
+	// hop (FlowSpec, and gobgp's opaque family); it is malformed for any
+	// other family. See RFC 4760 section 3 and GH #3450.
+	// Build an otherwise well-formed MP_REACH_NLRI attribute with a
+	// zero-length next hop, so the only reason to reject it is the family
+	// check (without the fix the message decodes cleanly).
+	mpReachZeroNexthop := func(afi uint16, safi uint8, nlri []byte) []byte {
+		// AFI(2) + SAFI(1) + NextHopLength(1)=0 + reserved(1) + NLRI
+		value := []byte{byte(afi >> 8), byte(afi), safi, 0x00, 0x00}
+		value = append(value, nlri...)
+		attr := []byte{0x80, byte(BGP_ATTR_TYPE_MP_REACH_NLRI), byte(len(value))}
+		return append(attr, value...)
+	}
+
+	rejected := []struct {
+		name string
+		afi  uint16
+		safi uint8
+		nlri []byte
+	}{
+		{"ipv4-unicast", AFI_IP, SAFI_UNICAST, []byte{0x18, 0x0a, 0x00, 0x00}},        // 10.0.0.0/24
+		{"ipv6-unicast", AFI_IP6, SAFI_UNICAST, []byte{0x20, 0x20, 0x01, 0x0d, 0xb8}}, // 2001:db8::/32
+	}
+	for _, tc := range rejected {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &PathAttributeMpReachNLRI{}
+			err := p.DecodeFromBytes(mpReachZeroNexthop(tc.afi, tc.safi, tc.nlri))
+			require.Error(t, err, "zero-length next hop must be rejected for %s", tc.name)
+		})
+	}
+
+	// FlowSpec carries no next hop, so a zero-length next hop is valid and
+	// must still round-trip.
+	t.Run("flowspec-accepted", func(t *testing.T) {
+		destPrefix, err := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+		require.NoError(t, err)
+		nlri, err := NewFlowSpecUnicast(RF_FS_IPv4_UC, []FlowSpecComponentInterface{
+			NewFlowSpecDestinationPrefix(destPrefix),
+		})
+		require.NoError(t, err)
+		mp, err := NewPathAttributeMpReachNLRI(RF_FS_IPv4_UC, []PathNLRI{{NLRI: nlri}})
+		require.NoError(t, err)
+		buf, err := mp.Serialize()
+		require.NoError(t, err)
+		require.NoError(t, (&PathAttributeMpReachNLRI{}).DecodeFromBytes(buf))
+	})
+}
+
 func Test_MpReachNLRIWithIPv4MappedIPv6Prefix(t *testing.T) {
 	assert := assert.New(t)
 	n1, _ := NewIPAddrPrefix(netip.MustParsePrefix("::ffff:10.0.0.0/120"))
