@@ -137,6 +137,40 @@ func Test_ParseRTR_ErrorReportRejectsOversizedTextLen(t *testing.T) {
 	require.Error(t, err)
 }
 
+func Test_ParseRTR_IPPrefixRejectsOutOfRangeLength(t *testing.T) {
+	// RFC8210 5.7/5.8 bound Prefix Length and Max Length to the address
+	// family maximum (0..32 for IPv4, 0..128 for IPv6). A length past the
+	// maximum reaches net.CIDRMask via table.NewROA, which returns a nil
+	// mask, so the ROA is stored with a bogus default-route network.
+	ipv4PDU := func(prefixLen, maxLen uint8) []byte {
+		data := make([]byte, RTR_IPV4_PREFIX_LEN)
+		data[1] = RTR_IPV4_PREFIX
+		putUint32BE(data[4:8], RTR_IPV4_PREFIX_LEN)
+		data[9] = prefixLen
+		data[10] = maxLen
+		return data
+	}
+	ipv6PDU := func(prefixLen, maxLen uint8) []byte {
+		data := make([]byte, RTR_IPV6_PREFIX_LEN)
+		data[1] = RTR_IPV6_PREFIX
+		putUint32BE(data[4:8], RTR_IPV6_PREFIX_LEN)
+		data[9] = prefixLen
+		data[10] = maxLen
+		return data
+	}
+
+	_, err := ParseRTR(ipv4PDU(33, 32))
+	require.Error(t, err)
+	_, err = ParseRTR(ipv4PDU(24, 33))
+	require.Error(t, err)
+	_, err = ParseRTR(ipv6PDU(129, 128))
+	require.Error(t, err)
+
+	// A prefix within range still decodes.
+	_, err = ParseRTR(ipv4PDU(24, 32))
+	require.NoError(t, err)
+}
+
 func putUint32BE(b []byte, v uint32) {
 	b[0] = byte(v >> 24)
 	b[1] = byte(v >> 16)
