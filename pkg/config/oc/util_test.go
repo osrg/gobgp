@@ -315,6 +315,16 @@ func TestPrefixToPrefix(t *testing.T) {
 	assert.Equal(bgp.RF_RTC_UC, rf)
 	assert.Equal(96, pfx.Bits())
 
+	// /0 wildcard and /32 origin-AS-only forms.
+	pfx, rf, err = (&Prefix{RtcPrefix: "0:0:0/0"}).ToPrefix()
+	assert.NoError(err)
+	assert.Equal(bgp.RF_RTC_UC, rf)
+	assert.Equal(0, pfx.Bits())
+	pfx, rf, err = (&Prefix{RtcPrefix: "123:65000:0/32"}).ToPrefix()
+	assert.NoError(err)
+	assert.Equal(bgp.RF_RTC_UC, rf)
+	assert.Equal(32, pfx.Bits())
+
 	_, _, err = (&Prefix{IpPrefix: netip.MustParsePrefix("10.0.0.0/24"), RtcPrefix: "123:65000:100/96"}).ToPrefix()
 	assert.Error(err)
 	_, _, err = (&Prefix{}).ToPrefix()
@@ -331,4 +341,8 @@ func TestNewAPIPrefixFromConfigStructRtc(t *testing.T) {
 	out, err = newAPIPrefixFromConfigStruct(Prefix{IpPrefix: netip.MustParsePrefix("10.0.0.0/24"), MasklengthRange: "24..24"})
 	assert.NoError(err)
 	assert.Equal(&api.Prefix{IpPrefix: "10.0.0.0/24", MaskLengthMin: 24, MaskLengthMax: 24}, out)
+	// /0 wildcard round-trips with an open mask range.
+	out, err = newAPIPrefixFromConfigStruct(Prefix{RtcPrefix: "0:0:0/0", MasklengthRange: "0..96"})
+	assert.NoError(err)
+	assert.Equal(&api.Prefix{RtcPrefix: "0:0:0/0", MaskLengthMin: 0, MaskLengthMax: 96}, out)
 }

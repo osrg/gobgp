@@ -3999,14 +3999,18 @@ func TestPrefixSetRtcRoundTrip(t *testing.T) {
 		PrefixSetName: "ps1",
 		PrefixList: []oc.Prefix{
 			{RtcPrefix: "65000:65000:100/96", MasklengthRange: "96..96"},
+			{RtcPrefix: "123:65000:100/64", MasklengthRange: "64..96"},
 		},
 	})
 	assert.NoError(t, err)
 	cfg := ps.ToConfig()
-	assert.Len(t, cfg.PrefixList, 1)
-	assert.Equal(t, "65000:65000:100/96", cfg.PrefixList[0].RtcPrefix)
-	assert.False(t, cfg.PrefixList[0].IpPrefix.IsValid())
-	assert.Equal(t, "96..96", cfg.PrefixList[0].MasklengthRange)
+	assert.Len(t, cfg.PrefixList, 2)
+	// Host bits beyond /64 are kept (as for ip-prefix), so the value (100) round-trips.
+	assert.Equal(t, "123:65000:100/64", cfg.PrefixList[0].RtcPrefix)
+	assert.Equal(t, "64..96", cfg.PrefixList[0].MasklengthRange)
+	assert.Equal(t, "65000:65000:100/96", cfg.PrefixList[1].RtcPrefix)
+	assert.False(t, cfg.PrefixList[1].IpPrefix.IsValid())
+	assert.Equal(t, "96..96", cfg.PrefixList[1].MasklengthRange)
 }
 
 func TestLargeCommunityMatchAction(t *testing.T) {

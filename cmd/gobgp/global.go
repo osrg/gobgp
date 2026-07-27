@@ -2794,7 +2794,7 @@ func parseRtcArgs(args []string) (bgp.NLRI, error) {
 	}
 
 	if len(m[""]) != 0 {
-		nlri, _, err := bgp.ParseRouteTargetMembershipNLRI(m[""][0])
+		nlri, err := bgp.ParseRouteTargetMembershipNLRI(m[""][0])
 		if err != nil {
 			return nil, err
 		}

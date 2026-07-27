@@ -133,6 +133,7 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	buf[0] = 96 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC) // typehigh
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)
 	binary.BigEndian.PutUint16(buf[7:9], 65000)
 	binary.BigEndian.PutUint32(buf[9:], 65546)
 	r := &RouteTargetMembershipNLRI{}
@@ -145,11 +146,29 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal("65546:65000:65546", r.String())
 
+	// TwoOctetAsSpecificExtended/64
+	buf = make([]byte, 9)
+	buf[0] = 64 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC) // typehigh
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)
+	binary.BigEndian.PutUint16(buf[7:], 65000)
+	r = &RouteTargetMembershipNLRI{}
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:65000:0/64", r.String())
+	buf, err = r.Serialize()
+	assert.NoError(err)
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:65000:0/64", r.String())
+
 	// IPv4AddressSpecificExtended
 	buf = make([]byte, 13)
 	buf[0] = 96 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC) // typehigh
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)
 	ip := net.ParseIP("10.0.0.1").To4()
 	copy(buf[7:11], []byte(ip))
 	binary.BigEndian.PutUint16(buf[11:], 65000)
@@ -163,13 +182,31 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal("65546:10.0.0.1:65000", r.String())
 
+	// IPv4AddressSpecificExtended/80
+	buf = make([]byte, 11)
+	buf[0] = 80 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC) // typehigh
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)
+	ip = net.ParseIP("10.0.0.1").To4()
+	copy(buf[7:11], []byte(ip))
+	r = &RouteTargetMembershipNLRI{}
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:10.0.0.1:0/80", r.String())
+	buf, err = r.Serialize()
+	assert.NoError(err)
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:10.0.0.1:0/80", r.String())
+
 	// FourOctetAsSpecificExtended
 	buf = make([]byte, 13)
 	buf[0] = 96 // in bit length
 	binary.BigEndian.PutUint32(buf[1:5], 65546)
 	buf[5] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC) // typehigh
 	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)                   // subtype
-	binary.BigEndian.PutUint32(buf[7:], 65546)
+	binary.BigEndian.PutUint32(buf[7:11], 65546)
 	binary.BigEndian.PutUint16(buf[11:], 65000)
 	r = &RouteTargetMembershipNLRI{}
 	err = r.decodeFromBytes(buf)
@@ -180,6 +217,23 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
 	assert.Equal("65546:1.10:65000", r.String())
+
+	// FourOctetAsSpecificExtended/80
+	buf = make([]byte, 11)
+	buf[0] = 80 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC) // typehigh
+	buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)                   // subtype
+	binary.BigEndian.PutUint32(buf[7:], 65546)
+	r = &RouteTargetMembershipNLRI{}
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:1.10:0/80", r.String())
+	buf, err = r.Serialize()
+	assert.NoError(err)
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:1.10:0/80", r.String())
 
 	// OpaqueExtended
 	buf = make([]byte, 13)
@@ -197,6 +251,21 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal("65546:1000000", r.String())
 
+	// OpaqueExtended/40
+	buf = make([]byte, 6)
+	buf[0] = 40 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = byte(EC_TYPE_TRANSITIVE_OPAQUE) // typehigh
+	r = &RouteTargetMembershipNLRI{}
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:0/40", r.String())
+	buf, err = r.Serialize()
+	assert.NoError(err)
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:0/40", r.String())
+
 	// Unknown
 	buf = make([]byte, 13)
 	buf[0] = 96 // in bit length
@@ -213,24 +282,40 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal("65546:1000000", r.String())
 
+	// Unknown/41
+	buf = make([]byte, 7)
+	buf[0] = 41 // in bit length
+	binary.BigEndian.PutUint32(buf[1:5], 65546)
+	buf[5] = 0xff // typehigh
+	buf[6] = 0xff
+	r = &RouteTargetMembershipNLRI{}
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:36028797018963968/41", r.String())
+	buf, err = r.Serialize()
+	assert.NoError(err)
+	err = r.decodeFromBytes(buf)
+	assert.NoError(err)
+	assert.Equal("65546:36028797018963968/41", r.String())
+
 	// Default
 	buf = make([]byte, 1)
 	buf[0] = 0 // in bit length
 	r = &RouteTargetMembershipNLRI{}
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("default", r.String())
+	assert.Equal("0:0:0/0", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("default", r.String())
+	assert.Equal("0:0:0/0", r.String())
 	r = NewRouteTargetMembershipNLRI(0, nil)
 	buf, err = r.Serialize()
 	assert.NoError(err)
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("default", r.String())
+	assert.Equal("0:0:0/0", r.String())
 
 	// AS only
 	buf = make([]byte, 5)
@@ -239,50 +324,69 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	r = &RouteTargetMembershipNLRI{}
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:0:0", r.String())
+	assert.Equal("65546:0:0/32", r.String())
 	r = NewRouteTargetMembershipNLRI(65546, nil)
 	buf, err = r.Serialize()
 	assert.NoError(err)
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:0:0", r.String())
+	assert.Equal("65546:0:0/32", r.String())
 }
 
 func TestParseRouteTargetMembershipNLRI(t *testing.T) {
 	assert := assert.New(t)
 	cases := []struct {
 		in      string
-		as      uint32
-		masklen uint8
-		str     string
-		rtNil   bool
+		wantStr string
+		wantAS  uint32
+		wantRT  bool
 		length  uint8
 	}{
-		{"65000:65000:100/96", 65000, 96, "65000:65000:100", false, 96},
-		{"65000:65000:100", 65000, 96, "65000:65000:100", false, 96},
-		{"100.1000:65000:100/80", 100*65536 + 1000, 80, "6554600:65000:100", false, 96},
-		{"65000:1.2.3.4:100/96", 65000, 96, "65000:1.2.3.4:100", false, 96},
-		// masklen <= 32: Route Target is outside the prefix, RT left nil.
-		{"0:0:0/0", 0, 0, "default", true, 0},
-		{"0:0:0/32", 0, 32, "default", true, 0},
-		{"65000:0:0/32", 65000, 32, "65000:0:0", true, 32},
+		{"0:0:0/0", "0:0:0/0", 0, false, 0},
+		{"0:0:0/32", "0:0:0/32", 0, false, 32},
+		{"0:0:0/96", "0:0:0", 0, true, 96},
+		{"65000:0:0/32", "65000:0:0/32", 65000, false, 32},
+		{"65000:65000:0/64", "65000:65000:0/64", 65000, true, 64},
+		{"65000:65000:100", "65000:65000:100", 65000, true, 96},
+		{"65000:65000:100/96", "65000:65000:100", 65000, true, 96},
+		{"65000:1.2.3.4:0/80", "65000:1.2.3.4:0/80", 65000, true, 80},
+		{"65000:1.2.3.4:100", "65000:1.2.3.4:100", 65000, true, 96},
+		{"65000:1.2.3.4:100/96", "65000:1.2.3.4:100", 65000, true, 96},
+		{"100.1000:65000:0/64", "6554600:65000:0/64", 100*65536 + 1000, true, 64},
+		{"100.1000:65000:100", "6554600:65000:100", 100*65536 + 1000, true, 96},
+		{"100.1000:65000:100/96", "6554600:65000:100", 100*65536 + 1000, true, 96},
+		{"100.1000:1.2.3.4:0/80", "6554600:1.2.3.4:0/80", 100*65536 + 1000, true, 80},
+		{"100.1000:1.2.3.4:100", "6554600:1.2.3.4:100", 100*65536 + 1000, true, 96},
+		{"100.1000:1.2.3.4:100/96", "6554600:1.2.3.4:100", 100*65536 + 1000, true, 96},
 	}
 	for _, c := range cases {
-		nlri, masklen, err := ParseRouteTargetMembershipNLRI(c.in)
+		nlri, err := ParseRouteTargetMembershipNLRI(c.in)
 		assert.NoError(err, c.in)
-		assert.Equal(c.as, nlri.AS, c.in)
-		assert.Equal(c.masklen, masklen, c.in)
-		assert.Equal(c.str, nlri.String(), c.in)
-		assert.Equal(c.rtNil, nlri.RouteTarget == nil, c.in)
+		assert.Equal(c.wantStr, nlri.String(), c.in)
+		assert.Equal(c.wantAS, nlri.AS, c.in)
+		assert.Equal(c.wantRT, nlri.RouteTarget != nil, c.in)
 		assert.Equal(c.length, nlri.Length, c.in)
 		buf, err := nlri.Serialize()
 		assert.NoError(err, c.in)
 		decoded := &RouteTargetMembershipNLRI{}
 		assert.NoError(decoded.decodeFromBytes(buf), c.in)
-		assert.Equal(c.str, decoded.String(), c.in)
+		assert.Equal(c.wantStr, decoded.String(), c.in)
 	}
-	for _, in := range []string{"", "65000", "65000:", ":65000:100", "65000:65000:100/128", "65000:65000:100/abc"} {
-		_, _, err := ParseRouteTargetMembershipNLRI(in)
+	for _, in := range []string{
+		"",
+		"0:0:0/1",
+		"0:0:0/16",
+		"65000",
+		"65000:",
+		":65000:100",
+		"65000:65000:100/31",
+		"65000:65000:100/128",
+		"65000:65000:100/abc",
+		"65000:1.2.3.4:100/128",
+		"100.1000:65000:100/128",
+		"100.1000:1.2.3.4:100/128",
+	} {
+		_, err := ParseRouteTargetMembershipNLRI(in)
 		assert.Error(err, in)
 	}
 }
@@ -295,14 +399,65 @@ func TestParseRTCPrefix(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(p1, p2)
 	assert.Equal(96, p1.Bits())
-	// /32 matches the origin-AS only.
-	p32, err := ParseRTCPrefix("123:65000:0/32")
-	assert.NoError(err)
+
+	// Masked() imitates PrefixCondition.Evaluate, which matches on r.Masked().Addr().
+	// A set key contains a path addr iff the path's covered bits match the key.
+	mk := func(s string) netip.Prefix {
+		p, err := ParseRTCPrefix(s)
+		assert.NoError(err)
+		return p.Masked()
+	}
+	p0 := mk("0:0:0/0")
+	p32 := mk("123:65000:0/32")
+	p64 := mk("123:65000:100/64")
+	p80 := mk("123:65000:100/80")
+	p96 := mk("123:65000:100/96")
+
+	assert.Equal(0, p0.Bits())
 	assert.Equal(32, p32.Bits())
-	path, err := ParseRTCPrefix("123:65000:100/96")
-	assert.NoError(err)
-	assert.True(p32.Contains(path.Addr()))
-	assert.False(path.Contains(p32.Addr()))
+	assert.Equal(64, p64.Bits())
+	assert.Equal(80, p80.Bits())
+	assert.Equal(96, p96.Bits())
+
+	// /0 wildcard (RTC default-route) matches any RTC NLRI; "0:0:0/0" and "0:0/0" are equivalent.
+	assert.Equal(p0, mk("0:0/0"))
+	assert.True(p0.Contains(p32.Addr()))
+	assert.True(p0.Contains(p96.Addr()))
+	// /0 and /32 (AS-only ::/32) are distinct keys.
+	assert.NotEqual(p0, p32)
+
+	// /32 (origin-AS only) covers every path sharing that origin-AS, but not ::/0.
+	assert.True(p32.Contains(p64.Addr()))
+	assert.True(p32.Contains(p80.Addr()))
+	assert.True(p32.Contains(p96.Addr()))
+	assert.False(p32.Contains(p0.Addr()))
+	// A longer path addr does not contain the shorter /32 key.
+	assert.False(p64.Contains(p32.Addr()))
+
+	// /64 covers origin-AS + first 4 RT bytes (type, subtype, RT-AS). It covers the
+	// /80 and /96 paths (which extend it) but not the /32 key.
+	assert.True(p64.Contains(p80.Addr()))
+	assert.True(p64.Contains(p96.Addr()))
+	assert.False(p64.Contains(p32.Addr()))
+	// /80 covers origin-AS + 6 RT bytes; covers /96, not /32.
+	assert.True(p80.Contains(p96.Addr()))
+	assert.False(p80.Contains(p32.Addr()))
+	// /96 (full RT) covers only itself; it does not contain the masked shorter addrs,
+	// which have zeros in the host region where /96 has the RT value.
+	assert.False(p96.Contains(p64.Addr()))
+	assert.False(p96.Contains(p80.Addr()))
+	assert.False(p96.Contains(p32.Addr()))
+
+	// The TwoOctetAsSpecific value (100/200) lives in the low RT bytes, outside /64,
+	// so the two /64 keys collapse to the same masked trie key.
+	assert.Equal(p64, mk("123:65000:200/64"))
+
+	// IPv4 RT: /80 covers origin-AS + the 4-byte IPv4 address but not the 2-byte value.
+	p80ip := mk("123:1.2.3.4:100/80")
+	p96ip := mk("123:1.2.3.4:100/96")
+	assert.Equal(80, p80ip.Bits())
+	assert.True(p80ip.Contains(p96ip.Addr()))
+	assert.False(p96ip.Contains(p80ip.Addr()))
 }
 
 func TestRouteTargetKey(t *testing.T) {
