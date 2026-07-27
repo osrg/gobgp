@@ -278,14 +278,20 @@ func Test_ParseMUPType2SessionTransformedRouteArgsMUPExtcomm(t *testing.T) {
 func Test_ParseRtcArgs(t *testing.T) {
 	assert := assert.New(t)
 	tests := []struct {
-		args string
-		asn  uint32
-		str  string
+		args   string
+		asn    uint32
+		str    string
+		length uint8
+		rtNil  bool
 	}{
-		{"65000:65000:100/96", 65000, "65000:65000:100"},
-		{"65000:65000:100", 65000, "65000:65000:100"},
-		{"asn 65000 rt 65000:100", 65000, "65000:65000:100"},
-		{"default", 0, "default"},
+		{"65000:65000:100", 65000, "65000:65000:100", 96, false},
+		{"65000:65000:100/96", 65000, "65000:65000:100", 96, false},
+		{"65000:65000:0/64", 65000, "65000:65000:0/64", 64, false},
+		{"65000:1.1.1.1:0/80", 65000, "65000:1.1.1.1:0/80", 80, false},
+		{"asn 65000 rt 65000:100", 65000, "65000:65000:100", 96, false},
+		{"default", 0, "0:0:0/0", 0, true},
+		{"0:0:0/0", 0, "0:0:0/0", 0, true},
+		{"0:0:0", 0, "0:0:0", 96, false},
 	}
 	for _, tt := range tests {
 		t.Run("RtcArgs/"+tt.args, func(t *testing.T) {
@@ -294,6 +300,8 @@ func Test_ParseRtcArgs(t *testing.T) {
 			r := nlri.(*bgp.RouteTargetMembershipNLRI)
 			assert.Equal(tt.asn, r.AS)
 			assert.Equal(tt.str, r.String())
+			assert.Equal(tt.length, r.Length)
+			assert.Equal(tt.rtNil, r.RouteTarget == nil)
 		})
 	}
 }

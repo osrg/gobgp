@@ -609,7 +609,7 @@ func TestNewConfigPrefixFromAPIStruct(t *testing.T) {
 	assert.Equal(t, "", c.RtcPrefix)
 	assert.Equal(t, "24..24", c.MasklengthRange)
 
-	// rtc-prefix is canonicalized (dotted AS -> asplain, default len -> /96).
+	// rtc-prefix is canonicalized (dotted AS -> asplain, /0 -> 0:0:0/0).
 	c, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "100.1000:65000:100/80", MaskLengthMin: 80, MaskLengthMax: 80})
 	assert.NoError(t, err)
 	assert.Equal(t, "6554600:65000:100/80", c.RtcPrefix)
@@ -617,7 +617,17 @@ func TestNewConfigPrefixFromAPIStruct(t *testing.T) {
 
 	c, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "65000:65000:100", MaskLengthMin: 96, MaskLengthMax: 96})
 	assert.NoError(t, err)
-	assert.Equal(t, "65000:65000:100/96", c.RtcPrefix)
+	assert.Equal(t, "65000:65000:100", c.RtcPrefix)
+
+	// /0 wildcard (RTC default-route) keeps the caller's mask range.
+	c, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "0:0:0/0", MaskLengthMin: 0, MaskLengthMax: 96})
+	assert.NoError(t, err)
+	assert.Equal(t, "0:0:0/0", c.RtcPrefix)
+	assert.False(t, c.IpPrefix.IsValid())
+	assert.Equal(t, "0..96", c.MasklengthRange)
+	c, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "0:0/0", MaskLengthMin: 0, MaskLengthMax: 0})
+	assert.NoError(t, err)
+	assert.Equal(t, "0:0:0/0", c.RtcPrefix)
 
 	_, err = newConfigPrefixFromAPIStruct(&api.Prefix{IpPrefix: "10.0.0.0/8", RtcPrefix: "65000:65000:100/96"})
 	assert.NotNil(t, err)
@@ -634,4 +644,16 @@ func TestNewPrefixFromApiStructRTC(t *testing.T) {
 	assert.Equal(t, uint8(96), p.MasklengthRangeMin)
 	assert.Equal(t, uint8(96), p.MasklengthRangeMax)
 	assert.Equal(t, "65000:65000:100/96", p.PrefixString())
+
+	// /0 wildcard maps to ::/0 and matches any RTC NLRI.
+	p, err = newPrefixFromApiStruct(&api.Prefix{RtcPrefix: "0:0:0/0", MaskLengthMin: 0, MaskLengthMax: 96})
+	assert.NoError(t, err)
+	assert.Equal(t, bgp.RF_RTC_UC, p.AddressFamily)
+	assert.Equal(t, uint8(0), p.MasklengthRangeMin)
+	assert.Equal(t, uint8(96), p.MasklengthRangeMax)
+	assert.Equal(t, "::/0", p.Prefix.String())
+	assert.Equal(t, "0:0:0/0", p.PrefixString())
+	full, err := newPrefixFromApiStruct(&api.Prefix{RtcPrefix: "65000:65000:100/96", MaskLengthMin: 96, MaskLengthMax: 96})
+	assert.NoError(t, err)
+	assert.True(t, p.Prefix.Contains(full.Prefix.Addr()))
 }

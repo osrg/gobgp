@@ -1455,11 +1455,9 @@ func (r *IPAddrPrefixDefault) decodePrefix(data []byte, bitlen uint8, addrlen in
 	copy(b[:], data[:bytelen])
 	// clear trailing bits in the last byte. rfc doesn't require
 	// this but some bgp implementations need this...
-	rem := bitlen % 8
-	if rem != 0 {
+	if rem := bitlen % 8; rem != 0 {
 		mask := 0xff00 >> rem
-		lastByte := b[bytelen-1] & byte(mask)
-		b[bytelen-1] = lastByte
+		b[bytelen-1] &= byte(mask)
 	}
 	addr, _ := netip.AddrFromSlice(b[:addrlen])
 	r.Prefix = netip.PrefixFrom(addr, int(bitlen))
@@ -2164,10 +2162,24 @@ func (n *RouteTargetMembershipNLRI) decodeFromBytes(data []byte, options ...*Mar
 		return NewMessageError(eCode, eSubCode, nil, "bad RouteTargetMembershipNLRI length")
 	}
 	n.AS = binary.BigEndian.Uint32(data[:4])
-	if n.Length < RouteTargetMembershipPrefixLen {
+	if n.Length >= RouteTargetMembershipPrefixLen {
+		data = data[4:]
+	} else if n.Length > 32 {
+		var b [8]byte
+		bitlen := int(n.Length) - 32
+		bytelen := (bitlen + 7) / 8
+		copy(b[:], data[4:4+bytelen])
+		// clear trailing bits in the last byte. rfc doesn't require
+		// this but some bgp implementations need this...
+		if rem := bitlen % 8; rem != 0 {
+			mask := 0xff00 >> rem
+			b[bytelen-1] &= byte(mask)
+		}
+		data = b[:]
+	} else {
 		return nil
 	}
-	rt, err := ParseExtended(data[4:])
+	rt, err := ParseExtended(data)
 	if err != nil {
 		return err
 	}
@@ -2184,12 +2196,17 @@ func (n *RouteTargetMembershipNLRI) Serialize(options ...*MarshallingOption) ([]
 	buf = append(buf, make([]byte, 5)...)
 	buf[offset] = n.Length
 	binary.BigEndian.PutUint32(buf[offset+1:], n.AS)
-	if n.RouteTarget == nil {
+	if n.Length <= 32 || n.RouteTarget == nil {
 		return buf, nil
 	}
 	ebuf, err := n.RouteTarget.Serialize()
 	if err != nil {
 		return nil, err
+	}
+	if n.Length < RouteTargetMembershipPrefixLen {
+		bitlen := int(n.Length) - 32
+		bytelen := (bitlen + 7) / 8
+		ebuf = ebuf[:bytelen]
 	}
 	return append(buf, ebuf...), nil
 }
@@ -2199,14 +2216,14 @@ func (n *RouteTargetMembershipNLRI) Len(options ...*MarshallingOption) int {
 }
 
 func (n *RouteTargetMembershipNLRI) String() string {
-	if n.Length == 0 {
-		return "default"
-	}
 	target := "0:0"
 	if n.RouteTarget != nil {
 		target = n.RouteTarget.String()
 	}
-	return strconv.FormatUint(uint64(n.AS), 10) + ":" + target
+	if n.Length == RouteTargetMembershipPrefixLen {
+		return strconv.FormatUint(uint64(n.AS), 10) + ":" + target
+	}
+	return fmt.Sprintf("%d:%s/%d", n.AS, target, n.Length)
 }
 
 func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {
@@ -2226,7 +2243,7 @@ func (n *RouteTargetMembershipNLRI) RouteTargetKey() (uint64, error) {
 }
 
 func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) *RouteTargetMembershipNLRI {
-	l := 12 * 8
+	l := RouteTargetMembershipPrefixLen
 	if as == 0 && target == nil {
 		l = 0
 	} else if target == nil {
@@ -2240,44 +2257,47 @@ func NewRouteTargetMembershipNLRI(as uint32, target ExtendedCommunityInterface) 
 }
 
 // ParseRouteTargetMembershipNLRI parses "<origin-as>:<route-target>[/len]" into an NLRI
-// and masklen (defaults to /96). Inverse of RouteTargetMembershipNLRI.String.
-// For masklen <= 32 the Route Target is outside the prefix and left nil.
-func ParseRouteTargetMembershipNLRI(s string) (*RouteTargetMembershipNLRI, uint8, error) {
+// with Length set to the mask length (defaults to /96). Inverse of RouteTargetMembershipNLRI.String.
+func ParseRouteTargetMembershipNLRI(s string) (*RouteTargetMembershipNLRI, error) {
 	masklen := uint8(RouteTargetMembershipPrefixLen)
 	parts := strings.SplitN(s, "/", 2)
 	if len(parts) > 1 {
 		m, err := strconv.ParseUint(parts[1], 10, 8)
 		if err != nil {
-			return nil, 0, fmt.Errorf("invalid rtc-prefix mask length %q: %w", parts[1], err)
+			return nil, fmt.Errorf("invalid rtc-prefix mask length %q: %w", parts[1], err)
 		}
-		if m > RouteTargetMembershipPrefixLen {
-			return nil, 0, fmt.Errorf("rtc-prefix mask length %d exceeds %d", m, RouteTargetMembershipPrefixLen)
+		// RFC 4684: the origin-AS is a 4-octet field that cannot be interpreted as a
+		// prefix, so the only valid lengths are 0 (default route) and 32..96.
+		if m > 0 && m < 32 || m > RouteTargetMembershipPrefixLen {
+			return nil, fmt.Errorf("invalid rtc-prefix mask length %d: must be 0 or 32..%d", m, RouteTargetMembershipPrefixLen)
 		}
 		masklen = uint8(m)
 	}
 	elems := strings.SplitN(parts[0], ":", 2)
 	if len(elems) != 2 {
-		return nil, 0, fmt.Errorf("invalid rtc-prefix format %q: expected <origin-as>:<route-target>", s)
+		return nil, fmt.Errorf("invalid rtc-prefix format %q: expected <origin-as>:<route-target>", s)
 	}
 	as, err := ParseAs4Value(elems[0])
 	if err != nil {
-		return nil, 0, fmt.Errorf("invalid rtc-prefix origin-as %q: %w", elems[0], err)
+		return nil, fmt.Errorf("invalid rtc-prefix origin-as %q: %w", elems[0], err)
 	}
 	var rt ExtendedCommunityInterface
 	if masklen > 32 {
 		rt, err = ParseRouteTarget(elems[1])
 		if err != nil {
-			return nil, 0, fmt.Errorf("invalid rtc-prefix route-target %q: %w", elems[1], err)
+			return nil, fmt.Errorf("invalid rtc-prefix route-target %q: %w", elems[1], err)
 		}
 	}
-	return NewRouteTargetMembershipNLRI(as, rt), masklen, nil
+	nlri := NewRouteTargetMembershipNLRI(as, rt)
+	nlri.Length = masklen
+	return nlri, nil
 }
 
 // ParseRTCPrefix parses "<origin-as>:<route-target>[/len]" into a netip.Prefix for the
 // prefix-set trie. The 96-bit NLRI key [AS:4][RouteTarget:8] is padded to 16 bytes; /len
 // defaults to /96 and /32 matches the origin-AS only.
 func ParseRTCPrefix(s string) (netip.Prefix, error) {
-	nlri, masklen, err := ParseRouteTargetMembershipNLRI(s)
+	nlri, err := ParseRouteTargetMembershipNLRI(s)
 	if err != nil {
 		return netip.Prefix{}, err
 	}
@@ -2290,7 +2310,7 @@ func ParseRTCPrefix(s string) (netip.Prefix, error) {
 		}
 		binary.BigEndian.PutUint64(addr[4:12], rtKey)
 	}
-	return netip.PrefixFrom(netip.AddrFrom16(addr), int(masklen)), nil
+	return netip.PrefixFrom(netip.AddrFrom16(addr), int(nlri.Length)), nil
 }
 
 //go:generate stringer -type=ESIType

@@ -1366,11 +1366,11 @@ func newConfigPrefixFromAPIStruct(a *api.Prefix) (*oc.Prefix, error) {
 		}
 		ipPrefix = prefix
 	case a.RtcPrefix != "":
-		nlri, masklen, err := bgp.ParseRouteTargetMembershipNLRI(a.RtcPrefix)
+		nlri, err := bgp.ParseRouteTargetMembershipNLRI(a.RtcPrefix)
 		if err != nil {
 			return nil, err
 		}
-		rtcPrefix = fmt.Sprintf("%s/%d", nlri.String(), masklen)
+		rtcPrefix = nlri.String()
 	default:
 		return nil, fmt.Errorf("prefix requires ip-prefix or rtc-prefix")
 	}
