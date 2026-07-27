@@ -26,15 +26,27 @@ collections.Callable = collections.abc.Callable
 from lib.noseplugin import parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED, local
+from lib.base import BGP_FSM_ESTABLISHED, local, wait_for_completion
 from lib.gobgp import GoBGPContainer
+
+
+def global_rib_paths_from_peer(src, dst, rf):
+    peer_addr = dst.peer_name(src)
+    paths = 0
+    for dest in dst.get_global_rib(rf=rf):
+        for path in dest.get('paths', []):
+            if (path.get('peer-id') == src.router_id and
+                    path.get('peer-address') == peer_addr):
+                paths += 1
+                break
+    return paths
 
 
 class GoBGPTestBase(unittest.TestCase):
 
     def assert_adv_count(self, src, dst, rf, count):
         self.assertEqual(count, len(src.get_adj_rib_out(dst, rf=rf)))
-        self.assertEqual(count, len(dst.get_adj_rib_in(src, rf=rf)))
+        self.assertEqual(count, global_rib_paths_from_peer(src, dst, rf))
 
     def assert_upd_count(self, src, dst, sent, received):
         messages = src.get_neighbor(dst)['state']['messages']
@@ -996,4 +1008,50 @@ class GoBGPTestBase(unittest.TestCase):
         self.g4.local("gobgp vrf del vrf2")
         self.g5.local("gobgp vrf del vrf1")
 
+    def test_57_rtc_policy_setup(self):
+        gobgp_ctn_image_name = parser_option.gobgp_image
 
+        p1 = GoBGPContainer(name='p1', asn=65000, router_id='192.168.1.1',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+        p2 = GoBGPContainer(name='p2', asn=65000, router_id='192.168.1.2',
+                            ctn_image_name=gobgp_ctn_image_name,
+                            log_level=parser_option.gobgp_log_level)
+
+        time.sleep(max(ctn.run() for ctn in [p1, p2]))
+
+        p1.add_peer(p2, vpn=True, passwd='rtc', graceful_restart=True)
+        p2.add_peer(p1, vpn=True, passwd='rtc', graceful_restart=True)
+        p1.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=p2)
+
+        p2.local('gobgp policy statement add reject-rtc')
+        p2.local('gobgp policy statement reject-rtc add condition afi-safi-in rtc')
+        p2.local('gobgp policy statement reject-rtc add action reject')
+        p2.local('gobgp policy add reject-rtc reject-rtc')
+        p2.local('gobgp global policy import add reject-rtc default accept')
+
+        p1.local("gobgp vrf add vrf1 rd 65000:100 rt both 65000:100")
+        p2.local("gobgp vrf add vrf1 rd 65000:100 rt both 65000:100")
+        p2.local("gobgp vrf vrf1 rib add 20.0.0.0/24")
+        wait_for_completion(
+            lambda: len(p2.get_global_rib(rf='ipv4-l3vpn')) == 1)
+        wait_for_completion(
+            lambda: len(p2.get_adj_rib_in(p1, rf='rtc')) == 1)
+
+        self.__class__.p1 = p1
+        self.__class__.p2 = p2
+
+    def test_58_rtc_rejected_by_policy_is_not_in_global_rib(self):
+        self.assertEqual(1, len(self.p1.get_adj_rib_out(self.p2, rf='rtc')))
+        self.assertEqual(0, global_rib_paths_from_peer(
+            self.p1, self.p2, 'rtc'))
+
+    def test_59_rejected_rtc_does_not_enable_l3vpn_advertisement(self):
+        self.assertEqual(0, len(self.p2.get_adj_rib_out(
+            self.p1, rf='ipv4-l3vpn')))
+        self.assertEqual(0, len(self.p1.get_adj_rib_in(
+            self.p2, rf='ipv4-l3vpn')))
+
+    def test_60_policy_cleanup(self):
+        self.p1.local("gobgp vrf del vrf1")
+        self.p2.local("gobgp vrf del vrf1")
