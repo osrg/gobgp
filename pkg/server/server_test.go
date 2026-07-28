@@ -1046,6 +1046,26 @@ func TestListPathEnableFiltered(test *testing.T) {
 		assert.NoError(err)
 	}
 
+	// Listing accepted/rejected ADJ_IN paths must not rewrite the stored Adj-RIB-In.
+	for count := 0; count < 2; {
+		count = 0
+		err = server1.ListPath(apiutil.ListPathRequest{
+			TableType:      api.TableType_TABLE_TYPE_ADJ_IN,
+			Family:         bgpFamily,
+			Name:           "127.0.0.1",
+			EnableFiltered: false,
+		}, func(prefix bgp.NLRI, paths []*apiutil.Path) {
+			count++
+			for _, path := range paths {
+				comms := getCommunities(path)
+				if diff := cmp.Diff(wantCommunitiesAfterExportPolicies, comms); diff != "" {
+					test.Errorf("AdjRibInPreAfterFilteredList communities for %v (-want, +got):\n%s", prefix, diff)
+				}
+			}
+		})
+		assert.NoError(err)
+	}
+
 	// Check that 10.1.0.0/24 is filtered at the import side.
 	count := 0
 	err = server1.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_GLOBAL, Family: bgpFamily}, func(prefix bgp.NLRI, paths []*apiutil.Path) {

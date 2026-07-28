@@ -3011,6 +3011,81 @@ func (s *BgpServer) getVrfRib(name string, family bgp.Family, prefixes []*apiuti
 	return rib, err
 }
 
+func (s *BgpServer) adjRibInForListPath(peer *peer, family bgp.Family, enableFiltered bool, filtered map[table.PathLocalKey]table.FilteredType) *table.AdjRib {
+	if !enableFiltered {
+		return peer.adjRibIn
+	}
+
+	adjRib := table.NewAdjRib(s.logger, peer.configuredRFlist())
+	adjRib.Update(peer.adjRibIn.PathList([]bgp.Family{family}, false))
+	adjRib.Update(s.policyAcceptedAdjRibInPaths(peer, family, filtered))
+	return adjRib
+}
+
+func (s *BgpServer) policyAcceptedAdjRibInPaths(peer *peer, family bgp.Family, filtered map[table.PathLocalKey]table.FilteredType) []*table.Path {
+	pathList := peer.adjRibIn.PathList([]bgp.Family{family}, true)
+	toUpdate := make([]*table.Path, 0, len(pathList))
+	for _, path := range pathList {
+		pathLocalKey := path.GetLocalKey()
+		options := &table.PolicyOptions{
+			Validate: s.roaTable.Validate,
+		}
+		p := s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options)
+		if p == nil {
+			filtered[pathLocalKey] = table.PolicyFiltered
+		} else {
+			toUpdate = append(toUpdate, p)
+		}
+	}
+	return toUpdate
+}
+
+func (s *BgpServer) adjRibOutForListPath(peer *peer, family bgp.Family, enableFiltered bool, filtered map[table.PathLocalKey]table.FilteredType) *table.AdjRib {
+	adjRib := table.NewAdjRib(s.logger, peer.configuredRFlist())
+	var toUpdate []*table.Path
+	if enableFiltered {
+		toUpdate = s.policyEvaluatedAdjRibOutPaths(peer, family, filtered)
+	} else {
+		s.getBestFromLocalCallback(peer, peer.configuredRFlist(), true, false, func(paths []*table.Path, _ []*table.Path) {
+			toUpdate = adjRibOutPathsToUpdate(peer, paths, filtered)
+		})
+	}
+	adjRib.Update(toUpdate)
+	return adjRib
+}
+
+func (s *BgpServer) policyEvaluatedAdjRibOutPaths(peer *peer, family bgp.Family, filtered map[table.PathLocalKey]table.FilteredType) []*table.Path {
+	pathList := make([]*table.Path, 0)
+	for _, path := range s.getPossibleBest(peer, family) {
+		pathLocalKey := path.GetLocalKey()
+		p, options, stop := s.prePolicyFilterpath(peer, path, nil)
+		if stop {
+			continue
+		}
+		options.Validate = s.roaTable.Validate
+		if p = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, p, options); p == nil {
+			filtered[pathLocalKey] = table.PolicyFiltered
+		}
+		pathList = append(pathList, path)
+	}
+	return adjRibOutPathsToUpdate(peer, pathList, filtered)
+}
+
+func adjRibOutPathsToUpdate(peer *peer, pathList []*table.Path, filtered map[table.PathLocalKey]table.FilteredType) []*table.Path {
+	toUpdate := make([]*table.Path, 0, len(pathList))
+	for _, path := range pathList {
+		if path.IsEOR() {
+			continue
+		}
+		pathLocalKey := path.GetLocalKey()
+		if peer.isPathSendMaxFiltered(path) {
+			filtered[pathLocalKey] = filtered[pathLocalKey] | table.SendMaxFiltered
+		}
+		toUpdate = append(toUpdate, path)
+	}
+	return toUpdate
+}
+
 func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFiltered bool, prefixes []*apiutil.LookupPrefix) (rib *table.Table, filtered map[table.PathLocalKey]table.FilteredType, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
 		remoteAddr, err := netip.ParseAddr(addr)
@@ -3021,67 +3096,16 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 		if !ok {
 			return fmt.Errorf("neighbor that has %v doesn't exist", addr)
 		}
-		id := peer.ID()
-		as := peer.AS()
 
-		var adjRib *table.AdjRib
-		var toUpdate []*table.Path
 		filtered = make(map[table.PathLocalKey]table.FilteredType)
+		var adjRib *table.AdjRib
 		if in {
-			adjRib = peer.adjRibIn
-			if enableFiltered {
-				toUpdate = make([]*table.Path, 0)
-				for _, path := range peer.adjRibIn.PathList([]bgp.Family{family}, true) {
-					pathLocalKey := path.GetLocalKey()
-					options := &table.PolicyOptions{
-						Validate: s.roaTable.Validate,
-					}
-					p := s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options)
-					if p == nil {
-						filtered[pathLocalKey] = table.PolicyFiltered
-					} else {
-						toUpdate = append(toUpdate, p)
-					}
-				}
-			}
+			adjRib = s.adjRibInForListPath(peer, family, enableFiltered, filtered)
 		} else {
-			adjRib = table.NewAdjRib(s.logger, peer.configuredRFlist())
-			pathList := []*table.Path{}
-			pathListToUpdate := func(pathList []*table.Path) {
-				toUpdate = make([]*table.Path, 0, len(pathList))
-				for _, path := range pathList {
-					if path.IsEOR() {
-						continue
-					}
-					pathLocalKey := path.GetLocalKey()
-					if peer.isPathSendMaxFiltered(path) {
-						filtered[pathLocalKey] = filtered[pathLocalKey] | table.SendMaxFiltered
-					}
-					toUpdate = append(toUpdate, path)
-				}
-			}
-			if enableFiltered {
-				for _, path := range s.getPossibleBest(peer, family) {
-					pathLocalKey := path.GetLocalKey()
-					p, options, stop := s.prePolicyFilterpath(peer, path, nil)
-					if stop {
-						continue
-					}
-					options.Validate = s.roaTable.Validate
-					if p = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, p, options); p == nil {
-						filtered[pathLocalKey] = table.PolicyFiltered
-					}
-					pathList = append(pathList, path)
-				}
-				pathListToUpdate(pathList)
-			} else {
-				s.getBestFromLocalCallback(peer, peer.configuredRFlist(), true, false, func(paths []*table.Path, filtered []*table.Path) {
-					pathListToUpdate(paths)
-				})
-			}
+			adjRib = s.adjRibOutForListPath(peer, family, enableFiltered, filtered)
 		}
-		adjRib.Update(toUpdate)
-		rib, err = adjRib.Select(family, false, table.TableSelectOption{ID: id, AS: as, LookupPrefixes: prefixes})
+
+		rib, err = adjRib.Select(family, false, table.TableSelectOption{ID: peer.ID(), AS: peer.AS(), LookupPrefixes: prefixes})
 		v = s.validateTable(rib)
 		return err
 	}, true)
