@@ -1081,15 +1081,14 @@ func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Fami
 			dsts := tbl.GetDestinations()
 			dl := make([]*table.Update, 0, len(dsts))
 			for _, d := range dsts {
-				l := d.GetAllKnownPathList()
-				pl := make([]*table.Path, len(l))
-				copy(pl, l)
 				u := &table.Update{
-					KnownPathList: pl,
+					KnownPathList: d.GetAllKnownPathList(),
 				}
 				dl = append(dl, u)
 			}
-			pathList = append(pathList, s.sendSecondaryRoutes(peer, nil, dl)...)
+			paths, rejected := s.sendSecondaryRoutes(peer, nil, dl)
+			pathList = append(pathList, paths...)
+			filtered = append(filtered, rejected...)
 		}
 		fn(pathList, filtered)
 		return
@@ -1150,11 +1149,10 @@ func needToAdvertise(peer *peer) bool {
 	return true
 }
 
-func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []*table.Update) []*table.Path {
+func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []*table.Update) (paths, filtered []*table.Path) {
 	if !needToAdvertise(peer) {
-		return nil
+		return nil, nil
 	}
-	pl := make([]*table.Path, 0, len(dsts))
 
 	f := func(path, old *table.Path) *table.Path {
 		path, options, stop := s.prePolicyFilterpath(peer, path, old)
@@ -1189,12 +1187,18 @@ func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []
 			return nil
 		}()
 		if path != nil {
-			pl = append(pl, path)
+			paths = append(paths, path)
 		} else if old != nil {
-			pl = append(pl, old.Clone(true))
+			paths = append(paths, old.Clone(true))
+		} else if len(dst.KnownPathList) > 0 {
+			// softResetOut uses filtered paths to withdraw destinations that were
+			// previously advertised but no longer have an advertisable path.
+			// For secondary-route peers, return one withdrawal candidate when all
+			// current paths for a destination are filtered.
+			filtered = append(filtered, filteredPathForPeer(peer, dst.KnownPathList[0]))
 		}
 	}
-	return pl
+	return paths, filtered
 }
 
 func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) []*table.Path {
@@ -1575,7 +1579,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			} else {
 				if targetPeer.isRouteServerClient() {
 					if targetPeer.isSecondaryRouteEnabled() {
-						if paths := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
+						if paths, _ := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
 							targetPeer.updateRoutes(paths...)
 							sendfsmOutgoingMsg(targetPeer, paths)
 						}
