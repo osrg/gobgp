@@ -1836,4 +1836,46 @@ module gobgp {
   }
 
   uses keychain-top;
+
+  grouping gobgp-tcp-ao-config {
+    description
+      "TCP-AO keychain attachment for a BGP neighbor or peer-group.";
+
+    leaf keychain {
+      type keychain-ref;
+      description
+        "Reference to the TCP-AO keychain used by the peer.";
+    }
+
+    leaf send-id {
+      type uint8;
+      mandatory true;
+      description
+        "TCP-AO send key identifier.";
+    }
+  }
+
+  grouping gobgp-tcp-ao-config-set {
+    container tcp-ao {
+      presence "Enables TCP-AO for the BGP transport.";
+      description
+        "TCP-AO configuration for a BGP neighbor or peer-group.";
+
+      container config {
+        description
+          "TCP-AO configuration parameters.";
+        uses gobgp-tcp-ao-config;
+      }
+    }
+  }
+
+  augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group" {
+    description "TCP-AO configuration for peer-group";
+    uses gobgp-tcp-ao-config-set;
+  }
+
+  augment "/bgp:bgp/bgp:neighbors/bgp:neighbor" {
+    description "TCP-AO configuration for neighbor";
+    uses gobgp-tcp-ao-config-set;
+  }
 }
