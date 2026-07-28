@@ -2162,6 +2162,9 @@ type PeerGroup struct {
 	// original -> gobgp:bfd
 	// Configure BFD liveness detection for this BGP neighbor.
 	Bfd Bfd `mapstructure:"bfd" json:"bfd,omitempty"`
+	// original -> gobgp:tcp-ao
+	// TCP-AO configuration for a BGP neighbor or peer-group.
+	TcpAo TcpAo `mapstructure:"tcp-ao" json:"tcp-ao,omitempty"`
 }
 
 func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
@@ -2219,6 +2222,9 @@ func (lhs *PeerGroup) Equal(rhs *PeerGroup) bool {
 		return false
 	}
 	if !lhs.Bfd.Equal(&(rhs.Bfd)) {
+		return false
+	}
+	if !lhs.TcpAo.Equal(&(rhs.TcpAo)) {
 		return false
 	}
 	return true
@@ -2933,6 +2939,48 @@ type ErrorHandling struct {
 }
 
 func (lhs *ErrorHandling) Equal(rhs *ErrorHandling) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:config.
+// TCP-AO configuration parameters.
+type TcpAoConfig struct {
+	// original -> gobgp:keychain
+	// Reference to the TCP-AO keychain used by the peer.
+	Keychain KeychainRef `mapstructure:"keychain" json:"keychain,omitempty"`
+	// original -> gobgp:preferred-send-id
+	// Preferred TCP-AO send key identifier.
+	PreferredSendId uint8 `mapstructure:"preferred-send-id" json:"preferred-send-id,omitempty"`
+}
+
+func (lhs *TcpAoConfig) Equal(rhs *TcpAoConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Keychain != rhs.Keychain {
+		return false
+	}
+	if lhs.PreferredSendId != rhs.PreferredSendId {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:tcp-ao.
+// TCP-AO configuration for a BGP neighbor or peer-group.
+type TcpAo struct {
+	// original -> gobgp:tcp-ao-config
+	// TCP-AO configuration parameters.
+	Config TcpAoConfig `mapstructure:"config" json:"config,omitempty"`
+}
+
+func (lhs *TcpAo) Equal(rhs *TcpAo) bool {
 	if lhs == nil || rhs == nil {
 		return false
 	}
@@ -3723,6 +3771,9 @@ type Neighbor struct {
 	// original -> gobgp:bfd
 	// Configure BFD liveness detection for this BGP neighbor.
 	Bfd Bfd `mapstructure:"bfd" json:"bfd,omitempty"`
+	// original -> gobgp:tcp-ao
+	// TCP-AO configuration for a BGP neighbor or peer-group.
+	TcpAo TcpAo `mapstructure:"tcp-ao" json:"tcp-ao,omitempty"`
 }
 
 func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
@@ -3780,6 +3831,9 @@ func (lhs *Neighbor) Equal(rhs *Neighbor) bool {
 		return false
 	}
 	if !lhs.Bfd.Equal(&(rhs.Bfd)) {
+		return false
+	}
+	if !lhs.TcpAo.Equal(&(rhs.TcpAo)) {
 		return false
 	}
 	return true
