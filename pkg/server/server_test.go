@@ -71,7 +71,8 @@ func TestWatchPostUpdateWithLocalRoute(t *testing.T) {
 	// Calling watch with initPostUpdate=true and a peerAddress filter.
 	// This will traverse the global RIB, encounter the local path with no PeerInfo,
 	// and apply the postUpdateFilter. It should not panic.
-	s.watch(WatchPostUpdate(true, "10.2.2.2", ""))
+	_, err = s.watch(WatchPostUpdate(true, "10.2.2.2", ""))
+	require.NoError(t, err)
 }
 
 // TestWatchBestPathNexthopOnlyChange verifies that re-adding a local path
@@ -91,7 +92,8 @@ func TestWatchBestPathNexthopOnlyChange(t *testing.T) {
 	require.NoError(t, err)
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
-	w := s.watch(WatchBestPath(false))
+	w, err := s.watch(WatchBestPath(false))
+	require.NoError(t, err)
 	defer w.Stop()
 
 	waitEvent := func() *watchEventBestPath {
@@ -203,7 +205,8 @@ func TestMgmtOperationReturnsAfterServerStops(t *testing.T) {
 
 func TestWatcherStopAfterServerStops(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", -1)
-	w := s.watch(WatchPeer())
+	w, err := s.watch(WatchPeer())
+	require.NoError(t, err)
 
 	require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
 
@@ -235,6 +238,25 @@ func TestWatcherStopAfterServerStops(t *testing.T) {
 	default:
 		t.Fatal("watcher event channel is not closed")
 	}
+}
+
+// TestWatchAfterServerStopsReturnsError verifies that watch cannot register a
+// watcher once the server loop has exited. Callers must get an error instead of
+// a nil watcher, which they would otherwise dereference.
+func TestWatchAfterServerStopsReturnsError(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+
+	w, err := s.watch(WatchPeer())
+	require.Error(t, err)
+	assert.Nil(t, w)
+
+	// WatchEvent must propagate the error to its caller rather than spawning a
+	// goroutine that dereferences the nil watcher.
+	err = s.WatchEvent(context.Background(), WatchEventMessageCallbacks{
+		OnPeerUpdate: func(*apiutil.WatchEventMessage_PeerEvent, time.Time) {},
+	}, WatchPeer())
+	require.Error(t, err)
 }
 
 // TestAddPeerUnnumberedInterface verifies that an unnumbered (interface-only)
@@ -320,11 +342,12 @@ func TestWatchUpdateCurrentDeliversInitBeforeLiveEvents(t *testing.T) {
 	releaseFilter := make(chan struct{})
 	var filterBlocked atomic.Bool
 	var watcher *watcher
+	var watchErr error
 	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
-		watcher = s1.watch(func(o *watchOptions) {
+		watcher, watchErr = s1.watch(func(o *watchOptions) {
 			o.preUpdate = true
 			o.initUpdate = true
 			o.preUpdateFilter = func(w watchEvent) bool {
@@ -367,6 +390,7 @@ func TestWatchUpdateCurrentDeliversInitBeforeLiveEvents(t *testing.T) {
 		t.Fatal("timeout waiting for watch() to finish")
 	}
 
+	require.NoError(t, watchErr)
 	require.NotNil(t, watcher)
 	defer watcher.Stop()
 
@@ -1408,7 +1432,8 @@ func TestMonitor(test *testing.T) {
 	establishedWaiter.Wait(test, 10*time.Second)
 
 	// Test WatchBestPath.
-	w := s.watch(WatchBestPath(false))
+	w, err := s.watch(WatchBestPath(false))
+	assert.NoError(err)
 
 	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	// Advertises a route.
@@ -1468,7 +1493,8 @@ func TestMonitor(test *testing.T) {
 	}
 
 	// Test WatchUpdate with "current" flag.
-	w = s.watch(WatchUpdate(true, "", ""))
+	w, err = s.watch(WatchUpdate(true, "", ""))
+	assert.NoError(err)
 
 	// Test the initial route.
 	ev = <-w.Event()
@@ -1505,7 +1531,8 @@ func TestMonitor(test *testing.T) {
 
 	// Test bestpath events with vrf and rt import
 	w.Stop()
-	w = s.watch(WatchBestPath(false))
+	w, err = s.watch(WatchBestPath(false))
+	assert.NoError(err)
 	panh, _ = bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
 	attrs = []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
@@ -2448,7 +2475,8 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher := s1.watch(WatchUpdate(true, "", ""))
+	watcher, err := s1.watch(WatchUpdate(true, "", ""))
+	require.NoError(t, err)
 
 	panh1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("2.2.2.2"))
 	// Add route to vrf1 on s2
@@ -2556,8 +2584,10 @@ func TestDelVrfWithRTC(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher1 := s1.watch(WatchUpdate(true, "", ""))
-	watcher2 := s2.watch(WatchUpdate(true, "", ""))
+	watcher1, err := s1.watch(WatchUpdate(true, "", ""))
+	require.NoError(t, err)
+	watcher2, err := s2.watch(WatchUpdate(true, "", ""))
+	require.NoError(t, err)
 
 	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("2.2.2.2"))
 	// Add route to vrf1 on s2
@@ -2661,8 +2691,10 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher1 := s1.watch(WatchUpdate(true, "", ""))
-	watcher2 := s2.watch(WatchUpdate(true, "", ""))
+	watcher1, err := s1.watch(WatchUpdate(true, "", ""))
+	require.NoError(t, err)
+	watcher2, err := s2.watch(WatchUpdate(true, "", ""))
+	require.NoError(t, err)
 
 	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
 
@@ -2793,7 +2825,8 @@ func TestRTCWithdrawUpdatedPath(t *testing.T) {
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
 		t.Fatal(err)
 	}
-	watcher1 := s1.watch(WatchUpdate(true, "", ""))
+	watcher1, err := s1.watch(WatchUpdate(true, "", ""))
+	require.NoError(t, err)
 
 	rt1 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
 	rt2 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
@@ -3467,7 +3500,8 @@ func TestRTCDefferalTime(test *testing.T) {
 	})
 	establishedSender.Wait(test, 10*time.Second)
 
-	watcher := receiver.watch(WatchUpdate(true, "", ""), WatchEor(true))
+	watcher, err := receiver.watch(WatchUpdate(true, "", ""), WatchEor(true))
+	require.NoError(test, err)
 	t1 := time.NewTimer(50 * time.Second)
 	var receivedEOR bool
 	var pathsCounter int

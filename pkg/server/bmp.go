@@ -155,7 +155,15 @@ func (b *bmpClient) loop() {
 			if b.c.RouteMirroringEnabled {
 				ops = append(ops, watchMessage(false))
 			}
-			w := b.s.watch(ops...)
+			w, err := b.s.watch(ops...)
+			if err != nil {
+				// the BGP server has stopped, so there is nothing left to watch.
+				b.s.logger.Warn("failed to start bmp watcher",
+					slog.String("Topic", "bmp"),
+					slog.String("Key", b.host.String()),
+					slog.String("Error", err.Error()))
+				return true
+			}
 			defer w.Stop()
 
 			var tickerCh <-chan time.Time

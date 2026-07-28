@@ -4673,7 +4673,10 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 	if len(opts) == 0 {
 		return fmt.Errorf("no events to watch")
 	}
-	w := s.watch(opts...)
+	w, err := s.watch(opts...)
+	if err != nil {
+		return err
+	}
 
 	go func() {
 		defer w.Stop()
@@ -5100,9 +5103,9 @@ func (s *BgpServer) notifyWatcher(typ watchEventType, ev watchEvent) {
 	s.watcherMu.RUnlock()
 }
 
-func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
-	// TODO: return error
-	_ = s.mgmtOperation(func() error {
+func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
+	var w *watcher
+	err := s.mgmtOperation(func() error {
 		w = &watcher{
 			s:       s,
 			realCh:  make(chan watchEvent, 8),
@@ -5292,7 +5295,10 @@ func (s *BgpServer) watch(opts ...WatchOption) (w *watcher) {
 		go w.loop()
 		return nil
 	}, false)
-	return w
+	if err != nil {
+		return nil, err
+	}
+	return w, nil
 }
 
 func (s *BgpServer) GetBfdServerStats() *api.BfdState {
