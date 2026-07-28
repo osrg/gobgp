@@ -99,7 +99,7 @@ func Test_RxPacket(t *testing.T) {
 
 	assert.Equal(p.stats.rxPacket.Load(), uint64(0))
 
-	p.Rx(&bfd.BFDHeader{DetectTimeMultiplier: 5})
+	p.Rx(&bfd.BFDHeader{MyDiscriminator: 111, DetectTimeMultiplier: 5})
 
 	time.Sleep(2 * time.Second)
 	p.Stop()
@@ -246,6 +246,97 @@ func Test_RxPacketZeroMultiplierDiscarded(t *testing.T) {
 	assert.Equal(uint64(1), p.stats.invalidMultiplier.Load())
 	assert.Equal(uint64(0), p.stats.rxPacket.Load())
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+}
+
+func Test_RxPacketUnboundDiscriminatorDiscarded(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   300000,
+		DesiredMinimumTxInterval: 300000,
+	}, "")
+	defer p.Stop()
+
+	// RFC 5880 Section 6.8.6: a zero Your Discriminator is only meaningful
+	// from a remote system in Down or AdminDown. Init carries no session
+	// binding here, so it must not drive the session Up.
+	p.rxPacket(&bfd.BFDHeader{
+		State:                bfd.StateInit,
+		MyDiscriminator:      111,
+		YourDiscriminator:    0,
+		DetectTimeMultiplier: 3,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+	assert.Equal(uint64(1), p.stats.invalidDiscriminator.Load())
+
+	// RFC 5880 Section 6.8.6: a zero My Discriminator MUST be discarded. It
+	// is also the value setStateDown uses to mean "no remote session".
+	p.rxPacket(&bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      0,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 3,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+	assert.Equal(uint32(0), p.yourDiscriminator)
+	assert.Equal(uint64(2), p.stats.invalidDiscriminator.Load())
+
+	// A Down packet with a zero Your Discriminator is still accepted: that is
+	// how a remote system that has not learned our discriminator starts up.
+	p.rxPacket(&bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      222,
+		YourDiscriminator:    0,
+		DetectTimeMultiplier: 3,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_INIT, p.sessionState())
+	assert.Equal(uint32(222), p.yourDiscriminator)
+}
+
+func Test_RxPacketZeroYourDiscriminatorForeignRemoteDiscarded(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   300000,
+		DesiredMinimumTxInterval: 300000,
+	}, "")
+	defer p.Stop()
+
+	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
+	p.yourDiscriminator = 12345
+
+	// The remote discriminator is already bound, so a Down packet that omits
+	// Your Discriminator and carries a different My Discriminator did not come
+	// from that remote system. Accepting it would reset the BGP peer.
+	p.rxPacket(&bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      67890,
+		YourDiscriminator:    0,
+		DetectTimeMultiplier: 3,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_UP, p.sessionState())
+	assert.Equal(uint32(12345), p.yourDiscriminator)
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(uint64(1), p.stats.invalidDiscriminator.Load())
+
+	// The bound remote system may still omit Your Discriminator when it
+	// signals Down, and that packet has to be honored.
+	p.rxPacket(&bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      12345,
+		YourDiscriminator:    0,
+		DetectTimeMultiplier: 3,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
 }
 
 func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
