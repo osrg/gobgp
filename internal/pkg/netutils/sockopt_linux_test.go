@@ -24,6 +24,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
 )
 
@@ -102,9 +103,7 @@ func Test_buildTcpMD5Sig_bindInterface(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Don't confuse IPv6 zone with ifindex
 			s := buildTcpMD5Sig(tt.bindInterface, "fe80::4850:31ff:fe01:fc55%456", "helloworld")
-			if s == nil {
-				t.Fatal("Gen md5 sig failed")
-			}
+			require.NotNil(t, s, "Gen md5 sig failed")
 			if s.Ifindex != tt.expectedIfindex {
 				t.Errorf("Unexpected ifindex value for %T: got %d, want %d", tt.bindInterface, s.Ifindex, tt.expectedIfindex)
 			}
