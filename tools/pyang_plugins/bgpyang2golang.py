@@ -796,7 +796,7 @@ def translate_type(name, key):
 # 'hoge-hoge' -> 'HogeHoge'
 def convert_to_golang(type_string):
     a = type_string.split('.')
-    return '.'.join(''.join(t.capitalize() for t in x.split('-')) for x in a)
+    return '.'.join(''.join(t.capitalize() for t in x.replace('_', '-').split('-')) for x in a)
 
 
 # 'hoge-hoge' -> 'HOGE_HOGE'
