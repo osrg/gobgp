@@ -5225,14 +5225,37 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&TunnelEncapSubTLVSRSegmentList{}).DecodeFromBytes(data)
 		(&VPLSNLRI{}).decodeFromBytes(data)
 		(&TLV{}).DecodeFromBytes(data)
-		(&PathAttributePrefixSID{}).DecodeFromBytes(data)
-		(&SRv6L3ServiceAttribute{}).DecodeFromBytes(data)
 		(&SubTLV{}).DecodeFromBytes(data)
-		(&SRv6InformationSubTLV{}).DecodeFromBytes(data)
 		(&SubSubTLV{}).DecodeFromBytes(data)
-		(&SRv6SIDStructureSubSubTLV{}).DecodeFromBytes(data)
-		(&SRv6ServiceTLV{}).DecodeFromBytes(data)
+
+		// The BGP Prefix-SID TLVs carry a declared Length that the
+		// serializers size their buffers from, so decoding alone does
+		// not exercise the decode/serialize contract. Re-serialize
+		// whatever decoded successfully: an accepted object must never
+		// panic on the way back out.
+		psid := &PathAttributePrefixSID{}
+		if psid.DecodeFromBytes(data) == nil {
+			psid.Serialize()
+		}
+		fuzzPrefixSIDRoundTrip(data,
+			&SRv6L3ServiceAttribute{},
+			&SRv6ServiceTLV{},
+			&SRv6InformationSubTLV{},
+			&SRv6SIDStructureSubSubTLV{},
+		)
 	})
+}
+
+// fuzzPrefixSIDRoundTrip decodes data into each TLV and re-serializes the ones
+// that accepted it.
+//
+//nolint:errcheck
+func fuzzPrefixSIDRoundTrip(data []byte, tlvs ...PrefixSIDTLVInterface) {
+	for _, tlv := range tlvs {
+		if tlv.DecodeFromBytes(data) == nil {
+			tlv.Serialize()
+		}
+	}
 }
 
 func Test_LsTLVSrv6EndXSID(t *testing.T) {
