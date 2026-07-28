@@ -5798,8 +5798,17 @@ type LsSrv6SIDNLRI struct {
 }
 
 func (l *LsSrv6SIDNLRI) String() string {
+	if l.LocalNodeDesc == nil || l.Srv6SIDInfo == nil {
+		return "SRv6SID { EMPTY }"
+	}
+
 	local := l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract()
 	srv6SID := l.Srv6SIDInfo.(*LsTLVSrv6SIDInfo)
+
+	// The Multi-Topology Identifier TLV is optional (RFC 9514, Section 6).
+	if l.MultiTopoID == nil {
+		return fmt.Sprintf("SRv6SID { LOCAL_NODE: %s SRv6_SID: %v}", local, srv6SID.String())
+	}
 	multiTopo := l.MultiTopoID.(*LsTLVMultiTopoID)
 
 	return fmt.Sprintf("SRv6SID { LOCAL_NODE: %s SRv6_SID: %v MULTI_TOPO_IDs: %v}", local, srv6SID.String(), multiTopo.String())
@@ -5878,26 +5887,35 @@ func (l *LsSrv6SIDNLRI) Serialize() ([]byte, error) {
 	}
 	buf = append(buf, s...)
 
-	s, err = l.MultiTopoID.Serialize()
-	if err != nil {
-		return nil, err
+	// The Multi-Topology Identifier TLV is optional (RFC 9514, Section 6), so
+	// it may legitimately be absent from a decoded NLRI.
+	if l.MultiTopoID != nil {
+		s, err = l.MultiTopoID.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, s...)
 	}
-	buf = append(buf, s...)
 
 	return l.LsNLRI.Serialize(buf)
 }
 
 func (l *LsSrv6SIDNLRI) MarshalJSON() ([]byte, error) {
+	var multiTopoID *LsTLVMultiTopoID
+	if l.MultiTopoID != nil {
+		multiTopoID = l.MultiTopoID.(*LsTLVMultiTopoID)
+	}
+
 	return json.Marshal(struct {
-		Type        LsNLRIType       `json:"type"`
-		LocalNode   LsNodeDescriptor `json:"local_node_desc"`
-		Srv6SID     LsTLVSrv6SIDInfo `json:"srv6_sid_info"`
-		MultiTopoID LsTLVMultiTopoID `json:"multi_topo"`
+		Type        LsNLRIType        `json:"type"`
+		LocalNode   LsNodeDescriptor  `json:"local_node_desc"`
+		Srv6SID     LsTLVSrv6SIDInfo  `json:"srv6_sid_info"`
+		MultiTopoID *LsTLVMultiTopoID `json:"multi_topo,omitempty"`
 	}{
 		Type:        l.Type(),
 		LocalNode:   *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
 		Srv6SID:     *l.Srv6SIDInfo.(*LsTLVSrv6SIDInfo),
-		MultiTopoID: *l.MultiTopoID.(*LsTLVMultiTopoID),
+		MultiTopoID: multiTopoID,
 	})
 }
 

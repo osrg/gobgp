@@ -4517,6 +4517,71 @@ func Test_LsTLVSrv6SIDInfo(t *testing.T) {
 	}
 }
 
+// The Multi-Topology Identifier TLV is optional in an SRv6 SID NLRI (RFC 9514,
+// Section 6), so an NLRI decoded without it must still serialize and render.
+func Test_LsSrv6SIDNLRIMultiTopoID(t *testing.T) {
+	base := []byte{
+		0x02,                                           // Protocol ID: IS-IS Level 2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		0x01, 0x00, 0x00, 0x10, // TLV Local Node Descriptor
+		0x02, 0x00, 0x00, 0x04, // Sub-TLV Autonomous System
+		0x00, 0x00, 0xfd, 0xe8, // AS: 65000
+		0x02, 0x03, 0x00, 0x04, // Sub-TLV IGP Router ID
+		0x0a, 0x00, 0x00, 0x01, // IGP Router ID: 10.0.0.1
+		0x02, 0x06, 0x00, 0x10, // TLV SRv6 SID Information
+		0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // SID: fd00::1
+	}
+	multiTopoID := []byte{
+		0x01, 0x07, 0x00, 0x02, // TLV Multi-Topology Identifier
+		0x00, 0x02, // Multi-Topology ID: 2
+	}
+
+	tests := []struct {
+		name    string
+		nlri    []byte
+		present bool
+	}{
+		{"without Multi-Topology ID", base, false},
+		{"with Multi-Topology ID", append(append([]byte{}, base...), multiTopoID...), true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			data := append([]byte{
+				0x00, 0x06, // NLRI Type: SRv6 SID
+				0x00, byte(len(test.nlri)), // Length
+			}, test.nlri...)
+
+			prefix := &LsAddrPrefix{}
+			assert.NoError(prefix.decodeFromBytes(data))
+
+			srv6 := prefix.NLRI.(*LsSrv6SIDNLRI)
+			if test.present {
+				assert.NotNil(srv6.MultiTopoID)
+			} else {
+				assert.Nil(srv6.MultiTopoID)
+			}
+
+			got, err := prefix.Serialize()
+			assert.NoError(err)
+			assert.Equal(data, got)
+
+			buf, err := json.Marshal(srv6)
+			assert.NoError(err)
+
+			if test.present {
+				assert.Contains(srv6.String(), "MULTI_TOPO_IDs")
+				assert.Contains(string(buf), "multi_topo")
+			} else {
+				assert.NotContains(srv6.String(), "MULTI_TOPO_IDs")
+				assert.NotContains(string(buf), "multi_topo")
+			}
+		})
+	}
+}
+
 func Test_PathAttributeLs(t *testing.T) {
 	assert := assert.New(t)
 
