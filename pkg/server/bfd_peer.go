@@ -285,16 +285,42 @@ func (p *bfdPeer) startClient() {
 }
 
 func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
-	if h.YourDiscriminator != 0 && h.YourDiscriminator != p.myDiscriminator {
-		p.stats.invalidDiscriminator.Add(1)
-		return
-	}
-
 	// RFC 5880 Section 6.8.6: if the Detect Mult field is zero, the packet
 	// MUST be discarded.
 	if h.DetectTimeMultiplier == 0 {
 		p.stats.invalidMultiplier.Add(1)
 		return
+	}
+
+	// RFC 5880 Section 6.8.6: if the My Discriminator field is zero, the
+	// packet MUST be discarded.
+	if h.MyDiscriminator == 0 {
+		p.stats.invalidDiscriminator.Add(1)
+		return
+	}
+
+	// RFC 5880 Section 6.8.6: a nonzero Your Discriminator selects the
+	// session and MUST match ours. A zero Your Discriminator carries no
+	// session binding, so it is only accepted from a remote system that has
+	// not learned our discriminator yet, i.e. one in Down or AdminDown.
+	if h.YourDiscriminator != 0 {
+		if h.YourDiscriminator != p.myDiscriminator {
+			p.stats.invalidDiscriminator.Add(1)
+			return
+		}
+	} else {
+		if h.State != bfd.StateDown && h.State != bfd.StateAdminDown {
+			p.stats.invalidDiscriminator.Add(1)
+			return
+		}
+
+		// Once the remote discriminator is bound, a packet that omits Your
+		// Discriminator still has to come from that same remote system, or
+		// it can tear the session down without ever having seen it.
+		if p.yourDiscriminator != 0 && h.MyDiscriminator != p.yourDiscriminator {
+			p.stats.invalidDiscriminator.Add(1)
+			return
+		}
 	}
 
 	p.stats.rxPacket.Add(1)
