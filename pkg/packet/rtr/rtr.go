@@ -229,7 +229,7 @@ func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
 	m.PrefixLen = data[9]
 	m.MaxLen = data[10]
 	if m.Type == RTR_IPV4_PREFIX {
-		if m.PrefixLen > 32 || m.MaxLen > 32 {
+		if m.MaxLen > 32 || m.PrefixLen > m.MaxLen {
 			return errors.New("prefix or max length out of range for IPv4 RTRIPPrefix")
 		}
 		m.Prefix, _ = netip.AddrFromSlice(data[12:16])
@@ -238,7 +238,7 @@ func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
 		if len(data) < RTR_IPV6_PREFIX_LEN {
 			return errors.New("data too short for RTRIPPrefix")
 		}
-		if m.PrefixLen > 128 || m.MaxLen > 128 {
+		if m.MaxLen > 128 || m.PrefixLen > m.MaxLen {
 			return errors.New("prefix or max length out of range for IPv6 RTRIPPrefix")
 		}
 		m.Prefix, _ = netip.AddrFromSlice(data[12:28])

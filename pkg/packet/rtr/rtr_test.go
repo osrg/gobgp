@@ -138,10 +138,11 @@ func Test_ParseRTR_ErrorReportRejectsOversizedTextLen(t *testing.T) {
 }
 
 func Test_ParseRTR_IPPrefixRejectsOutOfRangeLength(t *testing.T) {
-	// RFC8210 5.7/5.8 bound Prefix Length and Max Length to the address
-	// family maximum (0..32 for IPv4, 0..128 for IPv6). A length past the
-	// maximum reaches net.CIDRMask via table.NewROA, which returns a nil
-	// mask, so the ROA is stored with a bogus default-route network.
+	// RFC8210 5.1 bounds Prefix Length and Max Length to the address
+	// family maximum (0..32 for IPv4, 0..128 for IPv6) and requires Max
+	// Length to be no less than Prefix Length. A length past the maximum
+	// reaches net.CIDRMask via table.NewROA, which returns a nil mask, so
+	// the ROA is stored with a bogus default-route network.
 	ipv4PDU := func(prefixLen, maxLen uint8) []byte {
 		data := make([]byte, RTR_IPV4_PREFIX_LEN)
 		data[1] = RTR_IPV4_PREFIX
@@ -164,6 +165,12 @@ func Test_ParseRTR_IPPrefixRejectsOutOfRangeLength(t *testing.T) {
 	_, err = ParseRTR(ipv4PDU(24, 33))
 	require.Error(t, err)
 	_, err = ParseRTR(ipv6PDU(129, 128))
+	require.Error(t, err)
+
+	// Max Length must not be less than Prefix Length.
+	_, err = ParseRTR(ipv4PDU(24, 16))
+	require.Error(t, err)
+	_, err = ParseRTR(ipv6PDU(64, 48))
 	require.Error(t, err)
 
 	// A prefix within range still decodes.
