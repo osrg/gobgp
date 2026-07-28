@@ -1064,6 +1064,43 @@ func (v BfdDiagnosticCode) ToInt() int {
 	return i
 }
 
+// typedef for typedef gobgp:keychain-ref.
+type KeychainRef string
+
+// typedef for identity gobgp:crypto-type.
+// Base identify for the cryptographic algorithm.
+type CryptoType string
+
+const (
+	CRYPTO_TYPE_HMAC_SHA_1_96   CryptoType = "hmac-sha-1-96"
+	CRYPTO_TYPE_AES_128_CMAC_96 CryptoType = "aes-128-cmac-96"
+)
+
+var CryptoTypeToIntMap = map[CryptoType]int{
+	CRYPTO_TYPE_HMAC_SHA_1_96:   0,
+	CRYPTO_TYPE_AES_128_CMAC_96: 1,
+}
+
+var IntToCryptoTypeMap = map[int]CryptoType{
+	0: CRYPTO_TYPE_HMAC_SHA_1_96,
+	1: CRYPTO_TYPE_AES_128_CMAC_96,
+}
+
+func (v CryptoType) Validate() error {
+	if _, ok := CryptoTypeToIntMap[v]; !ok {
+		return fmt.Errorf("invalid CryptoType: %s", v)
+	}
+	return nil
+}
+
+func (v CryptoType) ToInt() int {
+	i, ok := CryptoTypeToIntMap[v]
+	if !ok {
+		return -1
+	}
+	return i
+}
+
 // typedef for typedef bgp-pol:bgp-as-path-prepend-repeat.
 type BgpAsPathPrependRepeat uint8
 
@@ -1110,6 +1147,117 @@ type BgpNextHopType string
 
 // typedef for typedef bgp-pol:bgp-set-med-type.
 type BgpSetMedType string
+
+// struct for container gobgp:config.
+// This container defines keychain key configuration.
+type KeyConfig struct {
+	// original -> gobgp:key-id
+	// TCP-AO send key identifier associated with this key.
+	KeyId uint8 `mapstructure:"key-id" json:"key-id,omitempty"`
+	// original -> gobgp:secret-key
+	// Base64-encoded TCP-AO master key.
+	SecretKey string `mapstructure:"secret-key" json:"secret-key,omitempty"`
+	// original -> gobgp:crypto-algorithm
+	// Cryptographic algorithm associated with the key.  Note that not all cryptographic
+	// algorithms are available in all contexts (e.g., across different protocols).
+	CryptoAlgorithm CryptoType `mapstructure:"crypto-algorithm" json:"crypto-algorithm,omitempty"`
+	// original -> gobgp:receive-id
+	// TCP-AO receive key identifier associated with this key.
+	ReceiveId uint8 `mapstructure:"receive-id" json:"receive-id,omitempty"`
+	// original -> gobgp:exclude-tcp-options
+	// gobgp:exclude-tcp-options's original type is boolean.
+	// Exclude TCP options from TCP-AO message authentication.
+	ExcludeTcpOptions bool `mapstructure:"exclude-tcp-options" json:"exclude-tcp-options,omitempty"`
+}
+
+func (lhs *KeyConfig) Equal(rhs *KeyConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.KeyId != rhs.KeyId {
+		return false
+	}
+	if lhs.SecretKey != rhs.SecretKey {
+		return false
+	}
+	if lhs.CryptoAlgorithm != rhs.CryptoAlgorithm {
+		return false
+	}
+	if lhs.ReceiveId != rhs.ReceiveId {
+		return false
+	}
+	if lhs.ExcludeTcpOptions != rhs.ExcludeTcpOptions {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:key.
+// List of configured keys for the keychain.
+type Key struct {
+	// original -> gobgp:key-id
+	// original -> gobgp:key-config
+	// This container defines keychain key configuration.
+	Config KeyConfig `mapstructure:"config" json:"config,omitempty"`
+}
+
+func (lhs *Key) Equal(rhs *Key) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:config.
+// This container defines keychain configuration.
+type KeychainConfig struct {
+	// original -> gobgp:name
+	// Keychain name.
+	Name string `mapstructure:"name" json:"name,omitempty"`
+}
+
+func (lhs *KeychainConfig) Equal(rhs *KeychainConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Name != rhs.Name {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:keychain.
+// List of defined keychains.
+type Keychain struct {
+	// original -> gobgp:name
+	// original -> gobgp:keychain-config
+	// This container defines keychain configuration.
+	Config KeychainConfig `mapstructure:"config" json:"config,omitempty"`
+	// original -> gobgp:keys
+	// list of keys to be stored.
+	Keys []Key `mapstructure:"keys" json:"keys,omitempty"`
+}
+
+func (lhs *Keychain) Equal(rhs *Keychain) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	if len(lhs.Keys) != len(rhs.Keys) {
+		return false
+	}
+	for i, r := range rhs.Keys {
+		if !r.Equal(&lhs.Keys[i]) {
+			return false
+		}
+	}
+	return true
+}
 
 // struct for container gobgp:state.
 type DynamicNeighborState struct {
