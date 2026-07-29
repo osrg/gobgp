@@ -679,6 +679,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			TcpMss:        uint32(pconf.Transport.Config.TcpMss),
 			IpTos:         uint32(pconf.Transport.Config.IpTos),
 		},
+		TcpAo:    newTcpAoPeerConfigFromConfigStruct(&pconf.TcpAo.Config),
 		AfiSafis: afiSafis,
 		Bfd: &api.BfdPeerConfig{
 			Enabled:                  pconf.Bfd.Config.Enabled,
@@ -762,6 +763,16 @@ func readTcpAoMasterKey(secretKey string) ([]byte, error) {
 	return masterKey, nil
 }
 
+func newTcpAoPeerConfigFromConfigStruct(config *TcpAoConfig) *api.TcpAoPeerConfig {
+	if config.Keychain == "" {
+		return nil
+	}
+	return &api.TcpAoPeerConfig{
+		Keychain: string(config.Keychain),
+		SendId:   uint32(config.SendId),
+	}
+}
+
 func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
@@ -842,6 +853,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			TcpMss:        uint32(pconf.Transport.Config.TcpMss),
 			IpTos:         uint32(pconf.Transport.Config.IpTos),
 		},
+		TcpAo:    newTcpAoPeerConfigFromConfigStruct(&pconf.TcpAo.Config),
 		AfiSafis: afiSafis,
 		Bfd: &api.BfdPeerConfig{
 			Enabled:                  pconf.Bfd.Config.Enabled,
