@@ -2065,3 +2065,212 @@ func Test_ExtendedCommunitiesAttribute_MUPInvalidSubType(t *testing.T) {
 		})
 	}
 }
+
+// A Link-State NLRI whose mandatory sub-messages are omitted must be rejected
+// with an error rather than nil-dereferencing while it is unmarshalled.
+func Test_UnmarshalLsNLRIMissingSubMessages(t *testing.T) {
+	localNode := &api.LsNodeDescriptor{Asn: 65000, IgpRouterId: "10.0.0.1"}
+	prefixDesc := &api.LsPrefixDescriptor{IpReachability: []string{"10.1.0.0/24"}}
+	srv6SIDInfo := &api.LsSrv6SIDInformation{Sids: []string{"fd00::1"}}
+
+	tests := []struct {
+		name    string
+		nlri    *api.LsAddrPrefix_LsNLRI
+		errWant string
+	}{
+		{
+			name:    "node without local_node",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Node{Node: &api.LsNodeNLRI{}}},
+			errWant: "local_node",
+		},
+		{
+			name:    "node without payload",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Node{}},
+			errWant: "local_node",
+		},
+		{
+			name:    "link without local_node",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Link{Link: &api.LsLinkNLRI{RemoteNode: localNode}}},
+			errWant: "local_node",
+		},
+		{
+			name:    "link without remote_node",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Link{Link: &api.LsLinkNLRI{LocalNode: localNode}}},
+			errWant: "remote_node",
+		},
+		{
+			name: "link without link_descriptor",
+			nlri: &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Link{Link: &api.LsLinkNLRI{
+				LocalNode:  localNode,
+				RemoteNode: localNode,
+			}}},
+		},
+		{
+			name:    "prefix v4 without local_node",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_PrefixV4{PrefixV4: &api.LsPrefixV4NLRI{PrefixDescriptor: prefixDesc}}},
+			errWant: "local_node",
+		},
+		{
+			name:    "prefix v4 without prefix_descriptor",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_PrefixV4{PrefixV4: &api.LsPrefixV4NLRI{LocalNode: localNode}}},
+			errWant: "prefix_descriptor",
+		},
+		{
+			name:    "prefix v6 without local_node",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_PrefixV6{PrefixV6: &api.LsPrefixV6NLRI{PrefixDescriptor: prefixDesc}}},
+			errWant: "local_node",
+		},
+		{
+			name:    "prefix v6 without prefix_descriptor",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_PrefixV6{PrefixV6: &api.LsPrefixV6NLRI{LocalNode: localNode}}},
+			errWant: "prefix_descriptor",
+		},
+		{
+			name:    "srv6 sid without local_node",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Srv6Sid{Srv6Sid: &api.LsSrv6SIDNLRI{Srv6SidInformation: srv6SIDInfo}}},
+			errWant: "local_node",
+		},
+		{
+			name:    "srv6 sid without srv6_sid_information",
+			nlri:    &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Srv6Sid{Srv6Sid: &api.LsSrv6SIDNLRI{LocalNode: localNode}}},
+			errWant: "srv6_sid_information",
+		},
+		{
+			name: "srv6 sid without multi_topo_id",
+			nlri: &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Srv6Sid{Srv6Sid: &api.LsSrv6SIDNLRI{
+				LocalNode:          localNode,
+				Srv6SidInformation: srv6SIDInfo,
+			}}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := &api.NLRI{Nlri: &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
+				ProtocolId: api.LsProtocolID_LS_PROTOCOL_ID_ISIS_L2,
+				Nlri:       tt.nlri,
+			}}}
+
+			got, err := UnmarshalNLRI(bgp.RF_LS, n)
+			if tt.errWant == "" {
+				assert.NoError(t, err)
+				assert.NotNil(t, got)
+				return
+			}
+			assert.ErrorContains(t, err, tt.errWant)
+		})
+	}
+}
+
+// An SRv6 SID NLRI received without the optional Multi-Topology Identifier TLV
+// (RFC 9514, Section 6) must survive a native -> API -> native round-trip
+// without gaining a zero-length TLV, which would change the NLRI key.
+func Test_LsSrv6SIDNLRIMultiTopoIDRoundTrip(t *testing.T) {
+	// Every node descriptor sub-TLV that the API path emits is present, so the
+	// only round-trip difference this exercises is the Multi-Topology ID.
+	base := []byte{
+		0x00, 0x06, // NLRI Type: SRv6 SID
+		0x00, 0x41, // Length
+		0x02,                                           // Protocol ID: IS-IS Level 2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		0x01, 0x00, 0x00, 0x20, // TLV Local Node Descriptor
+		0x02, 0x00, 0x00, 0x04, // Sub-TLV Autonomous System
+		0x00, 0x00, 0xfd, 0xe8, // AS: 65000
+		0x02, 0x01, 0x00, 0x04, // Sub-TLV BGP-LS Identifier
+		0x00, 0x00, 0x00, 0x00, // BGP-LS Identifier: 0
+		0x02, 0x02, 0x00, 0x04, // Sub-TLV OSPF Area ID
+		0x00, 0x00, 0x00, 0x00, // OSPF Area ID: 0
+		0x02, 0x03, 0x00, 0x04, // Sub-TLV IGP Router ID
+		0x0a, 0x00, 0x00, 0x01, // IGP Router ID: 10.0.0.1
+		0x02, 0x06, 0x00, 0x10, // TLV SRv6 SID Information
+		0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // SID: fd00::1
+	}
+	withMultiTopoID := append(append([]byte{}, base...), []byte{
+		0x01, 0x07, 0x00, 0x02, // TLV Multi-Topology Identifier
+		0x00, 0x02, // Multi-Topology ID: 2
+	}...)
+	withMultiTopoID[3] += 6 // Length
+
+	tests := []struct {
+		name    string
+		nlri    []byte
+		present bool
+	}{
+		{"without Multi-Topology ID", base, false},
+		{"with Multi-Topology ID", withMultiTopoID, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			native, err := bgp.NLRIFromSlice(bgp.RF_LS, tt.nlri)
+			require.NoError(t, err)
+
+			marshalled, err := MarshalNLRI(native)
+			require.NoError(t, err)
+
+			srv6 := marshalled.GetLsAddrPrefix().GetNlri().GetSrv6Sid()
+			require.NotNil(t, srv6)
+			if tt.present {
+				assert.Equal(t, []uint32{2}, srv6.GetMultiTopoId().GetMultiTopoIds())
+			} else {
+				assert.Nil(t, srv6.MultiTopoId)
+			}
+
+			back, err := UnmarshalNLRI(bgp.RF_LS, marshalled)
+			require.NoError(t, err)
+
+			inner := back.(*bgp.LsAddrPrefix).NLRI.(*bgp.LsSrv6SIDNLRI)
+			if tt.present {
+				assert.NotNil(t, inner.MultiTopoID)
+			} else {
+				assert.Nil(t, inner.MultiTopoID)
+			}
+
+			got, err := back.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, tt.nlri, got)
+		})
+	}
+}
+
+// The exported Link-State helpers are part of the public API, so each must
+// reject or default an absent message instead of panicking.
+func Test_UnmarshalLsHelpersNilArgs(t *testing.T) {
+	t.Run("UnmarshalLsNodeDescriptor", func(t *testing.T) {
+		_, err := UnmarshalLsNodeDescriptor(nil)
+		assert.Error(t, err)
+	})
+	t.Run("UnmarshalPrefixDescriptor", func(t *testing.T) {
+		_, err := UnmarshalPrefixDescriptor(nil)
+		assert.Error(t, err)
+	})
+	t.Run("UnmarshalLsTLVSrv6SIDInfo", func(t *testing.T) {
+		_, err := UnmarshalLsTLVSrv6SIDInfo(nil)
+		assert.Error(t, err)
+	})
+	t.Run("MarshalLsTLVSrv6SIDInfo", func(t *testing.T) {
+		_, err := MarshalLsTLVSrv6SIDInfo(nil)
+		assert.Error(t, err)
+	})
+	t.Run("UnmarshalLsLinkDescriptor", func(t *testing.T) {
+		got, err := UnmarshalLsLinkDescriptor(nil)
+		require.NoError(t, err)
+		empty, err := UnmarshalLsLinkDescriptor(&api.LsLinkDescriptor{})
+		require.NoError(t, err)
+		assert.Equal(t, empty, got)
+	})
+	t.Run("UnmarshalLsTLVMultiTopoID", func(t *testing.T) {
+		got, err := UnmarshalLsTLVMultiTopoID(nil)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+	t.Run("MarshalLsTLVMultiTopoID", func(t *testing.T) {
+		got, err := MarshalLsTLVMultiTopoID(nil)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+	t.Run("UnmarshalLsBgpPeerSegmentSid", func(t *testing.T) {
+		got, err := UnmarshalLsBgpPeerSegmentSid(&api.LsBgpPeerSegmentSID{})
+		require.NoError(t, err)
+		assert.Equal(t, bgp.LsAttributeBgpPeerSegmentSIDFlags{}, got.Flags)
+	})
+}

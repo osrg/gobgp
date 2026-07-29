@@ -5007,6 +5007,17 @@ func (l *LsNodeNLRI) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
+// extractLsNodeDesc returns the node descriptor carried by a Local or Remote
+// Node Descriptors TLV. It rejects a TLV of an unexpected type, including an
+// absent one, instead of panicking on the type assertion.
+func extractLsNodeDesc(tlv LsTLVInterface, name string) (*LsNodeDescriptor, error) {
+	desc, ok := tlv.(*LsTLVNodeDescriptor)
+	if !ok {
+		return nil, fmt.Errorf("invalid %s node descriptor type %T", name, tlv)
+	}
+	return desc.Extract(), nil
+}
+
 func (l *LsNodeNLRI) String() string {
 	if l.LocalNodeDesc == nil {
 		return "NODE { EMPTY }"
@@ -5029,12 +5040,17 @@ func (l *LsNodeNLRI) Serialize() ([]byte, error) {
 }
 
 func (l *LsNodeNLRI) MarshalJSON() ([]byte, error) {
+	local, err := extractLsNodeDesc(l.LocalNodeDesc, "local")
+	if err != nil {
+		return nil, err
+	}
+
 	return json.Marshal(struct {
 		Type      LsNLRIType       `json:"type"`
 		LocalNode LsNodeDescriptor `json:"local_node_desc"`
 	}{
 		Type:      l.Type(),
-		LocalNode: *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+		LocalNode: *local,
 	})
 }
 
@@ -5310,6 +5326,15 @@ func (l *LsLinkNLRI) Serialize() ([]byte, error) {
 }
 
 func (l *LsLinkNLRI) MarshalJSON() ([]byte, error) {
+	local, err := extractLsNodeDesc(l.LocalNodeDesc, "local")
+	if err != nil {
+		return nil, err
+	}
+	remote, err := extractLsNodeDesc(l.RemoteNodeDesc, "remote")
+	if err != nil {
+		return nil, err
+	}
+
 	linkDesc := &LsLinkDescriptor{}
 	linkDesc.ParseTLVs(l.LinkDesc)
 
@@ -5320,8 +5345,8 @@ func (l *LsLinkNLRI) MarshalJSON() ([]byte, error) {
 		LinkDesc   LsLinkDescriptor `json:"link_desc"`
 	}{
 		Type:       l.Type(),
-		LocalNode:  *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
-		RemoteNode: *l.RemoteNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+		LocalNode:  *local,
+		RemoteNode: *remote,
 		LinkDesc:   *linkDesc,
 	})
 }
@@ -5489,6 +5514,11 @@ func (l *LsPrefixV4NLRI) Serialize() ([]byte, error) {
 }
 
 func (l *LsPrefixV4NLRI) MarshalJSON() ([]byte, error) {
+	local, err := extractLsNodeDesc(l.LocalNodeDesc, "local")
+	if err != nil {
+		return nil, err
+	}
+
 	prefixDesc := &LsPrefixDescriptor{}
 	prefixDesc.ParseTLVs(l.PrefixDesc, false)
 
@@ -5498,7 +5528,7 @@ func (l *LsPrefixV4NLRI) MarshalJSON() ([]byte, error) {
 		PrefixDesc LsPrefixDescriptor `json:"prefix_desc"`
 	}{
 		Type:       l.Type(),
-		LocalNode:  *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+		LocalNode:  *local,
 		PrefixDesc: *prefixDesc,
 	})
 }
@@ -5657,6 +5687,11 @@ func (l *LsPrefixV6NLRI) Serialize() ([]byte, error) {
 }
 
 func (l *LsPrefixV6NLRI) MarshalJSON() ([]byte, error) {
+	local, err := extractLsNodeDesc(l.LocalNodeDesc, "local")
+	if err != nil {
+		return nil, err
+	}
+
 	prefixDesc := &LsPrefixDescriptor{}
 	prefixDesc.ParseTLVs(l.PrefixDesc, true)
 
@@ -5666,7 +5701,7 @@ func (l *LsPrefixV6NLRI) MarshalJSON() ([]byte, error) {
 		PrefixDesc LsPrefixDescriptor `json:"prefix_desc"`
 	}{
 		Type:       l.Type(),
-		LocalNode:  *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
+		LocalNode:  *local,
 		PrefixDesc: *prefixDesc,
 	})
 }
@@ -5901,9 +5936,23 @@ func (l *LsSrv6SIDNLRI) Serialize() ([]byte, error) {
 }
 
 func (l *LsSrv6SIDNLRI) MarshalJSON() ([]byte, error) {
+	local, err := extractLsNodeDesc(l.LocalNodeDesc, "local")
+	if err != nil {
+		return nil, err
+	}
+
+	srv6SID, ok := l.Srv6SIDInfo.(*LsTLVSrv6SIDInfo)
+	if !ok {
+		return nil, fmt.Errorf("invalid SRv6 SID info type %T", l.Srv6SIDInfo)
+	}
+
+	// The Multi-Topology Identifier TLV is optional (RFC 9514, Section 6).
 	var multiTopoID *LsTLVMultiTopoID
 	if l.MultiTopoID != nil {
-		multiTopoID = l.MultiTopoID.(*LsTLVMultiTopoID)
+		multiTopoID, ok = l.MultiTopoID.(*LsTLVMultiTopoID)
+		if !ok {
+			return nil, fmt.Errorf("invalid multi topology ID type %T", l.MultiTopoID)
+		}
 	}
 
 	return json.Marshal(struct {
@@ -5913,8 +5962,8 @@ func (l *LsSrv6SIDNLRI) MarshalJSON() ([]byte, error) {
 		MultiTopoID *LsTLVMultiTopoID `json:"multi_topo,omitempty"`
 	}{
 		Type:        l.Type(),
-		LocalNode:   *l.LocalNodeDesc.(*LsTLVNodeDescriptor).Extract(),
-		Srv6SID:     *l.Srv6SIDInfo.(*LsTLVSrv6SIDInfo),
+		LocalNode:   *local,
+		Srv6SID:     *srv6SID,
 		MultiTopoID: multiTopoID,
 	})
 }

@@ -4582,6 +4582,30 @@ func Test_LsSrv6SIDNLRIMultiTopoID(t *testing.T) {
 	}
 }
 
+// The Link-State NLRI types must report a missing or mistyped descriptor TLV as
+// an error instead of panicking on an unchecked type assertion. A decoded NLRI
+// always carries its mandatory TLVs, but one built programmatically may not.
+func Test_LsNLRIMarshalJSONMissingTLV(t *testing.T) {
+	tests := []struct {
+		name string
+		nlri json.Marshaler
+	}{
+		{"node without local node", &LsNodeNLRI{}},
+		{"link without local node", &LsLinkNLRI{}},
+		{"link without remote node", &LsLinkNLRI{LocalNodeDesc: &LsTLVNodeDescriptor{}}},
+		{"prefix v4 without local node", &LsPrefixV4NLRI{}},
+		{"prefix v6 without local node", &LsPrefixV6NLRI{}},
+		{"srv6 sid without local node", &LsSrv6SIDNLRI{}},
+		{"srv6 sid without SID info", &LsSrv6SIDNLRI{LocalNodeDesc: &LsTLVNodeDescriptor{}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := test.nlri.MarshalJSON()
+			assert.Error(t, err)
+		})
+	}
+}
+
 func Test_PathAttributeLs(t *testing.T) {
 	assert := assert.New(t)
 
