@@ -183,6 +183,16 @@ const (
 	EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL3      ExtendedCommunityAttrType = 0x82 // RFC7674
 )
 
+const (
+	// RFC4360 2. BGP Extended Communities Attribute
+	// Each Extended Community is encoded as an 8-octet quantity
+	ExtendedCommunityLen = 8
+	// RFC5701 2. IPv6 Address Specific BGP Extended Community Attribute
+	// Each IPv6 Address Specific extended community is encoded as a
+	// 20-octet quantity
+	IP6ExtendedCommunityLen = 20
+)
+
 // RFC7153 5.2. Registries for the "Sub-Type" Field
 // RANGE	REGISTRATION PROCEDURES
 // 0x00-0xBF	First Come First Served
@@ -14591,14 +14601,12 @@ func parseGenericTransitiveExperimentalExtended(data []byte) (ExtendedCommunityI
 	case EC_SUBTYPE_FLOWSPEC_TRAFFIC_REMARK:
 		dscp := data[7]
 		return NewTrafficRemarkExtended(dscp), nil
-	case EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6:
-		if len(data) < 20 {
-			return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all extended community bytes for IPv6 FlowSpec are available")
-		}
-
-		ipv6, _ := netip.AddrFromSlice(data[2:18])
-		localAdmin := binary.BigEndian.Uint16(data[18:20])
-		return NewRedirectIPv6AddressSpecificExtended(ipv6, localAdmin)
+	// EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6 is deliberately absent here. The
+	// redirect to IPv6 action is an IPv6 Address Specific Extended
+	// Community, which is 20 octets long and travels in its own path
+	// attribute (RFC5701 Section 2 and 3), so it cannot appear in this
+	// 8-octet attribute. It is decoded by parseIP6FlowSpecExtended instead.
+	// Falling through to UnknownExtended keeps the 8 octets intact.
 	case EC_SUBTYPE_L2_INFO:
 		switch data[2] {
 		case byte(LAYER2ENCAPSULATION_TYPE_VPLS):
@@ -14741,9 +14749,13 @@ type PathAttributeExtendedCommunities struct {
 }
 
 func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
-	if len(data) < 8 {
+	if len(data) < ExtendedCommunityLen {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all extended community bytes are available")
 	}
+	// Callers hand over the rest of the enclosing attribute or NLRI, so
+	// bound the buffer to this community. A sub-type decoder must not be
+	// able to read into the community that follows.
+	data = data[:ExtendedCommunityLen]
 	attrType := ExtendedCommunityAttrType(data[0])
 	subtype := ExtendedCommunityAttrSubType(data[1])
 	transitive := false
@@ -14798,18 +14810,18 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte, options 
 	if err != nil {
 		return err
 	}
-	if p.Length%8 != 0 {
+	if p.Length%ExtendedCommunityLen != 0 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "extendedcommunities length isn't correct")
 	}
-	for len(value) >= 8 {
+	for len(value) >= ExtendedCommunityLen {
 		e, err := ParseExtended(value)
 		if err != nil {
 			return err
 		}
 		p.Value = append(p.Value, e)
-		value = value[8:]
+		value = value[ExtendedCommunityLen:]
 	}
 	return nil
 }
@@ -15787,9 +15799,11 @@ type PathAttributeIP6ExtendedCommunities struct {
 }
 
 func ParseIP6Extended(data []byte) (ExtendedCommunityInterface, error) {
-	if len(data) < 20 {
+	if len(data) < IP6ExtendedCommunityLen {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "not all extended community bytes are available")
 	}
+	// Bound the buffer to this community, like ParseExtended does.
+	data = data[:IP6ExtendedCommunityLen]
 	attrType := ExtendedCommunityAttrType(data[0])
 	subtype := ExtendedCommunityAttrSubType(data[1])
 	transitive := false
@@ -15818,18 +15832,18 @@ func (p *PathAttributeIP6ExtendedCommunities) DecodeFromBytes(data []byte, optio
 	if err != nil {
 		return err
 	}
-	if p.Length%20 != 0 {
+	if p.Length%IP6ExtendedCommunityLen != 0 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "extendedcommunities length isn't correct")
 	}
-	for len(value) >= 20 {
+	for len(value) >= IP6ExtendedCommunityLen {
 		e, err := ParseIP6Extended(value)
 		if err != nil {
 			return err
 		}
 		p.Value = append(p.Value, e)
-		value = value[20:]
+		value = value[IP6ExtendedCommunityLen:]
 	}
 	return nil
 }

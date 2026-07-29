@@ -647,6 +647,56 @@ func Test_IP6FlowSpecExtended(t *testing.T) {
 	assert.Equal(t, m1, m2)
 }
 
+func Test_ExtendedCommunityDoesNotCrossCommunityBoundary(t *testing.T) {
+	assert := assert.New(t)
+
+	// RFC4360 Section 2 fixes every community in this attribute at 8
+	// octets, so a sub-type decoder must stay inside its own community. The
+	// first community below is the one sub-type that used to read 20 bytes,
+	// which took the two route targets that follow it and made the attribute
+	// re-serialize to 36 bytes.
+	value := []byte{
+		byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL), 0x0b, 0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00,
+		byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC), byte(EC_SUBTYPE_ROUTE_TARGET), 0xfe, 0x4c, 0x00, 0x00, 0x00, 0x01,
+		byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC), byte(EC_SUBTYPE_ROUTE_TARGET), 0xfe, 0xb0, 0x00, 0x00, 0x00, 0x02,
+	}
+	buf := append([]byte{byte(BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE), byte(BGP_ATTR_TYPE_EXTENDED_COMMUNITIES), byte(len(value))}, value...)
+
+	p := NewPathAttributeExtendedCommunities(nil)
+	require.NoError(t, p.DecodeFromBytes(buf))
+	require.Len(t, p.Value, 3)
+	assert.IsType(&UnknownExtended{}, p.Value[0])
+	assert.Equal("65100:1", p.Value[1].String())
+	assert.Equal("65200:2", p.Value[2].String())
+
+	out, err := p.Serialize()
+	require.NoError(t, err)
+	assert.Equal(buf, out)
+}
+
+func Test_RouteTargetMembershipNLRIDoesNotCrossNLRIBoundary(t *testing.T) {
+	assert := assert.New(t)
+
+	// The route target of a 96-bit RT membership NLRI is an 8-octet
+	// extended community, so decoding the first NLRI below must not reach
+	// into the second one.
+	buf := []byte{
+		96, 0x00, 0x00, 0xfd, 0xe8,
+		byte(EC_TYPE_GENERIC_TRANSITIVE_EXPERIMENTAL), 0x0b, 0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00,
+		96, 0x00, 0x00, 0xfd, 0xe9,
+		byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC), byte(EC_SUBTYPE_ROUTE_TARGET), 0xfe, 0x4c, 0x00, 0x00, 0x00, 0x01,
+	}
+
+	r := &RouteTargetMembershipNLRI{}
+	require.NoError(t, r.decodeFromBytes(buf))
+	assert.IsType(&UnknownExtended{}, r.RouteTarget)
+
+	out, err := r.Serialize()
+	require.NoError(t, err)
+	assert.Equal(r.Len(), len(out))
+	assert.Equal(buf[:13], out)
+}
+
 func Test_UnknownIP6Extended_RoundTrip(t *testing.T) {
 	assert := assert.New(t)
 
