@@ -167,9 +167,18 @@ func modVrf(typ string, args []string) error {
 				return err
 			}
 		}
-		v, _ := apiutil.MarshalRD(rd)
-		irt, _ := apiutil.MarshalRTs(importRt)
-		ert, _ := apiutil.MarshalRTs(exportRt)
+		v, err := apiutil.MarshalRD(rd)
+		if err != nil {
+			return err
+		}
+		irt, err := apiutil.MarshalRTs(importRt)
+		if err != nil {
+			return err
+		}
+		ert, err := apiutil.MarshalRTs(exportRt)
+		if err != nil {
+			return err
+		}
 
 		_, err = client.AddVrf(ctx, &api.AddVrfRequest{
 			Vrf: &api.Vrf{

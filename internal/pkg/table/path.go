@@ -919,18 +919,45 @@ func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
 }
 
 func (path *Path) SetExtCommunities(exts []bgp.ExtendedCommunityInterface, doReplace bool) {
-	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
-	if attr != nil {
-		l := attr.(*bgp.PathAttributeExtendedCommunities).Value
+	if len(exts) == 0 {
 		if doReplace {
-			l = exts
-		} else {
-			l = append(l, exts...)
+			// RFC7606 Section 7.14 considers the attribute malformed unless
+			// its length is a non-zero multiple of 8, so drop it rather than
+			// advertising an empty one.
+			path.delPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
 		}
-		path.setPathAttr(bgp.NewPathAttributeExtendedCommunities(l))
-	} else {
-		path.setPathAttr(bgp.NewPathAttributeExtendedCommunities(exts))
+		return
 	}
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES); attr != nil && !doReplace {
+		// Concat rather than append, so growing this path's list cannot write
+		// into the backing array of an attribute shared with another path.
+		exts = slices.Concat(attr.(*bgp.PathAttributeExtendedCommunities).Value, exts)
+	}
+	path.setPathAttr(bgp.NewPathAttributeExtendedCommunities(exts))
+}
+
+func (path *Path) GetIP6ExtCommunities() []bgp.ExtendedCommunityInterface {
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES); attr != nil {
+		return attr.(*bgp.PathAttributeIP6ExtendedCommunities).Value
+	}
+	return nil
+}
+
+// SetIP6ExtCommunities is the counterpart of SetExtCommunities for the IPv6
+// Address Specific Extended Community attribute (RFC5701 Section 3). The two
+// attributes carry communities of different sizes and neither reaches into the
+// other.
+func (path *Path) SetIP6ExtCommunities(exts []bgp.ExtendedCommunityInterface, doReplace bool) {
+	if len(exts) == 0 {
+		if doReplace {
+			path.delPathAttr(bgp.BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES)
+		}
+		return
+	}
+	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES); attr != nil && !doReplace {
+		exts = slices.Concat(attr.(*bgp.PathAttributeIP6ExtendedCommunities).Value, exts)
+	}
+	path.setPathAttr(bgp.NewPathAttributeIP6ExtendedCommunities(exts))
 }
 
 func (path *Path) GetRouteTargets() []bgp.ExtendedCommunityInterface {

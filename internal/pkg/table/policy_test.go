@@ -2562,6 +2562,129 @@ func TestPolicyMatchAndClearCommunities(t *testing.T) {
 	// assert.Equal(t, []uint32{}, newPath.GetCommunities())
 }
 
+func TestExtCommunityActionSplitsByAttribute(t *testing.T) {
+	// RFC4360 Section 2 fixes every community of the Extended Communities
+	// attribute at 8 octets, so an IPv6 address specific route target, which
+	// RFC5701 Section 2 encodes as 20 octets, has to go to the attribute
+	// RFC5701 Section 3 defines for it. Mixing them into one attribute made
+	// its length stop being a multiple of 8.
+	newAction := func(option string, comms ...string) (*ExtCommunityAction, error) {
+		return NewExtCommunityAction(oc.SetExtCommunity{
+			Options: option,
+			SetExtCommunityMethod: oc.SetExtCommunityMethod{
+				CommunitiesList: comms,
+			},
+		})
+	}
+	newPath := func() *Path {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+		return NewPath(bgp.RF_IPv4_UC, &PeerInfo{AS: 65001}, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}, time.Now(), false)
+	}
+
+	for _, comm := range []string{"rt:65001:200", "rt:10.0.0.1:300", "soo:65001:200", "encap:vxlan", "valid"} {
+		a, err := newAction("add", comm)
+		require.NoError(t, err, comm)
+		assert.Len(t, a.list8, 1, comm)
+		assert.Empty(t, a.list6, comm)
+	}
+
+	a, err := newAction("add", "rt:65001:200", "rt:2001:db8::1:100", "rt:10.0.0.1:300")
+	require.NoError(t, err)
+	require.Len(t, a.list8, 2)
+	require.Len(t, a.list6, 1)
+
+	path, err := a.Apply(newPath(), nil)
+	require.NoError(t, err)
+
+	ext := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
+	require.NotNil(t, ext)
+	buf, err := ext.Serialize()
+	require.NoError(t, err)
+	assert.Zero(t, (len(buf)-3)%bgp.ExtendedCommunityLen)
+
+	ip6 := path.getPathAttr(bgp.BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES)
+	require.NotNil(t, ip6)
+	buf, err = ip6.Serialize()
+	require.NoError(t, err)
+	assert.Zero(t, (len(buf)-3)%bgp.IP6ExtendedCommunityLen)
+	assert.Equal(t, "2001:db8::1:100", path.GetIP6ExtCommunities()[0].String())
+}
+
+func TestExtCommunityActionReplaceKeepsAttributesSeparate(t *testing.T) {
+	// Each list replaces only its own attribute. Replacing with 8-octet
+	// communities alone must not leave a stale IPv6 attribute behind, and
+	// vice versa.
+	newPath := func() *Path {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+		path := NewPath(bgp.RF_IPv4_UC, &PeerInfo{AS: 65001}, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}, time.Now(), false)
+		a, err := NewExtCommunityAction(oc.SetExtCommunity{
+			Options: "add",
+			SetExtCommunityMethod: oc.SetExtCommunityMethod{
+				CommunitiesList: []string{"rt:65001:200", "rt:2001:db8::1:100"},
+			},
+		})
+		require.NoError(t, err)
+		path, err = a.Apply(path, nil)
+		require.NoError(t, err)
+		return path
+	}
+
+	replace := func(path *Path, comms ...string) *Path {
+		a, err := NewExtCommunityAction(oc.SetExtCommunity{
+			Options: "replace",
+			SetExtCommunityMethod: oc.SetExtCommunityMethod{
+				CommunitiesList: comms,
+			},
+		})
+		require.NoError(t, err)
+		path, err = a.Apply(path, nil)
+		require.NoError(t, err)
+		return path
+	}
+
+	// Replacing with only an 8-octet community clears the IPv6 attribute.
+	path := replace(newPath(), "rt:65002:300")
+	assert.Equal(t, "65002:300", path.GetExtCommunities()[0].String())
+	assert.Empty(t, path.GetIP6ExtCommunities())
+
+	// Replacing with only a 20-octet community clears the 8-octet attribute.
+	path = replace(newPath(), "rt:2001:db8::2:200")
+	assert.Empty(t, path.GetExtCommunities())
+	assert.Equal(t, "2001:db8::2:200", path.GetIP6ExtCommunities()[0].String())
+}
+
+func TestExtCommunityActionConfigRoundTrip(t *testing.T) {
+	// Splitting the communities by attribute must not disturb the
+	// configuration view: ToConfig indexes subtypeList by the position in
+	// list, so list has to stay whole and in configuration order. Were it
+	// partitioned, the subtype prefixes would be taken from the wrong
+	// entries and "soo:" would come back as "rt:".
+	in := []string{"rt:65001:200", "rt:2001:db8::1:100", "soo:10.0.0.1:300", "valid"}
+	newAction := func(comms []string) (*ExtCommunityAction, error) {
+		return NewExtCommunityAction(oc.SetExtCommunity{
+			Options: "add",
+			SetExtCommunityMethod: oc.SetExtCommunityMethod{
+				CommunitiesList: comms,
+			},
+		})
+	}
+
+	a, err := newAction(in)
+	require.NoError(t, err)
+	require.Len(t, a.list, len(in))
+	require.Len(t, a.list8, 3)
+	require.Len(t, a.list6, 1)
+
+	out := a.ToConfig().SetExtCommunityMethod.CommunitiesList
+	assert.Equal(t, in, out)
+	assert.Equal(t, "add["+strings.Join(in, ", ")+"]", a.String())
+
+	b, err := newAction(out)
+	require.NoError(t, err)
+	assert.Equal(t, a.list8, b.list8)
+	assert.Equal(t, a.list6, b.list6)
+}
+
 func TestExtCommunityConditionEvaluate(t *testing.T) {
 	// setup
 	// create path

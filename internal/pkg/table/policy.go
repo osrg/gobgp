@@ -2930,8 +2930,14 @@ func NewCommunityAction(c oc.SetCommunity) (*CommunityAction, error) {
 }
 
 type ExtCommunityAction struct {
-	action      oc.BgpSetCommunityOptionType
+	action oc.BgpSetCommunityOptionType
+	// list keeps every community in configuration order, which ToConfig
+	// relies on to index subtypeList. list8 and list6 are the partitions
+	// actually applied to a path: the two attributes take communities of
+	// different sizes, so a community can only go to one of them.
 	list        []bgp.ExtendedCommunityInterface
+	list8       []bgp.ExtendedCommunityInterface
+	list6       []bgp.ExtendedCommunityInterface
 	removeList  []*regexp.Regexp
 	subtypeList []bgp.ExtendedCommunityAttrSubType
 }
@@ -2943,11 +2949,13 @@ func (a *ExtCommunityAction) Type() ActionType {
 func (a *ExtCommunityAction) Apply(path *Path, _ *PolicyOptions) (*Path, error) {
 	switch a.action {
 	case oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
-		path.SetExtCommunities(a.list, false)
+		path.SetExtCommunities(a.list8, false)
+		path.SetIP6ExtCommunities(a.list6, false)
 	case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
 		RegexpRemoveExtCommunities(path, a.removeList, a.subtypeList)
 	case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
-		path.SetExtCommunities(a.list, true)
+		path.SetExtCommunities(a.list8, true)
+		path.SetIP6ExtCommunities(a.list6, true)
 	}
 	return path, nil
 }
@@ -3002,7 +3010,7 @@ func NewExtCommunityAction(c oc.SetExtCommunity) (*ExtCommunityAction, error) {
 		}
 		return nil, fmt.Errorf("invalid option name: %s", c.Options)
 	}
-	var list []bgp.ExtendedCommunityInterface
+	var list, list8, list6 []bgp.ExtendedCommunityInterface
 	var removeList []*regexp.Regexp
 	subtypeList := make([]bgp.ExtendedCommunityAttrSubType, 0, len(c.SetExtCommunityMethod.CommunitiesList))
 	if a == oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE {
@@ -3023,6 +3031,25 @@ func NewExtCommunityAction(c oc.SetExtCommunity) (*ExtCommunityAction, error) {
 			if err != nil {
 				return nil, err
 			}
+			// Pick the attribute by encoded size, done once here rather than
+			// per path. RFC4360 Section 2 fixes every community of the
+			// Extended Communities attribute at 8 octets, and RFC5701
+			// Section 2 encodes the IPv6 address specific ones as 20 octets
+			// in an attribute of their own. Size is the reliable
+			// discriminator: RedirectIPv6AddressSpecificExtended reports the
+			// same type octet as the 8-octet experimental communities.
+			buf, err := comm.Serialize()
+			if err != nil {
+				return nil, err
+			}
+			switch len(buf) {
+			case bgp.ExtendedCommunityLen:
+				list8 = append(list8, comm)
+			case bgp.IP6ExtendedCommunityLen:
+				list6 = append(list6, comm)
+			default:
+				return nil, fmt.Errorf("ext-community %q encodes to %d octets, which fits neither the %d-octet nor the %d-octet attribute", x, len(buf), bgp.ExtendedCommunityLen, bgp.IP6ExtendedCommunityLen)
+			}
 			list = append(list, comm)
 			_, subtype := comm.GetTypes()
 			subtypeList = append(subtypeList, subtype)
@@ -3031,6 +3058,8 @@ func NewExtCommunityAction(c oc.SetExtCommunity) (*ExtCommunityAction, error) {
 	return &ExtCommunityAction{
 		action:      a,
 		list:        list,
+		list8:       list8,
+		list6:       list6,
 		removeList:  removeList,
 		subtypeList: subtypeList,
 	}, nil
