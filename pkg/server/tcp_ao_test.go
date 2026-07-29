@@ -17,6 +17,8 @@ package server
 import (
 	"context"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -319,4 +321,247 @@ func TestTcpAoKeychainOperations(t *testing.T) {
 	require.NoError(t, err)
 	_, err = stream.Recv()
 	assert.ErrorIs(t, err, io.EOF)
+}
+
+func tcpAoTestPeer(address, chain string, preferredSendID uint32) *api.Peer {
+	peer := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: address,
+			PeerAsn:         65001,
+		},
+		Transport: &api.Transport{PassiveMode: true},
+	}
+	if chain != "" {
+		peer.TcpAo = &api.TcpAoPeerConfig{
+			Keychain: chain,
+			SendId:   preferredSendID,
+		}
+	}
+	return peer
+}
+
+func startTcpAoTestServer(t *testing.T, opts ...ServerOption) *BgpServer {
+	t.Helper()
+	s := NewBgpServer(opts...)
+	go s.Serve()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{Global: &api.Global{
+		Asn:        65000,
+		RouterId:   "192.0.2.254",
+		ListenPort: -1,
+	}}))
+	t.Cleanup(func() {
+		if s.isServing.Load() {
+			require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+		}
+	})
+	return s
+}
+
+func addTcpAoTestKeychain(t *testing.T, s *BgpServer, name string, sendID, receiveID uint32) {
+	t.Helper()
+	chain := testTcpAoKeychain(name)
+	chain.Keys[0].SendId = sendID
+	chain.Keys[0].ReceiveId = receiveID
+	err := s.AddTcpAoKeychain(context.Background(), &api.AddTcpAoKeychainRequest{Keychain: chain})
+	require.NoError(t, err)
+}
+
+func TestTcpAoPeerOperations(t *testing.T) {
+	s := startTcpAoTestServer(t)
+	addTcpAoTestKeychain(t, s, "primary", 1, 2)
+	addTcpAoTestKeychain(t, s, "replacement", 3, 4)
+
+	// TCP-AO and TCP-MD5 authentication are mutually exclusive.
+	err := s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "192.0.2.10",
+			PeerAsn:         65001,
+			AuthPassword:    "md5",
+		},
+		Transport: &api.Transport{
+			PassiveMode: true,
+		},
+		TcpAo: &api.TcpAoPeerConfig{Keychain: "primary", SendId: 1},
+	}})
+	assert.Error(t, err)
+
+	// A zoned link-local peer is accepted.
+	linkLocalPeer := tcpAoTestPeer("fe80::1%lo", "primary", 1)
+	linkLocalPeer.Transport.LocalAddress = "::"
+	require.NoError(t, s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: linkLocalPeer}))
+	require.NoError(t, s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: "fe80::1%lo"}))
+
+	// TCP-AO can be attached to an existing peer through UpdatePeer.
+	plainPeerRequest := tcpAoTestPeer("192.0.2.2", "", 0)
+	require.NoError(t, s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: plainPeerRequest}))
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: tcpAoTestPeer("192.0.2.2", "primary", 1)})
+	require.NoError(t, err)
+	plainPeer := s.neighborMap[netip.MustParseAddr("192.0.2.2")]
+	require.NotNil(t, plainPeer.fsm.tcpAoKeyBinding.Load())
+	assert.Equal(t, "primary", plainPeer.fsm.tcpAoKeyBinding.Load().keychain.name)
+	require.NoError(t, s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: "192.0.2.2"}))
+
+	// A newly added peer resolves its configured keychain and preferred send ID.
+	peerRequest := tcpAoTestPeer("192.0.2.1", "primary", 1)
+	require.NoError(t, s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peerRequest}))
+	peer := s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	require.NotNil(t, peer)
+	keyBinding := peer.fsm.tcpAoKeyBinding.Load()
+	require.NotNil(t, keyBinding)
+	assert.Equal(t, "primary", keyBinding.keychain.name)
+	assert.Equal(t, uint8(1), keyBinding.preferredSendID)
+
+	// ListPeer exposes the effective TCP-AO configuration.
+	var listed *api.Peer
+	require.NoError(t, s.ListPeer(context.Background(), &api.ListPeerRequest{Address: "192.0.2.1"}, func(peer *api.Peer) {
+		listed = peer
+	}))
+	require.NotNil(t, listed.GetTcpAo())
+	assert.Equal(t, "primary", listed.GetTcpAo().GetKeychain())
+	assert.Equal(t, uint32(1), listed.GetTcpAo().GetSendId())
+
+	// Omitting tcp_ao removes the configured attachment.
+	withoutTcpAo := tcpAoTestPeer("192.0.2.1", "", 0)
+	withoutTcpAo.Conf.Description = "updated"
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: withoutTcpAo})
+	require.NoError(t, err)
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	require.NotNil(t, peer)
+	assert.Nil(t, peer.fsm.tcpAoKeyBinding.Load())
+	assert.Empty(t, peer.fsm.pConf.ReadOnly().TcpAo.Config.Keychain)
+
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: tcpAoTestPeer("192.0.2.1", "primary", 1)})
+	require.NoError(t, err)
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	require.NotNil(t, peer.fsm.tcpAoKeyBinding.Load())
+	assert.Equal(t, "primary", peer.fsm.tcpAoKeyBinding.Load().keychain.name)
+
+	// Updating with the same attachment preserves the selected key.
+	sameTcpAo := tcpAoTestPeer("192.0.2.1", "primary", 1)
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: sameTcpAo})
+	require.NoError(t, err)
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	require.NotNil(t, peer)
+	assert.Equal(t, uint8(1), peer.fsm.pConf.ReadOnly().TcpAo.Config.SendId)
+
+	// Replacing the keychain recreates the peer so new sockets use the new keys.
+	previousPeer := peer
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: tcpAoTestPeer("192.0.2.1", "replacement", 3)})
+	require.NoError(t, err)
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	assert.NotSame(t, previousPeer, peer)
+	assert.Equal(t, "replacement", peer.fsm.tcpAoKeyBinding.Load().keychain.name)
+
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: tcpAoTestPeer("192.0.2.1", "primary", 1)})
+	require.NoError(t, err)
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	assert.Equal(t, "primary", peer.fsm.tcpAoKeyBinding.Load().keychain.name)
+
+	// A referenced keychain cannot be deleted.
+	err = s.DeleteTcpAoKeychain(context.Background(), &api.DeleteTcpAoKeychainRequest{Name: "primary"})
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+
+	// Adding a key updates the shared binding and makes older socket snapshots stale.
+	_, err = s.UpdateTcpAoKeychain(context.Background(), &api.UpdateTcpAoKeychainRequest{
+		Name:    "primary",
+		AddKeys: []*api.TcpAoKey{{SendId: 5, ReceiveId: 6, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("new")}},
+	})
+	require.NoError(t, err)
+	peerKeys, err := peer.fsm.tcpAoKeyBinding.Load().socketKeys()
+	require.NoError(t, err)
+	require.Len(t, peerKeys.keys, 2)
+
+	// Selecting the newly added key rotates the peer in place.
+	rotated := tcpAoTestPeer("192.0.2.1", "primary", 5)
+	previousPeer = peer
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: rotated})
+	require.NoError(t, err)
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	assert.Same(t, previousPeer, peer)
+	assert.Equal(t, uint8(5), peer.fsm.tcpAoKeyBinding.Load().preferredSendID)
+	assert.Equal(t, uint8(5), peer.fsm.pConf.ReadOnly().TcpAo.Config.SendId)
+
+	// The old key can be removed after the peer has switched away from it.
+	_, err = s.UpdateTcpAoKeychain(context.Background(), &api.UpdateTcpAoKeychainRequest{
+		Name:       "primary",
+		DeleteKeys: []*api.TcpAoKey{{SendId: 1, ReceiveId: 2}},
+	})
+	require.NoError(t, err)
+	peerKeys, err = peer.fsm.tcpAoKeyBinding.Load().socketKeys()
+	require.NoError(t, err)
+	require.Len(t, peerKeys.keys, 1)
+	assert.Equal(t, uint8(5), peerKeys.keys[0].SendID)
+
+	// The preferred and last remaining key cannot be removed.
+	_, err = s.UpdateTcpAoKeychain(context.Background(), &api.UpdateTcpAoKeychainRequest{
+		Name:       "primary",
+		DeleteKeys: []*api.TcpAoKey{{SendId: 5, ReceiveId: 6}},
+	})
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+
+	// Changing the bind interface used as the Linux VRF socket scope recreates the peer while retaining TCP-AO.
+	changedBindInterface := tcpAoTestPeer("192.0.2.1", "primary", 5)
+	changedBindInterface.Transport.BindInterface = "blue"
+	previousPeer = peer
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: changedBindInterface})
+	require.NoError(t, err)
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	assert.NotSame(t, previousPeer, peer)
+	assert.Equal(t, "blue", peer.fsm.pConf.ReadOnly().Transport.Config.BindInterface)
+	assert.Equal(t, "blue", s.tcpAoBindInterface(peer.fsm.pConf.ReadOnly().Transport.Config))
+	assert.Equal(t, "primary", peer.fsm.tcpAoKeyBinding.Load().keychain.name)
+
+	// Socket synchronization is best effort: a socket failure does not reject a
+	// valid keychain update or roll back the stored key.
+	failedSocket, failedPeer := net.Pipe()
+	peer.fsm.lock.Lock()
+	peer.fsm.conn = failedSocket
+	peer.fsm.lock.Unlock()
+	_, err = s.UpdateTcpAoKeychain(context.Background(), &api.UpdateTcpAoKeychainRequest{
+		Name:    "primary",
+		AddKeys: []*api.TcpAoKey{{SendId: 7, ReceiveId: 8, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("newest")}},
+	})
+	require.NoError(t, err)
+	assert.True(t, peer.fsm.tcpAoKeyBinding.Load().keychain.hasSendID(7))
+	peer.fsm.lock.Lock()
+	peer.fsm.conn = nil
+	peer.fsm.lock.Unlock()
+	_ = failedSocket.Close()
+	_ = failedPeer.Close()
+
+	require.NoError(t, s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: "192.0.2.1"}))
+	require.NoError(t, s.DeleteTcpAoKeychain(context.Background(), &api.DeleteTcpAoKeychainRequest{Name: "primary"}))
+
+	// A peer in a logical VRF resolves and retains its TCP-AO keychain binding.
+	addTcpAoTestKeychain(t, s, "vrf-chain", 1, 2)
+	addVrf(t, s, "blue", "65000:100", []string{"65000:100"}, []string{"65000:100"}, 1)
+
+	peerRequest = tcpAoTestPeer("192.0.2.20", "vrf-chain", 1)
+	peerRequest.Conf.Vrf = "blue"
+	require.NoError(t, s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peerRequest}))
+
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.20")]
+	require.NotNil(t, peer)
+	assert.Equal(t, "blue", peer.fsm.pConf.ReadOnly().Config.Vrf)
+	keyBinding = peer.fsm.tcpAoKeyBinding.Load()
+	require.NotNil(t, keyBinding)
+	assert.Equal(t, "vrf-chain", keyBinding.keychain.name)
+
+	// A peer inherits the TCP-AO attachment from its peer group.
+	addTcpAoTestKeychain(t, s, "group-chain", 1, 2)
+	require.NoError(t, s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{PeerGroup: &api.PeerGroup{
+		Conf: &api.PeerGroupConf{
+			PeerGroupName: "ao-group",
+			PeerAsn:       65001,
+		},
+		TcpAo: &api.TcpAoPeerConfig{Keychain: "group-chain", SendId: 1},
+	}}))
+	groupPeer := tcpAoTestPeer("192.0.2.11", "", 0)
+	groupPeer.Conf.PeerGroup = "ao-group"
+	require.NoError(t, s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: groupPeer}))
+	peer = s.neighborMap[netip.MustParseAddr("192.0.2.11")]
+	keyBinding = peer.fsm.tcpAoKeyBinding.Load()
+	require.NotNil(t, keyBinding)
+	assert.Equal(t, "group-chain", keyBinding.keychain.name)
+	assert.Equal(t, "group-chain", string(peer.fsm.pConf.ReadOnly().TcpAo.Config.Keychain))
 }
