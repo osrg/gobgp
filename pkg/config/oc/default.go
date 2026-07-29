@@ -538,6 +538,7 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	overwriteConfig(&c.Config, &pg.Config, "neighbor.config", v)
 	overwriteConfig(&c.Timers.Config, &pg.Timers.Config, "neighbor.timers.config", v)
 	overwriteConfig(&c.Transport.Config, &pg.Transport.Config, "neighbor.transport.config", v)
+	overwriteConfig(&c.TcpAo.Config, &pg.TcpAo.Config, "neighbor.tcp-ao.config", v)
 	overwriteConfig(&c.ErrorHandling.Config, &pg.ErrorHandling.Config, "neighbor.error-handling.config", v)
 	overwriteConfig(&c.LoggingOptions.Config, &pg.LoggingOptions.Config, "neighbor.logging-options.config", v)
 	overwriteConfig(&c.EbgpMultihop.Config, &pg.EbgpMultihop.Config, "neighbor.ebgp-multihop.config", v)
