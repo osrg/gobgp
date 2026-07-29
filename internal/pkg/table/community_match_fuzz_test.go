@@ -1,6 +1,7 @@
 package table
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
@@ -130,4 +131,62 @@ func FuzzExtCommunityCondition(f *testing.F) {
 				pattern, as, la, option, fastResult, slowResult)
 		}
 	})
+}
+
+// The fuzz targets above check the index against the matcher loop, so a
+// matcher that was compiled wrong agrees with itself and slips through. These
+// pin the property the compiler actually promises: a compiled matcher decides
+// exactly what its regexp decides.
+func TestCommunityMatcherAgreesWithRegexp(t *testing.T) {
+	for _, tt := range []struct {
+		pattern string
+		comm    uint32
+	}{
+		{`^65100:666$|^65200:666$`, 65200<<16 | 666},
+		{`^65200:666$|^65100:\d+$`, 65100<<16 | 12345},
+		{`^65200:666$|^65100:\d+$`, 65200<<16 | 9999},
+		{`^65100:(666|777)$`, 65100<<16 | 777},
+		{`^65100:.*$`, 65100<<16 | 5},
+		{`^\d+:100$`, 65001<<16 | 100},
+	} {
+		cs, err := NewCommunitySet(oc.CommunitySet{
+			CommunitySetName: "t",
+			CommunityList:    []string{tt.pattern},
+		})
+		if err != nil {
+			t.Fatalf("NewCommunitySet(%q): %v", tt.pattern, err)
+		}
+		want := cs.list[0].MatchString(fmt.Sprintf("%d:%d", tt.comm>>16, tt.comm&0xffff))
+		if got := cs.matchers[0].matchesCommunity(tt.comm, cs.list); got != want {
+			t.Errorf("pattern=%q comm=%d:%d matcher=%v regexp=%v",
+				tt.pattern, tt.comm>>16, tt.comm&0xffff, got, want)
+		}
+	}
+}
+
+func TestExtCommunityMatcherAgreesWithRegexp(t *testing.T) {
+	for _, tt := range []struct {
+		pattern string
+		as      uint16
+		la      uint32
+	}{
+		{`rt:^65200:666$|^65100:\d+$`, 65100, 12345},
+		{`rt:^65200:666$|^65100:\d+$`, 65200, 9999},
+		{`rt:^\d+:(100|200)$`, 65001, 200},
+		{`rt:^65000:.*$`, 65000, 200},
+	} {
+		es, err := NewExtCommunitySet(oc.ExtCommunitySet{
+			ExtCommunitySetName: "t",
+			ExtCommunityList:    []string{tt.pattern},
+		})
+		if err != nil {
+			t.Fatalf("NewExtCommunitySet(%q): %v", tt.pattern, err)
+		}
+		ec := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, tt.as, tt.la, true)
+		want := es.list[0].MatchString(ec.String())
+		var s string
+		if got := es.matchers[0].matchesExtCommunity(ec, &s); got != want {
+			t.Errorf("pattern=%q ec=%s matcher=%v regexp=%v", tt.pattern, ec.String(), got, want)
+		}
+	}
 }
