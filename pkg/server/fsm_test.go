@@ -554,7 +554,7 @@ func TestFsmPeerConfigAccess(t *testing.T) {
 		},
 	}
 
-	peer := newPeer(nil, &a, bgp.BGP_FSM_ESTABLISHED, nil, nil, slog.Default())
+	peer := newPeer(nil, &a, bgp.BGP_FSM_ESTABLISHED, nil, nil, nil, slog.Default())
 	b := peer.fsm.pConf.ReadCopy()
 
 	assert.True(t, a.Equal(&b))
