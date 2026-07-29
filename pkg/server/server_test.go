@@ -1649,6 +1649,7 @@ func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.Ta
 		bgp.BGP_FSM_IDLE,
 		rib,
 		policy,
+		nil,
 		logger)
 	rfmap := make(map[bgp.Family]bgp.BGPAddPathMode)
 	for _, f := range rib.GetRFlist() {

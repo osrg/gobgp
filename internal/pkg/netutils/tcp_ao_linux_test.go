@@ -19,6 +19,7 @@ package netutils
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"net/netip"
 	"syscall"
@@ -173,9 +174,8 @@ func TestTCPAOKeySelection(t *testing.T) {
 		PreferredSendID: &current,
 	}
 	dialer := net.Dialer{Timeout: time.Second}
-	dialer.SetMultipathTCP(false)
-	dialer.Control = func(_, _ string, raw syscall.RawConn) error {
-		return AddTCPAOKeysSockopt(raw, peer, "", clientConfig)
+	dialer.Control = func(network, address string, raw syscall.RawConn) error {
+		return DialerControl(slog.Default(), network, address, raw, 0, 0, 0, "", "", 0, &clientConfig)
 	}
 	clientConn, err := dialer.DialContext(context.Background(), "tcp4", listener.Addr().String())
 	require.NoError(t, err)
