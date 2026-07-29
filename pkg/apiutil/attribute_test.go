@@ -2338,3 +2338,100 @@ func Test_MarshalLsLinkDescriptorLinkIDPresence(t *testing.T) {
 	}
 	assert.NotNil(t, present.LinkRemoteId)
 }
+
+// A malformed address or prefix must be reported, not silently dropped or kept
+// as the zero value: every one of these fields takes part in the NLRI key, and
+// an invalid ip_reachability used to reach NewLsPrefixTLVs, which cannot build a
+// TLV for it.
+func Test_UnmarshalLsInvalidAddresses(t *testing.T) {
+	localNode := &api.LsNodeDescriptor{Asn: 65000, IgpRouterId: "10.0.0.1"}
+
+	tests := []struct {
+		name    string
+		nlri    *api.LsAddrPrefix_LsNLRI
+		errWant string
+	}{
+		{
+			name: "invalid bgp_router_id",
+			nlri: &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Node{Node: &api.LsNodeNLRI{
+				LocalNode: &api.LsNodeDescriptor{Asn: 65000, BgpRouterId: "not-an-address"},
+			}}},
+			errWant: `invalid bgp_router_id "not-an-address"`,
+		},
+		{
+			name: "empty bgp_router_id",
+			nlri: &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Node{Node: &api.LsNodeNLRI{
+				LocalNode: localNode,
+			}}},
+		},
+		{
+			name: "invalid ip_reachability",
+			nlri: &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_PrefixV4{PrefixV4: &api.LsPrefixV4NLRI{
+				LocalNode:        localNode,
+				PrefixDescriptor: &api.LsPrefixDescriptor{IpReachability: []string{"10.0.0.0/33"}},
+			}}},
+			errWant: `invalid ip_reachability "10.0.0.0/33"`,
+		},
+		{
+			name: "invalid interface_addr_ipv4",
+			nlri: &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Link{Link: &api.LsLinkNLRI{
+				LocalNode:      localNode,
+				RemoteNode:     localNode,
+				LinkDescriptor: &api.LsLinkDescriptor{InterfaceAddrIpv4: "10.0.0.256"},
+			}}},
+			errWant: `invalid interface_addr_ipv4 "10.0.0.256"`,
+		},
+		{
+			name: "invalid neighbor_addr_ipv6",
+			nlri: &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Link{Link: &api.LsLinkNLRI{
+				LocalNode:      localNode,
+				RemoteNode:     localNode,
+				LinkDescriptor: &api.LsLinkDescriptor{NeighborAddrIpv6: "fd00::/64"},
+			}}},
+			errWant: `invalid neighbor_addr_ipv6 "fd00::/64"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := &api.NLRI{Nlri: &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
+				ProtocolId: api.LsProtocolID_LS_PROTOCOL_ID_ISIS_L2,
+				Nlri:       tt.nlri,
+			}}}
+
+			got, err := UnmarshalNLRI(bgp.RF_LS, n)
+			if tt.errWant == "" {
+				assert.NoError(t, err)
+				assert.NotNil(t, got)
+				return
+			}
+			assert.ErrorContains(t, err, tt.errWant)
+		})
+	}
+}
+
+// A node descriptor with no BGP Router-ID must marshal to an empty string. The
+// zero Addr renders as "invalid IP", which the unmarshal side would then reject,
+// breaking a plain read-then-reinject round-trip for every IGP-sourced NLRI.
+func Test_LsNodeNLRIWithoutBgpRouterIDRoundTrip(t *testing.T) {
+	data := []byte{
+		0x00, 0x01, // NLRI Type: Node
+		0x00, 0x1d, // Length
+		0x02,                                           // Protocol ID: IS-IS Level 2
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identifier
+		0x01, 0x00, 0x00, 0x10, // TLV Local Node Descriptor
+		0x02, 0x00, 0x00, 0x04, // Sub-TLV Autonomous System
+		0x00, 0x00, 0xfd, 0xe8, // AS: 65000
+		0x02, 0x03, 0x00, 0x04, // Sub-TLV IGP Router ID
+		0x0a, 0x00, 0x00, 0x01, // IGP Router ID: 10.0.0.1
+	}
+
+	native, err := bgp.NLRIFromSlice(bgp.RF_LS, data)
+	require.NoError(t, err)
+
+	marshalled, err := MarshalNLRI(native)
+	require.NoError(t, err)
+	assert.Equal(t, "", marshalled.GetLsAddrPrefix().GetNlri().GetNode().GetLocalNode().GetBgpRouterId())
+
+	_, err = UnmarshalNLRI(bgp.RF_LS, marshalled)
+	assert.NoError(t, err)
+}

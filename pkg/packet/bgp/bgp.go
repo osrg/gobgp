@@ -5536,33 +5536,26 @@ func (l *LsPrefixV4NLRI) MarshalJSON() ([]byte, error) {
 func NewLsPrefixTLVs(pd *LsPrefixDescriptor) []LsTLVInterface {
 	lsTLVs := []LsTLVInterface{}
 	for _, ipReach := range pd.IPReachability {
+		// An invalid prefix has an address that is neither IPv4 nor IPv6, so no
+		// IP Reachability TLV can be built for it. Skip it: appending the nil TLV
+		// instead would store a typed nil pointer in the LsTLVInterface slice,
+		// which panics on every later use of the NLRI.
+		if !ipReach.IsValid() {
+			continue
+		}
+
 		prefixSize := ipReach.Bits()
 		lenIpPrefix := (prefixSize-1)/8 + 1
-		lenIpReach := uint16(lenIpPrefix + 1)
-		var tlv *LsTLVIPReachability
+		ip := ipReach.Addr().AsSlice()
 
-		if ipReach.Addr().Is4() {
-			ip := ipReach.Addr().AsSlice()
-			tlv = &LsTLVIPReachability{
-				LsTLV: LsTLV{
-					Type:   LS_TLV_IP_REACH_INFO,
-					Length: lenIpReach,
-				},
-				PrefixLength: uint8(prefixSize),
-				Prefix:       ip[:lenIpPrefix],
-			}
-		} else if ipReach.Addr().Is6() {
-			ip := ipReach.Addr().AsSlice()
-			tlv = &LsTLVIPReachability{
-				LsTLV: LsTLV{
-					Type:   LS_TLV_IP_REACH_INFO,
-					Length: lenIpReach,
-				},
-				PrefixLength: uint8(prefixSize),
-				Prefix:       ip[:lenIpPrefix],
-			}
-		}
-		lsTLVs = append(lsTLVs, tlv)
+		lsTLVs = append(lsTLVs, &LsTLVIPReachability{
+			LsTLV: LsTLV{
+				Type:   LS_TLV_IP_REACH_INFO,
+				Length: uint16(lenIpPrefix + 1),
+			},
+			PrefixLength: uint8(prefixSize),
+			Prefix:       ip[:lenIpPrefix],
+		})
 	}
 
 	if pd.OSPFRouteType != 0 {

@@ -678,7 +678,7 @@ func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) (*api.LsNodeDescriptor, er
 		OspfAreaId:             d.OspfAreaID,
 		Pseudonode:             d.PseudoNode,
 		IgpRouterId:            d.IGPRouterID,
-		BgpRouterId:            d.BGPRouterID.String(),
+		BgpRouterId:            addrOrEmpty(d.BGPRouterID),
 		BgpConfederationMember: d.BGPConfederationMember,
 	}, nil
 }
@@ -888,7 +888,17 @@ func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor,
 	if nd == nil {
 		return nil, errors.New("LS node descriptor is nil")
 	}
-	bgpRouterId, _ := netip.ParseAddr(nd.BgpRouterId)
+	// An empty string means the BGP Router-ID is absent. A non-empty one must
+	// parse: silently keeping the zero Addr would make a malformed request
+	// indistinguishable from one that omitted the ID, and the ID is part of the
+	// NLRI key for BGP-sourced Link-State NLRIs.
+	var bgpRouterId netip.Addr
+	if id := nd.GetBgpRouterId(); id != "" {
+		var err error
+		if bgpRouterId, err = netip.ParseAddr(id); err != nil {
+			return nil, fmt.Errorf("invalid bgp_router_id %q: %w", id, err)
+		}
+	}
 	return &bgp.LsNodeDescriptor{
 		Asn:                    nd.Asn,
 		BGPLsID:                nd.BgpLsId,
@@ -916,28 +926,36 @@ func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor,
 		desc.LinkRemoteID = &linkRemoteID
 	}
 
-	if ld.GetInterfaceAddrIpv4() != "" {
-		if ifAddrIPv4, err := netip.ParseAddr(ld.GetInterfaceAddrIpv4()); err == nil {
-			desc.InterfaceAddrIPv4 = &ifAddrIPv4
-		}
+	var err error
+	if desc.InterfaceAddrIPv4, err = parseLsLinkAddr("interface_addr_ipv4", ld.GetInterfaceAddrIpv4()); err != nil {
+		return nil, err
 	}
-	if ld.GetNeighborAddrIpv4() != "" {
-		if neiAddrIPv4, err := netip.ParseAddr(ld.GetNeighborAddrIpv4()); err == nil {
-			desc.NeighborAddrIPv4 = &neiAddrIPv4
-		}
+	if desc.NeighborAddrIPv4, err = parseLsLinkAddr("neighbor_addr_ipv4", ld.GetNeighborAddrIpv4()); err != nil {
+		return nil, err
 	}
-	if ld.GetInterfaceAddrIpv6() != "" {
-		if ifAddrIPv6, err := netip.ParseAddr(ld.GetInterfaceAddrIpv6()); err == nil {
-			desc.InterfaceAddrIPv6 = &ifAddrIPv6
-		}
+	if desc.InterfaceAddrIPv6, err = parseLsLinkAddr("interface_addr_ipv6", ld.GetInterfaceAddrIpv6()); err != nil {
+		return nil, err
 	}
-	if ld.GetNeighborAddrIpv6() != "" {
-		if neiAddrIPv6, err := netip.ParseAddr(ld.GetNeighborAddrIpv6()); err == nil {
-			desc.NeighborAddrIPv6 = &neiAddrIPv6
-		}
+	if desc.NeighborAddrIPv6, err = parseLsLinkAddr("neighbor_addr_ipv6", ld.GetNeighborAddrIpv6()); err != nil {
+		return nil, err
 	}
 
 	return desc, nil
+}
+
+// parseLsLinkAddr parses one optional link descriptor address. An empty string
+// means the sub-TLV is absent, while a non-empty one must parse: dropping an
+// unparseable address would make it indistinguishable from an omitted one even
+// though the sub-TLV takes part in the NLRI key.
+func parseLsLinkAddr(field, s string) (*netip.Addr, error) {
+	if s == "" {
+		return nil, nil
+	}
+	addr, err := netip.ParseAddr(s)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s %q: %w", field, s, err)
+	}
+	return &addr, nil
 }
 
 func UnmarshalPrefixDescriptor(pd *api.LsPrefixDescriptor) (*bgp.LsPrefixDescriptor, error) {
@@ -947,9 +965,15 @@ func UnmarshalPrefixDescriptor(pd *api.LsPrefixDescriptor) (*bgp.LsPrefixDescrip
 	if pd == nil {
 		return nil, errors.New("LS prefix descriptor is nil")
 	}
-	ipReachability := []netip.Prefix{}
+	// An unparseable prefix must be rejected here: keeping the zero Prefix would
+	// reach NewLsPrefixTLVs, which cannot build an IP Reachability TLV for an
+	// address that is neither IPv4 nor IPv6.
+	ipReachability := make([]netip.Prefix, 0, len(pd.IpReachability))
 	for _, reach := range pd.IpReachability {
-		ipnet, _ := netip.ParsePrefix(reach)
+		ipnet, err := netip.ParsePrefix(reach)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ip_reachability %q: %w", reach, err)
+		}
 		ipReachability = append(ipReachability, ipnet)
 	}
 
@@ -2883,11 +2907,21 @@ func bytesOrDefault(b *[]byte) []byte {
 	return *b
 }
 
+// addrOrEmpty renders an optional address. An absent address must come out as
+// an empty string, not as the zero Addr's "invalid IP" text, which would be
+// rejected as a malformed address if the message were fed back in.
+func addrOrEmpty(addr netip.Addr) string {
+	if !addr.IsValid() {
+		return ""
+	}
+	return addr.String()
+}
+
 func ipOrDefault(ip *netip.Addr) string {
 	if ip == nil {
 		return ""
 	}
-	return ip.String()
+	return addrOrEmpty(*ip)
 }
 
 func uint32OrDefault(i *uint32) uint32 {

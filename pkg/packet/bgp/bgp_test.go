@@ -6135,3 +6135,31 @@ func Test_LsPrefixV6NLRI_MultiTopoID(t *testing.T) {
 		}
 	})
 }
+
+// NewLsPrefixTLVs must not append a TLV it could not build. Storing a typed nil
+// pointer in the LsTLVInterface slice makes the element compare non-nil and
+// panics on every later use of the NLRI, so an unusable prefix is skipped.
+func Test_NewLsPrefixTLVsInvalidPrefix(t *testing.T) {
+	assert := assert.New(t)
+
+	valid := netip.MustParsePrefix("10.1.0.0/24")
+	pd := &LsPrefixDescriptor{
+		IPReachability: []netip.Prefix{{}, valid, netip.PrefixFrom(valid.Addr(), 33)},
+	}
+
+	tlvs := NewLsPrefixTLVs(pd)
+	assert.Len(tlvs, 1)
+	for _, tlv := range tlvs {
+		assert.NotNil(tlv)
+		reach, ok := tlv.(*LsTLVIPReachability)
+		if assert.True(ok) {
+			assert.NotNil(reach)
+		}
+	}
+
+	// The surviving TLV must still render and serialize.
+	nlri := &LsPrefixV4NLRI{LocalNodeDesc: &LsTLVNodeDescriptor{}, PrefixDesc: tlvs}
+	assert.Contains(nlri.String(), "10.1.0.0/24")
+	_, err := nlri.Serialize()
+	assert.NoError(err)
+}
