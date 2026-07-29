@@ -23,6 +23,7 @@ import (
 	"net/netip"
 	"reflect"
 	"regexp"
+	"regexp/syntax"
 	"slices"
 	"sort"
 	"strconv"
@@ -1173,8 +1174,19 @@ func scanLocalAdminBitmap(re *regexp.Regexp, asn uint16) *localAdminBitmap {
 	return bm
 }
 
+// hasTopLevelAlternation reports whether the outermost operator of the pattern
+// is an alternation. The leading ^<ASN>: then only describes the first branch,
+// so it says nothing about the communities the remaining branches accept.
+func hasTopLevelAlternation(s string) bool {
+	re, err := syntax.Parse(s, syntax.Perl)
+	if err != nil {
+		return true
+	}
+	return re.Op == syntax.OpAlternate
+}
+
 func extractLiteralASN(s string) (uint16, bool) {
-	if len(s) == 0 || s[0] != '^' {
+	if len(s) == 0 || s[0] != '^' || hasTopLevelAlternation(s) {
 		return 0, false
 	}
 	start := 1
