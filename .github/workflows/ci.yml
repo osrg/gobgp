@@ -73,10 +73,16 @@ jobs:
       - name: buf format check
         run: buf format --diff --exit-code
 
+      # buf.gen.yaml sets "out: ../", which buf resolves against the working
+      # directory, so this has to run from proto/ as CONTRIBUTING.md documents.
+      # Running it from the repository root wrote the generated code to the
+      # parent of the checkout, leaving the diff check below nothing to compare.
+      - name: buf generate
+        working-directory: proto
+        run: buf generate
+
       - name: buf generate check
-        run: |
-          buf generate --template proto/buf.gen.yaml proto
-          git diff --exit-code
+        run: git diff --exit-code
 
   golangci:
     name: lint
