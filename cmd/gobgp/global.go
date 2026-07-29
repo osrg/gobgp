@@ -2063,12 +2063,14 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 		}
 	}
 	var linkLocalId uint32
+	var linkIDGiven bool
 	if linkID, ok := m["link-local-id"]; ok && len(linkID) > 0 {
 		linkLocalIdVal, err := strconv.ParseUint(linkID[0], 10, 64)
 		if err != nil {
 			return nil, nil, err
 		}
 		linkLocalId = uint32(linkLocalIdVal)
+		linkIDGiven = true
 	}
 	var linkRemoteId uint32
 	if linkID, ok := m["link-remote-id"]; ok && len(linkID) > 0 {
@@ -2077,10 +2079,16 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 			return nil, nil, err
 		}
 		linkRemoteId = uint32(linkRemoteIdVal)
+		linkIDGiven = true
 	}
-	ld := &bgp.LsLinkDescriptor{
-		LinkLocalID:  &linkLocalId,
-		LinkRemoteID: &linkRemoteId,
+	ld := &bgp.LsLinkDescriptor{}
+
+	// The Link Local/Remote Identifiers TLV must be emitted only when asked for.
+	// Its presence distinguishes a PeerAdj-SID Link NLRI, which requires it, from
+	// a PeerNode-SID one, which does not (RFC 9086, Sections 5.1 and 5.2).
+	if linkIDGiven {
+		ld.LinkLocalID = &linkLocalId
+		ld.LinkRemoteID = &linkRemoteId
 	}
 
 	// Set IPv4/IPv6 addresses only if they are actually specified

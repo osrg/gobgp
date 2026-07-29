@@ -684,9 +684,12 @@ func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) (*api.LsNodeDescriptor, er
 }
 
 func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) (*api.LsLinkDescriptor, error) {
+	// Both identifiers keep explicit presence: 0 is a valid Link Remote
+	// Identifier meaning "unknown" (RFC 5307, Section 1.1), so flattening an
+	// absent identifier to 0 would fabricate a Link Local/Remote Identifiers TLV.
 	return &api.LsLinkDescriptor{
-		LinkLocalId:       uint32OrDefault(n.LinkLocalID),
-		LinkRemoteId:      uint32OrDefault(n.LinkRemoteID),
+		LinkLocalId:       n.LinkLocalID,
+		LinkRemoteId:      n.LinkRemoteID,
 		InterfaceAddrIpv4: ipOrDefault(n.InterfaceAddrIPv4),
 		NeighborAddrIpv4:  ipOrDefault(n.NeighborAddrIPv4),
 		InterfaceAddrIpv6: ipOrDefault(n.InterfaceAddrIPv6),
@@ -900,11 +903,17 @@ func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor,
 func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor, error) {
 	// No link descriptor sub-TLV is mandatory, so an absent message is
 	// equivalent to an empty one.
-	linkLocalID := ld.GetLinkLocalId()
-	linkRemoteID := ld.GetLinkRemoteId()
-	desc := &bgp.LsLinkDescriptor{
-		LinkLocalID:  &linkLocalID,
-		LinkRemoteID: &linkRemoteID,
+	desc := &bgp.LsLinkDescriptor{}
+
+	// The Link Local/Remote Identifiers TLV carries both identifiers in one
+	// 8-octet value (RFC 5307, Section 1.1), so setting either one requests the
+	// TLV and the other defaults to 0, which that section defines as "unknown".
+	// Leaving both unset must not emit the TLV at all.
+	if ld != nil && (ld.LinkLocalId != nil || ld.LinkRemoteId != nil) {
+		linkLocalID := ld.GetLinkLocalId()
+		linkRemoteID := ld.GetLinkRemoteId()
+		desc.LinkLocalID = &linkLocalID
+		desc.LinkRemoteID = &linkRemoteID
 	}
 
 	if ld.GetInterfaceAddrIpv4() != "" {

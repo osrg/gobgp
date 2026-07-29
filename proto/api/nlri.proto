@@ -253,8 +253,11 @@ message LsNodeDescriptor {
 }
 
 message LsLinkDescriptor {
-  uint32 link_local_id = 1;
-  uint32 link_remote_id = 2;
+  // The Link Local/Remote Identifiers TLV carries both identifiers together, and
+  // RFC 5307, Section 1.1 defines 0 as "unknown" for the remote one, so absence
+  // must be distinguishable from zero.
+  optional uint32 link_local_id = 1;
+  optional uint32 link_remote_id = 2;
   string interface_addr_ipv4 = 3;
   string neighbor_addr_ipv4 = 4;
   string interface_addr_ipv6 = 5;

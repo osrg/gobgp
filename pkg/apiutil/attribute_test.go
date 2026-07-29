@@ -2274,3 +2274,67 @@ func Test_UnmarshalLsHelpersNilArgs(t *testing.T) {
 		assert.Equal(t, bgp.LsAttributeBgpPeerSegmentSIDFlags{}, got.Flags)
 	})
 }
+
+// The Link Local/Remote Identifiers TLV must appear only when the API request
+// carries an identifier. Its presence distinguishes a PeerAdj-SID Link NLRI from
+// a PeerNode-SID one (RFC 9086, Sections 5.1 and 5.2), so a fabricated TLV
+// changes the NLRI key.
+func Test_LsLinkNLRILinkIDPresence(t *testing.T) {
+	localNode := &api.LsNodeDescriptor{Asn: 65000, IgpRouterId: "10.0.0.1"}
+	remoteNode := &api.LsNodeDescriptor{Asn: 65000, IgpRouterId: "10.0.0.2"}
+
+	tests := []struct {
+		name string
+		desc *api.LsLinkDescriptor
+		want bool
+	}{
+		{"absent link descriptor", nil, false},
+		{"empty link descriptor", &api.LsLinkDescriptor{}, false},
+		{"addresses only", &api.LsLinkDescriptor{InterfaceAddrIpv4: "10.0.0.1"}, false},
+		{"explicit zero link local id", &api.LsLinkDescriptor{LinkLocalId: proto.Uint32(0)}, true},
+		{"link remote id only", &api.LsLinkDescriptor{LinkRemoteId: proto.Uint32(2)}, true},
+		{"both identifiers", &api.LsLinkDescriptor{LinkLocalId: proto.Uint32(1), LinkRemoteId: proto.Uint32(2)}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := &api.NLRI{Nlri: &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
+				ProtocolId: api.LsProtocolID_LS_PROTOCOL_ID_ISIS_L2,
+				Nlri: &api.LsAddrPrefix_LsNLRI{Nlri: &api.LsAddrPrefix_LsNLRI_Link{Link: &api.LsLinkNLRI{
+					LocalNode:      localNode,
+					RemoteNode:     remoteNode,
+					LinkDescriptor: tt.desc,
+				}}},
+			}}}
+
+			got, err := UnmarshalNLRI(bgp.RF_LS, n)
+			require.NoError(t, err)
+
+			link := got.(*bgp.LsAddrPrefix).NLRI.(*bgp.LsLinkNLRI)
+			hasLinkID := false
+			for _, tlv := range link.LinkDesc {
+				if _, ok := tlv.(*bgp.LsTLVLinkID); ok {
+					hasLinkID = true
+				}
+			}
+			assert.Equal(t, tt.want, hasLinkID)
+		})
+	}
+}
+
+// An absent link identifier must stay absent on the way out too: 0 is a valid
+// Link Remote Identifier meaning "unknown" (RFC 5307, Section 1.1), so it cannot
+// double as "not set".
+func Test_MarshalLsLinkDescriptorLinkIDPresence(t *testing.T) {
+	absent, err := MarshalLsLinkDescriptor(&bgp.LsLinkDescriptor{})
+	require.NoError(t, err)
+	assert.Nil(t, absent.LinkLocalId)
+	assert.Nil(t, absent.LinkRemoteId)
+
+	zero := uint32(0)
+	present, err := MarshalLsLinkDescriptor(&bgp.LsLinkDescriptor{LinkLocalID: &zero, LinkRemoteID: &zero})
+	require.NoError(t, err)
+	if assert.NotNil(t, present.LinkLocalId) {
+		assert.Equal(t, uint32(0), present.GetLinkLocalId())
+	}
+	assert.NotNil(t, present.LinkRemoteId)
+}

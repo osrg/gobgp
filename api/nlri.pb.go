@@ -2099,13 +2099,16 @@ func (x *LsNodeDescriptor) GetBgpConfederationMember() uint32 {
 }
 
 type LsLinkDescriptor struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	LinkLocalId       uint32                 `protobuf:"varint,1,opt,name=link_local_id,json=linkLocalId,proto3" json:"link_local_id,omitempty"`
-	LinkRemoteId      uint32                 `protobuf:"varint,2,opt,name=link_remote_id,json=linkRemoteId,proto3" json:"link_remote_id,omitempty"`
-	InterfaceAddrIpv4 string                 `protobuf:"bytes,3,opt,name=interface_addr_ipv4,json=interfaceAddrIpv4,proto3" json:"interface_addr_ipv4,omitempty"`
-	NeighborAddrIpv4  string                 `protobuf:"bytes,4,opt,name=neighbor_addr_ipv4,json=neighborAddrIpv4,proto3" json:"neighbor_addr_ipv4,omitempty"`
-	InterfaceAddrIpv6 string                 `protobuf:"bytes,5,opt,name=interface_addr_ipv6,json=interfaceAddrIpv6,proto3" json:"interface_addr_ipv6,omitempty"`
-	NeighborAddrIpv6  string                 `protobuf:"bytes,6,opt,name=neighbor_addr_ipv6,json=neighborAddrIpv6,proto3" json:"neighbor_addr_ipv6,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The Link Local/Remote Identifiers TLV carries both identifiers together, and
+	// RFC 5307, Section 1.1 defines 0 as "unknown" for the remote one, so absence
+	// must be distinguishable from zero.
+	LinkLocalId       *uint32 `protobuf:"varint,1,opt,name=link_local_id,json=linkLocalId,proto3,oneof" json:"link_local_id,omitempty"`
+	LinkRemoteId      *uint32 `protobuf:"varint,2,opt,name=link_remote_id,json=linkRemoteId,proto3,oneof" json:"link_remote_id,omitempty"`
+	InterfaceAddrIpv4 string  `protobuf:"bytes,3,opt,name=interface_addr_ipv4,json=interfaceAddrIpv4,proto3" json:"interface_addr_ipv4,omitempty"`
+	NeighborAddrIpv4  string  `protobuf:"bytes,4,opt,name=neighbor_addr_ipv4,json=neighborAddrIpv4,proto3" json:"neighbor_addr_ipv4,omitempty"`
+	InterfaceAddrIpv6 string  `protobuf:"bytes,5,opt,name=interface_addr_ipv6,json=interfaceAddrIpv6,proto3" json:"interface_addr_ipv6,omitempty"`
+	NeighborAddrIpv6  string  `protobuf:"bytes,6,opt,name=neighbor_addr_ipv6,json=neighborAddrIpv6,proto3" json:"neighbor_addr_ipv6,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -2141,15 +2144,15 @@ func (*LsLinkDescriptor) Descriptor() ([]byte, []int) {
 }
 
 func (x *LsLinkDescriptor) GetLinkLocalId() uint32 {
-	if x != nil {
-		return x.LinkLocalId
+	if x != nil && x.LinkLocalId != nil {
+		return *x.LinkLocalId
 	}
 	return 0
 }
 
 func (x *LsLinkDescriptor) GetLinkRemoteId() uint32 {
-	if x != nil {
-		return x.LinkRemoteId
+	if x != nil && x.LinkRemoteId != nil {
+		return *x.LinkRemoteId
 	}
 	return 0
 }
@@ -3544,14 +3547,16 @@ const file_api_nlri_proto_rawDesc = "" +
 	"pseudonode\x12\"\n" +
 	"\rigp_router_id\x18\x05 \x01(\tR\vigpRouterId\x12\"\n" +
 	"\rbgp_router_id\x18\x06 \x01(\tR\vbgpRouterId\x128\n" +
-	"\x18bgp_confederation_member\x18\a \x01(\rR\x16bgpConfederationMember\"\x98\x02\n" +
-	"\x10LsLinkDescriptor\x12\"\n" +
-	"\rlink_local_id\x18\x01 \x01(\rR\vlinkLocalId\x12$\n" +
-	"\x0elink_remote_id\x18\x02 \x01(\rR\flinkRemoteId\x12.\n" +
+	"\x18bgp_confederation_member\x18\a \x01(\rR\x16bgpConfederationMember\"\xc7\x02\n" +
+	"\x10LsLinkDescriptor\x12'\n" +
+	"\rlink_local_id\x18\x01 \x01(\rH\x00R\vlinkLocalId\x88\x01\x01\x12)\n" +
+	"\x0elink_remote_id\x18\x02 \x01(\rH\x01R\flinkRemoteId\x88\x01\x01\x12.\n" +
 	"\x13interface_addr_ipv4\x18\x03 \x01(\tR\x11interfaceAddrIpv4\x12,\n" +
 	"\x12neighbor_addr_ipv4\x18\x04 \x01(\tR\x10neighborAddrIpv4\x12.\n" +
 	"\x13interface_addr_ipv6\x18\x05 \x01(\tR\x11interfaceAddrIpv6\x12,\n" +
-	"\x12neighbor_addr_ipv6\x18\x06 \x01(\tR\x10neighborAddrIpv6\"{\n" +
+	"\x12neighbor_addr_ipv6\x18\x06 \x01(\tR\x10neighborAddrIpv6B\x10\n" +
+	"\x0e_link_local_idB\x11\n" +
+	"\x0f_link_remote_id\"{\n" +
 	"\x12LsPrefixDescriptor\x12'\n" +
 	"\x0fip_reachability\x18\x01 \x03(\tR\x0eipReachability\x12<\n" +
 	"\x0fospf_route_type\x18\x02 \x01(\x0e2\x14.api.LsOspfRouteTypeR\rospfRouteType\"B\n" +
@@ -3844,6 +3849,7 @@ func file_api_nlri_proto_init() {
 		(*FlowSpecRule_Mac)(nil),
 		(*FlowSpecRule_Component)(nil),
 	}
+	file_api_nlri_proto_msgTypes[24].OneofWrappers = []any{}
 	file_api_nlri_proto_msgTypes[40].OneofWrappers = []any{
 		(*MUPTLV_SessionParameters)(nil),
 		(*MUPTLV_InterworkEndpoint)(nil),
