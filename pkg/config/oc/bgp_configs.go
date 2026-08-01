@@ -1162,6 +1162,70 @@ func (lhs *DynamicNeighbor) Equal(rhs *DynamicNeighbor) bool {
 }
 
 // struct for container gobgp:state.
+type AggregateState struct {
+	// original -> gobgp:prefix
+	// gobgp:prefix's original type is inet:ip-prefix.
+	Prefix netip.Prefix `mapstructure:"prefix" json:"prefix,omitempty"`
+	// original -> gobgp:summary-only
+	SummaryOnly bool `mapstructure:"summary-only" json:"summary-only,omitempty"`
+	// original -> gobgp:as-set
+	AsSet bool `mapstructure:"as-set" json:"as-set,omitempty"`
+	// original -> gobgp:policy-name
+	PolicyName string `mapstructure:"policy-name" json:"policy-name,omitempty"`
+}
+
+// struct for container gobgp:config.
+type AggregateConfig struct {
+	// original -> gobgp:prefix
+	// gobgp:prefix's original type is inet:ip-prefix.
+	Prefix netip.Prefix `mapstructure:"prefix" json:"prefix,omitempty"`
+	// original -> gobgp:summary-only
+	SummaryOnly bool `mapstructure:"summary-only" json:"summary-only,omitempty"`
+	// original -> gobgp:as-set
+	AsSet bool `mapstructure:"as-set" json:"as-set,omitempty"`
+	// original -> gobgp:policy-name
+	PolicyName string `mapstructure:"policy-name" json:"policy-name,omitempty"`
+}
+
+func (lhs *AggregateConfig) Equal(rhs *AggregateConfig) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.Prefix != rhs.Prefix {
+		return false
+	}
+	if lhs.SummaryOnly != rhs.SummaryOnly {
+		return false
+	}
+	if lhs.AsSet != rhs.AsSet {
+		return false
+	}
+	if lhs.PolicyName != rhs.PolicyName {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:aggregate.
+type Aggregate struct {
+	// original -> gobgp:prefix
+	// original -> gobgp:aggregate-config
+	Config AggregateConfig `mapstructure:"config" json:"config,omitempty"`
+	// original -> gobgp:aggregate-state
+	State AggregateState `mapstructure:"state" json:"state,omitempty"`
+}
+
+func (lhs *Aggregate) Equal(rhs *Aggregate) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if !lhs.Config.Equal(&(rhs.Config)) {
+		return false
+	}
+	return true
+}
+
+// struct for container gobgp:state.
 type CollectorState struct {
 	// original -> gobgp:url
 	Url string `mapstructure:"url" json:"url,omitempty"`
@@ -5182,6 +5246,8 @@ type Global struct {
 	// routing table, i.e., export (send) and import (receive),
 	// depending on the context.
 	ApplyPolicy ApplyPolicy `mapstructure:"apply-policy" json:"apply-policy,omitempty"`
+	// original -> gobgp:aggregates
+	Aggregates []Aggregate `mapstructure:"aggregates" json:"aggregates,omitempty"`
 }
 
 func (lhs *Global) Equal(rhs *Global) bool {
@@ -5216,6 +5282,14 @@ func (lhs *Global) Equal(rhs *Global) bool {
 	}
 	if !lhs.ApplyPolicy.Equal(&(rhs.ApplyPolicy)) {
 		return false
+	}
+	if len(lhs.Aggregates) != len(rhs.Aggregates) {
+		return false
+	}
+	for i, r := range rhs.Aggregates {
+		if !r.Equal(&lhs.Aggregates[i]) {
+			return false
+		}
 	}
 	return true
 }

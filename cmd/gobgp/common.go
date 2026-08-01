@@ -87,6 +87,8 @@ const (
 	cmdInfo           = "info"
 	cmdDebug          = "debug"
 	cmdTrace          = "trace"
+	cmdList           = "list"
+	cmdAggregate      = "aggregate"
 )
 
 const (
@@ -98,6 +100,9 @@ const (
 var subOpts struct {
 	AddressFamily string `short:"a" long:"address-family" description:"specifying an address family"`
 	BatchSize     uint64 `short:"b" long:"batch-size" description:"Size of the temporary buffer in the server memory. Zero is unlimited (default)"`
+	SummaryOnly   bool   `short:"s" long:"summary-only" description:"suppress more-specific contributing routes"`
+	AsSet         bool   `long:"as-set" description:"generate an AS_SET from contributing routes"`
+	Policy        string `long:"policy" description:"policy a contributing route must pass"`
 }
 
 var neighborsOpts struct {
