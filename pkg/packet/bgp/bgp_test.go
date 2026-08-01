@@ -6213,3 +6213,58 @@ func Test_NewLsPrefixTLVsInvalidPrefix(t *testing.T) {
 	_, err := nlri.Serialize()
 	assert.NoError(err)
 }
+
+// getBGPUpdateAttributes was handed the attributes and the NLRI field together,
+// and it walks whatever it is given as a chain of attribute headers. Once it ran
+// off the end of the declared attribute region it read the NLRI as [flags][type]
+// [len] triplets, so a prefix in 40.0.0.0/8 registered BGP_ATTR_TYPE_PREFIX_SID
+// as present. MPLSLabelStack.DecodeFromBytes keys the bottom-of-stack rule off
+// that flag, so the same labeled prefix decodes differently depending on an
+// unrelated NLRI the peer chose.
+func Test_UpdateAttributeScanStopsAtDeclaredLength(t *testing.T) {
+	update := func(nlri []byte) []byte {
+		// MP_REACH: IPv4 labeled unicast, 10.0.0.0/8 behind a two-label stack.
+		mp := []byte{0x00, 0x01, 0x04, 0x04, 192, 0, 2, 1, 0x00}
+		mp = append(mp, 8+8*6)            // prefix bits, labels included
+		mp = append(mp, 0x00, 0x01, 0x00) // label 16, bottom-of-stack clear
+		mp = append(mp, 0x00, 0x02, 0x11) // label 33, bottom-of-stack set
+		mp = append(mp, 0x0a)             // 10.0.0.0/8
+
+		attrs := []byte{0x40, 0x01, 0x01, 0x00} // ORIGIN igp
+		attrs = append(attrs, 0x80, byte(BGP_ATTR_TYPE_MP_REACH_NLRI), byte(len(mp)))
+		attrs = append(attrs, mp...)
+
+		body := []byte{0x00, 0x00} // no withdrawn routes
+		body = binary.BigEndian.AppendUint16(body, uint16(len(attrs)))
+		body = append(body, attrs...)
+		body = append(body, nlri...)
+
+		buf := bytes.Repeat([]byte{0xff}, 16)
+		buf = binary.BigEndian.AppendUint16(buf, uint16(BGP_HEADER_LENGTH+len(body)))
+		buf = append(buf, BGP_MSG_UPDATE)
+		return append(buf, body...)
+	}
+
+	labeled := func(t *testing.T, data []byte) *LabeledIPAddrPrefix {
+		t.Helper()
+		msg, err := ParseBGPMessage(data)
+		require.NoError(t, err)
+		for _, attr := range msg.Body.(*BGPUpdate).PathAttributes {
+			if mp, ok := attr.(*PathAttributeMpReachNLRI); ok {
+				require.Len(t, mp.Value, 1)
+				return mp.Value[0].NLRI.(*LabeledIPAddrPrefix)
+			}
+		}
+		t.Fatal("no MP_REACH_NLRI in the decoded UPDATE")
+		return nil
+	}
+
+	// 0x18 0xc0 0x00 0x02 -> 192.0.2.0/24, type byte 0xc0
+	want := labeled(t, update([]byte{0x18, 192, 0, 2}))
+	// 0x18 0x28 0x01 0x02 -> 40.1.2.0/24, type byte 0x28 == BGP_ATTR_TYPE_PREFIX_SID
+	got := labeled(t, update([]byte{0x18, 40, 1, 2}))
+
+	assert.Equal(t, "10.0.0.0/8", want.Prefix.String())
+	assert.Equal(t, want.Prefix, got.Prefix)
+	assert.Equal(t, want.Labels.Labels, got.Labels.Labels)
+}

@@ -16448,7 +16448,9 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	if len(data) < int(msg.TotalPathAttributeLen) {
 		return NewMessageError(eCode, eSubCode, nil, "path total attribute length exceeds message length")
 	}
-	attributes := getBGPUpdateAttributes(data)
+	// data still holds the NLRI field after the attributes, and the scan has
+	// no framing of its own, so it has to stop at the declared boundary.
+	attributes := getBGPUpdateAttributes(data[:msg.TotalPathAttributeLen])
 	o := MarshallingOption{
 		attributes: attributes,
 	}
