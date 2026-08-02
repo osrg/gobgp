@@ -333,6 +333,50 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	assert.Equal("65546:0:0/32", r.String())
 }
 
+// RFC 4684 Section 4 allows a prefix of 0 to 96 bits, and requires at least 32
+// bits for anything other than the zero-length default route target. Lengths
+// outside that make the NLRI syntactically incorrect (RFC 7606 Section 5.3), so
+// decoding must fail rather than accept a prefix that cannot be re-encoded.
+func Test_RouteTargetMembershipNLRILength(t *testing.T) {
+	assert := assert.New(t)
+	for _, tt := range []struct {
+		length uint8
+		valid  bool
+	}{
+		{0, true},
+		{1, false},
+		{16, false},
+		{31, false},
+		{32, true},
+		{64, true},
+		{95, true},
+		{96, true},
+		{97, false},
+		{104, false},
+		{200, false},
+		{255, false},
+	} {
+		// Always supply enough octets for the declared bit length so that only
+		// the length itself decides the outcome.
+		buf := make([]byte, 1+(int(tt.length)+7)/8)
+		buf[0] = tt.length
+		if len(buf) >= 13 {
+			binary.BigEndian.PutUint32(buf[1:5], 65546)
+			buf[5] = byte(EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)
+			buf[6] = byte(EC_SUBTYPE_ROUTE_TARGET)
+			binary.BigEndian.PutUint16(buf[7:9], 65000)
+			binary.BigEndian.PutUint32(buf[9:13], 100)
+		}
+		r := &RouteTargetMembershipNLRI{}
+		err := r.decodeFromBytes(buf)
+		if tt.valid {
+			assert.NoError(err, "length %d", tt.length)
+			continue
+		}
+		assert.Error(err, "length %d", tt.length)
+	}
+}
+
 func TestParseRouteTargetMembershipNLRI(t *testing.T) {
 	assert := assert.New(t)
 	cases := []struct {

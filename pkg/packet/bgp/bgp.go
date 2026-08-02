@@ -2166,7 +2166,10 @@ func (n *RouteTargetMembershipNLRI) decodeFromBytes(data []byte, options ...*Mar
 		return nil
 	}
 	data = data[1:]
-	if n.Length < 32 || len(data)*8 < int(n.Length) {
+	// RFC 4684 Section 4: the prefix is 0 to 96 bits, and other than the
+	// zero-length default route target it is at least 32 bits, since the
+	// origin-as field cannot be interpreted as a prefix.
+	if n.Length < 32 || n.Length > RouteTargetMembershipPrefixLen || len(data)*8 < int(n.Length) {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 		return NewMessageError(eCode, eSubCode, nil, "bad RouteTargetMembershipNLRI length")
