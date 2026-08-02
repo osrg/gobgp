@@ -2228,15 +2228,16 @@ func (n *RouteTargetMembershipNLRI) Len(options ...*MarshallingOption) int {
 	return 1 + (int(n.Length)+7)/8
 }
 
+// String renders the NLRI as "<origin-as>:<route-target>/<length>". The mask
+// length is always present, including for a full /96, so that the text form is
+// self-describing and matches how every other family and
+// table.Prefix.PrefixString spell a prefix.
 func (n *RouteTargetMembershipNLRI) String() string {
 	target := "0:0"
 	if n.RouteTarget != nil {
 		target = n.RouteTarget.String()
 	}
-	if n.Length == RouteTargetMembershipPrefixLen {
-		return strconv.FormatUint(uint64(n.AS), 10) + ":" + target
-	}
-	return fmt.Sprintf("%d:%s/%d", n.AS, target, n.Length)
+	return strconv.FormatUint(uint64(n.AS), 10) + ":" + target + "/" + strconv.FormatUint(uint64(n.Length), 10)
 }
 
 func (n *RouteTargetMembershipNLRI) MarshalJSON() ([]byte, error) {

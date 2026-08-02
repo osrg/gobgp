@@ -615,9 +615,10 @@ func TestNewConfigPrefixFromAPIStruct(t *testing.T) {
 	assert.Equal(t, "6554600:65000:100/80", c.RtcPrefix)
 	assert.False(t, c.IpPrefix.IsValid())
 
+	// A length-less rtc-prefix is accepted on input and canonicalized to /96.
 	c, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "65000:65000:100", MaskLengthMin: 96, MaskLengthMax: 96})
 	assert.NoError(t, err)
-	assert.Equal(t, "65000:65000:100", c.RtcPrefix)
+	assert.Equal(t, "65000:65000:100/96", c.RtcPrefix)
 
 	// /0 wildcard (RTC default-route) keeps the caller's mask range.
 	c, err = newConfigPrefixFromAPIStruct(&api.Prefix{RtcPrefix: "0:0:0/0", MaskLengthMin: 0, MaskLengthMax: 96})

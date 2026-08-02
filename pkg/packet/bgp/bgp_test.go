@@ -139,12 +139,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	r := &RouteTargetMembershipNLRI{}
 	err := r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:65000:65546", r.String())
+	assert.Equal("65546:65000:65546/96", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:65000:65546", r.String())
+	assert.Equal("65546:65000:65546/96", r.String())
 
 	// TwoOctetAsSpecificExtended/64
 	buf = make([]byte, 9)
@@ -175,12 +175,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	r = &RouteTargetMembershipNLRI{}
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:10.0.0.1:65000", r.String())
+	assert.Equal("65546:10.0.0.1:65000/96", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:10.0.0.1:65000", r.String())
+	assert.Equal("65546:10.0.0.1:65000/96", r.String())
 
 	// IPv4AddressSpecificExtended/80
 	buf = make([]byte, 11)
@@ -211,12 +211,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	r = &RouteTargetMembershipNLRI{}
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:1.10:65000", r.String())
+	assert.Equal("65546:1.10:65000/96", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:1.10:65000", r.String())
+	assert.Equal("65546:1.10:65000/96", r.String())
 
 	// FourOctetAsSpecificExtended/80
 	buf = make([]byte, 11)
@@ -244,12 +244,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	r = &RouteTargetMembershipNLRI{}
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:1000000", r.String())
+	assert.Equal("65546:1000000/96", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:1000000", r.String())
+	assert.Equal("65546:1000000/96", r.String())
 
 	// OpaqueExtended/40
 	buf = make([]byte, 6)
@@ -275,12 +275,12 @@ func Test_RouteTargetMembershipNLRIString(t *testing.T) {
 	r = &RouteTargetMembershipNLRI{}
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:1000000", r.String())
+	assert.Equal("65546:1000000/96", r.String())
 	buf, err = r.Serialize()
 	assert.NoError(err)
 	err = r.decodeFromBytes(buf)
 	assert.NoError(err)
-	assert.Equal("65546:1000000", r.String())
+	assert.Equal("65546:1000000/96", r.String())
 
 	// Unknown/41
 	buf = make([]byte, 7)
@@ -388,20 +388,20 @@ func TestParseRouteTargetMembershipNLRI(t *testing.T) {
 	}{
 		{"0:0:0/0", "0:0:0/0", 0, false, 0},
 		{"0:0:0/32", "0:0:0/32", 0, false, 32},
-		{"0:0:0/96", "0:0:0", 0, true, 96},
+		{"0:0:0/96", "0:0:0/96", 0, true, 96},
 		{"65000:0:0/32", "65000:0:0/32", 65000, false, 32},
 		{"65000:65000:0/64", "65000:65000:0/64", 65000, true, 64},
-		{"65000:65000:100", "65000:65000:100", 65000, true, 96},
-		{"65000:65000:100/96", "65000:65000:100", 65000, true, 96},
+		{"65000:65000:100", "65000:65000:100/96", 65000, true, 96},
+		{"65000:65000:100/96", "65000:65000:100/96", 65000, true, 96},
 		{"65000:1.2.3.4:0/80", "65000:1.2.3.4:0/80", 65000, true, 80},
-		{"65000:1.2.3.4:100", "65000:1.2.3.4:100", 65000, true, 96},
-		{"65000:1.2.3.4:100/96", "65000:1.2.3.4:100", 65000, true, 96},
+		{"65000:1.2.3.4:100", "65000:1.2.3.4:100/96", 65000, true, 96},
+		{"65000:1.2.3.4:100/96", "65000:1.2.3.4:100/96", 65000, true, 96},
 		{"100.1000:65000:0/64", "6554600:65000:0/64", 100*65536 + 1000, true, 64},
-		{"100.1000:65000:100", "6554600:65000:100", 100*65536 + 1000, true, 96},
-		{"100.1000:65000:100/96", "6554600:65000:100", 100*65536 + 1000, true, 96},
+		{"100.1000:65000:100", "6554600:65000:100/96", 100*65536 + 1000, true, 96},
+		{"100.1000:65000:100/96", "6554600:65000:100/96", 100*65536 + 1000, true, 96},
 		{"100.1000:1.2.3.4:0/80", "6554600:1.2.3.4:0/80", 100*65536 + 1000, true, 80},
-		{"100.1000:1.2.3.4:100", "6554600:1.2.3.4:100", 100*65536 + 1000, true, 96},
-		{"100.1000:1.2.3.4:100/96", "6554600:1.2.3.4:100", 100*65536 + 1000, true, 96},
+		{"100.1000:1.2.3.4:100", "6554600:1.2.3.4:100/96", 100*65536 + 1000, true, 96},
+		{"100.1000:1.2.3.4:100/96", "6554600:1.2.3.4:100/96", 100*65536 + 1000, true, 96},
 	}
 	for _, c := range cases {
 		nlri, err := ParseRouteTargetMembershipNLRI(c.in)
