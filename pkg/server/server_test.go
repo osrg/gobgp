@@ -1949,6 +1949,63 @@ func TestDynamicNeighbor(t *testing.T) {
 	establisedWaiter.Wait(t, 10*time.Second)
 }
 
+// TestDynamicNeighborUnknownPeerGroup verifies that the dynamic neighbor API rejects a peer group
+// that does not exist instead of dereferencing a nil peerGroup and killing the daemon. The config
+// file path validates this in oc.DynamicNeighbor.validate; the API path must do the same.
+func TestDynamicNeighborUnknownPeerGroup(t *testing.T) {
+	assert := assert.New(t)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	err = s.addPeerGroup(&oc.PeerGroup{
+		Config: oc.PeerGroupConfig{
+			PeerAs:        2,
+			PeerGroupName: "g",
+		},
+	})
+	assert.NoError(err)
+
+	for _, name := range []string{"missing-pg", ""} {
+		err = s.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+			DynamicNeighbor: &api.DynamicNeighbor{
+				Prefix:    "127.0.0.0/24",
+				PeerGroup: name,
+			},
+		})
+		assert.Error(err, "peer group %q", name)
+
+		err = s.DeleteDynamicNeighbor(context.Background(), &api.DeleteDynamicNeighborRequest{
+			Prefix:    "127.0.0.0/24",
+			PeerGroup: name,
+		})
+		assert.Error(err, "peer group %q", name)
+	}
+
+	// The existing peer group is still usable for both operations.
+	err = s.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+		DynamicNeighbor: &api.DynamicNeighbor{
+			Prefix:    "127.0.0.0/24",
+			PeerGroup: "g",
+		},
+	})
+	assert.NoError(err)
+
+	err = s.DeleteDynamicNeighbor(context.Background(), &api.DeleteDynamicNeighborRequest{
+		Prefix:    "127.0.0.0/24",
+		PeerGroup: "g",
+	})
+	assert.NoError(err)
+}
+
 // TestDynamicNeighborBfd verifies that BFD is registered for a dynamic neighbor when the peer group has
 // BFD enabled (the accept path), and deregistered when the neighbor goes away (the stop path). Without
 // the fix, BFD never runs for dynamic peers.

@@ -3625,6 +3625,9 @@ func (s *BgpServer) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNei
 	if r == nil || r.DynamicNeighbor == nil {
 		return fmt.Errorf("nil request")
 	}
+	if r.DynamicNeighbor.PeerGroup == "" {
+		return fmt.Errorf("dynamic neighbor requires the peer group config")
+	}
 	p, err := netip.ParsePrefix(r.DynamicNeighbor.Prefix)
 	if err != nil {
 		return fmt.Errorf("invalid prefix: %v", err)
@@ -3637,9 +3640,13 @@ func (s *BgpServer) AddDynamicNeighbor(ctx context.Context, r *api.AddDynamicNei
 				PeerGroup: r.DynamicNeighbor.PeerGroup,
 			},
 		}
-		s.peerGroupMap[c.Config.PeerGroup].AddDynamicNeighbor(c)
+		pg, ok := s.peerGroupMap[c.Config.PeerGroup]
+		if !ok {
+			return fmt.Errorf("no such peer-group: %s", c.Config.PeerGroup)
+		}
+		pg.AddDynamicNeighbor(c)
 
-		pConf := s.peerGroupMap[c.Config.PeerGroup].Conf
+		pConf := pg.Conf
 		if pConf.Config.AuthPassword != "" {
 			prefix := r.DynamicNeighbor.Prefix
 			addr, _, _ := net.ParseCIDR(prefix)
@@ -3749,30 +3756,35 @@ func (s *BgpServer) DeleteDynamicNeighbor(ctx context.Context, r *api.DeleteDyna
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	if r.PeerGroup == "" {
+		return fmt.Errorf("dynamic neighbor requires the peer group config")
+	}
 	return s.mgmtOperation(func() error {
-		s.peerGroupMap[r.PeerGroup].DeleteDynamicNeighbor(r.Prefix)
+		pg, ok := s.peerGroupMap[r.PeerGroup]
+		if !ok {
+			return fmt.Errorf("no such peer-group: %s", r.PeerGroup)
+		}
+		pg.DeleteDynamicNeighbor(r.Prefix)
 
-		if pg, ok := s.peerGroupMap[r.PeerGroup]; ok {
-			pConf := pg.Conf
-			if pConf.Config.AuthPassword != "" {
-				prefix := r.Prefix
-				addr, _, perr := net.ParseCIDR(prefix)
-				if perr == nil {
-					for _, l := range s.listListeners(addr.String()) {
-						if err := netutils.SetTCPMD5SigSockopt(l, pConf.Transport.Config.BindInterface, prefix, ""); err != nil {
-							s.logger.Warn("failed to clear md5",
-								slog.String("Topic", "Peer"),
-								slog.String("Key", prefix),
-								slog.String("Err", err.Error()))
-						}
+		pConf := pg.Conf
+		if pConf.Config.AuthPassword != "" {
+			prefix := r.Prefix
+			addr, _, perr := net.ParseCIDR(prefix)
+			if perr == nil {
+				for _, l := range s.listListeners(addr.String()) {
+					if err := netutils.SetTCPMD5SigSockopt(l, pConf.Transport.Config.BindInterface, prefix, ""); err != nil {
+						s.logger.Warn("failed to clear md5",
+							slog.String("Topic", "Peer"),
+							slog.String("Key", prefix),
+							slog.String("Err", err.Error()))
 					}
-				} else {
-					s.logger.Warn("Cannot clear up dynamic MD5, invalid prefix",
-						slog.String("Topic", "Peer"),
-						slog.String("Key", prefix),
-						slog.String("Err", perr.Error()),
-					)
 				}
+			} else {
+				s.logger.Warn("Cannot clear up dynamic MD5, invalid prefix",
+					slog.String("Topic", "Peer"),
+					slog.String("Key", prefix),
+					slog.String("Err", perr.Error()),
+				)
 			}
 		}
 		return nil
