@@ -146,6 +146,82 @@ func addPeer(s *bfdServer, port uint16) error {
 	}, "")
 }
 
+func Test_AddPeerLocalAddressAndBindInterface(t *testing.T) {
+	s := newServer(0)
+	defer s.Stop()
+
+	peerAddress := netip.MustParseAddr("127.0.0.1")
+	localAddress := netip.MustParseAddr("127.0.0.2")
+	err := s.addPeer(context.Background(), peerAddress, oc.BfdConfig{Enabled: true}, localAddress, "lo")
+	assert.NoError(t, err)
+
+	err = eventually(time.Second, func() error {
+		s.peersMutex.RLock()
+		defer s.peersMutex.RUnlock()
+
+		peer := s.peers[peerAddress]
+		if peer == nil {
+			return fmt.Errorf("BFD peer not created")
+		}
+
+		if peer.localAddress != localAddress || peer.bindInterface != "lo" {
+			return fmt.Errorf("unexpected BFD source configuration: address=%s interface=%q", peer.localAddress, peer.bindInterface)
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func Test_UpdateBfdPeerLocalAddress(t *testing.T) {
+	bfd := newServer(0)
+	defer bfd.Stop()
+
+	s := &BgpServer{bfdServer: bfd}
+	peerAddress := netip.MustParseAddr("127.0.0.1")
+	oldLocalAddress := netip.MustParseAddr("127.0.0.2")
+	newLocalAddress := netip.MustParseAddr("127.0.0.3")
+	config := oc.BfdConfig{Enabled: true}
+
+	assert.NoError(t, bfd.addPeer(context.Background(), peerAddress, config, oldLocalAddress, "lo"))
+
+	var oldPeer *bfdPeer
+	assert.NoError(t, eventually(time.Second, func() error {
+		bfd.peersMutex.RLock()
+		defer bfd.peersMutex.RUnlock()
+
+		oldPeer = bfd.peers[peerAddress]
+		if oldPeer == nil {
+			return fmt.Errorf("BFD peer not created")
+		}
+
+		return nil
+	}))
+
+	assert.NoError(t, s.updateBfdPeer(peerAddress.String(), config, config, oldLocalAddress, newLocalAddress, "lo", "lo"))
+	assert.NoError(t, eventually(time.Second, func() error {
+		bfd.peersMutex.RLock()
+		defer bfd.peersMutex.RUnlock()
+
+		peer := bfd.peers[peerAddress]
+		if peer == nil || peer == oldPeer || peer.localAddress != newLocalAddress {
+			return fmt.Errorf("BFD peer was not recreated with local address %s", newLocalAddress)
+		}
+
+		return nil
+	}))
+
+	bfd.peersMutex.RLock()
+	unchangedPeer := bfd.peers[peerAddress]
+	bfd.peersMutex.RUnlock()
+
+	assert.NoError(t, s.updateBfdPeer(peerAddress.String(), config, config, newLocalAddress, newLocalAddress, "lo", "lo"))
+
+	bfd.peersMutex.RLock()
+	assert.Same(t, unchangedPeer, bfd.peers[peerAddress])
+	bfd.peersMutex.RUnlock()
+}
+
 func Test_AddDeletePeer(t *testing.T) {
 	assert := assert.New(t)
 
@@ -265,6 +341,7 @@ func Test_BgpAddDeletePeer(t *testing.T) {
 	assert.NoError(err)
 	defer s.Stop()
 
+	localAddress := netip.MustParseAddr("127.0.0.10")
 	nConf1 := &oc.Neighbor{
 		Config: oc.NeighborConfig{
 			NeighborAddress: netip.MustParseAddr("127.0.0.1"),
@@ -280,6 +357,11 @@ func Test_BgpAddDeletePeer(t *testing.T) {
 	pgConf := &oc.PeerGroup{
 		Config: oc.PeerGroupConfig{
 			PeerGroupName: "group_on",
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				LocalAddress: localAddress,
+			},
 		},
 		Bfd: oc.Bfd{
 			Config: oc.BfdConfig{
@@ -317,6 +399,10 @@ func Test_BgpAddDeletePeer(t *testing.T) {
 		count++
 	})
 	assert.Equal(count, 1)
+
+	s.bfdServer.peersMutex.RLock()
+	assert.Equal(localAddress, s.bfdServer.peers[nConf1.Config.NeighborAddress].localAddress)
+	s.bfdServer.peersMutex.RUnlock()
 
 	// Delete 1 peer
 	err = s.DeletePeer(context.Background(), &api.DeletePeerRequest{
