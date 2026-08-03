@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/netip"
 	"runtime"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -164,6 +166,174 @@ func addPeer(s *bfdServer, port uint16) error {
 		RequiredMinimumReceive:   200000,
 		DesiredMinimumTxInterval: 200000,
 	}, "")
+}
+
+func Test_AddPeerLocalAddressAndBindInterface(t *testing.T) {
+	s := newServer(0)
+	defer s.Stop()
+
+	peerAddress := netip.MustParseAddr("127.0.0.1")
+	localAddress := netip.MustParseAddr("127.0.0.2")
+	err := s.addPeer(context.Background(), peerAddress, oc.BfdConfig{Enabled: true}, localAddress, "lo")
+	assert.NoError(t, err)
+
+	err = eventually(time.Second, func() error {
+		s.peersMutex.RLock()
+		defer s.peersMutex.RUnlock()
+
+		peer := s.peers[peerAddress]
+		if peer == nil {
+			return fmt.Errorf("BFD peer not created")
+		}
+
+		if peer.localAddress != localAddress || peer.bindInterface != "lo" {
+			return fmt.Errorf("unexpected BFD source configuration: address=%s interface=%q", peer.localAddress, peer.bindInterface)
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func Test_BgpUpdatePeerLocalAddress(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	defer s.Stop()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 1, RouterId: "1.1.1.1", ListenPort: -1},
+	}))
+
+	peerAddress := netip.MustParseAddr("127.0.0.2")
+	p := &api.Peer{
+		Conf:      &api.PeerConf{NeighborAddress: peerAddress.String(), PeerAsn: 2},
+		Transport: &api.Transport{LocalAddress: "127.0.0.1", PassiveMode: true},
+		Bfd:       &api.BfdPeerConfig{Enabled: true},
+	}
+	require.NoError(t, s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p}))
+
+	checkPeer := func(previous *bfdPeer) *bfdPeer {
+		t.Helper()
+		var current *bfdPeer
+		require.NoError(t, eventually(time.Second, func() error {
+			s.bfdServer.peersMutex.RLock()
+			defer s.bfdServer.peersMutex.RUnlock()
+			current = s.bfdServer.peers[peerAddress]
+			if current == nil || current == previous || current.localAddress.String() != p.Transport.LocalAddress {
+				return fmt.Errorf("BFD peer was not recreated with local address %s", p.Transport.LocalAddress)
+			}
+			return nil
+		}))
+		return current
+	}
+	oldPeer := checkPeer(nil)
+	var oldNeighbor *peer
+	require.NoError(t, s.mgmtOperation(func() error {
+		oldNeighbor = s.neighborMap[peerAddress]
+		return nil
+	}, true))
+
+	// Transport changes recreate the neighbor, including its BFD session.
+	p.Transport.LocalAddress = "127.0.0.3"
+	_, err := s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: p})
+	require.NoError(t, err)
+	oldPeer = checkPeer(oldPeer)
+	require.NoError(t, s.mgmtOperation(func() error {
+		assert.NotSame(t, oldNeighbor, s.neighborMap[peerAddress])
+		oldNeighbor = s.neighborMap[peerAddress]
+		return nil
+	}, true))
+
+	// BFD-only changes retain the neighbor and preserve the source address.
+	p.Bfd.DetectionMultiplier = 7
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: p})
+	require.NoError(t, err)
+	unchangedPeer := checkPeer(oldPeer)
+	require.NoError(t, s.mgmtOperation(func() error {
+		assert.Same(t, oldNeighbor, s.neighborMap[peerAddress])
+		return nil
+	}, true))
+
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: p})
+	require.NoError(t, err)
+	s.bfdServer.peersMutex.RLock()
+	assert.Same(t, unchangedPeer, s.bfdServer.peers[peerAddress])
+	s.bfdServer.peersMutex.RUnlock()
+}
+
+type bfdLocalAddrConn struct {
+	*net.TCPConn
+	localAddr *net.TCPAddr
+}
+
+func (c *bfdLocalAddrConn) LocalAddr() net.Addr {
+	return c.localAddr
+}
+
+func Test_DynamicNeighborBfdLocalAddress(t *testing.T) {
+	for _, tt := range []struct {
+		name, network, address, prefix, localAddress, zone string
+	}{
+		{"IPv4 unset", "tcp4", "127.0.0.1:0", "127.0.0.0/8", "", ""},
+		{"IPv4 wildcard", "tcp4", "127.0.0.1:0", "127.0.0.0/8", "0.0.0.0", ""},
+		{"IPv6 unset", "tcp6", "[::1]:0", "::1/128", "", ""},
+		{"IPv6 wildcard", "tcp6", "[::1]:0", "::1/128", "::", ""},
+		{"IPv6 zone", "tcp6", "[::1]:0", "::1/128", "::", "test-zone"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewBgpServer()
+			go s.Serve()
+			defer s.Stop()
+			require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+				Global: &api.Global{Asn: 1, RouterId: "1.1.1.1", ListenPort: -1},
+			}))
+			require.NoError(t, s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+				PeerGroup: &api.PeerGroup{
+					Conf:      &api.PeerGroupConf{PeerGroupName: "dynamic", PeerAsn: 2},
+					Transport: &api.Transport{LocalAddress: tt.localAddress},
+					Bfd:       &api.BfdPeerConfig{Enabled: true},
+				},
+			}))
+			require.NoError(t, s.AddDynamicNeighbor(context.Background(), &api.AddDynamicNeighborRequest{
+				DynamicNeighbor: &api.DynamicNeighbor{Prefix: tt.prefix, PeerGroup: "dynamic"},
+			}))
+
+			listener, err := net.Listen(tt.network, tt.address)
+			require.NoError(t, err)
+			defer listener.Close()
+			client, err := net.DialTimeout(tt.network, listener.Addr().String(), time.Second)
+			require.NoError(t, err)
+			defer client.Close()
+			conn, err := listener.Accept()
+			require.NoError(t, err)
+			defer conn.Close()
+			if tt.zone != "" {
+				// Loopback sockets have no zone; supply one to check scope preservation
+				// without requiring a configured link-local interface on the test host.
+				localAddr := *conn.LocalAddr().(*net.TCPAddr)
+				localAddr.Zone = tt.zone
+				conn = &bfdLocalAddrConn{TCPConn: conn.(*net.TCPConn), localAddr: &localAddr}
+			}
+			localAddress := conn.LocalAddr().(*net.TCPAddr).AddrPort().Addr()
+			peerAddress := conn.RemoteAddr().(*net.TCPAddr).AddrPort().Addr()
+
+			require.NoError(t, s.mgmtOperation(func() error {
+				s.passConnToPeer(conn)
+				return nil
+			}, true))
+			require.NoError(t, eventually(time.Second, func() error {
+				s.bfdServer.peersMutex.RLock()
+				defer s.bfdServer.peersMutex.RUnlock()
+				p := s.bfdServer.peers[peerAddress]
+				if p == nil {
+					return fmt.Errorf("BFD peer not created")
+				}
+				if p.localAddress != localAddress {
+					return fmt.Errorf("BFD source %s does not match accepted socket address %s", p.localAddress, localAddress)
+				}
+				return nil
+			}))
+		})
+	}
 }
 
 func Test_AddDeletePeer(t *testing.T) {
@@ -319,6 +489,7 @@ func Test_BgpAddDeletePeer(t *testing.T) {
 	assert.NoError(err)
 	defer s.Stop()
 
+	localAddress := netip.MustParseAddr("127.0.0.10")
 	nConf1 := &oc.Neighbor{
 		Config: oc.NeighborConfig{
 			NeighborAddress: netip.MustParseAddr("127.0.0.1"),
@@ -334,6 +505,11 @@ func Test_BgpAddDeletePeer(t *testing.T) {
 	pgConf := &oc.PeerGroup{
 		Config: oc.PeerGroupConfig{
 			PeerGroupName: "group_on",
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				LocalAddress: localAddress,
+			},
 		},
 		Bfd: oc.Bfd{
 			Config: oc.BfdConfig{
@@ -371,6 +547,10 @@ func Test_BgpAddDeletePeer(t *testing.T) {
 		count++
 	})
 	assert.Equal(count, 1)
+
+	s.bfdServer.peersMutex.RLock()
+	assert.Equal(localAddress, s.bfdServer.peers[nConf1.Config.NeighborAddress].localAddress)
+	s.bfdServer.peersMutex.RUnlock()
 
 	// Delete 1 peer
 	err = s.DeletePeer(context.Background(), &api.DeletePeerRequest{

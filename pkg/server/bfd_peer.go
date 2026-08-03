@@ -49,6 +49,7 @@ type bfdPeer struct {
 	logger        *slog.Logger
 	peerAddress   netip.Addr
 	peerPort      int
+	localAddress  netip.Addr
 	bindInterface string
 
 	udpClient *net.UDPConn
@@ -110,6 +111,10 @@ type bfdPeer struct {
 }
 
 func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig, bindInterface string) *bfdPeer {
+	return newBfdPeer(ps, logger, peerAddress, config, netip.Addr{}, bindInterface)
+}
+
+func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string) *bfdPeer {
 	peerPort := int(config.Port)
 	if peerPort == 0 {
 		peerPort = BfdServerPort
@@ -120,6 +125,7 @@ func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, confi
 		logger:        logger,
 		peerAddress:   peerAddress,
 		peerPort:      peerPort,
+		localAddress:  localAddress,
 		bindInterface: bindInterface,
 
 		myDiscriminator: randomBFDMyDiscriminator(),
@@ -257,10 +263,21 @@ func (p *bfdPeer) remoteUDPAddr() *net.UDPAddr {
 	}
 }
 
-func (p *bfdPeer) startClient() {
-	localAddress := &net.UDPAddr{
+func (p *bfdPeer) localUDPAddr() *net.UDPAddr {
+	addr := &net.UDPAddr{
 		Port: randRange(bfdSourcePortMin, bfdSourcePortMax),
 	}
+
+	if p.localAddress.IsValid() && !p.localAddress.IsUnspecified() {
+		addr.IP = p.localAddress.AsSlice()
+		addr.Zone = p.localAddress.Zone()
+	}
+
+	return addr
+}
+
+func (p *bfdPeer) startClient() {
+	localAddress := p.localUDPAddr()
 
 	remoteAddress := p.remoteUDPAddr()
 
