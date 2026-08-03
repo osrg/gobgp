@@ -360,6 +360,14 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		peer.fsm.logger.Debug("Accepted a new passive connection")
 		peer.PassConn(conn)
 	} else if pg := s.matchLongestDynamicNeighborPrefix(addr.WithZone("").String()); pg != nil {
+		localTCPAddr, ok := conn.LocalAddr().(*net.TCPAddr)
+		if !ok {
+			s.logger.Warn("Failed to get TCPAddr from LocalAddr", slog.String("Topic", "Server"))
+			conn.Close()
+			return
+		}
+		localAddr, _ := netip.AddrFromSlice(localTCPAddr.IP)
+		localAddr = localAddr.WithZone(localTCPAddr.Zone)
 		s.logger.Debug("Accepted a new dynamic neighbor",
 			slog.String("Topic", "Peer"),
 			slog.String("Key", addr.String()),
@@ -390,7 +398,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		// register BFD for the dynamic neighbor too (explicit neighbors do this in addNeighbor): the
 		// BFD config is inherited from the peer group. Without this, BFD never runs for dynamic peers.
 		if s.bfdServer != nil && conf.Bfd.Config.Enabled {
-			if err := s.bfdServer.AddPeer(context.Background(), addr, conf.Bfd.Config, s.bgpConfig.Global.Config.BindToDevice); err != nil {
+			if err := s.bfdServer.addPeer(context.Background(), addr, conf.Bfd.Config, localAddr, s.bgpConfig.Global.Config.BindToDevice); err != nil {
 				s.logger.Warn("failed to add BFD peer for dynamic neighbor",
 					slog.String("Topic", "Peer"),
 					slog.String("Key", addr.String()),
@@ -3664,7 +3672,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	s.neighborMap[ipAddr] = peer
 	s.rebuildLocalClusterIDs()
 	if s.bfdServer != nil {
-		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, c.Bfd.Config, c.Transport.Config.BindInterface); err != nil {
+		if err := s.bfdServer.addPeer(context.Background(), ipAddr, c.Bfd.Config, c.Transport.Config.LocalAddress, c.Transport.Config.BindInterface); err != nil {
 			s.logger.Warn("failed to add BFD peer",
 				slog.String("Topic", "Peer"),
 				slog.String("Key", addr),
@@ -3748,6 +3756,7 @@ func apiBfdSessionStateToOC(state api.BfdSessionState) oc.BfdSessionState {
 func (s *BgpServer) updateBfdPeer(
 	addr string,
 	oldConfig, newConfig oc.BfdConfig,
+	localAddress netip.Addr,
 	oldBindInterface, newBindInterface string,
 ) error {
 	if s.bfdServer == nil || oldConfig.Equal(&newConfig) && oldBindInterface == newBindInterface {
@@ -3766,7 +3775,7 @@ func (s *BgpServer) updateBfdPeer(
 	}
 
 	if newConfig.Enabled {
-		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, newConfig, newBindInterface); err != nil {
+		if err := s.bfdServer.addPeer(context.Background(), ipAddr, newConfig, localAddress, newBindInterface); err != nil {
 			return err
 		}
 	}
@@ -4194,6 +4203,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 			err = s.updateBfdPeer(
 				addr,
 				original.Bfd.Config, c.Bfd.Config,
+				c.Transport.Config.LocalAddress,
 				original.Transport.Config.BindInterface, c.Transport.Config.BindInterface,
 			)
 		}
