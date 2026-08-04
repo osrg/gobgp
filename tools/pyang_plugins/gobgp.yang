@@ -1692,4 +1692,179 @@ module gobgp {
     description "BFD configuration for neighbor";
     uses gobgp-bfd-config-set;
   }
+
+  // The keychain definitions below follow the structure of
+  // openconfig-keychain 0.5.0, limited to fields supported by GoBGP.
+
+  identity CRYPTO_TYPE {
+    description
+      "Base identify for the cryptographic algorithm";
+  }
+
+  identity HMAC_SHA_1_96 {
+    base CRYPTO_TYPE;
+    description
+      "HMAC-SHA-1-96 keyed hash algorithm constructed from SHA-1 hash
+      function and used as a HMAC, operating on 64-byte blocks of data.";
+    reference
+      "RFC 2404 - The Use of HMAC-SHA-1-96 within ESP and AH";
+  }
+
+  identity AES_128_CMAC_96 {
+    base CRYPTO_TYPE;
+    description
+      "AES-128-CMAC-96 keyed hash function based on a AES-128 block
+      cipher.";
+    reference
+      "RFC 4494 - The AES-CMAC-96 Algorithm and Its Use with IPsec";
+  }
+
+  typedef hex-string-prefixed {
+    type string {
+      pattern '(0x)([0-9a-fA-F]{2})*';
+      length "3..max";
+    }
+    description
+      "A string encoding a hexadecimal number with a prefix of '0x' followed
+      by a list of bytes.";
+  }
+
+  typedef keychain-ref {
+    type leafref {
+      path "/gobgp:keychains/gobgp:keychain/" +
+           "gobgp:config/gobgp:name";
+    }
+    description
+      "A reference to a keychain defined on the system that can be used by
+      modules that require access to keychains.";
+  }
+
+  grouping keychain-base-config {
+    description
+      "This grouping defines key-chain parameters.";
+
+    leaf name {
+      type string;
+      description
+        "Keychain name.";
+    }
+  }
+
+  grouping keychain-key-config {
+    description "This grouping defines key-chain key parameters.";
+
+    leaf key-id {
+      type union {
+        type hex-string-prefixed {
+          length "3..66";
+        }
+        type uint64;
+      }
+      description
+        "Identifier for the key within the keychain.  Note that the
+        hex-string type is deprecated and will be removed from a future
+        version of this model. Implementations should transition to using
+        the hex-string-prefixed type.";
+    }
+
+    leaf secret-key {
+      type string;
+      description
+        "Authentication key supplied as an encrypted value.  The system should store and
+        return the key in encrypted form.";
+    }
+
+    leaf crypto-algorithm {
+      type identityref {
+        base CRYPTO_TYPE;
+      }
+      description
+        "Cryptographic algorithm associated with the key.  Note that not all cryptographic
+        algorithms are available in all contexts (e.g., across different protocols).";
+    }
+
+    leaf receive-id {
+      type uint8;
+      description
+        "TCP-AO receive key identifier associated with this key.";
+    }
+
+    leaf exclude-tcp-options {
+      type boolean;
+      description
+        "Exclude TCP options from TCP-AO message authentication.";
+    }
+  }
+
+  grouping keychain-key-base {
+    description
+      "This grouping defines keychain parameters";
+
+    container keys {
+      description
+        "list of keys to be stored";
+
+      list key {
+        key "key-id";
+        description
+          "List of configured keys for the keychain.";
+
+        leaf key-id {
+          type leafref {
+            path "../config/key-id";
+          }
+          description
+            "Reference to key id.";
+        }
+
+        container config {
+          description
+            "This container defines keychain key configuration.";
+
+          uses keychain-key-config;
+        }
+      }
+    }
+  }
+
+  grouping keychain-common-base {
+    description
+      "This grouping defines keychain parameters";
+
+    container config {
+      description
+        "This container defines keychain configuration.";
+
+      uses keychain-base-config;
+    }
+  }
+
+  grouping keychain-top {
+    description
+      "This grouping define top level structure.";
+
+    container keychains {
+      description
+        "This container defines keychains.";
+
+      list keychain {
+        key "name";
+        description
+          "List of defined keychains.";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "Reference to configured keychain name";
+        }
+
+        uses keychain-common-base;
+        uses keychain-key-base;
+      }
+    }
+  }
+
+  uses keychain-top;
 }

@@ -35,6 +35,31 @@ func TestDetectConfigFileType(t *testing.T) {
 	assert.Equal("json", detectConfigFileType("bgpd.json", "xxx"))
 }
 
+func TestReadTcpAoMasterKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  KeyConfig
+		expect  []byte
+		wantErr bool
+	}{
+		{name: "base64", config: KeyConfig{SecretKey: "AAEC"}, expect: []byte{0, 1, 2}},
+		{name: "missing", wantErr: true},
+		{name: "invalid base64", config: KeyConfig{SecretKey: "%%%"}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key, err := readTcpAoMasterKey(&tt.config)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expect, key)
+		})
+	}
+}
+
 func TestIsAfiSafiChanged(t *testing.T) {
 	v4 := AfiSafi{
 		Config: AfiSafiConfig{

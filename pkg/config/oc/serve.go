@@ -23,6 +23,7 @@ type BgpConfigSet struct {
 	DefinedSets       DefinedSets        `mapstructure:"defined-sets"`
 	PolicyDefinitions []PolicyDefinition `mapstructure:"policy-definitions"`
 	DynamicNeighbors  []DynamicNeighbor  `mapstructure:"dynamic-neighbors"`
+	Keychains         []Keychain         `mapstructure:"keychains"`
 }
 
 func ReadConfigfile(path, format string) (*BgpConfigSet, error) {
