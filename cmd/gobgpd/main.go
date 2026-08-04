@@ -237,17 +237,8 @@ func main() {
 	prometheus.MustRegister(fsmTimingCollector)
 	go bgpServer.Serve()
 
-	if opts.UseSdNotify {
-		if status, err := daemon.SdNotify(false, daemon.SdNotifyReady); !status {
-			if err != nil {
-				logger.Warn("Failed to send notification via sd_notify()", slog.String("Error", err.Error()))
-			} else {
-				logger.Warn("The socket sd_notify() isn't available")
-			}
-		}
-	}
-
 	if opts.ConfigFile == "" {
+		notifyReady(opts.UseSdNotify)
 		<-sigCh
 		stopServer(bgpServer, opts.UseSdNotify)
 		return
@@ -283,6 +274,8 @@ func main() {
 		})
 	}
 
+	notifyReady(opts.UseSdNotify)
+
 	for sig := range sigCh {
 		if sig != syscall.SIGHUP {
 			stopServer(bgpServer, opts.UseSdNotify)
@@ -301,6 +294,20 @@ func main() {
 		if err != nil {
 			logger.Warn("Failed to update config", slog.String("File", opts.ConfigFile), slog.String("Error", err.Error()))
 			continue
+		}
+	}
+}
+
+func notifyReady(useSdNotify bool) {
+	if !useSdNotify {
+		return
+	}
+
+	if status, err := daemon.SdNotify(false, daemon.SdNotifyReady); !status {
+		if err != nil {
+			logger.Warn("Failed to send notification via sd_notify()", slog.String("Error", err.Error()))
+		} else {
+			logger.Warn("The socket sd_notify() isn't available")
 		}
 	}
 }
