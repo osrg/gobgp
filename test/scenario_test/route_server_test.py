@@ -29,6 +29,7 @@ from lib.base import (
     BGP_FSM_ACTIVE,
     BGP_FSM_ESTABLISHED,
     local,
+    wait_for,
 )
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaBGPContainer
@@ -76,18 +77,14 @@ class GoBGPTestBase(unittest.TestCase):
 
     def check_gobgp_local_rib(self):
         for rs_client in self.quaggas.values():
-            done = False
-            for _ in range(self.retry_limit):
-                if done:
-                    break
+            def _has_expected_routes():
                 local_rib = self.gobgp.get_local_rib(rs_client)
                 local_rib = [p['prefix'] for p in local_rib]
 
                 state = self.gobgp.get_neighbor_state(rs_client)
                 self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 if len(local_rib) < (len(self.quaggas) - 1):
-                    time.sleep(self.wait_per_retry)
-                    continue
+                    return False
 
                 self.assertEqual(len(local_rib), (len(self.quaggas) - 1))
 
@@ -96,23 +93,21 @@ class GoBGPTestBase(unittest.TestCase):
                         for r in c.routes:
                             self.assertTrue(r in local_rib)
 
-                done = True
-            if done:
-                continue
-            # should not reach here
-            raise AssertionError
+                return True
+
+            wait_for(
+                _has_expected_routes,
+                timeout=self.retry_limit * self.wait_per_retry,
+                interval=self.wait_per_retry,
+            )
 
     def check_rs_client_rib(self):
         for rs_client in self.quaggas.values():
-            done = False
-            for _ in range(self.retry_limit):
-                if done:
-                    break
+            def _has_expected_routes():
                 global_rib = rs_client.get_global_rib()
                 global_rib = [p['prefix'] for p in global_rib]
                 if len(global_rib) < len(self.quaggas):
-                    time.sleep(self.wait_per_retry)
-                    continue
+                    return False
 
                 self.assertEqual(len(global_rib), len(self.quaggas))
 
@@ -120,11 +115,13 @@ class GoBGPTestBase(unittest.TestCase):
                     for r in c.routes:
                         self.assertTrue(r in global_rib)
 
-                done = True
-            if done:
-                continue
-            # should not reach here
-            raise AssertionError
+                return True
+
+            wait_for(
+                _has_expected_routes,
+                timeout=self.retry_limit * self.wait_per_retry,
+                interval=self.wait_per_retry,
+            )
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -217,11 +214,7 @@ class GoBGPTestBase(unittest.TestCase):
         self.gobgp.wait_for(expected_state=BGP_FSM_ESTABLISHED, peer=q3)
 
         def check_nexthop(target_prefix, expected_nexthop):
-            is_done = False
-            for _ in range(self.retry_limit):
-                if is_done:
-                    break
-                time.sleep(self.wait_per_retry)
+            def _has_expected_nexthop():
                 for path in q1.get_global_rib():
                     if path['prefix'] == target_prefix:
                         print("{0}'s nexthop is {1}".format(path['prefix'],
@@ -229,9 +222,15 @@ class GoBGPTestBase(unittest.TestCase):
                         n_addrs = [i[1].split('/')[0] for i in
                                    expected_nexthop.ip_addrs]
                         if path['nexthop'] in n_addrs:
-                            is_done = True
-                            break
-            return is_done
+                            return True
+                return False
+
+            wait_for(
+                _has_expected_nexthop,
+                timeout=self.retry_limit * self.wait_per_retry,
+                interval=self.wait_per_retry,
+            )
+            return True
 
         done = check_nexthop('10.0.6.0/24', q3)
         self.assertTrue(done)
@@ -247,5 +246,3 @@ class GoBGPTestBase(unittest.TestCase):
 
         done = check_nexthop('10.0.6.0/24', q2)
         self.assertTrue(done)
-
-

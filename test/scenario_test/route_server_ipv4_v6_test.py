@@ -25,7 +25,7 @@ collections.Callable = collections.abc.Callable
 from lib.noseplugin import parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED, local
+from lib.base import BGP_FSM_ESTABLISHED, local, wait_for
 from lib.gobgp import GoBGPContainer
 from lib.quagga import QuaggaBGPContainer
 
@@ -78,18 +78,13 @@ class GoBGPIPv6Test(unittest.TestCase):
 
     def check_gobgp_local_rib(self, ctns, rf):
         for rs_client in ctns.values():
-            done = False
-            for _ in range(self.retry_limit):
-                if done:
-                    break
-
+            def _has_expected_routes():
                 state = self.gobgp.get_neighbor_state(rs_client)
                 self.assertEqual(state, BGP_FSM_ESTABLISHED)
                 local_rib = self.gobgp.get_local_rib(rs_client, rf=rf)
                 local_rib = [p["prefix"] for p in local_rib]
                 if len(local_rib) < (len(ctns) - 1):
-                    time.sleep(self.wait_per_retry)
-                    continue
+                    return False
 
                 self.assertEqual(len(local_rib), (len(ctns) - 1))
 
@@ -98,23 +93,21 @@ class GoBGPIPv6Test(unittest.TestCase):
                         for r in c.routes:
                             self.assertTrue(r in local_rib)
 
-                done = True
-            if done:
-                continue
-            # should not reach here
-            raise AssertionError
+                return True
+
+            wait_for(
+                _has_expected_routes,
+                timeout=self.retry_limit * self.wait_per_retry,
+                interval=self.wait_per_retry,
+            )
 
     def check_rs_client_rib(self, ctns, rf):
         for rs_client in ctns.values():
-            done = False
-            for _ in range(self.retry_limit):
-                if done:
-                    break
+            def _has_expected_routes():
                 global_rib = rs_client.get_global_rib(rf=rf)
                 global_rib = [p['prefix'] for p in global_rib]
                 if len(global_rib) < len(ctns):
-                    time.sleep(self.wait_per_retry)
-                    continue
+                    return False
 
                 self.assertEqual(len(global_rib), len(ctns))
 
@@ -122,11 +115,13 @@ class GoBGPIPv6Test(unittest.TestCase):
                     for r in c.routes:
                         self.assertTrue(r in global_rib)
 
-                done = True
-            if done:
-                continue
-            # should not reach here
-            raise AssertionError
+                return True
+
+            wait_for(
+                _has_expected_routes,
+                timeout=self.retry_limit * self.wait_per_retry,
+                interval=self.wait_per_retry,
+            )
 
     # test each neighbor state is turned establish
     def test_01_neighbor_established(self):
@@ -165,5 +160,4 @@ class GoBGPIPv6Test(unittest.TestCase):
         for q in self.ipv6s.values():
             self.assertEqual(len(self.gobgp.get_adj_rib_out(q, rf='ipv6')), 0)
             self.assertEqual(len(q.get_global_rib(rf='ipv6')), len(q.routes))
-
 

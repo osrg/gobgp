@@ -26,7 +26,7 @@ collections.Callable = collections.abc.Callable
 from lib.noseplugin import parser_option
 
 from lib import base
-from lib.base import BGP_FSM_ESTABLISHED, local
+from lib.base import BGP_FSM_ESTABLISHED, local, wait_for
 from lib.gobgp import GoBGPContainer
 from lib.exabgp import ExaBGPContainer
 
@@ -46,19 +46,6 @@ def lookup_scenario(name):
         if value.__name__ == name:
             return value
     return None
-
-
-def wait_for(f, timeout=120):
-    interval = 1
-    count = 0
-    while True:
-        if f():
-            return
-
-        time.sleep(interval)
-        count += interval
-        if count >= timeout:
-            raise Exception('timeout')
 
 
 @register_scenario
@@ -496,5 +483,4 @@ class TestGoBGPBase(unittest.TestCase):
         for e in self.executors:
             e(self)
             print('[PASS] %s' % e.__qualname__.split('.')[0], file=sys.stderr, flush=True)
-
 
