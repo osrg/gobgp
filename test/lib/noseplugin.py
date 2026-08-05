@@ -6,6 +6,7 @@ class _ParserOption:
     gobgp_log_level = "info"
     test_index = 0
     config_format = "yaml"
+    timeout_scale = 1.0
 
 
 parser_option = _ParserOption()

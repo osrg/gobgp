@@ -18,12 +18,15 @@ import os
 import subprocess
 import time
 import itertools
+import math
 
 import textwrap
 from colored import fg, attr
 
 from docker import APIClient as Client
 import netaddr
+
+from lib.noseplugin import parser_option
 
 
 DEFAULT_TEST_PREFIX = ''
@@ -84,10 +87,47 @@ TEST_CONTAINER_LABEL = 'gobgp-test'
 TEST_NETWORK_LABEL = TEST_CONTAINER_LABEL
 
 
-def local(s, capture=False):
+def _timeout_scale():
+    return max(float(getattr(parser_option, 'timeout_scale', 1.0)), 1.0)
+
+
+def scale_timeout(timeout):
+    if timeout is None:
+        return None
+    return int(math.ceil(float(timeout) * _timeout_scale()))
+
+
+def scale_count(count):
+    return int(math.ceil(float(count) * _timeout_scale()))
+
+
+def local(s, capture=False, timeout=None):
     print('[localhost] local:', s)
     _env = {'NOSE_NOLOGCAPTURE': '1' if capture else '0'}
-    return subprocess.check_output(s, shell=True, env=_env).decode('utf-8').strip()
+    # Keep stderr visible in pytest logs. The Docker CLI often puts the useful
+    # failure reason there, while check_output only preserved stdout.
+    result = subprocess.run(
+        s,
+        shell=True,
+        env=_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=scale_timeout(timeout),
+    )
+    stdout = result.stdout.decode('utf-8')
+    stderr = result.stderr.decode('utf-8')
+    if stderr:
+        print(stderr, end='')
+    if result.returncode != 0:
+        if stdout:
+            print(stdout, end='')
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            s,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return stdout.strip()
 
 
 def yellow(s):
@@ -114,6 +154,7 @@ def community_str(i):
 
 
 def wait_for(f, timeout=DEFAULT_WAIT_TIMEOUT, interval=1, timeout_message='timeout'):
+    timeout = scale_timeout(timeout)
     count = 0
     while True:
         if f():
@@ -133,7 +174,7 @@ def wait_for_completion(f, timeout=DEFAULT_WAIT_TIMEOUT):
 
 
 def try_several_times(f, t=3, s=1):
-    for _ in range(t):
+    for _ in range(scale_count(t)):
         try:
             r = f()
         except RuntimeError:
@@ -145,7 +186,7 @@ def try_several_times(f, t=3, s=1):
 
 def assert_several_times(f, t=DEFAULT_ASSERT_RETRIES, s=1):
     e = AssertionError
-    for _ in range(t):
+    for _ in range(scale_count(t)):
         try:
             f()
         except AssertionError as ae:
@@ -231,7 +272,7 @@ class Bridge(object):
             if self.subnet.version == 6:
                 ip = '--ip6 {0}'.format(ip_addr)
         local("docker network connect {0} {1} {2}".format(ip, self.name, ctn.docker_name()))
-        i = [x for x in list(Client(timeout=60, version='auto').inspect_network(self.id)['Containers'].values()) if x['Name'] == ctn.docker_name()][0]
+        i = [x for x in list(Client(timeout=scale_timeout(60), version='auto').inspect_network(self.id)['Containers'].values()) if x['Name'] == ctn.docker_name()][0]
         if self.subnet.version == 4:
             eth = 'eth{0}'.format(len(ctn.ip_addrs))
             addr = i['IPv4Address']
@@ -297,14 +338,19 @@ class Container(object):
         self.is_running = False
         return ret
 
-    def local(self, cmd, capture=False, stream=False, detach=False, tty=True):
+    def local(self, cmd, capture=False, stream=False, detach=False, tty=True,
+              timeout=None):
         if stream:
-            dckr = Client(timeout=120, version='auto')
+            dckr = Client(timeout=scale_timeout(120), version='auto')
             i = dckr.exec_create(container=self.docker_name(), cmd=cmd)
             return dckr.exec_start(i['Id'], tty=tty, stream=stream, detach=detach)
         else:
             flag = '-d' if detach else ''
-            return local('docker exec {0} {1} {2}'.format(flag, self.docker_name(), cmd), capture)
+            return local(
+                'docker exec {0} {1} {2}'.format(flag, self.docker_name(), cmd),
+                capture,
+                timeout=timeout,
+            )
 
     def get_pid(self):
         if self.is_running:
