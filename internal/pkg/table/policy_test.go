@@ -50,6 +50,97 @@ func TestGetPolicy(t *testing.T) {
 	assert.Equal(t, len(r.GetPolicy("unknown")), 0)
 }
 
+func TestDeletePolicyPreserve(t *testing.T) {
+	r := NewRoutingPolicy(logger)
+
+	statements := []*Statement{
+		{Name: "st1"},
+		{Name: "st2"},
+		{Name: "st3"},
+		{Name: "st4"},
+		{Name: "st5"},
+	}
+
+	for _, st := range statements {
+		err := r.AddStatement(st)
+		require.NoError(t, err)
+	}
+
+	policies := []*Policy{
+		{
+			Name: "p1",
+			Statements: []*Statement{
+				{Name: "st1"},
+				{Name: "st2"},
+				{Name: "st3"},
+			},
+		},
+		{
+			Name: "p2",
+			Statements: []*Statement{
+				{Name: "st2"},
+				{Name: "st3"},
+			},
+		},
+		{
+			Name: "p3",
+			Statements: []*Statement{
+				{Name: "st4"},
+			},
+		},
+		{
+			Name: "p4",
+			Statements: []*Statement{
+				{Name: "st5"},
+			},
+		},
+	}
+
+	for _, p := range policies {
+		err := r.AddPolicy(p, true)
+		require.NoError(t, err)
+	}
+
+	policy := &Policy{
+		Name: "p1",
+		Statements: []*Statement{
+			{Name: "st1"},
+			{Name: "st2"},
+		},
+	}
+	err := r.DeletePolicy(policy, false, false, nil)
+	require.NoError(t, err)
+
+	assert.Len(t, r.GetStatement("st1"), 0, "preserve=false")
+	assert.Len(t, r.GetStatement("st2"), 1, "p2 still uses st2")
+
+	policy = &Policy{
+		Name: "p2",
+	}
+	err = r.DeletePolicy(policy, true, false, nil)
+	require.NoError(t, err)
+
+	assert.Len(t, r.GetStatement("st2"), 0, "preserve=false")
+	assert.Len(t, r.GetStatement("st3"), 1, "p1 still uses st3")
+
+	policy = &Policy{
+		Name:       "p3",
+		Statements: []*Statement{{Name: "st4"}},
+	}
+	err = r.DeletePolicy(policy, false, true, nil)
+	require.NoError(t, err)
+
+	assert.Len(t, r.GetStatement("st4"), 1, "preserve=true")
+
+	policy = &Policy{
+		Name: "p4",
+	}
+	err = r.DeletePolicy(policy, true, true, nil)
+	require.NoError(t, err)
+
+	assert.Len(t, r.GetStatement("st5"), 1, "preserve=true")
+}
+
 func TestPrefixCalcurateNoRange(t *testing.T) {
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("10.0.0.1")}
