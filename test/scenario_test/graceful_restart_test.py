@@ -31,6 +31,7 @@ from lib.base import (
     BGP_FSM_ESTABLISHED,
     GRACEFUL_RESTART_TIME,
     local,
+    wait_for_completion,
 )
 from lib.gobgp import GoBGPContainer
 
@@ -239,15 +240,12 @@ class GoBGPTestBase(unittest.TestCase):
 
         g1.start_gobgp(graceful_restart=True)
 
-        count = 0
-        while (g1.get_neighbor_state(g2) != BGP_FSM_ESTABLISHED
-               or g1.get_neighbor_state(g3) != BGP_FSM_ESTABLISHED):
-            count += 1
+        def _neighbors_reestablished():
             # assert connections are not refused
             self.assertTrue(g1.get_neighbor_state(g2) != BGP_FSM_IDLE)
             self.assertTrue(g1.get_neighbor_state(g3) != BGP_FSM_IDLE)
-            if count > 120:
-                raise Exception('timeout')
-            time.sleep(1)
+            return (g1.get_neighbor_state(g2) == BGP_FSM_ESTABLISHED
+                    and g1.get_neighbor_state(g3) == BGP_FSM_ESTABLISHED)
 
+        wait_for_completion(_neighbors_reestablished)
 

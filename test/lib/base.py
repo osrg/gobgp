@@ -18,6 +18,7 @@ import os
 import subprocess
 import time
 import itertools
+import math
 
 import textwrap
 from colored import fg, attr
@@ -25,11 +26,16 @@ from colored import fg, attr
 from docker import APIClient as Client
 import netaddr
 
+from lib.noseplugin import parser_option
+
 
 DEFAULT_TEST_PREFIX = ''
 DEFAULT_TEST_BASE_DIR = '/tmp/gobgp'
 TEST_PREFIX = DEFAULT_TEST_PREFIX
 TEST_BASE_DIR = DEFAULT_TEST_BASE_DIR
+DEFAULT_WAIT_TIMEOUT = 120
+DEFAULT_REACHABILITY_TIMEOUT = 20
+DEFAULT_ASSERT_RETRIES = 30
 
 BGP_FSM_IDLE = 'idle'
 BGP_FSM_ACTIVE = 'active'
@@ -81,10 +87,47 @@ TEST_CONTAINER_LABEL = 'gobgp-test'
 TEST_NETWORK_LABEL = TEST_CONTAINER_LABEL
 
 
-def local(s, capture=False):
+def _timeout_scale():
+    return max(float(getattr(parser_option, 'timeout_scale', 1.0)), 1.0)
+
+
+def scale_timeout(timeout):
+    if timeout is None:
+        return None
+    return int(math.ceil(float(timeout) * _timeout_scale()))
+
+
+def scale_count(count):
+    return int(math.ceil(float(count) * _timeout_scale()))
+
+
+def local(s, capture=False, timeout=None):
     print('[localhost] local:', s)
     _env = {'NOSE_NOLOGCAPTURE': '1' if capture else '0'}
-    return subprocess.check_output(s, shell=True, env=_env).decode('utf-8').strip()
+    # Keep stderr visible in pytest logs. The Docker CLI often puts the useful
+    # failure reason there, while check_output only preserved stdout.
+    result = subprocess.run(
+        s,
+        shell=True,
+        env=_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=scale_timeout(timeout),
+    )
+    stdout = result.stdout.decode('utf-8')
+    stderr = result.stderr.decode('utf-8')
+    if stderr:
+        print(stderr, end='')
+    if result.returncode != 0:
+        if stdout:
+            print(stdout, end='')
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            s,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return stdout.strip()
 
 
 def yellow(s):
@@ -110,21 +153,28 @@ def community_str(i):
     return ':'.join(reversed(values))
 
 
-def wait_for_completion(f, timeout=120):
-    interval = 1
+def wait_for(f, timeout=DEFAULT_WAIT_TIMEOUT, interval=1, timeout_message='timeout'):
+    timeout = scale_timeout(timeout)
     count = 0
     while True:
         if f():
             return
 
         time.sleep(interval)
-        count += interval
-        if count >= timeout:
-            raise Exception('timeout')
+        if timeout is not None:
+            count += interval
+        if timeout is not None and count >= timeout:
+            if callable(timeout_message):
+                timeout_message = timeout_message()
+            raise Exception('{0} after {1}s'.format(timeout_message, timeout))
+
+
+def wait_for_completion(f, timeout=DEFAULT_WAIT_TIMEOUT):
+    wait_for(f, timeout=timeout)
 
 
 def try_several_times(f, t=3, s=1):
-    for _ in range(t):
+    for _ in range(scale_count(t)):
         try:
             r = f()
         except RuntimeError:
@@ -134,9 +184,9 @@ def try_several_times(f, t=3, s=1):
     raise Exception
 
 
-def assert_several_times(f, t=30, s=1):
+def assert_several_times(f, t=DEFAULT_ASSERT_RETRIES, s=1):
     e = AssertionError
-    for _ in range(t):
+    for _ in range(scale_count(t)):
         try:
             f()
         except AssertionError as ae:
@@ -222,7 +272,7 @@ class Bridge(object):
             if self.subnet.version == 6:
                 ip = '--ip6 {0}'.format(ip_addr)
         local("docker network connect {0} {1} {2}".format(ip, self.name, ctn.docker_name()))
-        i = [x for x in list(Client(timeout=60, version='auto').inspect_network(self.id)['Containers'].values()) if x['Name'] == ctn.docker_name()][0]
+        i = [x for x in list(Client(timeout=scale_timeout(60), version='auto').inspect_network(self.id)['Containers'].values()) if x['Name'] == ctn.docker_name()][0]
         if self.subnet.version == 4:
             eth = 'eth{0}'.format(len(ctn.ip_addrs))
             addr = i['IPv4Address']
@@ -288,14 +338,19 @@ class Container(object):
         self.is_running = False
         return ret
 
-    def local(self, cmd, capture=False, stream=False, detach=False, tty=True):
+    def local(self, cmd, capture=False, stream=False, detach=False, tty=True,
+              timeout=None):
         if stream:
-            dckr = Client(timeout=120, version='auto')
+            dckr = Client(timeout=scale_timeout(120), version='auto')
             i = dckr.exec_create(container=self.docker_name(), cmd=cmd)
             return dckr.exec_start(i['Id'], tty=tty, stream=stream, detach=detach)
         else:
             flag = '-d' if detach else ''
-            return local('docker exec {0} {1} {2}'.format(flag, self.docker_name(), cmd), capture)
+            return local(
+                'docker exec {0} {1} {2}'.format(flag, self.docker_name(), cmd),
+                capture,
+                timeout=timeout,
+            )
 
     def get_pid(self):
         if self.is_running:
@@ -533,7 +588,7 @@ class BGPContainer(Container):
     def get_neighbor_state(self, peer_id):
         raise Exception('implement get_neighbor() method')
 
-    def get_reachability(self, prefix, timeout=20):
+    def get_reachability(self, prefix, timeout=DEFAULT_REACHABILITY_TIMEOUT):
         version = netaddr.IPNetwork(prefix).version
         addr = prefix.split('/')[0]
         if version == 4:
@@ -543,34 +598,30 @@ class BGPContainer(Container):
         else:
             raise Exception('unsupported route family: {0}'.format(version))
         cmd = '/bin/bash -c "/bin/{0} -c 1 -w 1 {1} | xargs echo"'.format(ping_cmd, addr)
-        interval = 1
-        count = 0
-        while True:
+
+        def _reachable():
             res = self.local(cmd, capture=True)
             print(yellow(res))
-            if ('1 packets received' in res or '1 received' in res) and '0% packet loss' in res:
-                break
-            time.sleep(interval)
-            count += interval
-            if count >= timeout:
-                raise Exception('timeout')
+            return ('1 packets received' in res or '1 received' in res) and '0% packet loss' in res
+
+        wait_for(_reachable, timeout=timeout, timeout_message='reachability timeout')
         return True
 
-    def wait_for(self, expected_state, peer, timeout=120):
-        interval = 1
-        count = 0
-        while True:
+    def wait_for(self, expected_state, peer, timeout=DEFAULT_WAIT_TIMEOUT):
+        def _state_matches():
             state = self.get_neighbor_state(peer)
             print(yellow("{0}'s peer {1} state: {2}".format(self.router_id,
                                                             peer.router_id,
                                                             state)))
-            if state == expected_state:
-                return
+            return state == expected_state
 
-            time.sleep(interval)
-            count += interval
-            if count >= timeout:
-                raise Exception('timeout')
+        wait_for(
+            _state_matches,
+            timeout=timeout,
+            timeout_message="timeout waiting for {0}'s peer {1} to be {2}".format(
+                self.router_id, peer.router_id, expected_state,
+            ),
+        )
 
     def add_static_route(self, network, next_hop):
         cmd = '/sbin/ip route add {0} via {1}'.format(network, next_hop)
