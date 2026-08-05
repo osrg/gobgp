@@ -230,10 +230,8 @@ class GoBGPTestBase(unittest.TestCase):
                 timeout=self.retry_limit * self.wait_per_retry,
                 interval=self.wait_per_retry,
             )
-            return True
 
-        done = check_nexthop('10.0.6.0/24', q3)
-        self.assertTrue(done)
+        check_nexthop('10.0.6.0/24', q3)
 
         med300 = {'name': 'med300',
                   'type': 'permit',
@@ -244,5 +242,4 @@ class GoBGPTestBase(unittest.TestCase):
 
         time.sleep(self.wait_per_retry)
 
-        done = check_nexthop('10.0.6.0/24', q2)
-        self.assertTrue(done)
+        check_nexthop('10.0.6.0/24', q2)
