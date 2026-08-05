@@ -4556,7 +4556,12 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 		err = y.Remove(x)
 	}
 	if err == nil && !preserve {
-		for _, st := range y.Statements {
+		statements := x.Statements
+		if all {
+			statements = y.Statements
+		}
+
+		for _, st := range statements {
 			if !r.statementInUse(st) {
 				r.logger.Debug("delete unused statement",
 					slog.String("Topic", "Policy"),
