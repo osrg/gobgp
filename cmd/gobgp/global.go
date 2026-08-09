@@ -59,6 +59,7 @@ const (
 	ctColor
 	ctLb
 	ctMup
+	ctRedirectIP
 )
 
 var extCommNameMap = map[extCommType]string{
@@ -66,6 +67,7 @@ var extCommNameMap = map[extCommType]string{
 	ctDiscard:        "discard",
 	ctRate:           "rate-limit",
 	ctRedirect:       "redirect",
+	ctRedirectIP:     "redirect-to-ip",
 	ctMark:           "mark",
 	ctAction:         "action",
 	ctRT:             "rt",
@@ -88,6 +90,7 @@ var extCommValueMap = map[string]extCommType{
 	extCommNameMap[ctDiscard]:        ctDiscard,
 	extCommNameMap[ctRate]:           ctRate,
 	extCommNameMap[ctRedirect]:       ctRedirect,
+	extCommNameMap[ctRedirectIP]:     ctRedirectIP,
 	extCommNameMap[ctMark]:           ctMark,
 	extCommNameMap[ctAction]:         ctAction,
 	extCommNameMap[ctRT]:             ctRT,
@@ -151,6 +154,42 @@ func redirectParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
 		return []bgp.ExtendedCommunityInterface{ex}, nil
 	}
 	return nil, fmt.Errorf("invalid redirect")
+}
+
+// redirectIPParser parses "redirect-to-ip <address> [copy]". Unlike
+// redirectParser, the argument is a forwarding target, not a route target.
+func redirectIPParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
+	if len(args) < 2 || args[0] != extCommNameMap[ctRedirectIP] {
+		return nil, fmt.Errorf("invalid redirect-to-ip")
+	}
+	isCopy := false
+	switch len(args) {
+	case 2:
+	case 3:
+		if args[2] != "copy" {
+			return nil, fmt.Errorf("invalid redirect-to-ip: unexpected %q, want \"copy\"", args[2])
+		}
+		isCopy = true
+	default:
+		return nil, fmt.Errorf("invalid redirect-to-ip: want <address> [copy]")
+	}
+	addr, err := netip.ParseAddr(args[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid redirect-to-ip target %q: %w", args[1], err)
+	}
+	addr = addr.Unmap()
+	if addr.Is4() {
+		ext, err := bgp.NewFlowSpecRedirectToIPv4Extended(addr, isCopy)
+		if err != nil {
+			return nil, err
+		}
+		return []bgp.ExtendedCommunityInterface{ext}, nil
+	}
+	ext, err := bgp.NewFlowSpecRedirectToIPv6Extended(addr, isCopy)
+	if err != nil {
+		return nil, err
+	}
+	return []bgp.ExtendedCommunityInterface{ext}, nil
 }
 
 func markParser(args []string) ([]bgp.ExtendedCommunityInterface, error) {
@@ -469,6 +508,7 @@ var extCommParserMap = map[extCommType]func([]string) ([]bgp.ExtendedCommunityIn
 	ctDiscard:        rateLimitParser,
 	ctRate:           rateLimitParser,
 	ctRedirect:       redirectParser,
+	ctRedirectIP:     redirectIPParser,
 	ctMark:           markParser,
 	ctAction:         actionParser,
 	ctRT:             rtParser,
@@ -3232,7 +3272,7 @@ func parsePath(rf bgp.Family, args []string) (*api.Path, error) {
 		ipv6extcomms := make([]bgp.ExtendedCommunityInterface, 0)
 		for _, com := range extcomms {
 			switch com.(type) {
-			case *bgp.RedirectIPv6AddressSpecificExtended:
+			case *bgp.RedirectIPv6AddressSpecificExtended, *bgp.FlowSpecRedirectToIPv6Extended:
 				ipv6extcomms = append(ipv6extcomms, com)
 			default:
 				normalextcomms = append(normalextcomms, com)
@@ -3320,6 +3360,7 @@ usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
                %s |
                %s <RATE> [as <AS>] |
                %s <RT> [color <color>] [prefix <prefix>] [locator-node-length <length>] [function-length <length>] [behavior <behavior>] |
+               %s <ADDRESS> [copy] |
                %s <DEC_NUM> |
                %s { sample | terminal | sample-terminal } }...
     <RT> : xxx:yyy, xxx.xxx.xxx.xxx:yyy, xxxx::xxxx:yyy, xxx.xxx:yyy`,
@@ -3335,6 +3376,7 @@ usage: %s rib -a %%s %s%%s match <MATCH> then <THEN>%%s%%s%%s
 			extCommNameMap[ctDiscard],
 			extCommNameMap[ctRate],
 			extCommNameMap[ctRedirect],
+			extCommNameMap[ctRedirectIP],
 			extCommNameMap[ctMark],
 			extCommNameMap[ctAction],
 		)

@@ -342,6 +342,7 @@ message IP6ExtendedCommunitiesAttribute {
     oneof extcom {
       IPv6AddressSpecificExtended ipv6_address_specific = 1;
       RedirectIPv6AddressSpecificExtended redirect_ipv6_address_specific = 2;
+      FlowSpecRedirectToIPv6Extended flow_spec_redirect_to_ipv6 = 3;
     }
   }
   repeated Community communities = 1;

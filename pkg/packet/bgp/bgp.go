@@ -233,6 +233,8 @@ const (
 	EC_SUBTYPE_L2_INFO                 ExtendedCommunityAttrSubType = 0x0A // EC_TYPE: 0x80
 	EC_SUBTYPE_FLOWSPEC_REDIRECT_IP6   ExtendedCommunityAttrSubType = 0x0B // EC_TYPE: 0x80
 
+	EC_SUBTYPE_FLOWSPEC_REDIRECT_IP ExtendedCommunityAttrSubType = 0x0C // EC_TYPE: 0x01 (IPv4), 0x00 (IPv6)
+
 	EC_SUBTYPE_MAC_MOBILITY    ExtendedCommunityAttrSubType = 0x00 // EC_TYPE: 0x06
 	EC_SUBTYPE_ESI_LABEL       ExtendedCommunityAttrSubType = 0x01 // EC_TYPE: 0x06
 	EC_SUBTYPE_ES_IMPORT       ExtendedCommunityAttrSubType = 0x02 // EC_TYPE: 0x06
@@ -14589,6 +14591,124 @@ func NewRedirectIPv4AddressSpecificExtended(ipv4 netip.Addr, localAdmin uint16) 
 	return &RedirectIPv4AddressSpecificExtended{*e}, nil
 }
 
+// FlowSpecRedirectToIPv4Extended is the redirect-to-IPv4 action of
+// draft-ietf-idr-flowspec-redirect-ip-16. Unlike the Redirect* types,
+// which carry a route target (redirect-to-VRF, RFC 8955 section 7.4),
+// the value is a forwarding target. Copy is the C bit.
+type FlowSpecRedirectToIPv4Extended struct {
+	Target netip.Addr
+	Copy   bool
+}
+
+const flowSpecRedirectToIPCopyBit uint16 = 0x0001
+
+func flowSpecRedirectLocalAdmin(isCopy bool) uint16 {
+	if isCopy {
+		return flowSpecRedirectToIPCopyBit
+	}
+	return 0
+}
+
+func (e *FlowSpecRedirectToIPv4Extended) Serialize() ([]byte, error) {
+	if !e.Target.Is4() {
+		return nil, fmt.Errorf("redirect-to-ipv4 target must be an IPv4 address: %s", e.Target)
+	}
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_TRANSITIVE_IP4_SPECIFIC)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_REDIRECT_IP)
+	copy(buf[2:6], e.Target.AsSlice())
+	binary.BigEndian.PutUint16(buf[6:8], flowSpecRedirectLocalAdmin(e.Copy))
+	return buf, nil
+}
+
+func (e *FlowSpecRedirectToIPv4Extended) IsCopy() bool { return e.Copy }
+
+func (e *FlowSpecRedirectToIPv4Extended) String() string {
+	if e.Copy {
+		return "copy-to-ip: " + e.Target.String()
+	}
+	return "redirect-to-ip: " + e.Target.String()
+}
+
+func (e *FlowSpecRedirectToIPv4Extended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Target  string                       `json:"target"`
+		Copy    bool                         `json:"copy"`
+	}{t, s, e.Target.String(), e.Copy})
+}
+
+func (e *FlowSpecRedirectToIPv4Extended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_TRANSITIVE_IP4_SPECIFIC, EC_SUBTYPE_FLOWSPEC_REDIRECT_IP
+}
+
+func (e *FlowSpecRedirectToIPv4Extended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func NewFlowSpecRedirectToIPv4Extended(target netip.Addr, isCopy bool) (*FlowSpecRedirectToIPv4Extended, error) {
+	if !target.Is4() {
+		return nil, fmt.Errorf("redirect-to-ipv4 target must be an IPv4 address: %s", target)
+	}
+	return &FlowSpecRedirectToIPv4Extended{Target: target, Copy: isCopy}, nil
+}
+
+// FlowSpecRedirectToIPv6Extended is the IPv6 counterpart, carried in an
+// RFC 5701 IPv6 address-specific community.
+type FlowSpecRedirectToIPv6Extended struct {
+	Target netip.Addr
+	Copy   bool
+}
+
+func (e *FlowSpecRedirectToIPv6Extended) Serialize() ([]byte, error) {
+	// Is6 admits the IPv4-mapped form, which the decoder can produce.
+	if !e.Target.Is6() {
+		return nil, fmt.Errorf("redirect-to-ipv6 target must be an IPv6 address: %s", e.Target)
+	}
+	buf := make([]byte, 20)
+	buf[0] = byte(EC_TYPE_TRANSITIVE_IP6_SPECIFIC)
+	buf[1] = byte(EC_SUBTYPE_FLOWSPEC_REDIRECT_IP)
+	copy(buf[2:18], e.Target.AsSlice())
+	binary.BigEndian.PutUint16(buf[18:20], flowSpecRedirectLocalAdmin(e.Copy))
+	return buf, nil
+}
+
+func (e *FlowSpecRedirectToIPv6Extended) IsCopy() bool { return e.Copy }
+
+func (e *FlowSpecRedirectToIPv6Extended) String() string {
+	if e.Copy {
+		return "copy-to-ip: " + e.Target.String()
+	}
+	return "redirect-to-ip: " + e.Target.String()
+}
+
+func (e *FlowSpecRedirectToIPv6Extended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type    ExtendedCommunityAttrType    `json:"type"`
+		Subtype ExtendedCommunityAttrSubType `json:"subtype"`
+		Target  string                       `json:"target"`
+		Copy    bool                         `json:"copy"`
+	}{t, s, e.Target.String(), e.Copy})
+}
+
+func (e *FlowSpecRedirectToIPv6Extended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_TRANSITIVE_IP6_SPECIFIC, EC_SUBTYPE_FLOWSPEC_REDIRECT_IP
+}
+
+func (e *FlowSpecRedirectToIPv6Extended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func NewFlowSpecRedirectToIPv6Extended(target netip.Addr, isCopy bool) (*FlowSpecRedirectToIPv6Extended, error) {
+	if !target.Is6() {
+		return nil, fmt.Errorf("redirect-to-ipv6 target must be an IPv6 address: %s", target)
+	}
+	return &FlowSpecRedirectToIPv6Extended{Target: target, Copy: isCopy}, nil
+}
+
 type RedirectIPv6AddressSpecificExtended struct {
 	IPv6AddressSpecificExtended
 }
@@ -14899,6 +15019,15 @@ func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 			return NewTwoOctetAsSpecificExtended(subtype, as, localAdmin, transitive), nil
 		}
 	case EC_TYPE_TRANSITIVE_IP4_SPECIFIC:
+		if subtype == EC_SUBTYPE_FLOWSPEC_REDIRECT_IP {
+			target, _ := netip.AddrFromSlice(data[2:6])
+			// Reserved bits are ignored on receipt.
+			la := binary.BigEndian.Uint16(data[6:8])
+			return &FlowSpecRedirectToIPv4Extended{
+				Target: target,
+				Copy:   la&flowSpecRedirectToIPCopyBit != 0,
+			}, nil
+		}
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_IP4_SPECIFIC:
@@ -15959,6 +16088,15 @@ func ParseIP6Extended(data []byte) (ExtendedCommunityInterface, error) {
 	transitive := false
 	switch attrType {
 	case EC_TYPE_TRANSITIVE_IP6_SPECIFIC:
+		if subtype == EC_SUBTYPE_FLOWSPEC_REDIRECT_IP {
+			target, _ := netip.AddrFromSlice(data[2:18])
+			// Reserved bits are ignored on receipt.
+			la := binary.BigEndian.Uint16(data[18:20])
+			return &FlowSpecRedirectToIPv6Extended{
+				Target: target,
+				Copy:   la&flowSpecRedirectToIPCopyBit != 0,
+			}, nil
+		}
 		transitive = true
 		fallthrough
 	case EC_TYPE_NON_TRANSITIVE_IP6_SPECIFIC:

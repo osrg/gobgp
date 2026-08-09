@@ -417,6 +417,7 @@ $ gobgp global rib -a l2vpn-flowspec
 | 0x8007 | action terminal                | Specify the termination of the traffic filter.                           |
 | 0x8007 | action sample-terminal         | Specify both of sample and terminal.                                     |
 | 0x8008 | redirect \<RT>                 | Redirect to VRF which has the given RT in its import policy.             |
+| 0x010c / 0x000c | redirect-to-ip \<ADDRESS> \[copy] | Redirect the traffic to the given address; `copy` mirrors it instead. The first code is the IPv4 form, the second the IPv6 form. |
 | 0x8009 | mark \<VALUE>                  | Modifies the DSCP in IPv4 or Traffic Class in IPv6 with the given value. |
 
 #### Example - accept/discard
@@ -500,6 +501,37 @@ $ gobgp global rib -a ipv4-flowspec
    Network                    Next Hop             AS_PATH              Age        Attrs
 *> [destination: 10.0.0.0/24] fictitious                                00:00:00   [{Origin: ?} {Extcomms: [redirect: 200.200:100]}]
 ```
+
+#### Example - redirect-to-ip
+
+`redirect-to-ip` is not the same action as `redirect`.
+`redirect` carries a route target and selects a VRF (rt-redirect, RFC 7674), while `redirect-to-ip` carries the address the matching traffic is forwarded toward.
+It is defined in [draft-ietf-idr-flowspec-redirect-ip-16](https://datatracker.ietf.org/doc/html/draft-ietf-idr-flowspec-redirect-ip-16), which this implementation follows, as type 0x01 sub-type 0x0c for IPv4 and type 0x000c for IPv6.
+The code points are IANA-assigned; the draft is in the RFC Editor queue.
+The trailing `copy` is optional and sets the C bit, which mirrors the matching traffic to the target instead of diverting it.
+
+```bash
+# redirect flows destined to 192.0.2.1:61001 to 198.51.100.11
+$ gobgp global rib -a ipv4-flowspec add match destination 192.0.2.1/32 destination-port '==61001' then redirect-to-ip 198.51.100.11
+$ gobgp global rib -a ipv4-flowspec
+   Network                                                Next Hop             AS_PATH              Age        Attrs
+*> [destination: 192.0.2.1/32][destination-port: ==61001] fictitious                                00:00:00   [{Origin: ?} {Extcomms: [redirect-to-ip: 198.51.100.11]}]
+
+# mirror (copy) instead of divert
+$ gobgp global rib -a ipv4-flowspec add match destination 192.0.2.1/32 destination-port '==61002' then redirect-to-ip 198.51.100.99 copy
+$ gobgp global rib -a ipv4-flowspec
+   Network                                                Next Hop             AS_PATH              Age        Attrs
+*> [destination: 192.0.2.1/32][destination-port: ==61002] fictitious                                00:00:00   [{Origin: ?} {Extcomms: [copy-to-ip: 198.51.100.99]}]
+
+# IPv6 form
+$ gobgp global rib -a ipv6-flowspec add match destination 2001:db8:1::/64 then redirect-to-ip 2001:db8:2::1
+$ gobgp global rib -a ipv6-flowspec
+   Network                          Next Hop             AS_PATH              Age        Attrs
+*> [destination: 2001:db8:1::/64/0] fictitious                                00:00:00   [{Origin: ?} {Extcomms: [redirect-to-ip: 2001:db8:2::1]}]
+```
+
+A receiver given several redirect-to-IP targets for one flow load-shares across them, following its ECMP configuration.
+Advertise exactly one `redirect-to-ip` community per flow-spec NLRI where every matching packet has to reach the same target, such as per-flow steering to one server.
 
 #### Example - mark
 

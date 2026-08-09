@@ -305,3 +305,51 @@ func Test_ParseRtcArgs(t *testing.T) {
 		})
 	}
 }
+
+func Test_ParseFlowSpecRedirectToIP(t *testing.T) {
+	assert := assert.New(t)
+
+	for _, tc := range []struct {
+		name string
+		args string
+		copy bool
+		want string
+	}{
+		{"IPv4", "redirect-to-ip 198.51.100.11", false, "redirect-to-ip: 198.51.100.11"},
+		{"IPv4 copy", "redirect-to-ip 198.51.100.11 copy", true, "copy-to-ip: 198.51.100.11"},
+		{"IPv6", "redirect-to-ip 2001:db8:1::1", false, "redirect-to-ip: 2001:db8:1::1"},
+		{"IPv6 copy", "redirect-to-ip 2001:db8:1::1 copy", true, "copy-to-ip: 2001:db8:1::1"},
+		{"IPv4-mapped is an IPv4 target", "redirect-to-ip ::ffff:198.51.100.11", false, "redirect-to-ip: 198.51.100.11"},
+	} {
+		exts, err := parseExtendedCommunities(strings.Split(tc.args, " "))
+		assert.NoError(err, tc.name)
+		assert.Len(exts, 1, tc.name)
+		switch e := exts[0].(type) {
+		case *bgp.FlowSpecRedirectToIPv4Extended:
+			assert.Equal(tc.copy, e.IsCopy(), tc.name)
+			assert.Equal(tc.want, e.String(), tc.name)
+		case *bgp.FlowSpecRedirectToIPv6Extended:
+			assert.Equal(tc.copy, e.IsCopy(), tc.name)
+			assert.Equal(tc.want, e.String(), tc.name)
+		default:
+			assert.Fail("unexpected type", "%s: %T", tc.name, exts[0])
+		}
+	}
+
+	for _, bad := range []string{
+		"redirect-to-ip",
+		"redirect-to-ip not-an-address",
+		"redirect-to-ip 198.51.100.11 mirror",
+		"redirect-to-ip 198.51.100.11 copy extra",
+	} {
+		_, err := parseExtendedCommunities(strings.Split(bad, " "))
+		assert.Error(err, bad)
+	}
+
+	// "redirect" must keep meaning rt-redirect.
+	exts, err := parseExtendedCommunities(strings.Split("redirect 10.0.0.1:100", " "))
+	assert.NoError(err)
+	assert.Len(exts, 1)
+	_, isNew := exts[0].(*bgp.FlowSpecRedirectToIPv4Extended)
+	assert.False(isNew, "plain redirect must not produce the redirect-to-ip action")
+}
