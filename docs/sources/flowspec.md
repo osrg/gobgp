@@ -505,7 +505,7 @@ $ gobgp global rib -a ipv4-flowspec
 #### Example - redirect-to-ip
 
 `redirect-to-ip` is not the same action as `redirect`.
-`redirect` carries a route target and selects a VRF (rt-redirect, RFC 7674), while `redirect-to-ip` carries the address the matching traffic is forwarded toward.
+`redirect` carries a route target and selects a VRF (redirect-to-VRF, RFC 8955 section 7.4), while `redirect-to-ip` carries the address the matching traffic is forwarded toward.
 It is defined in [draft-ietf-idr-flowspec-redirect-ip-16](https://datatracker.ietf.org/doc/html/draft-ietf-idr-flowspec-redirect-ip-16), which this implementation follows, as type 0x01 sub-type 0x0c for IPv4 and type 0x000c for IPv6.
 The code points are IANA-assigned; the draft is in the RFC Editor queue.
 The trailing `copy` is optional and sets the C bit, which mirrors the matching traffic to the target instead of diverting it.
