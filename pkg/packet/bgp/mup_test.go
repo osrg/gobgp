@@ -333,6 +333,47 @@ func Test_MUPType2SessionTransformedRouteIPv6(t *testing.T) {
 	}
 }
 
+func Test_MUPType2SessionTransformedRouteRejectsShortEndpointAddressLength(t *testing.T) {
+	assert := assert.New(t)
+	rd, _ := ParseRouteDistinguisher("100:100")
+
+	// ArchType(1) + RouteType(2) + Length(1) + RD(8), so the Endpoint Address
+	// Length octet sits at index 12.
+	const ealOffset = 1 + 2 + 1 + 8
+
+	v4 := NewMUPNLRI(AFI_IP, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED,
+		&MUPType2SessionTransformedRoute{
+			RD:                    rd,
+			EndpointAddressLength: 32,
+			EndpointAddress:       netip.MustParseAddr("10.10.10.1"),
+			TEID:                  netip.MustParseAddr("0.0.0.0"),
+		})
+	buf, err := v4.Serialize()
+	assert.NoError(err)
+	buf[ealOffset] = 16 // below the 32-bit IPv4 endpoint address size
+	_, err = NLRIFromSlice(RF_MUP_IPv4, buf)
+	assert.Error(err)
+	buf[ealOffset] = 32 // a legal length still decodes
+	_, err = NLRIFromSlice(RF_MUP_IPv4, buf)
+	assert.NoError(err)
+
+	v6 := NewMUPNLRI(AFI_IP6, MUP_ARCH_TYPE_3GPP_5G, MUP_ROUTE_TYPE_TYPE_2_SESSION_TRANSFORMED,
+		&MUPType2SessionTransformedRoute{
+			RD:                    rd,
+			EndpointAddressLength: 128,
+			EndpointAddress:       netip.MustParseAddr("2001::1"),
+			TEID:                  netip.MustParseAddr("0.0.0.0"),
+		})
+	buf6, err := v6.Serialize()
+	assert.NoError(err)
+	buf6[ealOffset] = 64 // below the 128-bit IPv6 endpoint address size
+	_, err = NLRIFromSlice(RF_MUP_IPv6, buf6)
+	assert.Error(err)
+	buf6[ealOffset] = 128 // a legal length still decodes
+	_, err = NLRIFromSlice(RF_MUP_IPv6, buf6)
+	assert.NoError(err)
+}
+
 func Test_MUPType1SessionTransformedRouteTLVs(t *testing.T) {
 	assert := assert.New(t)
 	rd, _ := ParseRouteDistinguisher("100:100")
