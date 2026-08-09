@@ -89,6 +89,18 @@ message RedirectIPv4AddressSpecificExtended {
   uint32 local_admin = 2;
 }
 
+// draft-ietf-idr-flowspec-redirect-ip-16, type 0x01 sub-type 0x0c.
+message FlowSpecRedirectToIPv4Extended {
+  string address = 1;
+  bool copy = 2;
+}
+
+// The IPv6 form of the same draft, RFC 5701 type 0x000c.
+message FlowSpecRedirectToIPv6Extended {
+  string address = 1;
+  bool copy = 2;
+}
+
 message RedirectFourOctetAsSpecificExtended {
   uint32 asn = 1;
   uint32 local_admin = 2;
@@ -176,6 +188,8 @@ message ExtendedCommunity {
     MUPTwoOctetAsSpecificExtended mup_two_octet_as_specific = 25;
     MUPIPv4AddressSpecificExtended mup_ipv4_address_specific = 26;
     MUPFourOctetAsSpecificExtended mup_four_octet_as_specific = 27;
+    FlowSpecRedirectToIPv4Extended flow_spec_redirect_to_ipv4 = 28;
+    // The IPv6 form lives in IP6ExtendedCommunitiesAttribute.
   }
 }
 

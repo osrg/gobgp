@@ -2435,3 +2435,49 @@ func Test_LsNodeNLRIWithoutBgpRouterIDRoundTrip(t *testing.T) {
 	_, err = UnmarshalNLRI(bgp.RF_LS, marshalled)
 	assert.NoError(t, err)
 }
+
+func Test_ExtendedCommunitiesAttribute_FlowSpecRedirectToIP(t *testing.T) {
+	assert := assert.New(t)
+
+	for _, isCopy := range []bool{false, true} {
+		input := &api.ExtendedCommunitiesAttribute{
+			Communities: []*api.ExtendedCommunity{
+				{Extcom: &api.ExtendedCommunity_FlowSpecRedirectToIpv4{FlowSpecRedirectToIpv4: &api.FlowSpecRedirectToIPv4Extended{
+					Address: "198.51.100.11",
+					Copy:    isCopy,
+				}}},
+			},
+		}
+
+		a := &api.Attribute{Attr: &api.Attribute_ExtendedCommunities{ExtendedCommunities: input}}
+		n, err := UnmarshalAttribute(a)
+		assert.NoError(err)
+
+		output, err := NewExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeExtendedCommunities))
+		assert.NoError(err)
+		assert.True(proto.Equal(input, output))
+	}
+}
+
+func Test_IP6ExtendedCommunitiesAttribute_FlowSpecRedirectToIP(t *testing.T) {
+	assert := assert.New(t)
+
+	for _, isCopy := range []bool{false, true} {
+		input := &api.IP6ExtendedCommunitiesAttribute{
+			Communities: []*api.IP6ExtendedCommunitiesAttribute_Community{
+				{Extcom: &api.IP6ExtendedCommunitiesAttribute_Community_FlowSpecRedirectToIpv6{FlowSpecRedirectToIpv6: &api.FlowSpecRedirectToIPv6Extended{
+					Address: "2001:db8::1",
+					Copy:    isCopy,
+				}}},
+			},
+		}
+
+		a := &api.Attribute{Attr: &api.Attribute_Ip6ExtendedCommunities{Ip6ExtendedCommunities: input}}
+		n, err := UnmarshalAttribute(a)
+		assert.NoError(err)
+
+		output, err := NewIP6ExtendedCommunitiesAttributeFromNative(n.(*bgp.PathAttributeIP6ExtendedCommunities))
+		assert.NoError(err)
+		assert.True(proto.Equal(input, output))
+	}
+}
