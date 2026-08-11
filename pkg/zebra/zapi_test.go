@@ -1084,6 +1084,54 @@ func Test_NexthopUpdateBody(t *testing.T) {
 	}
 }
 
+func Test_NexthopUpdateBodyRejectsOversizedLabelNum(t *testing.T) {
+	assert := assert.New(t)
+
+	// zapi6 / frr7.2: MessageLabel is set for the whole body, so each nexthop
+	// carries a label_num followed by that many labels.
+	version := uint8(6)
+	software := NewSoftware(version, "frr7.2")
+
+	appendNexthop := func(buf []byte, gate []byte, ifindex uint32, labelNum uint8, labels []uint32) []byte {
+		buf = append(buf, 0x00, 0x00, 0x00, 0x00) // vrf_id
+		buf = append(buf, byte(nexthopTypeIPv4IFIndex))
+		buf = append(buf, gate...)
+		idx := make([]byte, 4)
+		binary.BigEndian.PutUint32(idx, ifindex)
+		buf = append(buf, idx...)
+		buf = append(buf, labelNum)
+		for _, l := range labels {
+			lb := make([]byte, 4)
+			binary.LittleEndian.PutUint32(lb, l)
+			buf = append(buf, lb...)
+		}
+		return buf
+	}
+
+	// nexthop[0] declares 20 labels (> maxMplsLabel). A well-formed nexthop[1]
+	// follows at the position a conformant reader lands on.
+	labels := make([]uint32, maxMplsLabel+4)
+	for i := range labels {
+		labels[i] = uint32(1000 + i)
+	}
+
+	buf := []byte{0x00, 0x02, 0x20, 0xc0, 0xa8, 0x01, 0x01} // family, prefixlen, prefix
+	buf = append(buf, 0x00, 0x00, 0x00)                     // type, instance
+	buf = append(buf, 0x00)                                 // distance
+	metric := make([]byte, 4)
+	binary.BigEndian.PutUint32(metric, 1)
+	buf = append(buf, metric...)
+	buf = append(buf, 0x02) // number of nexthops
+	buf = appendNexthop(buf, []byte{0xc0, 0xa8, 0x00, 0x01}, 2, uint8(len(labels)), labels)
+	buf = appendNexthop(buf, []byte{0x0a, 0x00, 0x00, 0x09}, 9, 0, nil)
+
+	b := &NexthopUpdateBody{}
+	err := b.decodeFromBytes(buf, version, software)
+	// Before the fix the oversized count was clamped and decoding succeeded,
+	// framing nexthop[1] from nexthop[0]'s trailing label octets.
+	assert.Error(err)
+}
+
 func Test_GetLabelChunkBody(t *testing.T) {
 	assert := assert.New(t)
 
