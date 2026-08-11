@@ -62,9 +62,9 @@ func runSRPolicyTunnelEncapRound(t *testing.T, withBSID, withCPName, withUnk130,
 	senderPort := 11179 + testTunnelEncapCounter()%100
 	recvPort := senderPort + 1
 	sender := runNewServer(t, as, "10.0.0.1", senderPort)
-	defer sender.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer sender.Stop()
 	receiver := runNewServer(t, as, "10.0.0.2", recvPort)
-	defer receiver.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer receiver.Stop()
 
 	rrOpt := func(_ *BgpServer, _ *oc.Global, p *oc.Neighbor) {
 		p.RouteReflector.Config.RouteReflectorClient = true

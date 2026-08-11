@@ -32,7 +32,7 @@ func TestMetrics(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	p1 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -56,7 +56,7 @@ func TestMetrics(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer t.Stop()
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -195,7 +195,7 @@ func TestFSMLoopMetrics(t *testing.T) {
 		},
 	})
 	require.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// wait to ensure we started BGP
 	time.Sleep(1 * time.Second)

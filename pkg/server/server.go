@@ -138,7 +138,6 @@ type BgpServer struct {
 	bgpConfig     oc.Bgp
 	acceptCh      chan net.Conn
 	mgmtCh        chan *mgmtOp
-	closeCh       chan struct{}
 	policy        *table.RoutingPolicy
 	listeners     []*netutils.TCPListener
 	neighborMap   map[netip.Addr]*peer
@@ -158,9 +157,18 @@ type BgpServer struct {
 	logger        *slog.Logger
 	logLevelVar   *slog.LevelVar
 	timingHook    FSMTimingHook
-	// manage lifecycle of the server
-	isServing     atomic.Bool
-	shutdownWG    *sync.WaitGroup
+	// Serving lifecycle: Serve owns the management dispatcher goroutine and
+	// publishes its state through isServing. Stop cancels runningCancel and waits
+	// for servingDone; StopBgp must leave this lifecycle running.
+	isServing   atomic.Bool
+	servingDone chan struct{}
+
+	// Serialize StartBgp, StopBgp, and Stop through peer FSM draining and full
+	// server shutdown. Acquire only outside the management dispatcher so it
+	// remains available while a lifecycle operation waits for peer callbacks.
+	bgpLifecycleMu sync.Mutex
+	peerFSMWG      *sync.WaitGroup
+
 	runningCtx    context.Context
 	runningCancel context.CancelFunc
 }
@@ -187,7 +195,6 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		peerGroupMap: make(map[string]*peerGroup),
 		policy:       table.NewRoutingPolicy(logger),
 		mgmtCh:       make(chan *mgmtOp),
-		closeCh:      make(chan struct{}),
 		watcherMap:   make(map[watchEventType][]*watcher),
 		uuidMap:      make(map[string]uuid.UUID),
 		roaManager:   newROAManager(roaTable, logger),
@@ -195,7 +202,8 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		logger:       logger,
 		logLevelVar:  lvl,
 		timingHook:   opts.timingHook,
-		shutdownWG:   &sync.WaitGroup{},
+		servingDone:  make(chan struct{}),
+		peerFSMWG:    &sync.WaitGroup{},
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
@@ -214,11 +222,22 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 }
 
 func (s *BgpServer) Stop() {
-	if err := s.StopBgp(context.Background(), &api.StopBgpRequest{}); err != nil {
+	s.bgpLifecycleMu.Lock()
+	defer s.bgpLifecycleMu.Unlock()
+
+	if err := s.stopBgpLocked(&api.StopBgpRequest{}); err != nil {
 		s.logger.Error("failed to stop BGP server",
 			slog.String("Topic", "BgpServer"),
 			slog.Any("Error", err),
 		)
+	}
+
+	// StopBgp drains peer FSMs while the management dispatcher is still alive.
+	// After that, Stop owns the full server shutdown: cancel Serve and wait for
+	// its goroutine to leave the dispatcher loop.
+	if s.runningCancel != nil {
+		s.runningCancel()
+		<-s.servingDone
 	}
 
 	if s.bfdServer != nil {
@@ -278,7 +297,7 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) error {
 	select {
 	case s.mgmtCh <- op:
 		return <-ch
-	case <-s.closeCh:
+	case <-s.servingDone:
 		return fmt.Errorf("server stopped")
 	}
 }
@@ -287,7 +306,7 @@ func (s *BgpServer) startFsmHandler(peer *peer) {
 	callback := func(e *fsmMsg) {
 		s.handleFSMMessage(peer, e)
 	}
-	peer.startFSM(s.shutdownWG, callback)
+	peer.startFSM(s.peerFSMWG, callback)
 }
 
 func (s *BgpServer) passConnToPeer(conn net.Conn) {
@@ -397,17 +416,16 @@ func (s *BgpServer) Serve() {
 		s.logger.Warn("server is already serving",
 			slog.String("Topic", "BgpServer"),
 		)
+		return
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.runningCtx = ctx
 	s.runningCancel = cancel
-	s.shutdownWG.Add(1)
 	s.listeners = make([]*netutils.TCPListener, 0, 2)
 
 	defer func() {
-		close(s.closeCh)
-		s.shutdownWG.Done()
+		close(s.servingDone)
 		s.isServing.Store(false)
 	}()
 
@@ -2209,12 +2227,17 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	s.bgpLifecycleMu.Lock()
+	defer s.bgpLifecycleMu.Unlock()
+	return s.stopBgpLocked(r)
+}
+
+// stopBgpLocked requires bgpLifecycleMu to remain held until all peer FSMs exit.
+func (s *BgpServer) stopBgpLocked(r *api.StopBgpRequest) error {
 	if !s.isServing.Load() {
 		return fmt.Errorf("BGP server is not running")
 	}
 	err := s.mgmtOperation(func() error {
-		defer s.runningCancel()
-
 		for address, neighbor := range s.neighborMap {
 			c := &oc.Neighbor{Config: oc.NeighborConfig{
 				NeighborAddress: address,
@@ -2227,6 +2250,8 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		for _, l := range s.listeners {
 			l.Close()
 		}
+		s.listeners = make([]*netutils.TCPListener, 0, 2)
+		s.acceptCh = nil
 		s.keychainStore.clearAllKeychains()
 		s.bgpConfig.Global = oc.Global{}
 		return nil
@@ -2235,7 +2260,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		return err
 	}
 
-	s.shutdownWG.Wait()
+	s.peerFSMWG.Wait()
 	return nil
 }
 
@@ -2659,6 +2684,9 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 	if r == nil || r.Global == nil {
 		return fmt.Errorf("nil request")
 	}
+	s.bgpLifecycleMu.Lock()
+	defer s.bgpLifecycleMu.Unlock()
+
 	return s.mgmtOperation(func() error {
 		g := r.Global
 		routerAddr, err := netip.ParseAddr(g.RouterId)
