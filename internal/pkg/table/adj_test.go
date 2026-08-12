@@ -138,7 +138,6 @@ func TestStale(t *testing.T) {
 	assert.Equal(t, 1, len(adj.table[family].GetDestinations()))
 }
 
-
 func TestDropSkipsRejected(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
