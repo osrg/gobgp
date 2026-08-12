@@ -26,6 +26,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -364,6 +365,50 @@ func addTcpAoTestKeychain(t *testing.T, s *BgpServer, name string, sendID, recei
 	chain.Keys[0].ReceiveId = receiveID
 	err := s.AddTcpAoKeychain(context.Background(), &api.AddTcpAoKeychainRequest{Keychain: chain})
 	require.NoError(t, err)
+}
+
+func TestTcpAoAddPeerPolicyFailureCleanup(t *testing.T) {
+	s := startTcpAoTestServer(t)
+	ctx := context.Background()
+	addTcpAoTestKeychain(t, s, "chain", 1, 2)
+	require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: &api.Policy{Name: "valid"}}))
+
+	// A closed listener makes key installation fail without requiring TCP-AO
+	// support from the host kernel.
+	listener, err := netutils.NewTCPListener(s.logger, "127.0.0.1", 0, "", make(chan net.Conn))
+	require.NoError(t, err)
+	listener.Close()
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.listeners = append(s.listeners, listener)
+		s.bgpConfig.Global.Config.Port = 1
+		return nil
+	}, true))
+
+	for _, tc := range []struct {
+		name, policy, wantError string
+	}{
+		{"invalid policy", "missing", "not found policy missing"},
+		{"listener failure", "valid", "failed to configure TCP-AO listener"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := tcpAoTestPeer("192.0.2.1", "chain", 1)
+			p.RouteServer = &api.RouteServer{RouteServerClient: true}
+			p.ApplyPolicy = &api.ApplyPolicy{ImportPolicy: &api.PolicyAssignment{
+				Policies: []*api.Policy{{Name: tc.policy}}, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			}}
+			require.ErrorContains(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: p}), tc.wantError)
+			for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
+				def, policies, err := s.policy.GetPolicyAssignment("192.0.2.1", dir)
+				require.NoError(t, err)
+				require.Equal(t, table.ROUTE_TYPE_NONE, def)
+				require.Empty(t, policies)
+			}
+			require.NoError(t, s.mgmtOperation(func() error {
+				assert.NotContains(t, s.neighborMap, netip.MustParseAddr("192.0.2.1"))
+				return nil
+			}, true))
+		})
+	}
 }
 
 func TestTcpAoPeerOperations(t *testing.T) {
