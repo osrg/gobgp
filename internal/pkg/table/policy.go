@@ -4646,27 +4646,23 @@ func (r *RoutingPolicy) Initialize() error {
 	return nil
 }
 
-func (r *RoutingPolicy) setPeerPolicy(id string, c oc.ApplyPolicy) {
+func (r *RoutingPolicy) setPeerPolicy(id string, c oc.ApplyPolicy) error {
 	for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
 		ps, def, err := r.getAssignmentFromConfig(dir, c)
 		if err != nil {
-			r.logger.Error("failed to get policy info",
-				slog.String("Topic", "Policy"),
-				slog.String("Dir", dir.String()),
-				slog.String("Error", err.Error()))
-			continue
+			return fmt.Errorf("failed to get %s policy info for %s: %w", dir, id, err)
 		}
 		r.setDefaultPolicy(id, dir, def)
 		r.setPolicy(id, dir, ps)
 	}
+	return nil
 }
 
 func (r *RoutingPolicy) SetPeerPolicy(peerId string, c oc.ApplyPolicy) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.setPeerPolicy(peerId, c)
-	return nil
+	return r.setPeerPolicy(peerId, c)
 }
 
 func (r *RoutingPolicy) Reset(rp *oc.RoutingPolicy, ap map[string]oc.ApplyPolicy) error {
@@ -4685,7 +4681,9 @@ func (r *RoutingPolicy) Reset(rp *oc.RoutingPolicy, ap map[string]oc.ApplyPolicy
 	}
 
 	for id, c := range ap {
-		r.setPeerPolicy(id, c)
+		if err := r.setPeerPolicy(id, c); err != nil {
+			return err
+		}
 	}
 	return nil
 }

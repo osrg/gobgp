@@ -496,6 +496,171 @@ func TestModPolicyAssign(t *testing.T) {
 	assert.Equal(len(ps), 2)
 }
 
+func TestSetPoliciesAssignments(t *testing.T) {
+	policy := &api.Policy{Name: "p1"}
+	validAssignments := []*api.PolicyAssignment{
+		{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			Policies:      []*api.Policy{{Name: policy.Name}},
+			DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+		{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+			Policies:      []*api.Policy{{Name: policy.Name}},
+			DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+	}
+	tests := []struct {
+		name              string
+		request           *api.SetPoliciesRequest
+		nextRequest       *api.SetPoliciesRequest
+		err               string
+		expectAssignments bool
+	}{
+		{
+			name: "applies assignments",
+			request: &api.SetPoliciesRequest{
+				Policies:    []*api.Policy{policy},
+				Assignments: validAssignments,
+			},
+			expectAssignments: true,
+		},
+		{
+			name: "missing policy",
+			request: &api.SetPoliciesRequest{
+				Policies: []*api.Policy{policy},
+				Assignments: []*api.PolicyAssignment{{
+					Name:          table.GLOBAL_RIB_NAME,
+					Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+					Policies:      []*api.Policy{{Name: "missing"}},
+					DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+				}},
+			},
+			err: "not found policy missing",
+		},
+		{
+			name: "duplicate policy",
+			request: &api.SetPoliciesRequest{
+				Policies: []*api.Policy{policy},
+				Assignments: []*api.PolicyAssignment{{
+					Name:          table.GLOBAL_RIB_NAME,
+					Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+					Policies:      []*api.Policy{{Name: policy.Name}, {Name: policy.Name}},
+					DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+				}},
+			},
+			err: "duplicated policy p1",
+		},
+		{
+			name: "nil assignment",
+			request: &api.SetPoliciesRequest{
+				Policies:    []*api.Policy{policy},
+				Assignments: []*api.PolicyAssignment{nil},
+			},
+			err: "nil policy assignment",
+		},
+		{
+			name: "nil policy",
+			request: &api.SetPoliciesRequest{
+				Policies: []*api.Policy{policy},
+				Assignments: []*api.PolicyAssignment{{
+					Name:          table.GLOBAL_RIB_NAME,
+					Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+					Policies:      []*api.Policy{nil},
+					DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+				}},
+			},
+			err: "nil policy in assignment",
+		},
+		{
+			name: "without assignments preserves existing assignments",
+			request: &api.SetPoliciesRequest{
+				Policies:    []*api.Policy{policy},
+				Assignments: validAssignments,
+			},
+			nextRequest: &api.SetPoliciesRequest{
+				Policies: []*api.Policy{policy},
+			},
+			expectAssignments: true,
+		},
+		{
+			name: "empty assignment policies clears existing policies",
+			request: &api.SetPoliciesRequest{
+				Policies:    []*api.Policy{policy},
+				Assignments: validAssignments,
+			},
+			nextRequest: &api.SetPoliciesRequest{
+				Policies: []*api.Policy{policy},
+				Assignments: []*api.PolicyAssignment{
+					{
+						Name:          table.GLOBAL_RIB_NAME,
+						Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+						DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+					},
+					{
+						Name:          table.GLOBAL_RIB_NAME,
+						Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+						DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+					},
+				},
+			},
+			expectAssignments: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			s := NewBgpServer()
+			go s.Serve()
+			err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+				Global: &api.Global{
+					Asn:        1,
+					RouterId:   "1.1.1.1",
+					ListenPort: -1,
+				},
+			})
+			require.NoError(err)
+			defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+			err = s.SetPolicies(context.Background(), tt.request)
+			if tt.err != "" {
+				require.ErrorContains(err, tt.err)
+				return
+			}
+			require.NoError(err)
+
+			if tt.nextRequest != nil {
+				err = s.SetPolicies(context.Background(), tt.nextRequest)
+				require.NoError(err)
+			}
+
+			for _, direction := range []api.PolicyDirection{
+				api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+				api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+			} {
+				assignments := []*api.PolicyAssignment{}
+				err = s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+					Name:      table.GLOBAL_RIB_NAME,
+					Direction: direction,
+				}, func(p *api.PolicyAssignment) { assignments = append(assignments, p) })
+				require.NoError(err)
+				require.Len(assignments, 1)
+				require.Equal(api.RouteAction_ROUTE_ACTION_REJECT, assignments[0].DefaultAction)
+				if tt.expectAssignments {
+					require.Len(assignments[0].Policies, 1)
+					require.Equal(policy.Name, assignments[0].Policies[0].Name)
+				} else {
+					require.Empty(assignments[0].Policies)
+				}
+			}
+		})
+	}
+}
+
 func TestBMPMonitoringPolicyFromAPI(t *testing.T) {
 	t.Parallel()
 
