@@ -4777,11 +4777,22 @@ func (r *RoutingPolicy) setPeerPolicy(id string, c oc.ApplyPolicy) {
 	}
 }
 
-func (r *RoutingPolicy) SetPeerPolicy(peerId string, c oc.ApplyPolicy) error {
+func (r *RoutingPolicy) SetPeerPolicy(id string, c oc.ApplyPolicy) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.setPeerPolicy(peerId, c)
+	importPolicies, defaultImport, err := r.getAssignmentFromConfig(POLICY_DIRECTION_IMPORT, c)
+	if err != nil {
+		return fmt.Errorf("failed to get %s policy info for %s: %w", POLICY_DIRECTION_IMPORT, id, err)
+	}
+	exportPolicies, defaultExport, err := r.getAssignmentFromConfig(POLICY_DIRECTION_EXPORT, c)
+	if err != nil {
+		return fmt.Errorf("failed to get %s policy info for %s: %w", POLICY_DIRECTION_EXPORT, id, err)
+	}
+	r.setDefaultPolicy(id, POLICY_DIRECTION_IMPORT, defaultImport)
+	r.setPolicy(id, POLICY_DIRECTION_IMPORT, importPolicies)
+	r.setDefaultPolicy(id, POLICY_DIRECTION_EXPORT, defaultExport)
+	r.setPolicy(id, POLICY_DIRECTION_EXPORT, exportPolicies)
 	return nil
 }
 

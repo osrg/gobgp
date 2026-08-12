@@ -33,6 +33,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSetPeerPolicyAtomic(t *testing.T) {
+	for _, names := range [][]string{{"missing"}, {"new", "new"}} {
+		t.Run(strings.Join(names, ","), func(t *testing.T) {
+			r := NewRoutingPolicy(logger)
+			r.policyMap["old"] = &Policy{Name: "old"}
+			r.policyMap["new"] = &Policy{Name: "new"}
+			initial := oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+				ImportPolicyList: []string{"old"}, ExportPolicyList: []string{"old"},
+				DefaultImportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE,
+				DefaultExportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE,
+			}}
+			require.NoError(t, r.SetPeerPolicy("peer", initial))
+			before := *r.assignmentMap["peer"]
+			invalid := oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+				ImportPolicyList: []string{"new"}, ExportPolicyList: names,
+			}}
+			require.Error(t, r.SetPeerPolicy("peer", invalid))
+			require.Equal(t, before, *r.assignmentMap["peer"])
+			require.Error(t, r.SetPeerPolicy("new-peer", invalid))
+			require.NotContains(t, r.assignmentMap, "new-peer")
+
+			invalid.Config.ExportPolicyList = []string{"new"}
+			require.NoError(t, r.SetPeerPolicy("peer", invalid))
+			for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+				def, ps, err := r.GetPolicyAssignment("peer", dir)
+				require.NoError(t, err)
+				require.Equal(t, ROUTE_TYPE_ACCEPT, def)
+				require.Equal(t, []*Policy{r.policyMap["new"]}, ps)
+			}
+		})
+	}
+}
+
 func TestGetStatement(t *testing.T) {
 	r := NewRoutingPolicy(logger)
 	r.statementMap["statement1"] = &Statement{Name: "statement1"}

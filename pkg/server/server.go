@@ -3719,15 +3719,6 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if err != nil {
 		return err
 	}
-	if s.bgpConfig.Global.Config.Port > 0 {
-		if err := s.addAuthKeysToListeners(s.listListeners(addr), ipAddr, c, tcpAoKeyBinding); err != nil {
-			return err
-		}
-	}
-	s.logger.Info("Add a peer configuration",
-		slog.String("Topic", "Peer"),
-		slog.String("Key", addr))
-
 	rib := s.globalRib
 	if c.RouteServer.Config.RouteServerClient {
 		rib = s.rsRib
@@ -3737,6 +3728,15 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	if err := s.setPeerPolicy(peer, c.ApplyPolicy); err != nil {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}
+	if s.bgpConfig.Global.Config.Port > 0 {
+		if err := s.addAuthKeysToListeners(s.listListeners(addr), ipAddr, c, tcpAoKeyBinding); err != nil {
+			s.policy.DeletePeerPolicy(peer.ID())
+			return err
+		}
+	}
+	s.logger.Info("Add a peer configuration",
+		slog.String("Topic", "Peer"),
+		slog.String("Key", addr))
 	s.neighborMap[ipAddr] = peer
 	s.rebuildLocalClusterIDs()
 	if s.bfdServer != nil {

@@ -5330,11 +5330,17 @@ func TestDeletePeerDropsPolicyAssignment(t *testing.T) {
 	err = s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: "127.0.0.1"})
 	assert.NoError(err)
 
-	// Adding the peer back with an apply-policy that does not resolve leaves
-	// the assignment unset. The peer must not inherit what the deleted peer
-	// had.
-	assert.NoError(addPeer("not-defined"))
-	assert.Empty(assignedPolicies())
+	// Deleting the peer must remove both its policies and default actions.
+	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
+		def, policies, err := s.policy.GetPolicyAssignment("127.0.0.1", dir)
+		require.NoError(t, err)
+		assert.Equal(table.ROUTE_TYPE_NONE, def)
+		assert.Empty(policies)
+	}
+
+	// An unresolved policy now rejects the peer instead of silently leaving
+	// it without an assignment.
+	require.ErrorContains(t, addPeer("not-defined"), "not found policy not-defined")
 }
 
 // startServerWithPassivePeer starts a BgpServer without a TCP listener and
