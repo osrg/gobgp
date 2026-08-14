@@ -84,6 +84,47 @@ jobs:
       - name: buf generate check
         run: git diff --exit-code
 
+  yang-check:
+    name: generated YANG files check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: clone YANG models
+        run: |
+          sudo mkdir -p /osrg
+          sudo chown "$USER:$USER" /osrg
+          git clone --depth 1 https://github.com/osrg/public /osrg/public
+          git clone --depth 1 https://github.com/osrg/yang /osrg/yang
+          git clone --depth 1 https://github.com/osrg/pyang /osrg/pyang
+
+      - name: install pyang dependencies
+        run: python -m pip install 'setuptools<82' -r /osrg/pyang/requirements.txt
+
+      - name: generate YANG files
+        run: |
+          cd /osrg/pyang
+          source ./env.sh
+          PYTHONPATH=. ./bin/pyang --plugindir "$GITHUB_WORKSPACE/tools/pyang_plugins" \
+            -p /osrg/yang/standard/ietf/RFC \
+            -p /osrg/public/release/models \
+            -p /osrg/public/release/models/bgp \
+            -p /osrg/public/release/models/policy \
+            -f golang \
+            /osrg/public/release/models/policy/openconfig-routing-policy.yang \
+            /osrg/public/release/models/bgp/openconfig-bgp.yang \
+            "$GITHUB_WORKSPACE/tools/pyang_plugins/gobgp.yang" \
+            | gofmt > "$GITHUB_WORKSPACE/pkg/config/oc/bgp_configs.go"
+
+      - name: generated files are up to date
+        run: git diff --exit-code
+
   golangci:
     name: lint
     runs-on: ubuntu-24.04
