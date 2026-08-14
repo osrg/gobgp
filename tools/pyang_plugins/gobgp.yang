@@ -1052,14 +1052,14 @@ module gobgp {
   // prefix entry may be rtc-only. The existing match-prefix-set condition is
   // reused for RTC (RF_RTC_UC) paths.
   deviation "/rpol:routing-policy/rpol:defined-sets/rpol:prefix-sets/" +
-      "rpol:prefix-set/rpol:prefixes/rpol:prefix/rpol:config/rpol:ip-prefix" {
+      "rpol:prefix-set/rpol:prefix/rpol:ip-prefix" {
     deviate delete {
       mandatory true;
     }
   }
 
   augment "/rpol:routing-policy/rpol:defined-sets/rpol:prefix-sets/" +
-      "rpol:prefix-set/rpol:prefixes/rpol:prefix/rpol:config" {
+      "rpol:prefix-set/rpol:prefix" {
     leaf rtc-prefix {
       type string {
         pattern '\d+(\.\d+)?:(\d+\.\d+\.\d+\.\d+|\d+(\.\d+)?):\d+(/\d+)?';
