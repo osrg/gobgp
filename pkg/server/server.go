@@ -817,7 +817,9 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	conf.State.SessionState = oc.IntToSessionStateMap[int(state)]
 	conf.State.AdminState = oc.IntToAdminStateMap[int(peer.AdminState())]
 	if state == bgp.BGP_FSM_ESTABLISHED {
+		peer.fsm.lock.Lock()
 		buf, _ := peer.fsm.recvOpen.Serialize()
+		peer.fsm.lock.Unlock()
 		// need to copy all values here
 		conf.State.ReceivedOpenMessage, _ = bgp.ParseBGPMessage(buf)
 	}
@@ -984,9 +986,9 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t
 	// Publish conf only after buildopen and capabilitiesFromConfig finish mutating it
 	// (capabilitiesFromConfig updates per-AFI GR advertised state).
 	peer.fsm.pConf.Update(&conf)
+	recvOpen := peer.fsm.recvOpen
 	peer.fsm.lock.Unlock()
 
-	recvOpen := peer.fsm.recvOpen
 	e := &watchEventPeer{
 		Type:          t,
 		PeerAS:        conf.State.PeerAs,
