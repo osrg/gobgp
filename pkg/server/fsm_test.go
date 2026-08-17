@@ -1640,3 +1640,74 @@ func TestSendMessageloop_KillSignal(t *testing.T) {
 		t.Fatal("sendMessageloop did not exit after non-path message")
 	}
 }
+
+// TestRace_NewWatchEventPeerRecvOpen tests that newWatchEventPeer is race-free
+// when called concurrently with an FSM connection transition, which writes
+// fsm.recvOpen under fsm.lock.
+//
+// newWatchEventPeer reads fsm.recvOpen after releasing fsm.lock, so the read is
+// unsynchronised with respect to those writes. WatchEvent reaches it for every
+// peer in neighborMap when a watcher registers, and broadcastPeerState reaches
+// it on each state transition.
+//
+// Run with: go test -race -count=1 ./pkg/server/... -run TestRace_NewWatchEventPeerRecvOpen
+func TestRace_NewWatchEventPeerRecvOpen(t *testing.T) {
+	s, _, peerAddrIP := newTestBgpServerWithPeer(t)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	var testPeer *peer
+	err := s.mgmtOperation(func() error {
+		testPeer = s.neighborMap[peerAddrIP]
+		return nil
+	}, true)
+	if err != nil {
+		t.Fatalf("mgmtOperation failed: %v", err)
+	}
+
+	if testPeer == nil {
+		t.Fatal("Could not get internal peer object")
+	}
+
+	open, err := bgp.NewBGPOpenMessage(65002, 90, netip.MustParseAddr("2.2.2.2"), nil)
+	if err != nil {
+		t.Fatalf("NewBGPOpenMessage failed: %v", err)
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	// Writer goroutine: assign fsm.recvOpen under fsm.lock, as the FSM does when
+	// a connection reaches OPENCONFIRM.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				testPeer.fsm.lock.Lock()
+				testPeer.fsm.recvOpen = open
+				testPeer.fsm.lock.Unlock()
+			}
+		}
+	}()
+
+	// Reader goroutine: build watch events, which reads fsm.recvOpen.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_ = newWatchEventPeer(testPeer, nil, bgp.BGP_FSM_IDLE, bgp.BGP_FSM_IDLE, apiutil.PEER_EVENT_STATE)
+			}
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+	close(stop)
+	wg.Wait()
+}
