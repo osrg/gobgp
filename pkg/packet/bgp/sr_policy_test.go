@@ -1,6 +1,7 @@
 package bgp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"net"
@@ -87,6 +88,36 @@ func TestBindingSIDRoundTrip(t *testing.T) {
 				t.Fatalf("expected: %+v does not match result: %+v", tt.input, result)
 			}
 		})
+	}
+}
+
+func TestSRv6BindingSIDRoundTrip(t *testing.T) {
+	input := &TunnelEncapSubTLVSRv6BSID{
+		TunnelEncapSubTLV: TunnelEncapSubTLV{
+			Type:   ENCAP_SUBTLV_TYPE_SRBINDING_SID,
+			Length: 18,
+		},
+		Flags: 0,
+		BSID: &BSID{
+			Value: net.ParseIP("2001:db8::1").To16(),
+		},
+	}
+	b, err := input.Serialize()
+	if err != nil {
+		t.Fatalf("Serialize failed: %v", err)
+	}
+	// Type (13), Length (18), Flags, RESERVED, then the full 16-octet SID.
+	expected := append([]byte{0x0d, 0x12, 0x00, 0x00}, net.ParseIP("2001:db8::1").To16()...)
+	if !bytes.Equal(b, expected) {
+		t.Fatalf("wire mismatch:\ngot:  %x\nwant: %x", b, expected)
+	}
+	result := &TunnelEncapSubTLVSRv6BSID{}
+	if err := result.DecodeFromBytes(b); err != nil {
+		t.Fatalf("DecodeFromBytes failed: %v", err)
+	}
+	if !reflect.DeepEqual(input, result) {
+		t.Logf("Diffs: %+v", deep.Equal(input, result))
+		t.Fatalf("expected: %+v does not match result: %+v", input, result)
 	}
 }
 
