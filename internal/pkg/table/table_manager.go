@@ -254,10 +254,14 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 		return updates
 	}
 
-	updates = append(updates, table.update(newPath))
+	if update := table.update(newPath); update != nil {
+		updates = append(updates, update)
+	}
 	if family == bgp.RF_EVPN {
 		for _, p := range manager.handleMacMobility(newPath) {
-			updates = append(updates, table.update(p))
+			if update := table.update(p); update != nil {
+				updates = append(updates, update)
+			}
 		}
 	}
 	return updates
