@@ -54,12 +54,14 @@ func (n *VPLSNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) e
 	if len(data) < length+2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all VPLS NLRI bytes available")
 	}
-	if length == 12 { // BGP-AD
-		// BGP-AD is not supported yet
-		return nil
-	}
-	if len(data) < 19 {
-		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all VPLS NLRI bytes available")
+	// RFC 4761 VPLS-BGP NLRI is a fixed 17 bytes, which is the size Len()
+	// reports to the MP_(UN)REACH framing loop. A different length desyncs
+	// Len() from the on-wire size and mis-frames the following NLRIs; the
+	// 12-byte RFC 6074 BGP-AD NLRI in particular was decoded into a route with
+	// a nil RD that panics when re-serialized. gobgp does not support BGP-AD,
+	// so reject anything that is not a 17-byte VPLS-BGP NLRI.
+	if length != 17 {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "unsupported VPLS NLRI length")
 	}
 	// VPLS-BGP
 	n.rd = GetRouteDistinguisher(data[2:10])

@@ -58,6 +58,25 @@ func Test_VPLSNLRI(t *testing.T) {
 	assert.Equal(n1, n1)
 }
 
+func Test_VPLSNLRI_decodeRejectsUnsupportedLength(t *testing.T) {
+	// Len() reports a fixed 19 bytes to the MP_(UN)REACH framing loop, so a
+	// VPLS NLRI whose length field is not 17 must be rejected. Before the fix
+	// the 12-byte BGP-AD form decoded successfully into a VPLSNLRI with a nil
+	// RD, which both mis-framed the following NLRI and panicked on re-serialize.
+	adNLRI := &VPLSNLRI{}
+	// length = 12 (BGP-AD) followed by a 12-byte body.
+	err := adNLRI.decodeFromBytes([]byte{0x00, 0x0c, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+	require.Error(t, err)
+	assert.Nil(t, adNLRI.rd)
+
+	// length = 32 (oversized) with enough trailing bytes to satisfy Len()==19.
+	longNLRI := &VPLSNLRI{}
+	buf := make([]byte, 2+32)
+	buf[1] = 0x20
+	err = longNLRI.decodeFromBytes(buf)
+	require.Error(t, err)
+}
+
 func Test_VPLSNLRI_decoding(t *testing.T) {
 	assert := assert.New(t)
 	buf := []byte{
