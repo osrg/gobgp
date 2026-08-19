@@ -725,3 +725,21 @@ jobs:
           sudo modprobe vrf
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 -m pytest test/scenario_test/tcp_md5_test.py --gobgp-image gobgp -x -s
+
+  tcp-ao:
+    name: tcp-ao
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get update
+          sudo apt-get install -y linux-modules-extra-$(uname -r)
+          sudo modprobe vrf
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 -m pytest test/scenario_test/tcp_ao_test.py --gobgp-image gobgp -x -s
