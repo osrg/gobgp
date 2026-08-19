@@ -86,6 +86,64 @@ func TestTreatAsWithdraw(t *testing.T) {
 	assert.Equal(t, paths[1].IsWithdraw, true)
 }
 
+func TestTableManagerIgnoresUnmatchedWithdrawal(t *testing.T) {
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	source := &PeerInfo{
+		AS:      1112,
+		ID:      netip.MustParseAddr("10.1.142.66"),
+		Address: netip.MustParseAddr("10.1.142.66"),
+	}
+	otherSource := &PeerInfo{
+		AS:      1113,
+		ID:      netip.MustParseAddr("10.1.142.65"),
+		Address: netip.MustParseAddr("10.1.142.65"),
+	}
+
+	rt, err := bgp.ParseRouteTarget("65534:4")
+	assert.NoError(t, err)
+	ipv4Nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	assert.NoError(t, err)
+	cases := []struct {
+		name   string
+		family bgp.Family
+		nlri   bgp.NLRI
+	}{
+		{name: "ipv4", family: bgp.RF_IPv4_UC, nlri: ipv4Nlri},
+		{name: "rtc", family: bgp.RF_RTC_UC, nlri: bgp.NewRouteTargetMembershipNLRI(1111, rt)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			newPath := func(peer *PeerInfo, id uint32, withdraw bool) *Path {
+				return NewPath(tc.family, peer, bgp.PathNLRI{NLRI: tc.nlri, ID: id}, withdraw, attrs, time.Now(), false)
+			}
+
+			announced := newPath(source, 7, false)
+			unknownSourceWithdraw := newPath(otherSource, 7, true)
+			unknownPathIDWithdraw := newPath(source, 99, true)
+
+			manager := NewTableManager(logger, []bgp.Family{tc.family})
+			assert.Empty(t, manager.Update(unknownSourceWithdraw))
+			assert.Nil(t, manager.GetDestination(unknownSourceWithdraw))
+
+			assert.Len(t, manager.Update(announced), 1)
+			assert.Empty(t, manager.Update(unknownSourceWithdraw))
+			assert.Empty(t, manager.Update(unknownPathIDWithdraw))
+
+			destination := manager.GetDestination(announced)
+			if assert.NotNil(t, destination) {
+				assert.Len(t, destination.knownPathList, 1)
+				assert.True(t, destination.knownPathList[0].GetSource().Equal(source))
+			}
+
+			assert.Len(t, manager.Update(announced.Clone(true)), 1, "a matching withdrawal must still propagate")
+			if destination := manager.GetDestination(announced); destination != nil {
+				assert.Empty(t, destination.knownPathList)
+			}
+		})
+	}
+}
+
 // test best path calculation and check the result path is from R1
 func TestProcessBGPUpdate_0_select_onlypath_ipv4(t *testing.T) {
 	tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})

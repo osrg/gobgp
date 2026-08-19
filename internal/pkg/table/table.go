@@ -476,6 +476,12 @@ func (t *Table) update(newPath *Path) *Update {
 		t.deleteDest(shard, dst)
 	}
 
+	// A withdrawal for a path that is not installed in the table is a no-op.
+	// Do not turn it into an Update with identical old and new path lists.
+	if newPath.IsWithdraw && oldPath == nil {
+		return nil
+	}
+
 	if evpnNlri, ok := nlri.(*bgp.EVPNNLRI); ok {
 		if macadv, ok := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute); ok {
 			for _, ec := range newPath.GetRouteTargets() {

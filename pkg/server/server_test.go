@@ -2643,6 +2643,88 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestUnmatchedRTCWithdrawalDoesNotPropagate(t *testing.T) {
+	ctx := context.Background()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1111,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	}))
+
+	peerSource := newPeerandInfo(t, 1111, 1112, "10.1.142.66", s.globalRib)
+	target := newPeerandInfo(t, 1111, 1113, "10.1.142.65", s.globalRib)
+	peerSource.policy = s.policy
+	target.policy = s.policy
+	peerSource.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	target.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	target.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_RTC_UC: bgp.BGP_ADD_PATH_NONE,
+	})
+
+	targetAddress := netip.MustParseAddr("10.1.142.65")
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.neighborMap[targetAddress] = target
+		return nil
+	}, true))
+	t.Cleanup(func() {
+		require.NoError(t, s.mgmtOperation(func() error {
+			delete(s.neighborMap, targetAddress)
+			return nil
+		}, false))
+		cleanInfiniteChannel(target.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+	})
+
+	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65534, 4, true)
+	rtcNLRI := bgp.NewRouteTargetMembershipNLRI(1111, rt)
+	nextHop, err := bgp.NewPathAttributeNextHop(netip.IPv4Unspecified())
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		nextHop,
+	}
+
+	// Keep a path for this NLRI in the Loc-RIB, but from a different source.
+	// The withdrawal below must therefore be unmatched by source.
+	installedSource := &table.PeerInfo{
+		AS:      1114,
+		ID:      netip.MustParseAddr("10.1.142.67"),
+		Address: netip.MustParseAddr("10.1.142.67"),
+	}
+	installed := table.NewPath(
+		bgp.RF_RTC_UC,
+		installedSource,
+		bgp.PathNLRI{NLRI: rtcNLRI},
+		false,
+		attrs,
+		time.Now(),
+		false,
+	)
+	s.globalRib.Update(installed)
+
+	phantomWithdraw := table.NewPath(
+		bgp.RF_RTC_UC,
+		peerSource.peerInfo.Load(),
+		bgp.PathNLRI{NLRI: rtcNLRI},
+		true,
+		attrs,
+		time.Now(),
+		false,
+	)
+
+	s.propagateUpdate(peerSource, []*table.Path{phantomWithdraw})
+
+	select {
+	case outgoing := <-target.fsm.outgoingCh.Out():
+		t.Fatalf("unexpected outbound RTC update: %#v", outgoing)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
 func TestDelVrfWithRTC(t *testing.T) {
 	ctx := context.Background()
 
