@@ -1372,7 +1372,12 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 
 	rtKnownAfter := hasRt(rt)
 
-	if !path.IsWithdraw && rtKnownBefore || path.IsWithdraw && rtKnownAfter {
+	// RFC 4684 Section 3 defines RT membership as {origin-as#, route-target},
+	// so a new origin AS is a distinct RTM NLRI and remains in the RTC RIB.
+	// RFC 4684 Section 6: "A BGP speaker should generate the minimum set of BGP
+	// VPN route updates"; when this peer already advertises this RT, its VPN
+	// distribution state is unchanged, so no additional VPN update is needed.
+	if rtKnownBefore == rtKnownAfter {
 		return
 	}
 
