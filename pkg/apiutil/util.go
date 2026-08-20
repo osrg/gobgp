@@ -143,6 +143,13 @@ type PeerState struct {
 	LocalCap          []bgp.ParameterCapabilityInterface
 	DisconnectReason  api.PeerState_DisconnectReason
 	DisconnectMessage string
+	// NotificationCode/NotificationSubcode carry the raw RFC 4271 §6
+	// NOTIFICATION error code/subcode whenever one is present -- not limited
+	// to a NOTIFICATION-specific DisconnectReason, since several other FSM
+	// transitions can carry a real notification too. 0/0 when none was
+	// involved.
+	NotificationCode    uint32
+	NotificationSubcode uint32
 }
 type Transport struct {
 	LocalAddress netip.Addr
