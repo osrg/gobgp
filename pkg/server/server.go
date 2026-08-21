@@ -1547,10 +1547,22 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 					}()
 				} else {
 					alreadySent := targetPeer.hasPathAlreadyBeenSent(newPath)
+					unfilteredPath := newPath
 					newPath := s.filterpath(targetPeer, newPath, nil)
-					// if the path is not filtered and the path has already been sent or land in the limit, we can send it
+					// if the path is not filtered and the path has already been sent or lands in the limit, we can send it.
+					// if the path IS filtered but was previously advertised, we must withdraw it explicitly.
 					if newPath == nil {
-						bestList = []*table.Path{}
+						if alreadySent {
+							// The path was previously advertised to this peer and no
+							// longer passes export policy (e.g. an attribute change
+							// crossed a policy match condition). It must be withdrawn
+							// explicitly, or the peer keeps a stale route indefinitely.
+							withdraw := unfilteredPath.Clone(true)
+							bestList = []*table.Path{withdraw}
+							targetPeer.updateRoutes(withdraw)
+						} else {
+							bestList = []*table.Path{}
+						}
 					} else if alreadySent || targetPeer.getRoutesCount(f, newPath.GetPrefix()) < targetPeer.getAddPathSendMax(f) {
 						bestList = []*table.Path{newPath}
 						if !alreadySent {

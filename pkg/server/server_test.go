@@ -4656,3 +4656,183 @@ func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.
 	require.Never(t, vpnPresentAtS2AdjIn, 10*time.Second, 100*time.Millisecond,
 		"VPN route should not appear at s2 adj-in from s1 after second VPN prefix is added")
 }
+
+func TestAddPathWithdrawsPreviouslyAdvertisedPathOnPolicyFilter(t *testing.T) {
+	ctx := context.Background()
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, s.policy.SetPolicyAssignment(
+		table.GLOBAL_RIB_NAME,
+		table.POLICY_DIRECTION_IMPORT,
+		nil,
+		table.ROUTE_TYPE_ACCEPT,
+	))
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	p.policy = s.policy
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_SEND,
+	})
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	foundFamily := false
+	for i := range conf.AfiSafis {
+		if conf.AfiSafis[i].State.Family != bgp.RF_IPv4_UC {
+			continue
+		}
+		conf.AfiSafis[i].AddPaths.Config.SendMax = 1
+		conf.AfiSafis[i].AddPaths.State.SendMax = 1
+		foundFamily = true
+	}
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	require.True(t, foundFamily)
+
+	err = s.mgmtOperation(func() error {
+		s.neighborMap[peerAddr] = p
+		return nil
+	}, true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := s.mgmtOperation(func() error {
+			delete(s.neighborMap, peerAddr)
+			return nil
+		}, false)
+		require.NoError(t, err)
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+	})
+
+	// Export policy: reject any path carrying community 100:100.
+	commSet, err := table.NewCommunitySet(oc.CommunitySet{
+		CommunitySetName: "reject-comm",
+		CommunityList:    []string{"100:100"},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.policy.AddDefinedSet(commSet, false))
+
+	statement := oc.Statement{
+		Name: "reject-comm-stmt",
+		Conditions: oc.Conditions{
+			BgpConditions: oc.BgpConditions{
+				MatchCommunitySet: oc.MatchCommunitySet{
+					CommunitySet: "reject-comm",
+				},
+			},
+		},
+		Actions: oc.Actions{
+			RouteDisposition: oc.ROUTE_DISPOSITION_REJECT_ROUTE,
+		},
+	}
+	policyDef := oc.PolicyDefinition{
+		Name:       "reject-comm-policy",
+		Statements: []oc.Statement{statement},
+	}
+	pol, err := table.NewPolicy(policyDef)
+	require.NoError(t, err)
+	require.NoError(t, s.policy.AddPolicy(pol, false))
+	require.NoError(t, s.policy.AddPolicyAssignment(
+		table.GLOBAL_RIB_NAME,
+		table.POLICY_DIRECTION_EXPORT,
+		[]*oc.PolicyDefinition{{Name: "reject-comm-policy"}},
+		table.ROUTE_TYPE_ACCEPT,
+	))
+
+	source := &table.PeerInfo{
+		AS:           65010,
+		ID:           netip.MustParseAddr("10.0.0.2"),
+		Address:      netip.MustParseAddr("10.0.0.2"),
+		LocalAS:      65001,
+		LocalID:      netip.MustParseAddr("1.1.1.1"),
+		LocalAddress: netip.MustParseAddr("1.1.1.1"),
+	}
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/32"))
+	require.NoError(t, err)
+	nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	asPath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+		bgp.NewAs4PathParam(2, []uint32{65010}),
+	})
+
+	requireNoOutgoing := func() {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			t.Fatalf("unexpected outbound paths: %#v", o)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	requireOutgoing := func() []*table.Path {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			msg, ok := o.(*fsmOutgoingMsg)
+			require.True(t, ok)
+			paths := make([]*table.Path, 0, len(msg.Paths))
+			for _, path := range msg.Paths {
+				if path != nil && !path.IsEOR() {
+					paths = append(paths, path)
+				}
+			}
+			return paths
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for outbound paths")
+			return nil
+		}
+	}
+
+	// --- Control case: a path that fails export policy from the start
+	// must never be advertised, and therefore never withdrawn either.
+	neverAdvertisedNLRI, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.3.0/32"))
+	require.NoError(t, err)
+	neverAdvertised := table.NewPath(bgp.RF_IPv4_UC, source, bgp.PathNLRI{NLRI: neverAdvertisedNLRI}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		asPath,
+		nextHop,
+		bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}),
+	}, time.Now(), false)
+	s.propagateUpdate(nil, []*table.Path{neverAdvertised})
+	requireNoOutgoing()
+
+	// --- Step 1: advertise a path with no community. It passes export
+	// policy and must be sent.
+	initial := table.NewPath(bgp.RF_IPv4_UC, source, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		asPath,
+		nextHop,
+	}, time.Now(), false)
+	s.propagateUpdate(nil, []*table.Path{initial})
+	paths := requireOutgoing()
+	require.Len(t, paths, 1)
+	require.False(t, paths[0].IsWithdraw)
+	require.Equal(t, "192.0.2.0/32", paths[0].GetPrefix())
+
+	// --- Step 2: the SAME path, same source, now carries community
+	// 100:100. This is an ordinary attribute-change event (not a policy
+	// edit), and it now fails export policy. Because the path WAS
+	// previously advertised to this ADD-PATH peer, an explicit withdraw
+	// is mandatory.
+	updated := table.NewPath(bgp.RF_IPv4_UC, source, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		asPath,
+		nextHop,
+		bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}),
+	}, time.Now(), false)
+	s.propagateUpdate(nil, []*table.Path{updated})
+	paths = requireOutgoing()
+	require.Len(t, paths, 1)
+	require.True(t, paths[0].IsWithdraw, "path that was previously advertised and now fails export policy must be withdrawn")
+	require.Equal(t, "192.0.2.0/32", paths[0].GetPrefix())
+}
