@@ -1384,10 +1384,19 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 	fs := peerNonRTCFamilies(peer)
 	s.rtcVPNCandidates(peer, path.IsWithdraw, rt, fs, func(paths []*table.Path, filtered []*table.Path) {
 		if path.IsWithdraw {
-			// Skips filtering: paths are already scoped to this RT and withdrawals
-			// do not need path attributes.
-			peer.updateRoutes(filtered...)
-			sendfsmOutgoingMsg(peer, filtered)
+			// Re-evaluate each candidate against the peer's current RTC and
+			// export-policy state. The candidate was selected by the withdrawn
+			// RT, but the path may still be eligible through another RT. A nil
+			// result means that the peer can no longer receive the path, so the
+			// previously advertised route must be withdrawn.
+			withdrawals := make([]*table.Path, 0, len(filtered))
+			for _, p := range filtered {
+				if s.filterpath(peer, p, nil) == nil {
+					withdrawals = append(withdrawals, p)
+				}
+			}
+			peer.updateRoutes(withdrawals...)
+			sendfsmOutgoingMsg(peer, withdrawals)
 			return
 		}
 		if peer.getRtcEORWait() {

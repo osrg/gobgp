@@ -4657,6 +4657,69 @@ func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.
 		"VPN route should not appear at s2 adj-in from s1 after second VPN prefix is added")
 }
 
+func TestRTCShouldNotWithdrawVPNRouteAfterOneRTCWithdraw(t *testing.T) {
+	ctx := context.Background()
+
+	s1 := runNewServer(t, 1, "1.1.1.1", 44179)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s2 := runNewServer(t, 1, "2.2.2.2", 55179)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
+		t.Fatal(err)
+	}
+	wgEstablished.Wait(t, 10*time.Second)
+
+	assertVpnRouteCountS2AdjIn := func(expected int) bool {
+		count := 0
+		_ = s2.ListPath(apiutil.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_ADJ_IN,
+			Family:    bgp.RF_IPv4_VPN,
+			Name:      "127.0.0.1",
+		}, func(_ bgp.NLRI, _ []*apiutil.Path) { count++ })
+		return count == expected
+	}
+
+	rt100 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
+	rt200 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("3.3.3.3"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh,
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt100, rt200}),
+	}
+	rd, _ := bgp.ParseRouteDistinguisher("1:1")
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	prefix1, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"), *labels, rd)
+	path1, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix1, false, attrs, time.Now())
+	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path1)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	pathRtc1, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt100), false, attrs, time.Now())
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc1)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	pathRtc2, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt200), false, attrs, time.Now())
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc2)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	require.Eventually(t, func() bool {
+		return assertVpnRouteCountS2AdjIn(1)
+	}, 10*time.Second, 100*time.Millisecond, "timeout waiting for VPN path at s2 adj-in from s1")
+
+	_ = s2.DeletePath(apiutil.DeletePathRequest{
+		Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc2)},
+	})
+
+	time.Sleep(1 * time.Second)
+
+	assert.True(t, assertVpnRouteCountS2AdjIn(1), "VPN path should still be present at s2 adj-in from s1 after one RTC withdraw")
+}
+
 func TestPerPeerPolicyIsRouteServerOnly(t *testing.T) {
 	for _, rs := range []bool{false, true} {
 		name := "non-rs-client"
