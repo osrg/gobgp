@@ -154,7 +154,7 @@ type BgpServer struct {
 	roaTable      *table.ROATable
 	uuidMap       map[string]uuid.UUID
 	bfdServer     *bfdServer
-	keyChainStore *tcpAoKeychainStore
+	keychainStore *tcpAoKeychainStore
 	logger        *slog.Logger
 	logLevelVar   *slog.LevelVar
 	timingHook    FSMTimingHook
@@ -200,7 +200,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
 	s.bfdServer = NewBfdServer(s, logger)
-	s.keyChainStore = newTcpAoKeychainStore()
+	s.keychainStore = newTcpAoKeychainStore()
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
 		s.apiServer = newAPIserver(s, shared, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
@@ -2215,7 +2215,7 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		for _, l := range s.listeners {
 			l.Close()
 		}
-		s.keyChainStore.clearAllKeychains()
+		s.keychainStore.clearAllKeychains()
 		s.bgpConfig.Global = oc.Global{}
 		return nil
 	}, false)
@@ -5389,10 +5389,10 @@ func (s *BgpServer) AddTcpAoKeychain(_ context.Context, r *api.AddTcpAoKeychainR
 	}
 
 	err = s.mgmtOperation(func() error {
-		if _, exists := s.keyChainStore.getKeychain(chain.name); exists {
+		if _, exists := s.keychainStore.getKeychain(chain.name); exists {
 			return status.Errorf(codes.AlreadyExists, "TCP-AO keychain %q already exists", chain.name)
 		}
-		s.keyChainStore.addKeychain(chain)
+		s.keychainStore.addKeychain(chain)
 		return nil
 	}, false)
 	if err != nil {
@@ -5412,7 +5412,7 @@ func (s *BgpServer) UpdateTcpAoKeychain(_ context.Context, r *api.UpdateTcpAoKey
 
 	var response *api.UpdateTcpAoKeychainResponse
 	err := s.mgmtOperation(func() error {
-		keychain, ok := s.keyChainStore.getKeychain(r.Name)
+		keychain, ok := s.keychainStore.getKeychain(r.Name)
 		if !ok {
 			return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
 		}
@@ -5439,7 +5439,7 @@ func (s *BgpServer) DeleteTcpAoKeychain(_ context.Context, r *api.DeleteTcpAoKey
 	}
 
 	return s.mgmtOperation(func() error {
-		if !s.keyChainStore.deleteKeychain(r.Name) {
+		if !s.keychainStore.deleteKeychain(r.Name) {
 			return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
 		}
 		return nil
@@ -5459,12 +5459,12 @@ func (s *BgpServer) ListTcpAoKeychain(ctx context.Context, r *api.ListTcpAoKeych
 		// Name is a filter, so a name that matches nothing is an empty result
 		// rather than an error.
 		if r.Name != "" {
-			if keychain, exists := s.keyChainStore.getKeychain(r.Name); exists {
+			if keychain, exists := s.keychainStore.getKeychain(r.Name); exists {
 				chains = []*api.TcpAoKeychain{keychain.toAPIKeychain()}
 			}
 			return nil
 		}
-		for _, chain := range s.keyChainStore.getAllKeychains() {
+		for _, chain := range s.keychainStore.getAllKeychains() {
 			chains = append(chains, chain.toAPIKeychain())
 		}
 		return nil
