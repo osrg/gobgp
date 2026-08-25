@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -126,7 +127,7 @@ func TestTcpAoKeychainValidation(t *testing.T) {
 		},
 		{
 			name: "long master key",
-			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: make([]byte, tcpAoMaxMasterKeyBytes+1)}}}),
+			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: make([]byte, netutils.TCPAOMaxKeyLen+1)}}}),
 			code: codes.InvalidArgument,
 		},
 		{
@@ -188,14 +189,28 @@ func TestTcpAoKeychainValidation(t *testing.T) {
 			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
 				SendId: 9, ReceiveId: 29, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("duplicate"),
 			}}}),
-			code: codes.AlreadyExists,
+			code: codes.InvalidArgument,
 		},
 		{
 			name: "add duplicate receive ID",
 			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
 				SendId: 29, ReceiveId: 19, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("duplicate"),
 			}}}),
-			code: codes.AlreadyExists,
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "add send ID overflow",
+			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
+				SendId: 256, ReceiveId: 29, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("overflow"),
+			}}}),
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "add receive ID overflow",
+			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
+				SendId: 29, ReceiveId: 256, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("overflow"),
+			}}}),
+			code: codes.InvalidArgument,
 		},
 		{
 			name: "delete every key",

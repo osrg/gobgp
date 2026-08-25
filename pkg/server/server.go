@@ -5381,12 +5381,15 @@ func (s *BgpServer) AddTcpAoKeychain(_ context.Context, r *api.AddTcpAoKeychainR
 		return nil, status.Error(codes.InvalidArgument, "TCP-AO keychain name is required")
 	}
 
+	// Convert outside the management operation. It does not need server state
+	// and it must not hold up the FSM loop.
+	chain, err := newTcpAoKeychain(r.Keychain)
+	if err != nil {
+		return nil, err
+	}
+
 	var response *api.AddTcpAoKeychainResponse
-	err := s.mgmtOperation(func() error {
-		chain, err := newTcpAoKeychain(r.Keychain)
-		if err != nil {
-			return err
-		}
+	err = s.mgmtOperation(func() error {
 		if _, exists := s.keyChainStore.getKeychain(chain.name); exists {
 			return status.Errorf(codes.AlreadyExists, "TCP-AO keychain %q already exists", chain.name)
 		}
@@ -5395,6 +5398,7 @@ func (s *BgpServer) AddTcpAoKeychain(_ context.Context, r *api.AddTcpAoKeychainR
 		return nil
 	}, false)
 	if err != nil {
+		chain.clearKeys()
 		return nil, err
 	}
 	return response, nil
@@ -5414,7 +5418,7 @@ func (s *BgpServer) UpdateTcpAoKeychain(_ context.Context, r *api.UpdateTcpAoKey
 		if !ok {
 			return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
 		}
-		added, deleted, err := s.validateTcpAoKeychainUpdate(keychain, r)
+		added, deleted, err := validateTcpAoKeychainUpdate(keychain, r)
 		if err != nil {
 			return err
 		}
@@ -5437,9 +5441,6 @@ func (s *BgpServer) DeleteTcpAoKeychain(_ context.Context, r *api.DeleteTcpAoKey
 	}
 
 	return s.mgmtOperation(func() error {
-		if _, exists := s.keyChainStore.getKeychain(r.Name); !exists {
-			return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
-		}
 		if !s.keyChainStore.deleteKeychain(r.Name) {
 			return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
 		}
@@ -5480,63 +5481,4 @@ func (s *BgpServer) ListTcpAoKeychain(ctx context.Context, r *api.ListTcpAoKeych
 		fn(chain)
 	}
 	return nil
-}
-
-func (s *BgpServer) validateTcpAoKeychainUpdate(keychain *tcpAoKeychain, request *api.UpdateTcpAoKeychainRequest) (added, deleted []netutils.TCPAOKey, err error) {
-	sendIDs := make(map[uint8]struct{}, len(keychain.keys))
-	receiveIDs := make(map[uint8]struct{}, len(keychain.keys))
-	for _, key := range keychain.keys {
-		sendIDs[key.SendID] = struct{}{}
-		receiveIDs[key.ReceiveID] = struct{}{}
-	}
-	for i, delKey := range request.DeleteKeys {
-		if delKey == nil {
-			err = status.Errorf(codes.InvalidArgument, "TCP-AO delete key request %q contains a nil key at index %d", keychain.name, i)
-			return
-		}
-		if delKey.SendId > 255 {
-			err = status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q delete key %d has send ID %d outside 0..255", keychain.name, i, delKey.SendId)
-			return
-		}
-		if delKey.ReceiveId > 255 {
-			err = status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q delete key %d has receive ID %d outside 0..255", keychain.name, i, delKey.ReceiveId)
-			return
-		}
-		key, exists := keychain.getKey(uint8(delKey.SendId), uint8(delKey.ReceiveId))
-		if !exists {
-			err = status.Errorf(codes.NotFound, "TCP-AO keychain %q does not contain key with send ID %d and receive ID %d", request.Name, delKey.SendId, delKey.ReceiveId)
-			return
-		}
-		if _, exists := sendIDs[key.SendID]; !exists {
-			err = status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q delete request contains duplicate key with send ID %d and receive ID %d", request.Name, delKey.SendId, delKey.ReceiveId)
-			return
-		}
-		delete(sendIDs, key.SendID)
-		delete(receiveIDs, key.ReceiveID)
-		deleted = append(deleted, key)
-	}
-	for i, addKey := range request.AddKeys {
-		if addKey == nil {
-			err = status.Errorf(codes.InvalidArgument, "TCP-AO add key request %q contains a nil key at index %d", keychain.name, i)
-			return
-		}
-		if _, ok := sendIDs[uint8(addKey.SendId)]; ok {
-			err = status.Errorf(codes.AlreadyExists, "TCP-AO keychain %q already contains send ID %d", keychain.name, addKey.SendId)
-			return
-		}
-		if _, ok := receiveIDs[uint8(addKey.ReceiveId)]; ok {
-			err = status.Errorf(codes.AlreadyExists, "TCP-AO keychain %q already contains receive ID %d", keychain.name, addKey.ReceiveId)
-			return
-		}
-		sendIDs[uint8(addKey.SendId)] = struct{}{}
-		receiveIDs[uint8(addKey.ReceiveId)] = struct{}{}
-	}
-	if len(sendIDs) < 1 || len(sendIDs) > 256 {
-		err = status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q must contain between 1 and 256 keys", request.Name)
-		return
-	}
-	if len(request.AddKeys) > 0 {
-		added, err = newTcpAoKeys(keychain.name, request.AddKeys)
-	}
-	return
 }

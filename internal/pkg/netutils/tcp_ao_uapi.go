@@ -103,7 +103,7 @@ type tcpAOAddABI struct {
 	MACLength      uint8
 	KeyFlags       uint8
 	KeyLength      uint8
-	Key            [tcpAOMaxKeyLen]byte
+	Key            [TCPAOMaxKeyLen]byte
 }
 
 // tcpAODelABI mirrors Linux struct tcp_ao_del:
@@ -140,7 +140,7 @@ type tcpAOInfoABI struct {
 type tcpAOGetKeyABI struct {
 	Address        tcpAOSockaddrStorage
 	Algorithm      [tcpAOAlgorithmNameSize]byte
-	Key            [tcpAOMaxKeyLen]byte
+	Key            [TCPAOMaxKeyLen]byte
 	KeyCount       uint32
 	Flags          uint16
 	SendID         uint8

@@ -15,7 +15,9 @@
 package server
 
 import (
+	"bytes"
 	"maps"
+	"math"
 	"slices"
 	"sync"
 
@@ -24,9 +26,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-// tcpAoMaxMasterKeyBytes matches TCP_AO_MAXKEYLEN from Linux's include/uapi/linux/tcp.h.
-const tcpAoMaxMasterKeyBytes = 80
 
 type tcpAoKeychain struct {
 	mu   sync.RWMutex
@@ -78,6 +77,10 @@ func newTcpAoKeychain(a *api.TcpAoKeychain) (*tcpAoKeychain, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := netutils.ValidateTCPAOKeys(keys); err != nil {
+		clearTcpAoKeys(keys)
+		return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q: %v", a.Name, err)
+	}
 	keyMap := make(map[uint8]netutils.TCPAOKey, len(keys))
 	for _, key := range keys {
 		keyMap[key.SendID] = key
@@ -85,53 +88,122 @@ func newTcpAoKeychain(a *api.TcpAoKeychain) (*tcpAoKeychain, error) {
 	return &tcpAoKeychain{name: a.Name, keys: keyMap}, nil
 }
 
+// newTcpAoKeys converts API keys and validates each key on its own. Checks that
+// span the whole key set, such as the key count and duplicate IDs, are left to
+// the caller. An update must validate the merged key set, not just the keys it
+// adds.
 func newTcpAoKeys(chainName string, keys []*api.TcpAoKey) ([]netutils.TCPAOKey, error) {
-	if len(keys) == 0 || len(keys) > 256 {
-		return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q must contain between 1 and 256 keys", chainName)
-	}
-	sendIDs := make(map[uint32]struct{}, len(keys))
-	receiveIDs := make(map[uint32]struct{}, len(keys))
-	for i, key := range keys {
-		if key == nil {
-			return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q contains a nil key at index %d", chainName, i)
-		}
-		if key.SendId > 255 {
-			return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q key %d has send ID %d outside 0..255", chainName, i, key.SendId)
-		}
-		if key.ReceiveId > 255 {
-			return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q key %d has receive ID %d outside 0..255", chainName, i, key.ReceiveId)
-		}
-		if _, ok := sendIDs[key.SendId]; ok {
-			return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q has duplicate send ID %d", chainName, key.SendId)
-		}
-		if _, ok := receiveIDs[key.ReceiveId]; ok {
-			return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q has duplicate receive ID %d", chainName, key.ReceiveId)
-		}
-		switch key.Algorithm {
-		case api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96,
-			api.TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96:
-		default:
-			return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q key %d has unsupported algorithm %s", chainName, i, key.Algorithm)
-		}
-		if len(key.MasterKey) == 0 || len(key.MasterKey) > tcpAoMaxMasterKeyBytes {
-			return nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q key %d master key must contain between 1 and %d bytes", chainName, i, tcpAoMaxMasterKeyBytes)
-		}
-		sendIDs[key.SendId] = struct{}{}
-		receiveIDs[key.ReceiveId] = struct{}{}
-	}
-
 	result := make([]netutils.TCPAOKey, 0, len(keys))
-	for _, apiKey := range keys {
-		key := netutils.TCPAOKey{
-			SendID:            uint8(apiKey.SendId),
-			ReceiveID:         uint8(apiKey.ReceiveId),
-			Algorithm:         netutils.TCPAOAlgorithm(apiKey.Algorithm),
-			ExcludeTCPOptions: apiKey.ExcludeTcpOptions,
-			MasterKey:         append([]byte{}, apiKey.MasterKey...),
+	for i, key := range keys {
+		converted, err := newTcpAoKey(chainName, i, key)
+		if err != nil {
+			clearTcpAoKeys(result)
+			return nil, err
 		}
-		result = append(result, key)
+		result = append(result, converted)
 	}
 	return result, nil
+}
+
+// newTcpAoKey converts one API key that carries keying material. Requests that
+// only identify a key, such as the delete list of an update, use tcpAoKeyIDs.
+func newTcpAoKey(chainName string, index int, key *api.TcpAoKey) (netutils.TCPAOKey, error) {
+	sendID, receiveID, err := tcpAoKeyIDs(chainName, index, key)
+	if err != nil {
+		return netutils.TCPAOKey{}, err
+	}
+	algorithm, ok := tcpAoAlgorithm(key.Algorithm)
+	if !ok {
+		return netutils.TCPAOKey{}, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q key at index %d has unsupported algorithm %s", chainName, index, key.Algorithm)
+	}
+	return netutils.TCPAOKey{
+		SendID:            sendID,
+		ReceiveID:         receiveID,
+		Algorithm:         algorithm,
+		ExcludeTCPOptions: key.ExcludeTcpOptions,
+		MasterKey:         bytes.Clone(key.MasterKey),
+	}, nil
+}
+
+// tcpAoKeyIDs converts the key IDs of one API key. RFC 5925 carries the KeyID in
+// a single byte, so a value above 255 cannot be represented. The API uses uint32
+// because proto3 has no 8-bit integer type.
+func tcpAoKeyIDs(chainName string, index int, key *api.TcpAoKey) (uint8, uint8, error) {
+	if key == nil {
+		return 0, 0, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q key at index %d is nil", chainName, index)
+	}
+	if key.SendId > math.MaxUint8 {
+		return 0, 0, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q key at index %d has send ID %d outside 0..255", chainName, index, key.SendId)
+	}
+	if key.ReceiveId > math.MaxUint8 {
+		return 0, 0, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q key at index %d has receive ID %d outside 0..255", chainName, index, key.ReceiveId)
+	}
+	return uint8(key.SendId), uint8(key.ReceiveId), nil
+}
+
+// tcpAoAlgorithm maps an API algorithm to the netutils one. The two enums are
+// mapped explicitly so that they can be changed independently.
+func tcpAoAlgorithm(algorithm api.TcpAoAlgorithm) (netutils.TCPAOAlgorithm, bool) {
+	switch algorithm {
+	case api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96:
+		return netutils.TCPAOAlgorithmHMACSHA1, true
+	case api.TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96:
+		return netutils.TCPAOAlgorithmAES128CMAC, true
+	default:
+		return netutils.TCPAOAlgorithmUnspecified, false
+	}
+}
+
+func apiTcpAoAlgorithm(algorithm netutils.TCPAOAlgorithm) api.TcpAoAlgorithm {
+	switch algorithm {
+	case netutils.TCPAOAlgorithmHMACSHA1:
+		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96
+	case netutils.TCPAOAlgorithmAES128CMAC:
+		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96
+	default:
+		return api.TcpAoAlgorithm_TCP_AO_ALGORITHM_UNSPECIFIED
+	}
+}
+
+// validateTcpAoKeychainUpdate converts the keys of an update request and checks
+// the result against the current contents of the keychain. It returns the keys
+// to add and the keys to delete.
+func validateTcpAoKeychainUpdate(keychain *tcpAoKeychain, request *api.UpdateTcpAoKeychainRequest) ([]netutils.TCPAOKey, []netutils.TCPAOKey, error) {
+	var deleted []netutils.TCPAOKey
+	seen := make(map[uint8]struct{}, len(request.DeleteKeys))
+	for i, delKey := range request.DeleteKeys {
+		sendID, receiveID, err := tcpAoKeyIDs(request.Name, i, delKey)
+		if err != nil {
+			return nil, nil, err
+		}
+		if _, duplicate := seen[sendID]; duplicate {
+			return nil, nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q delete request contains duplicate send ID %d", request.Name, sendID)
+		}
+		key, exists := keychain.getKey(sendID, receiveID)
+		if !exists {
+			return nil, nil, status.Errorf(codes.NotFound, "TCP-AO keychain %q does not contain key with send ID %d and receive ID %d", request.Name, sendID, receiveID)
+		}
+		seen[sendID] = struct{}{}
+		deleted = append(deleted, key)
+	}
+
+	added, err := newTcpAoKeys(request.Name, request.AddKeys)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := netutils.ValidateTCPAOKeys(keychain.mergedKeys(added, deleted)); err != nil {
+		clearTcpAoKeys(added)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "TCP-AO keychain %q: %v", request.Name, err)
+	}
+	return added, deleted, nil
+}
+
+// clearTcpAoKeys zeroes the master key of every key. Only call it for keys that
+// no keychain holds, because the master key storage is shared with the keychain.
+func clearTcpAoKeys(keys []netutils.TCPAOKey) {
+	for _, key := range keys {
+		clear(key.MasterKey)
+	}
 }
 
 func (c *tcpAoKeychain) toAPIKeychain() *api.TcpAoKeychain {
@@ -152,7 +224,7 @@ func (c *tcpAoKeychain) toAPIKeychain() *api.TcpAoKeychain {
 		result.Keys = append(result.Keys, &api.TcpAoKey{
 			SendId:            uint32(key.SendID),
 			ReceiveId:         uint32(key.ReceiveID),
-			Algorithm:         api.TcpAoAlgorithm(key.Algorithm),
+			Algorithm:         apiTcpAoAlgorithm(key.Algorithm),
 			ExcludeTcpOptions: key.ExcludeTCPOptions,
 			// MasterKey is intentionally omitted
 		})
@@ -169,6 +241,21 @@ func (c *tcpAoKeychain) getKey(sendID, receiveID uint8) (netutils.TCPAOKey, bool
 		return netutils.TCPAOKey{}, false
 	}
 	return key, true
+}
+
+// mergedKeys returns the key set the keychain would hold once the given keys are
+// deleted and added. The returned keys share master key storage with the
+// keychain, so the caller must not clear them.
+func (c *tcpAoKeychain) mergedKeys(added, deleted []netutils.TCPAOKey) []netutils.TCPAOKey {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	remaining := maps.Clone(c.keys)
+	for _, key := range deleted {
+		delete(remaining, key.SendID)
+	}
+	merged := slices.Collect(maps.Values(remaining))
+	return append(merged, added...)
 }
 
 func (c *tcpAoKeychain) updateKeys(added, deleted []netutils.TCPAOKey) {
