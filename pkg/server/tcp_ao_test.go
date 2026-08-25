@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func testTcpAoKeychain(name string) *api.TcpAoKeychain {
@@ -305,7 +306,8 @@ func TestTcpAoKeychainOperations(t *testing.T) {
 	require.NoError(t, err)
 	listed, err := stream.Recv()
 	require.NoError(t, err)
-	assert.Equal(t, updated.Keychain, listed.Keychain)
+	assert.True(t, proto.Equal(updated.Keychain, listed.Keychain),
+		"listed %v, updated %v", listed.Keychain, updated.Keychain)
 	_, err = stream.Recv()
 	assert.ErrorIs(t, err, io.EOF)
 
