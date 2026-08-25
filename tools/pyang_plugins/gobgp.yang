@@ -1048,16 +1048,11 @@ module gobgp {
     }
   }
 
-  // ip-prefix and rtc-prefix are mutually exclusive; relax mandatory so a
-  // prefix entry may be rtc-only. The existing match-prefix-set condition is
-  // reused for RTC (RF_RTC_UC) paths.
-  deviation "/rpol:routing-policy/rpol:defined-sets/rpol:prefix-sets/" +
-      "rpol:prefix-set/rpol:prefix/rpol:ip-prefix" {
-    deviate delete {
-      mandatory true;
-    }
-  }
-
+  // ip-prefix and rtc-prefix are mutually exclusive. That cannot be expressed
+  // here: ip-prefix is a key leaf of rpol:prefix, and RFC 7950 7.8.2 says any
+  // "mandatory" statement in a key leaf is ignored. Prefix.ToPrefix() rejects
+  // an entry that sets both. The existing match-prefix-set condition is reused
+  // for RTC (RF_RTC_UC) paths.
   augment "/rpol:routing-policy/rpol:defined-sets/rpol:prefix-sets/" +
       "rpol:prefix-set/rpol:prefix" {
     leaf rtc-prefix {
