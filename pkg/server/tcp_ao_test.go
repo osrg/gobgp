@@ -58,171 +58,206 @@ func TestTcpAoKeychainValidation(t *testing.T) {
 		_, err := s.UpdateTcpAoKeychain(context.Background(), request)
 		return err
 	}
+
+	// The update cases below all fail, so none of them changes this keychain.
+	require.NoError(t, add(&api.TcpAoKeychain{
+		Name: "update-chain",
+		Keys: []*api.TcpAoKey{
+			{SendId: 5, ReceiveId: 15, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("five")},
+			{SendId: 9, ReceiveId: 19, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96, MasterKey: []byte("nine")},
+		},
+	}))
+
 	tests := []struct {
 		name string
-		err  error
+		fn   func() error
 		code codes.Code
 	}{
 		{
 			name: "missing keychain",
-			err:  add(nil),
+			fn:   func() error { return add(nil) },
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "missing name",
-			err:  add(testTcpAoKeychain("")),
+			fn:   func() error { return add(testTcpAoKeychain("")) },
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "no keys",
-			err:  add(&api.TcpAoKeychain{Name: "chain"}),
+			fn:   func() error { return add(&api.TcpAoKeychain{Name: "chain"}) },
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "nil key",
-			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{nil}}),
+			fn:   func() error { return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{nil}}) },
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "send ID overflow",
-			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{SendId: 256, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{1}}}}),
+			fn: func() error {
+				return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{SendId: 256, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{1}}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "receive ID overflow",
-			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{ReceiveId: 256, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{1}}}}),
+			fn: func() error {
+				return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{ReceiveId: 256, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{1}}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "duplicate send ID",
-			err: add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{
-				{SendId: 1, ReceiveId: 1, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{1}},
-				{SendId: 1, ReceiveId: 2, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{2}},
-			}}),
+			fn: func() error {
+				return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{
+					{SendId: 1, ReceiveId: 1, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{1}},
+					{SendId: 1, ReceiveId: 2, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{2}},
+				}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "duplicate receive ID",
-			err: add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{
-				{SendId: 1, ReceiveId: 1, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{1}},
-				{SendId: 2, ReceiveId: 1, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{2}},
-			}}),
+			fn: func() error {
+				return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{
+					{SendId: 1, ReceiveId: 1, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{1}},
+					{SendId: 2, ReceiveId: 1, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte{2}},
+				}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "unspecified algorithm",
-			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{MasterKey: []byte{1}}}}),
+			fn: func() error {
+				return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{MasterKey: []byte{1}}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "unknown algorithm",
-			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{Algorithm: api.TcpAoAlgorithm(99), MasterKey: []byte{1}}}}),
+			fn: func() error {
+				return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{Algorithm: api.TcpAoAlgorithm(99), MasterKey: []byte{1}}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "empty master key",
-			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96}}}),
+			fn: func() error {
+				return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "long master key",
-			err:  add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: make([]byte, netutils.TCPAOMaxKeyLen+1)}}}),
+			fn: func() error {
+				return add(&api.TcpAoKeychain{Name: "chain", Keys: []*api.TcpAoKey{{Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: make([]byte, netutils.TCPAOMaxKeyLen+1)}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "nil update request",
-			err:  update(nil),
+			fn:   func() error { return update(nil) },
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "missing update name",
-			err:  update(&api.UpdateTcpAoKeychainRequest{}),
+			fn:   func() error { return update(&api.UpdateTcpAoKeychainRequest{}) },
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "nil delete request",
-			err:  s.DeleteTcpAoKeychain(context.Background(), nil),
+			fn:   func() error { return s.DeleteTcpAoKeychain(context.Background(), nil) },
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "missing delete name",
-			err:  s.DeleteTcpAoKeychain(context.Background(), &api.DeleteTcpAoKeychainRequest{}),
+			fn: func() error {
+				return s.DeleteTcpAoKeychain(context.Background(), &api.DeleteTcpAoKeychainRequest{})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "nil list request",
-			err:  s.ListTcpAoKeychain(context.Background(), nil, func(*api.TcpAoKeychain) {}),
+			fn: func() error {
+				return s.ListTcpAoKeychain(context.Background(), nil, func(*api.TcpAoKeychain) {})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "nil list callback",
-			err:  s.ListTcpAoKeychain(context.Background(), &api.ListTcpAoKeychainRequest{}, nil),
+			fn: func() error {
+				return s.ListTcpAoKeychain(context.Background(), &api.ListTcpAoKeychainRequest{}, nil)
+			},
 			code: codes.InvalidArgument,
 		},
 		{
-			name: "valid keychain for update",
-			err: add(&api.TcpAoKeychain{
-				Name: "update-chain",
-				Keys: []*api.TcpAoKey{
-					{SendId: 5, ReceiveId: 15, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("five")},
-					{SendId: 9, ReceiveId: 19, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_AES_128_CMAC_96, MasterKey: []byte("nine")},
-				},
-			}),
-			code: codes.OK,
-		},
-		{
 			name: "delete missing key",
-			err:  update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", DeleteKeys: []*api.TcpAoKey{{SendId: 5, ReceiveId: 99}}}),
+			fn: func() error {
+				return update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", DeleteKeys: []*api.TcpAoKey{{SendId: 5, ReceiveId: 99}}})
+			},
 			code: codes.NotFound,
 		},
 		{
 			name: "delete key twice",
-			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", DeleteKeys: []*api.TcpAoKey{
-				{SendId: 5, ReceiveId: 15},
-				{SendId: 5, ReceiveId: 15},
-			}}),
+			fn: func() error {
+				return update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", DeleteKeys: []*api.TcpAoKey{
+					{SendId: 5, ReceiveId: 15},
+					{SendId: 5, ReceiveId: 15},
+				}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "add duplicate send ID",
-			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
-				SendId: 9, ReceiveId: 29, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("duplicate"),
-			}}}),
+			fn: func() error {
+				return update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
+					SendId: 9, ReceiveId: 29, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("duplicate"),
+				}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "add duplicate receive ID",
-			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
-				SendId: 29, ReceiveId: 19, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("duplicate"),
-			}}}),
+			fn: func() error {
+				return update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
+					SendId: 29, ReceiveId: 19, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("duplicate"),
+				}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "add send ID overflow",
-			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
-				SendId: 256, ReceiveId: 29, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("overflow"),
-			}}}),
+			fn: func() error {
+				return update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
+					SendId: 256, ReceiveId: 29, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("overflow"),
+				}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "add receive ID overflow",
-			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
-				SendId: 29, ReceiveId: 256, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("overflow"),
-			}}}),
+			fn: func() error {
+				return update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", AddKeys: []*api.TcpAoKey{{
+					SendId: 29, ReceiveId: 256, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("overflow"),
+				}}})
+			},
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "delete every key",
-			err: update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", DeleteKeys: []*api.TcpAoKey{
-				{SendId: 5, ReceiveId: 15},
-				{SendId: 9, ReceiveId: 19},
-			}}),
+			fn: func() error {
+				return update(&api.UpdateTcpAoKeychainRequest{Name: "update-chain", DeleteKeys: []*api.TcpAoKey{
+					{SendId: 5, ReceiveId: 15},
+					{SendId: 9, ReceiveId: 19},
+				}})
+			},
 			code: codes.InvalidArgument,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.code, status.Code(tt.err))
+			assert.Equal(t, tt.code, status.Code(tt.fn()))
 		})
 	}
 }
