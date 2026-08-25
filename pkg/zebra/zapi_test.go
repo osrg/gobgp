@@ -190,7 +190,6 @@ func Test_interfaceAddressUpdateBody(t *testing.T) {
 
 		// af invalid
 		buf[5] = 0x4
-		pos++
 		b = &interfaceAddressUpdateBody{}
 		err = b.decodeFromBytes(buf, v, software)
 		assert.NotNil(err)
@@ -220,7 +219,6 @@ func Test_routerIDUpdateBody(t *testing.T) {
 
 		// af invalid
 		buf[0] = 0x4
-		pos++
 		b = &routerIDUpdateBody{}
 		err = b.decodeFromBytes(buf, v, software)
 		assert.NotNil(err)
@@ -1061,7 +1059,6 @@ func Test_NexthopUpdateBody(t *testing.T) {
 		pos += 8
 		if v == 5 { // frr7.3&7.4 (latest software of zapi v6) depends on nexthop flag
 			bufIn[pos] = byte(0) // label num
-			pos++
 		}
 
 		// Test decodeFromBytes()
