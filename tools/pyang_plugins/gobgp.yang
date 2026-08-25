@@ -824,12 +824,20 @@ module gobgp {
     uses gobgp-adjacent-table;
   }
 
+  // The bodies of these typedefs are never used. bgpyang2golang.py maps each
+  // type name to a Go type through _type_translation_map, and skips the
+  // typedef itself through _typedef_exclude. They exist so that pyang can
+  // resolve the references below.
   typedef bgp-capability {
       type uint8;
   }
 
   typedef bgp-open-message {
       type uint8;
+  }
+
+  typedef route-family {
+      type uint32;
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:state" {

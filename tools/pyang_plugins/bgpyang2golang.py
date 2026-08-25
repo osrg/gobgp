@@ -756,6 +756,7 @@ _path_exclude = [
 _typedef_exclude = [
     "/gobgp:bgp-capability",
     "/gobgp:bgp-open-message",
+    "/gobgp:route-family",
 ]
 
 _union_translation_map = {
