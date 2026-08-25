@@ -96,31 +96,51 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: clone YANG models
-        run: |
-          sudo mkdir -p /osrg
-          sudo chown "$USER:$USER" /osrg
-          git clone --depth 1 https://github.com/osrg/public /osrg/public
-          git clone --depth 1 https://github.com/osrg/yang /osrg/yang
-          git clone --depth 1 https://github.com/osrg/pyang /osrg/pyang
+      # The model repositories are pinned. osrg/public and osrg/yang are forks
+      # that stopped tracking upstream, but osrg/pyang follows upstream pyang,
+      # where a new release can change the generated output. Without a pin, an
+      # unrelated pull request starts failing here. These land under
+      # .yang-models/, which is untracked, so the diff check below ignores them.
+      - uses: actions/checkout@v6
+        with:
+          repository: osrg/public
+          ref: 0d3376ef325b982124de8360e00eb36fc6367de5
+          path: .yang-models/public
+      - uses: actions/checkout@v6
+        with:
+          repository: osrg/yang
+          ref: 63f9a3563c2b31832e9e2046529fa61f3d31f6dd
+          path: .yang-models/yang
+      - uses: actions/checkout@v6
+        with:
+          repository: osrg/pyang
+          ref: fc9a965c3ae80688cc2889aefa183cf1aa6d55c2
+          path: .yang-models/pyang
 
+      # pyang imports pkg_resources, which setuptools 82 removes.
       - name: install pyang dependencies
-        run: python -m pip install 'setuptools<82' -r /osrg/pyang/requirements.txt
+        run: python -m pip install 'setuptools<82' -r .yang-models/pyang/requirements.txt
 
+      # shell: bash adds -o pipefail, so pyang's exit status is not hidden by
+      # gofmt. Write to a temporary file so a failed run leaves the checked-in
+      # file alone.
       - name: generate YANG files
+        shell: bash
         run: |
-          cd /osrg/pyang
+          models="$GITHUB_WORKSPACE/.yang-models"
+          cd "$models/pyang"
           source ./env.sh
           PYTHONPATH=. ./bin/pyang --plugindir "$GITHUB_WORKSPACE/tools/pyang_plugins" \
-            -p /osrg/yang/standard/ietf/RFC \
-            -p /osrg/public/release/models \
-            -p /osrg/public/release/models/bgp \
-            -p /osrg/public/release/models/policy \
+            -p "$models/yang/standard/ietf/RFC" \
+            -p "$models/public/release/models" \
+            -p "$models/public/release/models/bgp" \
+            -p "$models/public/release/models/policy" \
             -f golang \
-            /osrg/public/release/models/policy/openconfig-routing-policy.yang \
-            /osrg/public/release/models/bgp/openconfig-bgp.yang \
+            "$models/public/release/models/policy/openconfig-routing-policy.yang" \
+            "$models/public/release/models/bgp/openconfig-bgp.yang" \
             "$GITHUB_WORKSPACE/tools/pyang_plugins/gobgp.yang" \
-            | gofmt > "$GITHUB_WORKSPACE/pkg/config/oc/bgp_configs.go"
+            | gofmt > "$RUNNER_TEMP/bgp_configs.go"
+          mv "$RUNNER_TEMP/bgp_configs.go" "$GITHUB_WORKSPACE/pkg/config/oc/bgp_configs.go"
 
       - name: generated files are up to date
         run: git diff --exit-code
