@@ -280,8 +280,10 @@ func TestTcpAoKeychainOperations(t *testing.T) {
 
 	_, err = client.DeleteTcpAoKeychain(context.Background(), &api.DeleteTcpAoKeychainRequest{Name: "chain"})
 	require.NoError(t, err)
+	// Name is a filter, so listing a keychain that does not exist yields no
+	// entries rather than an error.
 	stream, err = client.ListTcpAoKeychain(context.Background(), &api.ListTcpAoKeychainRequest{Name: "chain"})
 	require.NoError(t, err)
 	_, err = stream.Recv()
-	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.ErrorIs(t, err, io.EOF)
 }

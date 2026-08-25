@@ -5458,12 +5458,12 @@ func (s *BgpServer) ListTcpAoKeychain(ctx context.Context, r *api.ListTcpAoKeych
 
 	var chains []*api.TcpAoKeychain
 	err := s.mgmtOperation(func() error {
+		// Name is a filter, so a name that matches nothing is an empty result
+		// rather than an error.
 		if r.Name != "" {
-			keychain, ok := s.keyChainStore.getKeychain(r.Name)
-			if !ok {
-				return status.Errorf(codes.NotFound, "TCP-AO keychain %q does not exist", r.Name)
+			if keychain, exists := s.keyChainStore.getKeychain(r.Name); exists {
+				chains = []*api.TcpAoKeychain{keychain.toAPIKeychain()}
 			}
-			chains = []*api.TcpAoKeychain{keychain.toAPIKeychain()}
 			return nil
 		}
 		for _, chain := range s.keyChainStore.getAllKeychains() {
