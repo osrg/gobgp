@@ -52,8 +52,7 @@ func TestTcpAoKeychainValidation(t *testing.T) {
 		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
 	})
 	add := func(keychain *api.TcpAoKeychain) error {
-		_, err := s.AddTcpAoKeychain(context.Background(), &api.AddTcpAoKeychainRequest{Keychain: keychain})
-		return err
+		return s.AddTcpAoKeychain(context.Background(), &api.AddTcpAoKeychainRequest{Keychain: keychain})
 	}
 	update := func(request *api.UpdateTcpAoKeychainRequest) error {
 		_, err := s.UpdateTcpAoKeychain(context.Background(), request)
@@ -244,13 +243,10 @@ func TestTcpAoKeychainOperations(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	client := api.NewGoBgpServiceClient(conn)
 
-	added, err := client.AddTcpAoKeychain(context.Background(), &api.AddTcpAoKeychainRequest{
+	_, err = client.AddTcpAoKeychain(context.Background(), &api.AddTcpAoKeychainRequest{
 		Keychain: testTcpAoKeychain("chain"),
 	})
 	require.NoError(t, err)
-	require.NotNil(t, added.Keychain)
-	require.Len(t, added.Keychain.Keys, 1)
-	assert.Empty(t, added.Keychain.Keys[0].MasterKey)
 
 	updated, err := client.UpdateTcpAoKeychain(context.Background(), &api.UpdateTcpAoKeychainRequest{
 		Name: "chain",

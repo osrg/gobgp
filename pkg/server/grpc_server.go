@@ -2532,7 +2532,7 @@ func (s *server) SetLogLevel(ctx context.Context, r *api.SetLogLevelRequest) (*a
 }
 
 func (s *server) AddTcpAoKeychain(ctx context.Context, r *api.AddTcpAoKeychainRequest) (*api.AddTcpAoKeychainResponse, error) {
-	return s.bgpServer.AddTcpAoKeychain(ctx, r)
+	return &api.AddTcpAoKeychainResponse{}, s.bgpServer.AddTcpAoKeychain(ctx, r)
 }
 
 func (s *server) UpdateTcpAoKeychain(ctx context.Context, r *api.UpdateTcpAoKeychainRequest) (*api.UpdateTcpAoKeychainResponse, error) {

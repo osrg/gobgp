@@ -5370,38 +5370,36 @@ func (s *BgpServer) ListBfdPeer(ctx context.Context, fn func(string, *api.BfdPee
 	}
 }
 
-func (s *BgpServer) AddTcpAoKeychain(_ context.Context, r *api.AddTcpAoKeychainRequest) (*api.AddTcpAoKeychainResponse, error) {
+func (s *BgpServer) AddTcpAoKeychain(_ context.Context, r *api.AddTcpAoKeychainRequest) error {
 	if r == nil {
-		return nil, status.Error(codes.InvalidArgument, "nil request")
+		return status.Error(codes.InvalidArgument, "nil request")
 	}
 	if r.Keychain == nil {
-		return nil, status.Error(codes.InvalidArgument, "TCP-AO keychain is required")
+		return status.Error(codes.InvalidArgument, "TCP-AO keychain is required")
 	}
 	if r.Keychain.Name == "" {
-		return nil, status.Error(codes.InvalidArgument, "TCP-AO keychain name is required")
+		return status.Error(codes.InvalidArgument, "TCP-AO keychain name is required")
 	}
 
 	// Convert outside the management operation. It does not need server state
 	// and it must not hold up the FSM loop.
 	chain, err := newTcpAoKeychain(r.Keychain)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var response *api.AddTcpAoKeychainResponse
 	err = s.mgmtOperation(func() error {
 		if _, exists := s.keyChainStore.getKeychain(chain.name); exists {
 			return status.Errorf(codes.AlreadyExists, "TCP-AO keychain %q already exists", chain.name)
 		}
 		s.keyChainStore.addKeychain(chain)
-		response = &api.AddTcpAoKeychainResponse{Keychain: chain.toAPIKeychain()}
 		return nil
 	}, false)
 	if err != nil {
 		chain.clearKeys()
-		return nil, err
+		return err
 	}
-	return response, nil
+	return nil
 }
 
 func (s *BgpServer) UpdateTcpAoKeychain(_ context.Context, r *api.UpdateTcpAoKeychainRequest) (*api.UpdateTcpAoKeychainResponse, error) {

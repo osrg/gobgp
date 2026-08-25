@@ -1472,9 +1472,7 @@ message AddTcpAoKeychainRequest {
   TcpAoKeychain keychain = 1;
 }
 
-message AddTcpAoKeychainResponse {
-  TcpAoKeychain keychain = 1;
-}
+message AddTcpAoKeychainResponse {}
 
 message UpdateTcpAoKeychainRequest {
   string name = 1;
