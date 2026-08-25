@@ -67,6 +67,19 @@ func Test_ParseEvpnPath(t *testing.T) {
 	}
 }
 
+func Test_ParseEvpnIPMSIPathRequiresRouteTarget(t *testing.T) {
+	assert := assert.New(t)
+
+	path, err := parsePath(
+		bgp.RF_EVPN,
+		strings.Split("i-pmsi etag 100 rd 1.1.1.1:65000 encap vxlan pmsi ingress-repl 100 1.1.1.1", " "),
+	)
+
+	assert.Error(err)
+	assert.Nil(path)
+	assert.Contains(err.Error(), "specify rt")
+}
+
 func Test_ParseFlowSpecPath(t *testing.T) {
 	tests := []struct {
 		name        string
