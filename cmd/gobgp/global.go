@@ -1121,7 +1121,7 @@ func parseEvpnIPMSIArgs(args []string) (bgp.NLRI, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	for _, f := range []string{"etag", "rd"} {
+	for _, f := range []string{"etag", "rd", "rt"} {
 		for len(m[f]) == 0 {
 			return nil, nil, fmt.Errorf("specify %s", f)
 		}
@@ -1139,10 +1139,8 @@ func parseEvpnIPMSIArgs(args []string) (bgp.NLRI, []string, error) {
 	etag := uint32(e)
 
 	extcomms := make([]string, 0)
-	if len(m["rt"]) > 0 {
-		extcomms = append(extcomms, "rt")
-		extcomms = append(extcomms, m["rt"]...)
-	}
+	extcomms = append(extcomms, "rt")
+	extcomms = append(extcomms, m["rt"]...)
 	ec, err := bgp.ParseExtendedCommunity(bgp.EC_SUBTYPE_SOURCE_AS, m["rt"][0])
 	if err != nil {
 		return nil, nil, fmt.Errorf("route target parse failed")
