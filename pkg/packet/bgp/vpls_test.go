@@ -69,12 +69,34 @@ func Test_VPLSNLRI_decodeRejectsUnsupportedLength(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, adNLRI.rd)
 
-	// length = 32 (oversized) with enough trailing bytes to satisfy Len()==19.
+	// length = 32 (oversized) with a body long enough to get past the
+	// len(data) >= length+2 check.
 	longNLRI := &VPLSNLRI{}
 	buf := make([]byte, 2+32)
 	buf[1] = 0x20
 	err = longNLRI.decodeFromBytes(buf)
 	require.Error(t, err)
+}
+
+func Test_VPLSNLRI_mpReachRejectsBGPADNLRI(t *testing.T) {
+	// A 12-byte RFC 6074 BGP-AD NLRI plus 5 trailing bytes is exactly the 19
+	// bytes that VPLSNLRI.Len() reports, so the MP_REACH framing loop consumed
+	// it without complaint. Before the fix, DecodeFromBytes returned no error
+	// and left one VPLS route with a nil RD, which panicked on re-serialize.
+	buf := []byte{
+		0x90, 0x0e, 0x00, 0x1c, // MP_REACH_NLRI, extended length, 28 bytes
+		0x00, 0x19, 0x41, // AFI 25 (L2VPN), SAFI 65 (VPLS)
+		0x04, 0xc0, 0x00, 0x02, 0x07, // next hop 192.0.2.7
+		0x00,       // SNPA count
+		0x00, 0x0c, // NLRI length = 12 (BGP-AD)
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // RD
+		0x01, 0x02, 0x03, 0x04, // VSI-ID
+		0x00, 0x00, 0x00, 0x00, 0x00, // padding up to Len()
+	}
+	m := &PathAttributeMpReachNLRI{}
+	err := m.DecodeFromBytes(buf)
+	require.Error(t, err)
+	require.Empty(t, m.Value)
 }
 
 func Test_VPLSNLRI_decoding(t *testing.T) {
