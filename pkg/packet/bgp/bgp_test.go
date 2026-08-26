@@ -27,6 +27,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -6886,4 +6887,98 @@ func TestBGPMessageSerializeRechecksLength(t *testing.T) {
 
 	_, err = m.Serialize(&MarshallingOption{ExtendedMessage: true})
 	require.NoError(t, err)
+}
+
+// TestSerializeIsConcurrencySafe serializes one OPEN, and the capabilities
+// inside it, from several goroutines at once.
+//
+// The FSM keeps the OPEN it received in fsm.recvOpen and hands the same
+// pointer to every BMP client through watchEventPeer.RecvOpen, while toConfig
+// serializes it for the gRPC API. The capabilities travel the same way in
+// RemoteCap, and the OPEN that buildopen builds travels in SentOpen. So one
+// message is serialized by several goroutines with no lock between them.
+//
+// Run with: go test -race -count=1 ./pkg/packet/bgp/ -run TestSerializeIsConcurrencySafe
+func TestSerializeIsConcurrencySafe(t *testing.T) {
+	sent, err := NewBGPOpenMessage(65001, 90, netip.MustParseAddr("10.0.0.1"),
+		[]OptionParameterInterface{
+			NewOptionParameterCapability([]ParameterCapabilityInterface{
+				NewCapMultiProtocol(RF_IPv4_UC),
+				NewCapMultiProtocol(RF_IPv6_UC),
+				NewCapRouteRefresh(),
+				NewCapFourOctetASNumber(65001),
+				NewCapGracefulRestart(true, true, 120, []*CapGracefulRestartTuple{
+					NewCapGracefulRestartTuple(RF_IPv4_UC, true),
+				}),
+				NewCapAddPath([]*CapAddPathTuple{
+					NewCapAddPathTuple(RF_IPv4_UC, BGP_ADD_PATH_BOTH),
+				}),
+				NewCapFQDN("router1", "example.com"),
+				NewCapSoftwareVersion("GoBGP"),
+			}),
+			&OptionParameterUnknown{ParamType: 0xfe, Value: []byte{0x01, 0x02}},
+		})
+	require.NoError(t, err)
+
+	// wire is what goes out, and what a peer sends us.
+	wire, err := sent.Serialize()
+	require.NoError(t, err)
+
+	// recv stands in for fsm.recvOpen.
+	recv, err := ParseBGPMessage(wire)
+	require.NoError(t, err)
+
+	type target struct {
+		name string
+		want []byte
+		run  func() ([]byte, error)
+	}
+	targets := []target{
+		{"recv-open", wire, func() ([]byte, error) { return recv.Serialize() }},
+		{"sent-open", wire, func() ([]byte, error) { return sent.Serialize() }},
+	}
+
+	// The capabilities stand in for watchEventPeer.RemoteCap, which carries
+	// the objects decoded from the peer OPEN, not copies of them.
+	for _, p := range recv.Body.(*BGPOpen).OptParams {
+		o, ok := p.(*OptionParameterCapability)
+		if !ok {
+			continue
+		}
+		for _, c := range o.Capability {
+			want, err := c.Serialize()
+			require.NoError(t, err)
+			targets = append(targets, target{
+				name: "cap-" + strconv.Itoa(int(c.Code())),
+				want: want,
+				run:  c.Serialize,
+			})
+		}
+	}
+	require.Len(t, targets, 10)
+
+	const goroutines = 8
+	const iterations = 200
+
+	var wg sync.WaitGroup
+	for _, tt := range targets {
+		for range goroutines {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for range iterations {
+					got, err := tt.run()
+					if err != nil {
+						t.Errorf("%s: %v", tt.name, err)
+						return
+					}
+					if !bytes.Equal(got, tt.want) {
+						t.Errorf("%s: serialized bytes differ between goroutines", tt.name)
+						return
+					}
+				}
+			}()
+		}
+	}
+	wg.Wait()
 }
