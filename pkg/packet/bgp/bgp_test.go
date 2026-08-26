@@ -5648,7 +5648,6 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&SRv6EndpointBehaviorStructure{}).DecodeFromBytes(data)
 		(&SegmentTypeB{}).DecodeFromBytes(data)
 		(&TunnelEncapSubTLVSRSegmentList{}).DecodeFromBytes(data)
-		(&VPLSNLRI{}).decodeFromBytes(data)
 		(&TLV{}).DecodeFromBytes(data)
 		(&SubTLV{}).DecodeFromBytes(data)
 		(&SubSubTLV{}).DecodeFromBytes(data)
@@ -5668,6 +5667,14 @@ func FuzzDecodeFromBytes(f *testing.F) {
 			&SRv6InformationSubTLV{},
 			&SRv6SIDStructureSubSubTLV{},
 		)
+
+		// The VPLS NLRI has the same shape of contract: it carries a
+		// declared length, and Serialize() dereferences the route
+		// distinguisher that decoding is supposed to have set.
+		vpls := &VPLSNLRI{}
+		if vpls.decodeFromBytes(data) == nil {
+			vpls.Serialize()
+		}
 	})
 }
 
