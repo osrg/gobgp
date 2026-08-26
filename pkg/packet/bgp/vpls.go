@@ -78,7 +78,12 @@ func (n *VPLSNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	binary.BigEndian.PutUint16(buf[12:14], n.VEBlockOffset)
 	binary.BigEndian.PutUint16(buf[14:16], n.VEBlockSize)
 
-	labelBlockBase := n.LabelBlockBase << 4
+	// RFC 4761 does not say how the 3-octet Label Base is laid out. Treat it
+	// like the label field of RFC 8277 section 2.2: a 20-bit label value, a
+	// 3-bit reserved field, and the bottom-of-stack bit, which "MUST be set
+	// to one on transmission". The decoder drops those low 4 bits, so without
+	// this the base goes back out with the bottom-of-stack bit cleared.
+	labelBlockBase := n.LabelBlockBase<<4 | 1
 	labelBaseBuf[0] = byte(labelBlockBase >> 16 & 0xff)
 	labelBaseBuf[1] = byte(labelBlockBase >> 8 & 0xff)
 	labelBaseBuf[2] = byte(labelBlockBase & 0xff)

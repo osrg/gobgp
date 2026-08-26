@@ -99,6 +99,27 @@ func Test_VPLSNLRI_mpReachRejectsBGPADNLRI(t *testing.T) {
 	require.Empty(t, m.Value)
 }
 
+func Test_VPLSNLRI_serializeKeepsBottomOfStack(t *testing.T) {
+	// The decoder keeps only the 20-bit label value, so the serializer has to
+	// put the bottom-of-stack bit back. Without it gobgp re-advertises a Label
+	// Base that does not match the one it received.
+	wire := []byte{
+		0x00, 0x11, // NLRI length = 17
+		0x00, 0x00, 0xfd, 0xf9, 0x00, 0x00, 0x00, 0x68, // RD 65017:104
+		0x00, 0x01, // VE ID
+		0x00, 0x01, // VE Block Offset
+		0x00, 0x08, // VE Block Size
+		0xc3, 0x50, 0x01, // Label Base 800000, bottom of stack
+	}
+	n := &VPLSNLRI{}
+	require.NoError(t, n.decodeFromBytes(wire))
+	assert.Equal(t, uint32(800000), n.LabelBlockBase)
+
+	buf, err := n.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, wire, buf)
+}
+
 func Test_VPLSNLRI_decoding(t *testing.T) {
 	assert := assert.New(t)
 	buf := []byte{
