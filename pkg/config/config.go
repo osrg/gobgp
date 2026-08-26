@@ -443,15 +443,19 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 	addTcpAoKeychains(ctx, bgpServer, addedKeychains)
 	updateTcpAoKeychains(ctx, bgpServer, upsertKeyUpdates)
 
+	// peer groups must exist before peers can reference them
 	addPeerGroups(ctx, bgpServer, addedPg)
-	deletePeerGroups(ctx, bgpServer, deletedPg)
 	needsSoftResetIn := updatePeerGroups(ctx, bgpServer, updatedPg)
 	updatePolicy = updatePolicy || needsSoftResetIn
+
 	addDynamicNeighbors(ctx, bgpServer, newConfig.DynamicNeighbors)
 	addNeighbors(ctx, bgpServer, added)
 	deleteNeighbors(ctx, bgpServer, deleted)
 	needsSoftResetIn = updateNeighbors(ctx, bgpServer, updated)
 	updatePolicy = updatePolicy || needsSoftResetIn
+
+	// peer groups can only be removed after peers stop referencing them
+	deletePeerGroups(ctx, bgpServer, deletedPg)
 
 	// keys and keychains can only be removed after peers stop referencing them
 	updateTcpAoKeychains(ctx, bgpServer, deleteKeyUpdates)
