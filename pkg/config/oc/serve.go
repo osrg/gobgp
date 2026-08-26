@@ -43,7 +43,7 @@ func ReadConfig(r io.Reader, format string) (*BgpConfigSet, error) {
 	var err error
 
 	config := &BgpConfigSet{}
-	opts := viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(mapstructure.StringToNetIPAddrHookFunc(), mapstructure.StringToNetIPPrefixHookFunc()))
+	opts := viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(integerRangeHookFunc(), mapstructure.StringToNetIPAddrHookFunc(), mapstructure.StringToNetIPPrefixHookFunc()))
 
 	v := viper.New()
 	v.SetConfigType(format)
