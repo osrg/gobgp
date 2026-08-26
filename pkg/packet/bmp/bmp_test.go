@@ -25,11 +25,17 @@ import (
 )
 
 func verify(t *testing.T, m1 *BMPMessage) {
-	buf1, _ := m1.Serialize()
+	buf1, err := m1.Serialize()
+	require.NoError(t, err)
 	m2, err := ParseBMPMessage(buf1)
 	require.NoError(t, err)
 
-	assert.Equal(t, m1, m2)
+	// Compare the wire form, not the two structs. A decoded message keeps
+	// the length fields it read off the wire, and a message built in memory
+	// does not, so the structs do not match.
+	buf2, err := m2.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, buf1, buf2)
 }
 
 func Test_Initiation(t *testing.T) {

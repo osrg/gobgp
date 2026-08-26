@@ -499,9 +499,14 @@ type ParameterCapabilityInterface interface {
 }
 
 type DefaultParameterCapability struct {
-	CapCode  BGPCapabilityCode `json:"code"`
-	CapLen   uint8             `json:"-"`
-	CapValue []byte            `json:"value,omitempty"`
+	CapCode BGPCapabilityCode `json:"code"`
+	// CapLen is the capability length read off the wire. DecodeFromBytes is
+	// the only place that sets it. Serialize does not update it.
+	CapLen uint8 `json:"-"`
+	// CapValue is the capability value for the types that do not keep it in
+	// typed fields. DecodeFromBytes and NewCapUnknown set it. Serialize does
+	// not: see serializeValue.
+	CapValue []byte `json:"value,omitempty"`
 }
 
 func (c *DefaultParameterCapability) Code() BGPCapabilityCode {
@@ -523,13 +528,21 @@ func (c *DefaultParameterCapability) DecodeFromBytes(data []byte) error {
 	return nil
 }
 
-func (c *DefaultParameterCapability) Serialize() ([]byte, error) {
-	c.CapLen = uint8(len(c.CapValue))
-	buf := make([]byte, 2+len(c.CapValue))
+// serializeValue returns the capability TLV for value. It does not store value
+// in the receiver, and it does not update CapLen. Serialize has to leave the
+// capability alone: a capability decoded from a peer OPEN is handed to the
+// gRPC API and to every BMP client, which serialize it from their own
+// goroutines while the FSM still holds it.
+func (c *DefaultParameterCapability) serializeValue(value []byte) ([]byte, error) {
+	buf := make([]byte, 2+len(value))
 	buf[0] = uint8(c.CapCode)
-	buf[1] = c.CapLen
-	copy(buf[2:], c.CapValue)
+	buf[1] = uint8(len(value))
+	copy(buf[2:], value)
 	return buf, nil
+}
+
+func (c *DefaultParameterCapability) Serialize() ([]byte, error) {
+	return c.serializeValue(c.CapValue)
 }
 
 // Len returns the length of the capability once serialized, so it must always
@@ -564,8 +577,7 @@ func (c *CapMultiProtocol) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint16(buf[0:], c.CapValue.Afi())
 	buf[3] = c.CapValue.Safi()
-	c.DefaultParameterCapability.CapValue = buf
-	return c.DefaultParameterCapability.Serialize()
+	return c.serializeValue(buf)
 }
 
 func (c *CapMultiProtocol) Len() int {
@@ -693,8 +705,7 @@ func (c *CapExtendedNexthop) Serialize() ([]byte, error) {
 		binary.BigEndian.PutUint16(buf[i*6+2:i*6+4], t.NLRISAFI)
 		binary.BigEndian.PutUint16(buf[i*6+4:i*6+6], t.NexthopAFI)
 	}
-	c.CapValue = buf
-	return c.DefaultParameterCapability.Serialize()
+	return c.serializeValue(buf)
 }
 
 func (c *CapExtendedNexthop) Len() int {
@@ -795,8 +806,7 @@ func (c *CapGracefulRestart) Serialize() ([]byte, error) {
 		tbuf[3] = t.Flags
 		buf = append(buf, tbuf[:]...)
 	}
-	c.CapValue = buf
-	return c.DefaultParameterCapability.Serialize()
+	return c.serializeValue(buf)
 }
 
 func (c *CapGracefulRestart) Len() int {
@@ -854,8 +864,7 @@ func (c *CapFourOctetASNumber) DecodeFromBytes(data []byte) error {
 func (c *CapFourOctetASNumber) Serialize() ([]byte, error) {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, c.CapValue)
-	c.DefaultParameterCapability.CapValue = buf
-	return c.DefaultParameterCapability.Serialize()
+	return c.serializeValue(buf)
 }
 
 func (c *CapFourOctetASNumber) Len() int {
@@ -962,8 +971,7 @@ func (c *CapAddPath) Serialize() ([]byte, error) {
 		buf[i*4+2] = t.Family.Safi()
 		buf[i*4+3] = byte(t.Mode)
 	}
-	c.CapValue = buf
-	return c.DefaultParameterCapability.Serialize()
+	return c.serializeValue(buf)
 }
 
 func (c *CapAddPath) Len() int {
@@ -1083,8 +1091,7 @@ func (c *CapLongLivedGracefulRestart) Serialize() ([]byte, error) {
 		buf[idx*7+5] = uint8(t.RestartTime >> 8 & 0xff)
 		buf[idx*7+6] = uint8(t.RestartTime & 0xff)
 	}
-	c.CapValue = buf
-	return c.DefaultParameterCapability.Serialize()
+	return c.serializeValue(buf)
 }
 
 func (c *CapLongLivedGracefulRestart) Len() int {
@@ -1147,8 +1154,7 @@ func (c *CapFQDN) Serialize() ([]byte, error) {
 	copy(buf[1:c.HostNameLen+1], c.HostName)
 	buf[c.HostNameLen+1] = c.DomainNameLen
 	copy(buf[c.HostNameLen+2:], c.DomainName)
-	c.CapValue = buf
-	return c.DefaultParameterCapability.Serialize()
+	return c.serializeValue(buf)
 }
 
 func (c *CapFQDN) Len() int {
@@ -1214,8 +1220,7 @@ func (c *CapSoftwareVersion) Serialize() ([]byte, error) {
 	buf := make([]byte, c.SoftwareVersionLen+1)
 	buf[0] = c.SoftwareVersionLen
 	copy(buf[1:], []byte(c.SoftwareVersion))
-	c.CapValue = buf
-	return c.DefaultParameterCapability.Serialize()
+	return c.serializeValue(buf)
 }
 
 func (c *CapSoftwareVersion) Len() int {

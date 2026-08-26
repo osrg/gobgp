@@ -24,6 +24,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -65,11 +66,12 @@ func Test_Message(t *testing.T) {
 		m2, err := ParseBGPMessage(buf1)
 		assert.NoError(t, err)
 
-		// FIXME: shouldn't but workaround for some structs.
-		_, err = m2.Serialize()
+		// Compare the wire form, not the two structs. A decoded message
+		// keeps the length fields it read off the wire, and a message
+		// built in memory does not, so the structs never match.
+		buf2, err := m2.Serialize()
 		assert.NoError(t, err)
-
-		assert.Equal(t, m1, m2)
+		assert.Equal(t, buf1, buf2)
 	}
 }
 
@@ -1374,7 +1376,13 @@ func Test_CapExtendedNexthop(t *testing.T) {
 	n2, err := DecodeCapability(buf1)
 	assert.NoError(err)
 
-	assert.Equal(n1, n2)
+	// Compare the wire form and the decoded tuples. A decoded capability
+	// keeps the CapLen and CapValue it read off the wire, and a capability
+	// built in memory does not, so the structs do not match.
+	buf2, err := n2.Serialize()
+	assert.NoError(err)
+	assert.Equal(buf1, buf2)
+	assert.Equal(n1.Tuples, n2.(*CapExtendedNexthop).Tuples)
 }
 
 func Test_AddPath(t *testing.T) {
@@ -6635,13 +6643,15 @@ func BenchmarkExtCommRouteTargetKey(b *testing.B) {
 	}
 }
 
-// TestCapabilityLenMatchesSerialize checks the invariant documented on
-// DefaultParameterCapability.Len. Add every new capability type here.
-func TestCapabilityLenMatchesSerialize(t *testing.T) {
-	tests := []struct {
-		name string
-		cap  ParameterCapabilityInterface
-	}{
+type capabilityTestCase struct {
+	name string
+	cap  ParameterCapabilityInterface
+}
+
+// capabilityLenTestCases returns one capability of every type. Add every new
+// capability type here.
+func capabilityLenTestCases() []capabilityTestCase {
+	return []capabilityTestCase{
 		{"multi-protocol", NewCapMultiProtocol(RF_IPv6_UC)},
 		{"route-refresh", NewCapRouteRefresh()},
 		{"extended-message", NewCapExtendedMessage()},
@@ -6668,7 +6678,12 @@ func TestCapabilityLenMatchesSerialize(t *testing.T) {
 		{"software-version", NewCapSoftwareVersion("GoBGP/4.0.0")},
 		{"unknown", NewCapUnknown(BGPCapabilityCode(199), []byte{0x11, 0x22, 0x33})},
 	}
-	for _, tt := range tests {
+}
+
+// TestCapabilityLenMatchesSerialize checks the invariant documented on
+// DefaultParameterCapability.Len.
+func TestCapabilityLenMatchesSerialize(t *testing.T) {
+	for _, tt := range capabilityLenTestCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			// Len must be right before Serialize has ever run. It used to
 			// return 2 until Serialize filled CapLen as a side effect.
@@ -6722,4 +6737,30 @@ func TestOptionParameterCapabilityAdvancesByWireLength(t *testing.T) {
 	as4, ok := param.Capability[1].(*CapFourOctetASNumber)
 	require.True(t, ok)
 	require.Equal(t, uint32(65000), as4.CapValue)
+}
+
+// capBase returns a copy of the embedded DefaultParameterCapability, which is
+// the only part of a capability that Serialize used to write to.
+func capBase(t *testing.T, c ParameterCapabilityInterface) DefaultParameterCapability {
+	t.Helper()
+	f := reflect.ValueOf(c).Elem().FieldByName("DefaultParameterCapability")
+	require.True(t, f.IsValid(), "capability has no embedded DefaultParameterCapability")
+	return f.Interface().(DefaultParameterCapability)
+}
+
+// TestCapabilitySerializeDoesNotModify checks that Serialize leaves the
+// capability alone. A capability decoded from a peer OPEN is shared by the
+// FSM, the gRPC API and the BMP clients, which serialize it concurrently.
+// Add every new capability type here.
+func TestCapabilitySerializeDoesNotModify(t *testing.T) {
+	for _, tt := range capabilityLenTestCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			before := capBase(t, tt.cap)
+			for range 2 {
+				_, err := tt.cap.Serialize()
+				require.NoError(t, err)
+				require.Equal(t, before, capBase(t, tt.cap))
+			}
+		})
+	}
 }
