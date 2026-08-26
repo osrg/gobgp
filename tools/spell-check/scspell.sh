@@ -3,6 +3,24 @@
 SCRIPT_DIR=`dirname $0`
 GOBGP=${SCRIPT_DIR}/../../
 
+RESULT=0
+
+# Keeping dictionary.txt sorted keeps the diff of a new word small and easy to
+# review. scspell sorts the dictionary when it loads it, so this is a
+# convention rather than something scspell needs. Only the NATURAL section
+# exists today, hence skipping just the first line. Add a word to a new section
+# and this needs to check each section on its own.
+#
+# ignore.txt is deliberately not checked. The loop below removes each of its
+# words with sed, one after another, so a word that is a prefix of a later word
+# would truncate it and stop it from matching. Sorting is exactly the order
+# that puts the prefix first.
+if ! tail -n +2 ${SCRIPT_DIR}/dictionary.txt | LC_ALL=C sort -c
+then
+    echo "${SCRIPT_DIR}/dictionary.txt is not sorted"
+    RESULT=1
+fi
+
 FUNCS=(
 Debug
 Debugf
@@ -79,8 +97,6 @@ do
 
     #rm ${TMP_FILE}
 done
-
-RESULT=0
 
 # If any output of scspell exists
 if [ -s ${CHECK_LOG} ]
