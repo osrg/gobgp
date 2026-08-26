@@ -55,7 +55,7 @@ func Test_VPLSNLRI(t *testing.T) {
 	t.Logf("%s", n1)
 	t.Logf("%s", n2)
 
-	assert.Equal(n1, n1)
+	assert.Equal(n1, n2)
 }
 
 func Test_VPLSNLRI_decodeRejectsUnsupportedLength(t *testing.T) {
