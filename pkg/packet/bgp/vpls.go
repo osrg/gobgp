@@ -36,17 +36,6 @@ type VPLSNLRI struct {
 }
 
 func (n *VPLSNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	/*
-		RFC6074 Section 7 BGP-AD and VPLS-BGP Interoperability
-		Both BGP-AD and VPLS-BGP [RFC4761] use the same AFI/SAFI.  In order
-		for both BGP-AD and VPLS-BGP to co-exist, the NLRI length must be
-		used as a demultiplexer.
-
-		The BGP-AD NLRI has an NLRI length of 12 bytes, containing only an
-		8-byte RD and a 4-byte VSI-ID. VPLS-BGP [RFC4761] uses a 17-byte
-		NLRI length.  Therefore, implementations of BGP-AD must ignore NLRI
-		that are greater than 12 bytes.
-	*/
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all VPLS NLRI bytes available")
 	}
