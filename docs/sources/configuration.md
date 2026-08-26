@@ -164,7 +164,7 @@
     [neighbors.route-server.config]
         route-server-client = true
     # To enable TTL Security, uncomment the following.
-    # Please note that this feature is mututally exclusive with
+    # Please note that this feature is mutually exclusive with
     # "neighbors.ebgp-multihop.config".
     #[neighbors.ttl-security.config]
     #    enabled = true

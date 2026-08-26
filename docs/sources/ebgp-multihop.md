@@ -32,7 +32,7 @@ router-id = "10.0.0.1"
     multihop-ttl = 3
 ```
 
-**NOTE:** eBGP Multihop feature is mututally exclusive with
+**NOTE:** eBGP Multihop feature is mutually exclusive with
 [TTL Security](ttl-security.md).
 These features cannot be configured for the same neighbor.
 

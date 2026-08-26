@@ -33,7 +33,7 @@ router-id = "10.0.0.1"
     ttl-min = 255
 ```
 
-**NOTE:** TTL Security feature is mututally exclusive with
+**NOTE:** TTL Security feature is mutually exclusive with
 [eBGP Multihop](ebgp-multihop.md).
 These features cannot be configured for the same neighbor.
 

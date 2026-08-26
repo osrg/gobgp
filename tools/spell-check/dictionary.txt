@@ -34,7 +34,6 @@ mpls
 multicast
 multihop
 multipath
-mututally
 nexthop
 nexthops
 nlri
