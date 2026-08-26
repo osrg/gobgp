@@ -174,7 +174,12 @@ func Test_RouteMonitoringAddPath(t *testing.T) {
 	u2 := m2.Body.(*BMPRouteMonitoring).BGPUpdate.Body.(*bgp.BGPUpdate).NLRI[0]
 	assert.Equal(t, u2.ID, uint32(10))
 
-	assert.Equal(t, m1, m2)
+	// Compare the wire form, not the two structs. The decoded BGP UPDATE
+	// keeps the length it read off the wire, and the one built in memory
+	// does not.
+	buf2, err := m2.Serialize(opt)
+	require.NoError(t, err)
+	assert.Equal(t, buf1, buf2)
 }
 
 func Test_StatisticsReport(t *testing.T) {

@@ -99,8 +99,6 @@ func TestBGPMessageSerializeLengthCap(t *testing.T) {
 		_, err := m.Serialize()
 		require.Error(t, err, "NOTIFICATION > 4096 without negotiation must reject")
 
-		// Reset the cached length the previous call wrote.
-		m.Header.Len = 0
 		_, err = m.Serialize(&MarshallingOption{ExtendedMessage: true})
 		require.NoError(t, err, "NOTIFICATION > 4096 with negotiation must serialise")
 	})

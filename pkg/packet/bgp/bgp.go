@@ -17083,8 +17083,11 @@ const (
 
 type BGPHeader struct {
 	Marker []byte
-	Len    uint16
-	Type   uint8
+	// Len is the message length read off the wire. DecodeFromBytes is the
+	// only place that sets it. BGPMessage.Serialize reads it when it is not
+	// zero, and does not update it.
+	Len  uint16
+	Type uint8
 }
 
 func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
@@ -17108,14 +17111,23 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	return nil
 }
 
-func (msg *BGPHeader) Serialize(options ...*MarshallingOption) ([]byte, error) {
+// serialize builds the header with the given message length. The length is
+// passed in rather than taken from msg.Len so that BGPMessage.Serialize does
+// not have to cache it in the header: a message received from a peer is
+// shared by the FSM, the gRPC API and the BMP clients, which serialize it
+// from their own goroutines.
+func (msg *BGPHeader) serialize(length uint16) []byte {
 	buf := make([]byte, BGP_HEADER_LENGTH)
 	for i := range buf[:16] {
 		buf[i] = 0xff
 	}
-	binary.BigEndian.PutUint16(buf[16:18], msg.Len)
+	binary.BigEndian.PutUint16(buf[16:18], length)
 	buf[18] = msg.Type
-	return buf, nil
+	return buf
+}
+
+func (msg *BGPHeader) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	return msg.serialize(msg.Len), nil
 }
 
 type BGPMessage struct {
@@ -17169,7 +17181,8 @@ func (msg *BGPMessage) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
-	if msg.Header.Len == 0 {
+	length := msg.Header.Len
+	if length == 0 {
 		// RFC 8654 Section 4 + Section 6: with the BGP Extended
 		// Message Capability negotiated the cap rises to 65535 for
 		// UPDATE, NOTIFICATION and ROUTE-REFRESH; OPEN and KEEPALIVE
@@ -17187,13 +17200,9 @@ func (msg *BGPMessage) Serialize(options ...*MarshallingOption) ([]byte, error) 
 		if BGP_HEADER_LENGTH+len(b) > maxLen {
 			return nil, NewMessageError(0, 0, nil, fmt.Sprintf("too long message length %d", BGP_HEADER_LENGTH+len(b)))
 		}
-		msg.Header.Len = BGP_HEADER_LENGTH + uint16(len(b))
+		length = BGP_HEADER_LENGTH + uint16(len(b))
 	}
-	h, err := msg.Header.Serialize(options...)
-	if err != nil {
-		return nil, err
-	}
-	return append(h, b...), nil
+	return append(msg.Header.serialize(length), b...), nil
 }
 
 type ErrorHandling int

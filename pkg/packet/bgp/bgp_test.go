@@ -6829,3 +6829,61 @@ func TestOptionParameterUnknownKeepsExplicitParamLen(t *testing.T) {
 	require.Equal(t, uint8(4), buf[1])
 	require.Equal(t, uint8(4), o.ParamLen)
 }
+
+// TestBGPMessageSerializeDoesNotModifyHeader checks that serializing a message
+// built in memory does not cache the length in the header. SentOpen is built
+// once per peer event and handed to every BMP client, which serialize it from
+// their own goroutines.
+func TestBGPMessageSerializeDoesNotModifyHeader(t *testing.T) {
+	m, err := NewBGPOpenMessage(65001, 90, netip.MustParseAddr("10.0.0.1"),
+		[]OptionParameterInterface{
+			NewOptionParameterCapability([]ParameterCapabilityInterface{
+				NewCapMultiProtocol(RF_IPv4_UC),
+			}),
+		})
+	require.NoError(t, err)
+	require.Equal(t, uint16(0), m.Header.Len)
+
+	buf1, err := m.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, uint16(0), m.Header.Len, "Serialize must not cache the length")
+	require.Equal(t, uint16(len(buf1)), binary.BigEndian.Uint16(buf1[16:18]))
+
+	buf2, err := m.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, buf1, buf2)
+	require.Equal(t, uint16(0), m.Header.Len)
+
+	// A message read off the wire keeps the length it arrived with.
+	m2, err := ParseBGPMessage(buf1)
+	require.NoError(t, err)
+	require.Equal(t, uint16(len(buf1)), m2.Header.Len)
+	buf3, err := m2.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, buf1, buf3)
+	require.Equal(t, uint16(len(buf1)), m2.Header.Len)
+}
+
+// TestBGPMessageSerializeRechecksLength checks that the message size limit is
+// applied on every call. It used to be skipped once the header had a length.
+func TestBGPMessageSerializeRechecksLength(t *testing.T) {
+	body := &BGPNotification{
+		ErrorCode:    BGP_ERROR_CEASE,
+		ErrorSubcode: 0,
+		Data:         bytes.Repeat([]byte{0xCC}, 5000),
+	}
+	m := &BGPMessage{
+		Header: BGPHeader{Type: BGP_MSG_NOTIFICATION},
+		Body:   body,
+	}
+	// A successful extended serialisation used to cache the length in the
+	// header, which made every later call skip the cap.
+	_, err := m.Serialize(&MarshallingOption{ExtendedMessage: true})
+	require.NoError(t, err)
+
+	_, err = m.Serialize()
+	require.Error(t, err, "the cap must be applied on every call")
+
+	_, err = m.Serialize(&MarshallingOption{ExtendedMessage: true})
+	require.NoError(t, err)
+}
