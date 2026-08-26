@@ -6634,3 +6634,92 @@ func BenchmarkExtCommRouteTargetKey(b *testing.B) {
 		_, _ = ExtCommRouteTargetKey(rt)
 	}
 }
+
+// TestCapabilityLenMatchesSerialize checks the invariant documented on
+// DefaultParameterCapability.Len. Add every new capability type here.
+func TestCapabilityLenMatchesSerialize(t *testing.T) {
+	tests := []struct {
+		name string
+		cap  ParameterCapabilityInterface
+	}{
+		{"multi-protocol", NewCapMultiProtocol(RF_IPv6_UC)},
+		{"route-refresh", NewCapRouteRefresh()},
+		{"extended-message", NewCapExtendedMessage()},
+		{"carrying-label-info", NewCapCarryingLabelInfo()},
+		{"enhanced-route-refresh", NewCapEnhancedRouteRefresh()},
+		{"route-refresh-cisco", NewCapRouteRefreshCisco()},
+		{"four-octet-as", NewCapFourOctetASNumber(65000)},
+		{"extended-nexthop", NewCapExtendedNexthop([]*CapExtendedNexthopTuple{
+			NewCapExtendedNexthopTuple(RF_IPv4_UC, uint16(AFI_IP6)),
+			NewCapExtendedNexthopTuple(RF_IPv4_VPN, uint16(AFI_IP6)),
+		})},
+		{"graceful-restart", NewCapGracefulRestart(true, true, 120, []*CapGracefulRestartTuple{
+			NewCapGracefulRestartTuple(RF_IPv4_UC, true),
+			NewCapGracefulRestartTuple(RF_IPv6_UC, false),
+		})},
+		{"add-path", NewCapAddPath([]*CapAddPathTuple{
+			NewCapAddPathTuple(RF_IPv4_UC, BGP_ADD_PATH_BOTH),
+		})},
+		{"llgr", NewCapLongLivedGracefulRestart([]*CapLongLivedGracefulRestartTuple{
+			NewCapLongLivedGracefulRestartTuple(RF_IPv4_UC, true, 3600),
+			NewCapLongLivedGracefulRestartTuple(RF_IPv6_UC, false, 10),
+		})},
+		{"fqdn", NewCapFQDN("router1", "example.com")},
+		{"software-version", NewCapSoftwareVersion("GoBGP/4.0.0")},
+		{"unknown", NewCapUnknown(BGPCapabilityCode(199), []byte{0x11, 0x22, 0x33})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Len must be right before Serialize has ever run. It used to
+			// return 2 until Serialize filled CapLen as a side effect.
+			l := tt.cap.Len()
+			buf, err := tt.cap.Serialize()
+			require.NoError(t, err)
+			require.Equal(t, len(buf), l)
+		})
+	}
+}
+
+func TestOptionParameterCapabilityAdvancesByWireLength(t *testing.T) {
+	// The graceful restart capability carries 6 octets of value where only
+	// the first 4 form a complete tuple. The decoder drops the trailing 2,
+	// so the capability serializes back 2 octets shorter than it arrived.
+	// The parse loop must still find the capability that follows it.
+	openBytes := []byte{
+		0x04,       // version: 4
+		0xfa, 0x7b, // my as: 64123
+		0x00, 0xf0, // hold time: 240 seconds
+		0x7f, 0x00, 0x00, 0x02, // BGP identifier: 127.0.0.2
+		0x12, // optional parameters length: 18
+		0x02, // parameter type: capability
+		0x10, // parameter length: 16
+
+		0x40,       // capability type: graceful restart
+		0x08,       // capability length: 8
+		0x00, 0x78, // flags: 0, time: 120
+		0x00, 0x01, 0x01, 0x80, // AFI: IPv4, SAFI: unicast, flags: forwarding preserved
+		0x00, 0x01, // trailing partial tuple
+
+		0x41,                   // capability type: 4-octet AS
+		0x04,                   // capability length: 4
+		0x00, 0x00, 0xfd, 0xe8, // AS 65000
+	}
+
+	open := &BGPOpen{}
+	require.NoError(t, open.DecodeFromBytes(openBytes))
+
+	require.Len(t, open.OptParams, 1)
+	param, ok := open.OptParams[0].(*OptionParameterCapability)
+	require.True(t, ok)
+	require.Len(t, param.Capability, 2)
+
+	gr, ok := param.Capability[0].(*CapGracefulRestart)
+	require.True(t, ok)
+	require.Len(t, gr.Tuples, 1)
+	// 10 octets arrived, 8 go back out.
+	require.Equal(t, 8, gr.Len())
+
+	as4, ok := param.Capability[1].(*CapFourOctetASNumber)
+	require.True(t, ok)
+	require.Equal(t, uint32(65000), as4.CapValue)
+}

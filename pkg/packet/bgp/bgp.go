@@ -532,8 +532,15 @@ func (c *DefaultParameterCapability) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
+// Len returns the length of the capability once serialized, so it must always
+// match len(Serialize()). A type that overrides Serialize to build the value
+// from typed fields has to override Len as well. A type that keeps the value
+// in CapValue uses both of these and matches on its own.
+//
+// CapLen is not used here. DecodeFromBytes and Serialize are the only places
+// that set it, so it is zero for a capability that was built locally.
 func (c *DefaultParameterCapability) Len() int {
-	return int(c.CapLen) + 2
+	return 2 + len(c.CapValue)
 }
 
 type CapMultiProtocol struct {
@@ -559,6 +566,10 @@ func (c *CapMultiProtocol) Serialize() ([]byte, error) {
 	buf[3] = c.CapValue.Safi()
 	c.DefaultParameterCapability.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapMultiProtocol) Len() int {
+	return 6
 }
 
 func (c *CapMultiProtocol) MarshalJSON() ([]byte, error) {
@@ -686,6 +697,10 @@ func (c *CapExtendedNexthop) Serialize() ([]byte, error) {
 	return c.DefaultParameterCapability.Serialize()
 }
 
+func (c *CapExtendedNexthop) Len() int {
+	return 2 + 6*len(c.Tuples)
+}
+
 func (c *CapExtendedNexthop) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Code   BGPCapabilityCode          `json:"code"`
@@ -784,6 +799,10 @@ func (c *CapGracefulRestart) Serialize() ([]byte, error) {
 	return c.DefaultParameterCapability.Serialize()
 }
 
+func (c *CapGracefulRestart) Len() int {
+	return 4 + 4*len(c.Tuples)
+}
+
 func (c *CapGracefulRestart) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Code   BGPCapabilityCode          `json:"code"`
@@ -837,6 +856,10 @@ func (c *CapFourOctetASNumber) Serialize() ([]byte, error) {
 	binary.BigEndian.PutUint32(buf, c.CapValue)
 	c.DefaultParameterCapability.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapFourOctetASNumber) Len() int {
+	return 6
 }
 
 func (c *CapFourOctetASNumber) MarshalJSON() ([]byte, error) {
@@ -941,6 +964,10 @@ func (c *CapAddPath) Serialize() ([]byte, error) {
 	}
 	c.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapAddPath) Len() int {
+	return 2 + 4*len(c.Tuples)
 }
 
 func (c *CapAddPath) MarshalJSON() ([]byte, error) {
@@ -1060,6 +1087,10 @@ func (c *CapLongLivedGracefulRestart) Serialize() ([]byte, error) {
 	return c.DefaultParameterCapability.Serialize()
 }
 
+func (c *CapLongLivedGracefulRestart) Len() int {
+	return 2 + 7*len(c.Tuples)
+}
+
 func (c *CapLongLivedGracefulRestart) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Code   BGPCapabilityCode                   `json:"code"`
@@ -1118,6 +1149,10 @@ func (c *CapFQDN) Serialize() ([]byte, error) {
 	copy(buf[c.HostNameLen+2:], c.DomainName)
 	c.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapFQDN) Len() int {
+	return 4 + int(c.HostNameLen) + int(c.DomainNameLen)
 }
 
 func (c *CapFQDN) MarshalJSON() ([]byte, error) {
@@ -1181,6 +1216,10 @@ func (c *CapSoftwareVersion) Serialize() ([]byte, error) {
 	copy(buf[1:], []byte(c.SoftwareVersion))
 	c.CapValue = buf
 	return c.DefaultParameterCapability.Serialize()
+}
+
+func (c *CapSoftwareVersion) Len() int {
+	return 3 + int(c.SoftwareVersionLen)
 }
 
 func (c *CapSoftwareVersion) MarshalJSON() ([]byte, error) {
@@ -1281,10 +1320,15 @@ func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 			return err
 		}
 		o.Capability = append(o.Capability, c)
-		if c.Len() == 0 || len(data) < c.Len() {
+		// Advance by the length on the wire. Len reports how long the
+		// capability is once serialized, which is not always what was
+		// received: a decoder that drops a trailing partial record
+		// returns a shorter length.
+		capLen := 2 + int(data[1])
+		if len(data) < capLen {
 			return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Bad capability length")
 		}
-		data = data[c.Len():]
+		data = data[capLen:]
 	}
 	return nil
 }
