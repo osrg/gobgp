@@ -6764,3 +6764,68 @@ func TestCapabilitySerializeDoesNotModify(t *testing.T) {
 		})
 	}
 }
+
+// TestBGPOpenSerializeDoesNotModify checks that serializing an OPEN leaves the
+// message alone. recvOpen is shared by the FSM, the gRPC API and the BMP
+// clients, which serialize it from their own goroutines.
+func TestBGPOpenSerializeDoesNotModify(t *testing.T) {
+	m, err := NewBGPOpenMessage(65001, 90, netip.MustParseAddr("10.0.0.1"),
+		[]OptionParameterInterface{
+			NewOptionParameterCapability([]ParameterCapabilityInterface{
+				NewCapMultiProtocol(RF_IPv4_UC),
+				NewCapRouteRefresh(),
+				NewCapFourOctetASNumber(65000),
+			}),
+			&OptionParameterUnknown{ParamType: 0xfe, Value: []byte{0x01, 0x02}},
+		})
+	require.NoError(t, err)
+	open := m.Body.(*BGPOpen)
+
+	lengths := func() []uint8 {
+		out := []uint8{open.OptParamLen}
+		for _, p := range open.OptParams {
+			switch o := p.(type) {
+			case *OptionParameterCapability:
+				out = append(out, o.ParamLen)
+			case *OptionParameterUnknown:
+				out = append(out, o.ParamLen)
+			}
+		}
+		return out
+	}
+
+	before := lengths()
+	require.Equal(t, []uint8{0, 0, 0}, before, "nothing is set before Serialize")
+
+	buf1, err := open.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, before, lengths())
+
+	buf2, err := open.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, buf1, buf2)
+	require.Equal(t, before, lengths())
+
+	// The lengths still have to reach the wire.
+	decoded := &BGPOpen{}
+	require.NoError(t, decoded.DecodeFromBytes(buf1))
+	require.Equal(t, uint8(len(buf1)-10), decoded.OptParamLen)
+	require.Len(t, decoded.OptParams, 2)
+	capParam, ok := decoded.OptParams[0].(*OptionParameterCapability)
+	require.True(t, ok)
+	require.Len(t, capParam.Capability, 3)
+	unknown, ok := decoded.OptParams[1].(*OptionParameterUnknown)
+	require.True(t, ok)
+	require.Equal(t, uint8(2), unknown.ParamLen)
+	require.Equal(t, []byte{0x01, 0x02}, unknown.Value)
+}
+
+// TestOptionParameterUnknownKeepsExplicitParamLen checks that an explicitly set
+// ParamLen still wins over len(Value).
+func TestOptionParameterUnknownKeepsExplicitParamLen(t *testing.T) {
+	o := &OptionParameterUnknown{ParamType: 0xfe, ParamLen: 4, Value: []byte{0x01, 0x02}}
+	buf, err := o.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, uint8(4), buf[1])
+	require.Equal(t, uint8(4), o.ParamLen)
+}

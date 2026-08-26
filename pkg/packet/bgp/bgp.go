@@ -1310,7 +1310,10 @@ type OptionParameterInterface interface {
 }
 
 type OptionParameterCapability struct {
-	ParamType  uint8
+	ParamType uint8
+	// ParamLen is the parameter length read off the wire. BGPOpen's
+	// DecodeFromBytes is the only place that sets it. Serialize does not
+	// update it.
 	ParamLen   uint8
 	Capability []ParameterCapabilityInterface
 }
@@ -1348,8 +1351,8 @@ func (o *OptionParameterCapability) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, pbuf...)
 	}
-	o.ParamLen = uint8(len(buf) - 2)
-	buf[1] = o.ParamLen
+	paramLen := uint8(len(buf) - 2)
+	buf[1] = paramLen
 	return buf, nil
 }
 
@@ -1362,26 +1365,33 @@ func NewOptionParameterCapability(capability []ParameterCapabilityInterface) *Op
 
 type OptionParameterUnknown struct {
 	ParamType uint8
-	ParamLen  uint8
-	Value     []byte
+	// ParamLen is the parameter length read off the wire. Serialize uses it
+	// when it is not zero and falls back to len(Value). Serialize does not
+	// update it.
+	ParamLen uint8
+	Value    []byte
 }
 
 func (o *OptionParameterUnknown) Serialize() ([]byte, error) {
 	buf := make([]byte, 2+len(o.Value))
 	buf[0] = o.ParamType
-	if o.ParamLen == 0 {
-		o.ParamLen = uint8(len(o.Value))
+	paramLen := o.ParamLen
+	if paramLen == 0 {
+		paramLen = uint8(len(o.Value))
 	}
-	buf[1] = o.ParamLen
+	buf[1] = paramLen
 	copy(buf[2:], o.Value)
 	return buf, nil
 }
 
 type BGPOpen struct {
-	Version     uint8
-	MyAS        uint16
-	HoldTime    uint16
-	ID          netip.Addr
+	Version  uint8
+	MyAS     uint16
+	HoldTime uint16
+	ID       netip.Addr
+	// OptParamLen is the optional parameters length read off the wire.
+	// DecodeFromBytes is the only place that sets it. Serialize does not
+	// update it.
 	OptParamLen uint8
 	OptParams   []OptionParameterInterface
 }
@@ -1446,8 +1456,7 @@ func (msg *BGPOpen) Serialize(options ...*MarshallingOption) ([]byte, error) {
 		}
 		pbuf = append(pbuf, onepbuf...)
 	}
-	msg.OptParamLen = uint8(len(pbuf))
-	buf[9] = msg.OptParamLen
+	buf[9] = uint8(len(pbuf))
 	return append(buf, pbuf...), nil
 }
 
