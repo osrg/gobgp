@@ -1284,6 +1284,23 @@ func Test_EVPNIPPrefixRouteRejectsOversizedPrefixLength(t *testing.T) {
 	assert.Error(err)
 }
 
+func Test_GetRouteDistinguisherUnknownPreservesValue(t *testing.T) {
+	assert := assert.New(t)
+	// 8-byte RD with an unrecognized type (0x0003) and a nonzero value.
+	wire := []byte{0x00, 0x03, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x01}
+	rd := GetRouteDistinguisher(wire)
+	buf, err := rd.Serialize()
+	assert.NoError(err)
+	assert.Equal(wire, buf)
+
+	// Two unknown RDs that differ only in their value must not collapse
+	// onto the same serialized form.
+	other := GetRouteDistinguisher([]byte{0x00, 0x03, 0xca, 0xfe, 0xba, 0xbe, 0x00, 0x02})
+	otherBuf, err := other.Serialize()
+	assert.NoError(err)
+	assert.NotEqual(buf, otherBuf)
+}
+
 func Test_EVPNMacIPAdvertisementRoute(t *testing.T) {
 	rd, err := ParseRouteDistinguisher("100:100")
 	require.NoError(t, err)

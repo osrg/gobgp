@@ -1821,6 +1821,7 @@ func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 		DefaultRouteDistinguisher: DefaultRouteDistinguisher{
 			Type: typ,
 		},
+		Value: data[2:8],
 	}
 	return rd
 }
