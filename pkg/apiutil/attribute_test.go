@@ -17,6 +17,7 @@ package apiutil
 
 import (
 	"bytes"
+	"encoding/binary"
 	"net/netip"
 	"testing"
 
@@ -1486,6 +1487,45 @@ func Test_TunnelEncapAttribute(t *testing.T) {
 
 	output, _ := NewTunnelEncapAttributeFromNative(n.(*bgp.PathAttributeTunnelEncap))
 	assert.True(proto.Equal(input, output))
+}
+
+func Test_SRBSIDLabelRoundTrip(t *testing.T) {
+	// The API carries an SR-MPLS Binding SID as the plain label value.
+	// UnmarshalSRBSID shifts it into the high 20 bits of the 4-octet label
+	// stack entry (RFC 9830 Figure 6); MarshalSRBSID must undo that shift so
+	// the label survives an unmarshal/marshal round trip.
+	const label = 100
+	sid := make([]byte, 4)
+	binary.BigEndian.PutUint32(sid, label)
+
+	native, err := UnmarshalSRBSID(&api.TunnelEncapSubTLVSRBindingSID{
+		Bsid: &api.TunnelEncapSubTLVSRBindingSID_SrBindingSid{
+			SrBindingSid: &api.SRBindingSID{Sid: sid, SFlag: true},
+		},
+	})
+	require.NoError(t, err)
+
+	// The native wire value has the label in the high 20 bits.
+	srbsid := native.(*bgp.TunnelEncapSubTLVSRBSID)
+	require.Equal(t, uint32(label<<12), binary.BigEndian.Uint32(srbsid.BSID.Value))
+
+	out, err := MarshalSRBSID(srbsid)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(label), binary.BigEndian.Uint32(out.Sid))
+	assert.True(t, out.SFlag)
+}
+
+func Test_SRBSIDSRv6NotShifted(t *testing.T) {
+	// A 16-octet SRv6 SID carried in the Binding SID sub-TLV must be copied
+	// verbatim, without the SR-MPLS label shift.
+	sid := netip.MustParseAddr("2001:db8::1").AsSlice()
+	native := &bgp.TunnelEncapSubTLVSRBSID{
+		TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{Type: bgp.ENCAP_SUBTLV_TYPE_SRBINDING_SID, Length: 18},
+		BSID:              &bgp.BSID{Value: sid},
+	}
+	out, err := MarshalSRBSID(native)
+	require.NoError(t, err)
+	assert.Equal(t, sid, out.Sid)
 }
 
 func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {

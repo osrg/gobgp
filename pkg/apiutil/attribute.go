@@ -3365,6 +3365,13 @@ func MarshalSRBSID(bsid *bgp.TunnelEncapSubTLVSRBSID) (*api.SRBindingSID, error)
 		Sid: make([]byte, len(bsid.BSID.Value)),
 	}
 	copy(s.Sid, bsid.BSID.Value)
+	// An SR-MPLS BSID is a 4-octet label stack entry with the label in the
+	// high 20 bits (RFC 9830 Figure 6). NewBSID shifts the API label into
+	// that position on decode, so undo the shift here to round-trip the
+	// label value instead of the encoded stack entry.
+	if len(bsid.BSID.Value) == 4 {
+		binary.BigEndian.PutUint32(s.Sid, binary.BigEndian.Uint32(bsid.BSID.Value)>>12)
+	}
 	s.SFlag = bsid.Flags&0x80 == 0x80
 	s.IFlag = bsid.Flags&0x40 == 0x40
 	return s, nil
