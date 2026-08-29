@@ -227,6 +227,14 @@ type Peer struct {
 
 var errNotAllPeerBytesAvailable = errors.New("not all Peer bytes are available")
 
+// Minimum encoded length of one element, used to bound preallocation hints that
+// are read from the input. Each is the smallest length its own decoder accepts.
+const (
+	minPeerLen     = 5 + 4 // type, BGP id, then at least an IPv4 address
+	minRibEntryLen = 8     // peer index, originated time, attribute length
+	minGeoPeerLen  = 13    // type, BGP id, latitude, longitude
+)
+
 func (p *Peer) decodeFromBytes(data []byte) ([]byte, error) {
 	if len(data) < 5 {
 		return nil, errNotAllPeerBytesAvailable
@@ -340,7 +348,11 @@ func parsePeerIndexTable(data []byte) (*PeerIndexTable, error) {
 	}
 	peerNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
-	t.Peers = make([]*Peer, 0, peerNum)
+	// peerNum comes from the input, so it must not size an allocation on its own:
+	// decodeFromBytes below rejects the first peer that is short, and a peer needs
+	// at least minPeerLen bytes. Capacity is only a hint to append, so bounding it
+	// cannot change the result.
+	t.Peers = make([]*Peer, 0, min(int(peerNum), len(data)/minPeerLen+1))
 	var err error
 	for range peerNum {
 		p := &Peer{}
@@ -543,7 +555,8 @@ func parseRib(data []byte, family bgp.Family, isAddPath bool) (*Rib, error) {
 	data = data[prefix.Len():]
 	entryNum := binary.BigEndian.Uint16(data[:2])
 	data = data[2:]
-	u.Entries = make([]*RibEntry, 0, entryNum)
+	// See the note in parsePeerIndexTable: bound a hint taken from the input.
+	u.Entries = make([]*RibEntry, 0, min(int(entryNum), len(data)/minRibEntryLen+1))
 	for range entryNum {
 		var e *RibEntry
 		e, data, err = parseRibEntry(data, family, u.isAddPath, prefix)
@@ -668,7 +681,8 @@ func parseGeoPeerTable(data []byte) (*GeoPeerTable, error) {
 	t.CollectorLongitude = math.Float32frombits(binary.BigEndian.Uint32(data[8:12]))
 	peerCount := binary.BigEndian.Uint16(data[12:14])
 	data = data[14:]
-	t.Peers = make([]*GeoPeer, 0, peerCount)
+	// See the note in parsePeerIndexTable: bound a hint taken from the input.
+	t.Peers = make([]*GeoPeer, 0, min(int(peerCount), len(data)/minGeoPeerLen+1))
 	var err error
 	for range peerCount {
 		p := &GeoPeer{}

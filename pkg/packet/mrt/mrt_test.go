@@ -18,8 +18,10 @@ package mrt
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"net/netip"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -402,4 +404,42 @@ func FuzzDecodeFromBytes(f *testing.F) {
 			parseBGP4MPMessage(h, false, false, data[8:])
 		}
 	})
+}
+
+// TestPeerIndexTableCapHint checks that a count taken from the input does not size
+// an allocation before the elements behind it have arrived, and that a real table
+// still parses. The assertion is on allocation volume rather than on getting an
+// error, because a count with no data behind it already errors either way.
+func TestPeerIndexTableCapHint(t *testing.T) {
+	buildTable := func(nPeers int) []byte {
+		b := []byte{1, 2, 3, 4, 0, 0} // collector id, empty view name
+		b = binary.BigEndian.AppendUint16(b, uint16(nPeers))
+		for i := range nPeers {
+			// type 0: IPv4 address, 2 byte AS
+			b = append(b, 0, 10, 0, 0, byte(i), 10, 0, 0, byte(i), 0, 1)
+		}
+		return b
+	}
+	for _, n := range []int{0, 1, 2, 10, 100} {
+		tbl, err := parsePeerIndexTable(buildTable(n))
+		assert.NoError(t, err, "n=%d", n)
+		assert.Len(t, tbl.Peers, n, "n=%d", n)
+	}
+
+	// A count of 65535 with no peer bytes behind it must error, and must not have
+	// reserved room for 65535 peers on the way there.
+	hostile := []byte{1, 2, 3, 4, 0, 0}
+	hostile = binary.BigEndian.AppendUint16(hostile, 65535)
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	_, err := parsePeerIndexTable(hostile)
+	runtime.ReadMemStats(&after)
+
+	assert.Error(t, err)
+	allocated := after.TotalAlloc - before.TotalAlloc
+	// 65535 *Peer pointers is over 500KB; a bounded parse needs a tiny fraction.
+	assert.Less(t, allocated, uint64(64*1024),
+		"parsing a table that claims 65535 peers with no peer data allocated %d bytes", allocated)
 }
