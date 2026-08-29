@@ -1792,7 +1792,12 @@ func (rd *RouteDistinguisherUnknown) Serialize() ([]byte, error) {
 }
 
 func (rd *RouteDistinguisherUnknown) String() string {
-	return fmt.Sprintf("%v", rd.Value)
+	// Include the type. EVPN, MUP, VPLS and flowspec-VPN NLRIs are keyed on
+	// String(), so two unknown RDs that differ only in their type would share
+	// one table entry if the type were left out. The value is printed as hex,
+	// which is always 12 digits for the 6 value bytes, so it cannot collide
+	// with the decimal "admin:assigned" form of a known RD type.
+	return fmt.Sprintf("%d:%x", rd.Type, rd.Value)
 }
 
 func (rd *RouteDistinguisherUnknown) MarshalJSON() ([]byte, error) {

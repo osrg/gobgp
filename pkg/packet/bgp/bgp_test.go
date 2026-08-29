@@ -1301,6 +1301,45 @@ func Test_GetRouteDistinguisherUnknownPreservesValue(t *testing.T) {
 	assert.NotEqual(buf, otherBuf)
 }
 
+func Test_RouteDistinguisherUnknownStringIncludesType(t *testing.T) {
+	assert := assert.New(t)
+
+	// The string must carry both the type and the value.
+	rd := GetRouteDistinguisher([]byte{0x00, 0x03, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x01})
+	assert.Equal("3:deadbeef0001", rd.String())
+
+	// EVPN, MUP, VPLS and flowspec-VPN NLRIs are keyed on String(). Two
+	// unknown RDs that differ only in their type must not produce the same
+	// key.
+	sameValueOtherType := GetRouteDistinguisher([]byte{0x00, 0x04, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x01})
+	assert.NotEqual(rd.String(), sameValueOtherType.String())
+
+	// The value is 12 hex digits, so it never looks like the decimal
+	// "admin:assigned" form of a known RD type.
+	known := NewRouteDistinguisherTwoOctetAS(3, 123456)
+	leadingZeros := GetRouteDistinguisher([]byte{0x00, 0x03, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56})
+	assert.NotEqual(known.String(), leadingZeros.String())
+
+	// The same must hold once the RD is carried inside a real NLRI.
+	evpn := func(rdWire []byte) string {
+		return NewEVPNNLRI(EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG, &EVPNMulticastEthernetTagRoute{
+			RD:              GetRouteDistinguisher(rdWire),
+			ETag:            100,
+			IPAddressLength: 32,
+			IPAddress:       netip.MustParseAddr("10.0.0.1"),
+		}).String()
+	}
+	assert.NotEqual(
+		evpn([]byte{0x00, 0x03, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x01}),
+		evpn([]byte{0x00, 0x04, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x01}),
+	)
+
+	// A hand-built RD with no value must not panic.
+	assert.Equal("5:", (&RouteDistinguisherUnknown{
+		DefaultRouteDistinguisher: DefaultRouteDistinguisher{Type: 5},
+	}).String())
+}
+
 func Test_EVPNMacIPAdvertisementRoute(t *testing.T) {
 	rd, err := ParseRouteDistinguisher("100:100")
 	require.NoError(t, err)
