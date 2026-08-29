@@ -69,6 +69,10 @@ service GoBgpService {
   rpc DeleteVrf(DeleteVrfRequest) returns (DeleteVrfResponse);
   rpc ListVrf(ListVrfRequest) returns (stream ListVrfResponse);
 
+  rpc AddAggregate(AddAggregateRequest) returns (AddAggregateResponse);
+  rpc DeleteAggregate(DeleteAggregateRequest) returns (DeleteAggregateResponse);
+  rpc ListAggregate(ListAggregateRequest) returns (stream ListAggregateResponse);
+
   rpc AddPolicy(AddPolicyRequest) returns (AddPolicyResponse);
   rpc DeletePolicy(DeletePolicyRequest) returns (DeletePolicyResponse);
   rpc ListPolicy(ListPolicyRequest) returns (stream ListPolicyResponse);
@@ -1498,4 +1502,36 @@ message ListTcpAoKeychainRequest {
 
 message ListTcpAoKeychainResponse {
   TcpAoKeychain keychain = 1;
+}
+
+message AggregateAddress {
+  string prefix = 1;
+  bool summary_only = 2;
+  string policy_name = 3;
+  bool as_set = 4;
+}
+
+message AggregateAddressInfo {
+  AggregateAddress aggregate = 1;
+  uint32 num_contributors = 2;
+}
+
+message AddAggregateRequest {
+  AggregateAddress aggregate = 1;
+}
+
+message AddAggregateResponse {}
+
+message DeleteAggregateRequest {
+  string prefix = 1;
+}
+
+message DeleteAggregateResponse {}
+
+message ListAggregateRequest {
+  Family family = 1;
+}
+
+message ListAggregateResponse {
+  AggregateAddressInfo aggregate = 1;
 }
