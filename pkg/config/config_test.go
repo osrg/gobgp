@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"syscall"
 	"testing"
 
@@ -183,4 +184,88 @@ func listTcpAoKeychains(t *testing.T, bgpServer *server.BgpServer) map[string]*a
 	})
 	require.NoError(t, err)
 	return result
+}
+
+func TestPeerGroupConfigLifecycle(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "gobgpd.toml")
+
+	writeConfig := func(content string) *oc.BgpConfigSet {
+		require.NoError(t, os.WriteFile(configFile, []byte(content), 0o600))
+		config, err := ReadConfigFile(configFile, "toml")
+		require.NoError(t, err)
+		return config
+	}
+	global := `
+[global.config]
+  as = 65000
+  router-id = "192.0.2.1"
+  port = -1
+`
+	initial := writeConfig(global + `
+[[peer-groups]]
+  [peer-groups.config]
+    peer-group-name = "pg1"
+    peer-as = 65001
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "198.51.100.1"
+    peer-group = "pg1"
+`)
+	bgpServer := server.NewBgpServer()
+	go bgpServer.Serve()
+	t.Cleanup(func() {
+		require.NoError(t, bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+	current, err := InitialConfig(context.Background(), bgpServer, initial, false)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"pg1"}, listPeerGroupNames(t, bgpServer))
+	assert.Equal(t, map[string]string{"198.51.100.1": "pg1"}, listPeerGroupMembers(t, bgpServer))
+
+	// move the neighbor to a new peer group and delete the old one in the
+	// same update
+	moved := writeConfig(global + `
+[[peer-groups]]
+  [peer-groups.config]
+    peer-group-name = "pg2"
+    peer-as = 65001
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "198.51.100.1"
+    peer-group = "pg2"
+`)
+	current, err = UpdateConfig(context.Background(), bgpServer, current, moved)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"pg2"}, listPeerGroupNames(t, bgpServer))
+	assert.Equal(t, map[string]string{"198.51.100.1": "pg2"}, listPeerGroupMembers(t, bgpServer))
+
+	// delete the peer group and its neighbor in the same update
+	_, err = UpdateConfig(context.Background(), bgpServer, current, writeConfig(global))
+	require.NoError(t, err)
+
+	assert.Empty(t, listPeerGroupNames(t, bgpServer))
+	assert.Empty(t, listPeerGroupMembers(t, bgpServer))
+}
+
+func listPeerGroupNames(t *testing.T, bgpServer *server.BgpServer) []string {
+	t.Helper()
+	var names []string
+	err := bgpServer.ListPeerGroup(context.Background(), &api.ListPeerGroupRequest{}, func(pg *api.PeerGroup) {
+		names = append(names, pg.Conf.PeerGroupName)
+	})
+	require.NoError(t, err)
+	sort.Strings(names)
+	return names
+}
+
+func listPeerGroupMembers(t *testing.T, bgpServer *server.BgpServer) map[string]string {
+	t.Helper()
+	members := make(map[string]string)
+	err := bgpServer.ListPeer(context.Background(), &api.ListPeerRequest{}, func(p *api.Peer) {
+		members[p.Conf.NeighborAddress] = p.Conf.PeerGroup
+	})
+	require.NoError(t, err)
+	return members
 }
