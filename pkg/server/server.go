@@ -4693,6 +4693,27 @@ func convertFSMStateReasonToAPI(stateReason *fsmStateReason) (api.PeerState_Disc
 	return disconnectReason, stateReason.String()
 }
 
+// extractNotificationCodeSubcode returns the raw RFC 4271 §6 NOTIFICATION
+// error code/subcode whenever stateReason carries a real *bgp.BGPNotification
+// -- intentionally not gated on stateReason.Type (e.g. fsmNotificationSent/
+// fsmNotificationRecv only): fsmBadPeerAS, fsmInvalidMsg, fsmHoldTimerExpired,
+// and fsmAdminDown can all carry a real notification too (see their
+// newfsmStateReason call sites in fsm.go), and any of them should surface a
+// numeric code/subcode when one is actually present. Returns 0, 0 when no
+// notification was involved.
+func extractNotificationCodeSubcode(stateReason *fsmStateReason) (uint32, uint32) {
+	if stateReason == nil || stateReason.BGPNotification == nil {
+		return 0, 0
+	}
+
+	body, ok := stateReason.BGPNotification.Body.(*bgp.BGPNotification)
+	if !ok {
+		return 0, 0
+	}
+
+	return uint32(body.ErrorCode), uint32(body.ErrorSubcode)
+}
+
 func toPathApiUtil(path *table.Path) *apiutil.Path {
 	// Best and SendMaxFiltered are set in ListPath API
 	p := &apiutil.Path{
@@ -4780,6 +4801,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 						}
 
 						disconnectReason, disconnectMessage := convertFSMStateReasonToAPI(msg.StateReason)
+						notificationCode, notificationSubcode := extractNotificationCodeSubcode(msg.StateReason)
 
 						callbacks.OnPeerUpdate(&apiutil.WatchEventMessage_PeerEvent{
 							Type: msg.Type,
@@ -4792,17 +4814,19 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 									PeerGroup:         msg.PeerGroup,
 								},
 								State: apiutil.PeerState{
-									PeerASN:           msg.PeerAS,
-									LocalASN:          msg.LocalAS,
-									NeighborAddress:   msg.PeerAddress,
-									SessionState:      msg.State,
-									AdminState:        admin_state,
-									RouterID:          msg.PeerID,
-									PeerGroup:         msg.PeerGroup,
-									RemoteCap:         msg.RemoteCap,
-									LocalCap:          msg.LocalCap,
-									DisconnectReason:  disconnectReason,
-									DisconnectMessage: disconnectMessage,
+									PeerASN:             msg.PeerAS,
+									LocalASN:            msg.LocalAS,
+									NeighborAddress:     msg.PeerAddress,
+									SessionState:        msg.State,
+									AdminState:          admin_state,
+									RouterID:            msg.PeerID,
+									PeerGroup:           msg.PeerGroup,
+									RemoteCap:           msg.RemoteCap,
+									LocalCap:            msg.LocalCap,
+									DisconnectReason:    disconnectReason,
+									DisconnectMessage:   disconnectMessage,
+									NotificationCode:    notificationCode,
+									NotificationSubcode: notificationSubcode,
 								},
 								Transport: apiutil.Transport{
 									LocalAddress: msg.LocalAddress,

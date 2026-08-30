@@ -874,6 +874,15 @@ message PeerState {
   DisconnectReason disconnect_reason = 21;
   string disconnect_message = 22;
   BfdPeerState bfd_state = 23;
+  // Raw RFC 4271 §6 NOTIFICATION error code/subcode, extracted from the FSM's
+  // underlying BGP NOTIFICATION whenever one is present. This is not limited
+  // to DISCONNECT_REASON_NOTIFICATION_SENT/_RECEIVED -- fsmBadPeerAS,
+  // fsmInvalidMsg, fsmHoldTimerExpired, and fsmAdminDown can all carry a real
+  // notification too. 0/0 when no notification was involved. Needed because
+  // disconnect_reason/disconnect_message alone cannot expose these as typed
+  // integers without fragile string-parsing.
+  uint32 notification_code = 24;
+  uint32 notification_subcode = 25;
 }
 
 message Messages {

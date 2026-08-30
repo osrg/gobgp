@@ -4656,3 +4656,99 @@ func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.
 	require.Never(t, vpnPresentAtS2AdjIn, 10*time.Second, 100*time.Millisecond,
 		"VPN route should not appear at s2 adj-in from s1 after second VPN prefix is added")
 }
+
+// TestWatchEventPeerNotificationCodeSubcode verifies PeerState.NotificationCode
+// and PeerState.NotificationSubcode -- the raw RFC 4271 §6 NOTIFICATION error
+// code/subcode, extracted directly from the FSM's underlying notification.
+// DisconnectReason/DisconnectMessage alone cannot expose these as typed
+// integers without fragile string-parsing.
+func TestWatchEventPeerNotificationCodeSubcode(t *testing.T) {
+	assert := assert.New(t)
+
+	// s expects its peer to be ASN 99, but the peer that actually connects
+	// (peerServer, below) is ASN 2 -- a genuine peer-AS mismatch, driving
+	// fsm.go's opensent() into the fsmBadPeerAS branch, with a real
+	// NOTIFICATION (OPEN_MESSAGE_ERROR / BAD_PEER_AS) sent to the peer.
+	s := runNewServer(t, 1, "1.1.1.1", 10182)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	err := s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: "127.0.0.1",
+				PeerAsn:         99,
+			},
+			Transport: &api.Transport{
+				PassiveMode: true,
+			},
+		},
+	})
+	assert.NoError(err)
+
+	peerServer := runNewServer(t, 2, "2.2.2.2", -1)
+	defer peerServer.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	var (
+		badPeerASReason                api.PeerState_DisconnectReason
+		badPeerASMessage               string
+		notificationCode, notifSubcode uint32
+		once                           sync.Once
+	)
+	badPeerASCh := make(chan struct{})
+	watchCtx, watchCancel := context.WithCancel(context.Background())
+	defer watchCancel()
+
+	err = s.WatchEvent(watchCtx, WatchEventMessageCallbacks{
+		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
+			if peer == nil || peer.Type != apiutil.PEER_EVENT_STATE {
+				return
+			}
+			if api.PeerState_SessionState(int(peer.Peer.State.SessionState)+1) != api.PeerState_SESSION_STATE_IDLE {
+				return
+			}
+			once.Do(func() {
+				badPeerASReason = peer.Peer.State.DisconnectReason
+				badPeerASMessage = peer.Peer.State.DisconnectMessage
+				notificationCode = peer.Peer.State.NotificationCode
+				notifSubcode = peer.Peer.State.NotificationSubcode
+				close(badPeerASCh)
+			})
+		},
+	}, WatchPeer())
+	assert.NoError(err)
+
+	err = peerServer.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: "127.0.0.1",
+				PeerAsn:         1,
+			},
+			Transport: &api.Transport{
+				RemotePort: 10182,
+			},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{
+					ConnectRetry:           1,
+					IdleHoldTimeAfterReset: 1,
+				},
+			},
+		},
+	})
+	assert.NoError(err)
+
+	select {
+	case <-badPeerASCh:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout waiting for bad-peer-AS IDLE event")
+	}
+
+	assert.Equal(api.PeerState_DISCONNECT_REASON_BAD_PEER_AS, badPeerASReason)
+	// fsmBadPeerAS's String() case returns the literal "bad-peer-as" --
+	// unlike fsmNotificationSent/fsmNotificationRecv, it does not format the
+	// raw notification code/subcode into the message string. That's exactly
+	// why NotificationCode/NotificationSubcode exist as separate fields.
+	assert.Equal("bad-peer-as", badPeerASMessage)
+	// RFC 4271 §6: OPEN Message Error (2) / Bad Peer AS (2).
+	assert.Equal(uint32(bgp.BGP_ERROR_OPEN_MESSAGE_ERROR), notificationCode)
+	assert.Equal(uint32(bgp.BGP_ERROR_SUB_BAD_PEER_AS), notifSubcode)
+}
