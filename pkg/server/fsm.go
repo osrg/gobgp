@@ -1471,9 +1471,11 @@ func (fsm *fsm) handleOpen(fmsg *fsmMsg) (bgp.FSMState, *fsmStateReason, *bgp.BG
 			}
 			return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil), nil
 		}
-		return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, m, nil), bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_FSM_ERROR, 1, nil)
+		notif := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_FSM_ERROR, 1, nil)
+		return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, notif, nil), notif
 	case *bgp.MessageError:
-		return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, nil, nil), bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+		notif := bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data)
+		return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, notif, nil), notif
 	}
 	panic("handleOpen was called with invalid fsmMsg")
 }
