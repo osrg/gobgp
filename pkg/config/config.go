@@ -146,7 +146,7 @@ func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedP
 			Name: pg.Config.PeerGroupName,
 		})
 		if err != nil {
-			bgpServer.Log().Warn("failed to delete peer group",
+			bgpServer.Log().Error("failed to delete peer group",
 				slog.String("Topic", "config"),
 				slog.String("Key", pg.Config.PeerGroupName),
 				slog.Any("Error", err),
@@ -166,7 +166,7 @@ func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedP
 			PeerGroup: oc.NewPeerGroupFromConfigStruct(&pg),
 		})
 		if err != nil {
-			bgpServer.Log().Warn("failed to update peer group",
+			bgpServer.Log().Error("failed to update peer group",
 				slog.String("Topic", "config"),
 				slog.String("Key", pg.Config.PeerGroupName),
 				slog.Any("Error", err),
@@ -241,7 +241,7 @@ func deleteNeighbors(ctx context.Context, bgpServer *server.BgpServer, deleted [
 			Address: p.State.NeighborAddress.String(),
 		})
 		if err != nil {
-			bgpServer.Log().Warn("failed to delete peer",
+			bgpServer.Log().Error("failed to delete peer",
 				slog.String("Topic", "config"),
 				slog.String("Key", p.State.NeighborAddress.String()),
 				slog.Any("Error", err),
@@ -259,7 +259,7 @@ func updateNeighbors(ctx context.Context, bgpServer *server.BgpServer, updated [
 			Peer: oc.NewPeerFromConfigStruct(&p),
 		})
 		if err != nil {
-			bgpServer.Log().Warn("failed to update peer",
+			bgpServer.Log().Error("failed to update peer",
 				slog.String("Topic", "config"),
 				slog.String("Key", p.State.NeighborAddress.String()),
 				slog.Any("Error", err),
