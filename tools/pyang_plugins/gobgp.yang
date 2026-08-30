@@ -1308,33 +1308,6 @@ module gobgp {
     uses zebra-set;
   }
 
-  grouping collector-config {
-    leaf url {
-      type string;
-    }
-    leaf db-name {
-      type string;
-    }
-    leaf table-dump-interval {
-      type uint64;
-    }
-  }
-
-  grouping collector-set {
-    container collector {
-      container config {
-        uses collector-config;
-      }
-      container state {
-        uses collector-config;
-      }
-    }
-  }
-
-  augment "/bgp:bgp" {
-    uses collector-set;
-  }
-
   grouping listen-config {
     leaf port {
         type int32;

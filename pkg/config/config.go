@@ -3,7 +3,6 @@ package config
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -305,12 +304,6 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 			bgpServer.Log().Error("failed to set zebra config",
 				slog.String("Topic", "config"), slog.Any("Error", err))
 		}
-	}
-
-	if len(newConfig.Collector.Config.Url) > 0 {
-		bgpServer.Log().Error("collector feature is not supported",
-			slog.String("Topic", "config"))
-		return nil, errors.New("collector feature is not supported")
 	}
 
 	for _, c := range newConfig.RpkiServers {

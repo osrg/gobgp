@@ -1316,60 +1316,6 @@ func (lhs *DynamicNeighbor) Equal(rhs *DynamicNeighbor) bool {
 }
 
 // struct for container gobgp:state.
-type CollectorState struct {
-	// original -> gobgp:url
-	Url string `mapstructure:"url" json:"url,omitempty"`
-	// original -> gobgp:db-name
-	DbName string `mapstructure:"db-name" json:"db-name,omitempty"`
-	// original -> gobgp:table-dump-interval
-	TableDumpInterval uint64 `mapstructure:"table-dump-interval" json:"table-dump-interval,omitempty"`
-}
-
-// struct for container gobgp:config.
-type CollectorConfig struct {
-	// original -> gobgp:url
-	Url string `mapstructure:"url" json:"url,omitempty"`
-	// original -> gobgp:db-name
-	DbName string `mapstructure:"db-name" json:"db-name,omitempty"`
-	// original -> gobgp:table-dump-interval
-	TableDumpInterval uint64 `mapstructure:"table-dump-interval" json:"table-dump-interval,omitempty"`
-}
-
-func (lhs *CollectorConfig) Equal(rhs *CollectorConfig) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if lhs.Url != rhs.Url {
-		return false
-	}
-	if lhs.DbName != rhs.DbName {
-		return false
-	}
-	if lhs.TableDumpInterval != rhs.TableDumpInterval {
-		return false
-	}
-	return true
-}
-
-// struct for container gobgp:collector.
-type Collector struct {
-	// original -> gobgp:collector-config
-	Config CollectorConfig `mapstructure:"config" json:"config,omitempty"`
-	// original -> gobgp:collector-state
-	State CollectorState `mapstructure:"state" json:"state,omitempty"`
-}
-
-func (lhs *Collector) Equal(rhs *Collector) bool {
-	if lhs == nil || rhs == nil {
-		return false
-	}
-	if !lhs.Config.Equal(&(rhs.Config)) {
-		return false
-	}
-	return true
-}
-
-// struct for container gobgp:state.
 type ZebraState struct {
 	// original -> gobgp:enabled
 	// gobgp:enabled's original type is boolean.
@@ -5396,8 +5342,6 @@ type Bgp struct {
 	MrtDump []Mrt `mapstructure:"mrt-dump" json:"mrt-dump,omitempty"`
 	// original -> gobgp:zebra
 	Zebra Zebra `mapstructure:"zebra" json:"zebra,omitempty"`
-	// original -> gobgp:collector
-	Collector Collector `mapstructure:"collector" json:"collector,omitempty"`
 	// original -> gobgp:dynamic-neighbors
 	DynamicNeighbors []DynamicNeighbor `mapstructure:"dynamic-neighbors" json:"dynamic-neighbors,omitempty"`
 }
@@ -5458,9 +5402,6 @@ func (lhs *Bgp) Equal(rhs *Bgp) bool {
 		}
 	}
 	if !lhs.Zebra.Equal(&(rhs.Zebra)) {
-		return false
-	}
-	if !lhs.Collector.Equal(&(rhs.Collector)) {
 		return false
 	}
 	if len(lhs.DynamicNeighbors) != len(rhs.DynamicNeighbors) {
