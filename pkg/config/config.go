@@ -99,7 +99,7 @@ func assignGlobalpolicy(ctx context.Context, bgpServer *server.BgpServer, a *oc.
 			Default:  def,
 		}),
 	}); err != nil {
-		bgpServer.Log().Warn("failed to set policy assignment",
+		bgpServer.Log().Error("failed to set policy assignment",
 			slog.String("Topic", "config"),
 			slog.String("Direction", table.POLICY_DIRECTION_EXPORT.String()),
 			slog.Any("Error", err),
