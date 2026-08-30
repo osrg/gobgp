@@ -17025,6 +17025,13 @@ func ShouldHardReset(subcode uint8, hardResetOnAdminReset bool) bool {
 type BGPKeepAlive struct{}
 
 func (msg *BGPKeepAlive) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	// RFC 4271 Section 4.4: a KEEPALIVE consists of only the message
+	// header and has a length of exactly 19 octets, so the body that
+	// parseBody hands us must be empty.
+	if len(data) != 0 {
+		length := uint16(BGP_HEADER_LENGTH + len(data))
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, length), fmt.Sprintf("KEEPALIVE length must be %d", BGP_HEADER_LENGTH))
+	}
 	return nil
 }
 
