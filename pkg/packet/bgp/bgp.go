@@ -17110,7 +17110,7 @@ func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption
 
 	msg.Len = binary.BigEndian.Uint16(data[16:18])
 	if int(msg.Len) < BGP_HEADER_LENGTH {
-		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, msg.Len), fmt.Sprintf("too short BGP message length %d", msg.Len))
 	}
 
 	msg.Type = data[18]
@@ -17143,7 +17143,7 @@ type BGPMessage struct {
 
 func parseBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMessage, error) {
 	if len(data) < int(h.Len)-BGP_HEADER_LENGTH {
-		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all BGP message bytes available")
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, h.Len), "Not all BGP message bytes available")
 	}
 	msg := &BGPMessage{Header: *h}
 
@@ -17159,7 +17159,7 @@ func parseBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMe
 	case BGP_MSG_ROUTE_REFRESH:
 		msg.Body = &BGPRouteRefresh{}
 	default:
-		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE, nil, "unknown message type")
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE, []byte{msg.Header.Type}, "unknown message type")
 	}
 	err := msg.Body.DecodeFromBytes(data, options...)
 	return msg, err
@@ -17172,7 +17172,7 @@ func ParseBGPMessage(data []byte, options ...*MarshallingOption) (*BGPMessage, e
 	}
 
 	if int(h.Len) > len(data) {
-		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "unknown message type")
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, h.Len), "Not all BGP message bytes available")
 	}
 
 	return parseBody(h, data[BGP_HEADER_LENGTH:h.Len], options...)
@@ -17269,8 +17269,15 @@ func getErrorHandlingFromPathAttribute(t BGPAttrType) ErrorHandling {
 }
 
 type MessageError struct {
-	TypeCode       uint8
-	SubTypeCode    uint8
+	TypeCode    uint8
+	SubTypeCode uint8
+	// Data becomes the Data field of the NOTIFICATION that is sent for
+	// this error. What belongs in it depends on the code and the
+	// subcode. RFC 4271 Section 6 leaves it empty unless the error
+	// handling section for the code says otherwise: Section 6.1 asks for
+	// the erroneous Length or Type field of the message header, Section
+	// 6.2 for the largest locally supported version number, and Section
+	// 6.3 for the erroneous attribute or its type code.
 	Data           []byte
 	Message        string
 	ErrorHandling  ErrorHandling

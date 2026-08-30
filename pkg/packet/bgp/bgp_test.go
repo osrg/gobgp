@@ -7038,3 +7038,93 @@ func TestSerializeIsConcurrencySafe(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// bgpMessageHeader builds the 19-octet on-the-wire BGP header: an all-ones
+// marker, the declared total message length, then the type. The body is left
+// out because BGPHeader.DecodeFromBytes reads nothing beyond these 19 octets.
+func bgpMessageHeader(msgType uint8, declaredLen uint16) []byte {
+	buf := make([]byte, BGP_HEADER_LENGTH)
+	for i := range buf[:16] {
+		buf[i] = 0xff
+	}
+	binary.BigEndian.PutUint16(buf[16:18], declaredLen)
+	buf[18] = msgType
+	return buf
+}
+
+// TestMessageHeaderErrorData pins RFC 4271 Section 6.1: a Bad Message Length
+// NOTIFICATION must carry the erroneous Length field, and a Bad Message Type
+// NOTIFICATION must carry the erroneous Type field. Both used to be sent with
+// an empty Data field.
+func TestMessageHeaderErrorData(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []byte
+		subCode uint8
+		data    []byte
+	}{
+		{
+			name:    "length below the header length",
+			input:   bgpMessageHeader(BGP_MSG_KEEPALIVE, BGP_HEADER_LENGTH-1),
+			subCode: BGP_ERROR_SUB_BAD_MESSAGE_LENGTH,
+			data:    []byte{0x00, 0x12},
+		},
+		{
+			name:    "zero length",
+			input:   bgpMessageHeader(BGP_MSG_KEEPALIVE, 0),
+			subCode: BGP_ERROR_SUB_BAD_MESSAGE_LENGTH,
+			data:    []byte{0x00, 0x00},
+		},
+		{
+			name:    "unknown message type",
+			input:   bgpMessageHeader(BGP_MSG_ROUTE_REFRESH+1, BGP_HEADER_LENGTH),
+			subCode: BGP_ERROR_SUB_BAD_MESSAGE_TYPE,
+			data:    []byte{BGP_MSG_ROUTE_REFRESH + 1},
+		},
+		{
+			name:    "message type zero",
+			input:   bgpMessageHeader(0, BGP_HEADER_LENGTH),
+			subCode: BGP_ERROR_SUB_BAD_MESSAGE_TYPE,
+			data:    []byte{0x00},
+		},
+		{
+			// The declared length may be legal. The caller just did
+			// not hand over that many bytes. The subcode still says
+			// Bad Message Length, so the length has to be there.
+			name:    "fewer bytes than the declared length",
+			input:   bgpMessageHeader(BGP_MSG_UPDATE, 30),
+			subCode: BGP_ERROR_SUB_BAD_MESSAGE_LENGTH,
+			data:    []byte{0x00, 0x1e},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseBGPMessage(tt.input)
+			require.Error(t, err)
+
+			var me *MessageError
+			require.ErrorAs(t, err, &me)
+			require.Equal(t, uint8(BGP_ERROR_MESSAGE_HEADER_ERROR), me.TypeCode)
+			require.Equal(t, tt.subCode, me.SubTypeCode)
+			require.Equal(t, tt.data, me.Data)
+		})
+	}
+}
+
+// TestParseBGPBodyShortBodyErrorData covers the same RFC 4271 Section 6.1 rule
+// on the path the FSM uses. ParseBGPBody is handed the header separately, so
+// it is the header length that goes in the Data field.
+func TestParseBGPBodyShortBodyErrorData(t *testing.T) {
+	h := &BGPHeader{}
+	require.NoError(t, h.DecodeFromBytes(bgpMessageHeader(BGP_MSG_UPDATE, 30)))
+
+	_, err := ParseBGPBody(h, make([]byte, 5))
+	require.Error(t, err)
+
+	var me *MessageError
+	require.ErrorAs(t, err, &me)
+	require.Equal(t, uint8(BGP_ERROR_MESSAGE_HEADER_ERROR), me.TypeCode)
+	require.Equal(t, uint8(BGP_ERROR_SUB_BAD_MESSAGE_LENGTH), me.SubTypeCode)
+	require.Equal(t, []byte{0x00, 0x1e}, me.Data)
+}
