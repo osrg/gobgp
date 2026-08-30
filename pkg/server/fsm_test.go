@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -1354,6 +1355,68 @@ func TestRecvMessageWithError_UnknownMessageType(t *testing.T) {
 	assert.Error(err)
 	assert.NotNil(fmsg)
 	assert.Equal(bgp.ERROR_HANDLING_SESSION_RESET, fmsg.handling)
+}
+
+// TestRecvMessageWithError_TooLongMessage checks the NOTIFICATION that
+// recvMessageWithError builds for a message longer than the peer may send.
+// RFC 4271 section 6.1 requires the Data field to carry the erroneous Length
+// field; it used to be empty.
+//
+// The cap is per message type once RFC 8654 extended messages are negotiated:
+// section 6 keeps OPEN and KEEPALIVE at 4096 while the rest may reach 65535.
+func TestRecvMessageWithError_TooLongMessage(t *testing.T) {
+	tests := []struct {
+		name            string
+		extendedMessage bool
+		msgType         uint8
+		declaredLen     uint16
+		wantData        []byte
+	}{
+		{
+			name:        "over the standard cap",
+			msgType:     bgp.BGP_MSG_UPDATE,
+			declaredLen: bgp.BGP_MAX_MESSAGE_LENGTH + 1,
+			wantData:    []byte{0x10, 0x01},
+		},
+		{
+			name:            "extended message keeps KEEPALIVE at the standard cap",
+			extendedMessage: true,
+			msgType:         bgp.BGP_MSG_KEEPALIVE,
+			declaredLen:     5000,
+			wantData:        []byte{0x13, 0x88},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			m := NewMockConnection()
+			p, h := makePeerAndHandler(m)
+			t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+			h.fsm.extendedMessage.Store(tt.extendedMessage)
+
+			raw := make([]byte, bgp.BGP_HEADER_LENGTH)
+			for i := range raw[:16] {
+				raw[i] = 0xff
+			}
+			binary.BigEndian.PutUint16(raw[16:18], tt.declaredLen)
+			raw[18] = tt.msgType
+
+			go m.remote.Write(raw)
+
+			stateReasonCh := make(chan fsmStateReason, 2)
+			fmsg, err := h.recvMessageWithError(m.Conn, stateReasonCh)
+			assert.Error(err)
+			assert.NotNil(fmsg)
+
+			me, ok := fmsg.MsgData.(*bgp.MessageError)
+			assert.True(ok)
+			assert.Equal(uint8(bgp.BGP_ERROR_MESSAGE_HEADER_ERROR), me.TypeCode)
+			assert.Equal(uint8(bgp.BGP_ERROR_SUB_BAD_MESSAGE_LENGTH), me.SubTypeCode)
+			assert.Equal(tt.wantData, me.Data)
+		})
+	}
 }
 
 // TestBMPStatsUpdate verifies that BMP stats are correctly updated via

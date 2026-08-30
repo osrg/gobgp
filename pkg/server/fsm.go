@@ -1337,7 +1337,7 @@ func (h *fsmHandler) recvMessageWithError(conn net.Conn, stateReasonCh chan<- fs
 			}
 		}
 		if hd.Len > maxLen {
-			err = bgp.NewMessageError(bgp.BGP_ERROR_MESSAGE_HEADER_ERROR, bgp.BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "too large BGP message length")
+			err = bgp.NewMessageError(bgp.BGP_ERROR_MESSAGE_HEADER_ERROR, bgp.BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, hd.Len), fmt.Sprintf("too large BGP message length %d", hd.Len))
 		}
 	}
 	if err != nil {
