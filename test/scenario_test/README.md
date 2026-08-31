@@ -36,32 +36,61 @@ You need to build GoBGP docker image to test from the source code that you modif
 $ test/lib/make-gobgp-ctn.sh
 ```
 
+Three tests need a second image built on an older Quagga. Build it too if you
+run them:
+
+```shell
+$ test/lib/make-gobgp-ctn.sh --tag gobgp-oq --from-image osrg/quagga:v1.0
+```
+
 ## Run tests
 
-There are two ways to run tests
+Run a single test file with pytest:
 
-1. Run all tests
+```shell
+$ PYTHONPATH=./test python3 -m pytest test/scenario_test/<scenario test name>.py --gobgp-image gobgp -s -x
+```
 
-    You can run all scenario tests with run_all_tests.sh.
-    If all tests passed, you can see "all tests passed successfully" at the end of the test.
+`-s` shows the output of the test while it runs. `-x` stops at the first
+failure. See `test/scenario_test/*_test*.py` for the test files.
 
-    ```shell
-    $ ./test/scenario_test/run_all_tests.sh
-    ...
-    OK
-    all tests passed successfully
-    ```
+Three tests use zebra from an older Quagga and need the `gobgp-oq` image:
+`bgp_zebra_nht_test.py`, `zapi_v3_test.py` and `zapi_v3_multipath_test.py`.
+Pass `--gobgp-image gobgp-oq` for them:
 
-1. Run each test
+```shell
+$ PYTHONPATH=./test python3 -m pytest test/scenario_test/zapi_v3_test.py --gobgp-image gobgp-oq -s -x
+```
 
-    You can run scenario tests individually with each test file.
-    See `test/scenario_test/*.py`, for the individual test files.
+Two tests need the host to be set up first. `bgp_unnumbered_test.py` needs IPv6
+in Docker. Do not assign an IPv6 address to the `docker0` bridge, so that two
+containers get a point to point link:
 
-    ```shell
-    $ PYTHONPATH=./test python3 test/scenario_test/<scenario test name>.py --gobgp-image=gobgp
-    ...
-    OK
-    ```
+```shell
+$ echo '{"ipv6": true, "fixed-cidr-v6": "2001:db8:1::/64"}' | sudo tee /etc/docker/daemon.json
+$ sudo systemctl restart docker
+$ sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
+$ sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
+$ sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1
+```
+
+`tcp_md5_test.py` needs the vrf module:
+
+```shell
+$ sudo apt-get install -y linux-modules-extra-$(uname -r)
+$ sudo modprobe vrf
+```
+
+You can also run every test in one command:
+
+```shell
+$ PYTHONPATH=./test python3 -m pytest test/scenario_test/ --gobgp-image gobgp -s -x
+```
+
+This runs the test files one after another in a single process, so it takes a
+long time. It also passes one image to every file, so the three tests that need
+`gobgp-oq` fail. CI runs each test file as its own job, so opening a pull
+request is the faster way to get the full result.
 
 ## Clean up
 
