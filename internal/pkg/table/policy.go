@@ -3894,6 +3894,18 @@ func (lhs *Policy) Add(rhs *Policy) error {
 }
 
 func (lhs *Policy) Remove(rhs *Policy) error {
+	for _, y := range rhs.Statements {
+		found := false
+		for _, x := range lhs.Statements {
+			if x.Name == y.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("not found statement %s in policy %s", y.Name, lhs.Name)
+		}
+	}
 	stmts := make([]*Statement, 0, len(lhs.Statements))
 	for _, x := range lhs.Statements {
 		found := false

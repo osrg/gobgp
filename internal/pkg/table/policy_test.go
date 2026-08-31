@@ -141,6 +141,42 @@ func TestDeletePolicyPreserve(t *testing.T) {
 	assert.Len(t, r.GetStatement("st5"), 1, "preserve=true")
 }
 
+func TestDeletePolicyUnknownStatement(t *testing.T) {
+	r := NewRoutingPolicy(logger)
+
+	for _, name := range []string{"st1", "st2", "lone"} {
+		err := r.AddStatement(&Statement{Name: name})
+		require.NoError(t, err)
+	}
+
+	err := r.AddPolicy(&Policy{
+		Name:       "p1",
+		Statements: []*Statement{{Name: "st1"}, {Name: "st2"}},
+	}, true)
+	require.NoError(t, err)
+
+	// "lone" is in the statement pool but p1 does not use it.
+	err = r.DeletePolicy(&Policy{
+		Name:       "p1",
+		Statements: []*Statement{{Name: "lone"}},
+	}, false, false, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lone")
+
+	assert.Len(t, r.GetPolicy("p1")[0].Statements, 2, "p1 must not change")
+	assert.Len(t, r.GetStatement("lone"), 1, "lone must not be deleted")
+
+	// A statement that p1 does use is still removed.
+	err = r.DeletePolicy(&Policy{
+		Name:       "p1",
+		Statements: []*Statement{{Name: "st1"}},
+	}, false, false, nil)
+	require.NoError(t, err)
+
+	assert.Len(t, r.GetPolicy("p1")[0].Statements, 1)
+	assert.Len(t, r.GetStatement("st1"), 0)
+}
+
 func TestDeletePolicyInUse(t *testing.T) {
 	for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
 		t.Run(dir.String(), func(t *testing.T) {
