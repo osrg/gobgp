@@ -69,6 +69,13 @@ $ sudo -E gobgpd -t yaml -f gobgpd.yml
 Sending the `SIGHUP` signal to `gobgpd` triggers a configuration reload.
 The `-a` option enables the auto reloading of the configuration whenever a change is detected.
 
+`gobgpd` also listens for the gRPC management API. The default listen address
+is `:50051`, that is, all interfaces with no authentication. A client that can
+call the API can add peers, add and delete routes, and stop the daemon.
+Restricting access to the API is your responsibility. The `--api-hosts` option
+changes the listen address. For example, `--api-hosts 127.0.0.1:50051` accepts
+local clients only.
+
 Let's show the information of all the peers.
 
 ```bash
