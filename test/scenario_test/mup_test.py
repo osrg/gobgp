@@ -32,6 +32,7 @@ from lib.base import (
     BGP_FSM_ESTABLISHED,
     BGP_ATTR_TYPE_EXTENDED_COMMUNITIES,
     local,
+    wait_for_completion,
 )
 from lib.gobgp import GoBGPContainer
 
@@ -105,38 +106,27 @@ class GoBGPTestBase(unittest.TestCase):
                 path = dst['paths'][0]
                 self.assertEqual(path['nexthop'], nh)
 
-                interval = 1
-                timeout = int(30 / interval)
-                done = False
-                for _ in range(timeout):
-                    if done:
-                        break
+                def _has_expected_route():
                     grib = self.g2.get_global_rib(rf=rf)
 
                     if len(grib) < 1:
-                        time.sleep(interval)
-                        continue
+                        return False
 
                     self.assertEqual(len(grib), 1)
                     dst = grib[0]
                     self.assertEqual(len(dst['paths']), 1)
                     path = dst['paths'][0]
-                    n_addrs = [i[1].split('/')[0] for i in self.g1.ip_addrs]
                     self.assertEqual(path['nexthop'], nh)
-                    done = True
+                    return True
+
+                wait_for_completion(_has_expected_route, timeout=30)
 
                 self.g1.local('gobgp global rib del '
                               '-a {} {}'.format(rf, route))
 
-                done = False
-                for _ in range(timeout):
-                    if done:
-                        break
+                def _route_removed():
                     grib = self.g2.get_global_rib(rf=rf)
+                    return len(grib) == 0
 
-                    if len(grib) > 0:
-                        time.sleep(interval)
-                        continue
-                    done = True
-
+                wait_for_completion(_route_removed, timeout=30)
 

@@ -18,6 +18,7 @@ import os
 import subprocess
 import time
 import itertools
+import math
 
 import textwrap
 from colored import fg, attr
@@ -25,11 +26,16 @@ from colored import fg, attr
 from docker import APIClient as Client
 import netaddr
 
+from lib.noseplugin import parser_option
+
 
 DEFAULT_TEST_PREFIX = ''
 DEFAULT_TEST_BASE_DIR = '/tmp/gobgp'
 TEST_PREFIX = DEFAULT_TEST_PREFIX
 TEST_BASE_DIR = DEFAULT_TEST_BASE_DIR
+DEFAULT_WAIT_TIMEOUT = 120
+DEFAULT_REACHABILITY_TIMEOUT = 20
+DEFAULT_ASSERT_RETRIES = 30
 
 BGP_FSM_IDLE = 'idle'
 BGP_FSM_ACTIVE = 'active'
@@ -79,12 +85,60 @@ FLOWSPEC_NAME_TO_TYPE = {
 # with this label, we can do filtering in `docker ps` and `docker network prune`
 TEST_CONTAINER_LABEL = 'gobgp-test'
 TEST_NETWORK_LABEL = TEST_CONTAINER_LABEL
+DOCKER_NETWORK_CREATE_RETRIES = 5
+# Scenario containers are attached to Docker bridges created during the test.
+# It may be disabled or delayed by Duplicate Address detection defaults inherited
+# from the daemon namespace; make the container side deterministic because tests
+# start peering immediately after attach.
+DOCKER_RUN_IPV6_SYSCTLS = (
+    'net.ipv6.conf.all.disable_ipv6=0',
+    'net.ipv6.conf.default.disable_ipv6=0',
+    'net.ipv6.conf.all.accept_dad=0',
+    'net.ipv6.conf.default.accept_dad=0',
+)
 
 
-def local(s, capture=False):
+def _timeout_scale():
+    return max(float(getattr(parser_option, 'timeout_scale', 1.0)), 1.0)
+
+
+def scale_timeout(timeout):
+    if timeout is None:
+        return None
+    return int(math.ceil(float(timeout) * _timeout_scale()))
+
+
+def scale_count(count):
+    return int(math.ceil(float(count) * _timeout_scale()))
+
+
+def local(s, capture=False, timeout=None):
     print('[localhost] local:', s)
     _env = {'NOSE_NOLOGCAPTURE': '1' if capture else '0'}
-    return subprocess.check_output(s, shell=True, env=_env).decode('utf-8').strip()
+    # Keep stderr visible in pytest logs. The Docker CLI often puts the useful
+    # failure reason there, while check_output only preserved stdout.
+    result = subprocess.run(
+        s,
+        shell=True,
+        env=_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=scale_timeout(timeout),
+    )
+    stdout = result.stdout.decode('utf-8')
+    stderr = result.stderr.decode('utf-8')
+    if stderr:
+        print(stderr, end='')
+    if result.returncode != 0:
+        if stdout:
+            print(stdout, end='')
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            s,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return stdout.strip()
 
 
 def yellow(s):
@@ -110,21 +164,28 @@ def community_str(i):
     return ':'.join(reversed(values))
 
 
-def wait_for_completion(f, timeout=120):
-    interval = 1
+def wait_for(f, timeout=DEFAULT_WAIT_TIMEOUT, interval=1, timeout_message='timeout'):
+    timeout = scale_timeout(timeout)
     count = 0
     while True:
         if f():
             return
 
         time.sleep(interval)
-        count += interval
-        if count >= timeout:
-            raise Exception('timeout')
+        if timeout is not None:
+            count += interval
+        if timeout is not None and count >= timeout:
+            if callable(timeout_message):
+                timeout_message = timeout_message()
+            raise Exception('{0} after {1}s'.format(timeout_message, timeout))
+
+
+def wait_for_completion(f, timeout=DEFAULT_WAIT_TIMEOUT):
+    wait_for(f, timeout=timeout)
 
 
 def try_several_times(f, t=3, s=1):
-    for _ in range(t):
+    for _ in range(scale_count(t)):
         try:
             r = f()
         except RuntimeError:
@@ -134,9 +195,9 @@ def try_several_times(f, t=3, s=1):
     raise Exception
 
 
-def assert_several_times(f, t=30, s=1):
+def assert_several_times(f, t=DEFAULT_ASSERT_RETRIES, s=1):
     e = AssertionError
-    for _ in range(t):
+    for _ in range(scale_count(t)):
         try:
             f()
         except AssertionError as ae:
@@ -153,6 +214,169 @@ def get_bridges():
 
 def get_containers():
     return try_several_times(lambda: local("docker ps -a | awk 'NR > 1 {print $NF}'", capture=True)).split('\n')
+
+
+def docker_run_ipv6_sysctl_args():
+    return ' '.join('--sysctl={0}'.format(s) for s in DOCKER_RUN_IPV6_SYSCTLS)
+
+
+def _best_effort_local(s, capture=True):
+    try:
+        return local(s, capture=capture)
+    except subprocess.CalledProcessError:
+        pass
+    except subprocess.TimeoutExpired as e:
+        print('command timed out: {0}'.format(e.cmd))
+    return ''
+
+
+def cleanup_docker_leftovers():
+    # Scenario-owned Docker objects are labeled; clean only that label so a
+    # failed setup cannot poison the next pytest session or the next CI retry.
+    containers = local(
+        'docker ps -aq -f label={0}'.format(TEST_CONTAINER_LABEL),
+        capture=True,
+    ).split()
+    if containers:
+        local('docker rm -f {0}'.format(' '.join(containers)), capture=True)
+
+    networks = local(
+        'docker network ls -q -f label={0}'.format(TEST_NETWORK_LABEL),
+        capture=True,
+    ).split()
+    if networks:
+        local('docker network rm {0}'.format(' '.join(networks)), capture=True)
+
+
+def dump_docker_diagnostics(context, network_names=None, container_names=None):
+    # Network-create and IPv6 link-local failures are usually environment
+    # dependent. Dump Docker and kernel network state before teardown removes
+    # the evidence.
+    print('[docker diagnostics] {0}'.format(context))
+    commands = [
+        'docker version',
+        'docker info',
+        'docker ps -a',
+        'docker network ls',
+        'ip link',
+        'ip -6 route',
+        'tail -120 /tmp/gobgp/dockerd.log',
+    ]
+    for command in commands:
+        output = _best_effort_local(command, capture=True)
+        if output:
+            print('[{0}]\n{1}'.format(command, output))
+
+    network_names = network_names or []
+    for name in network_names:
+        output = _best_effort_local(
+            'docker network inspect {0}'.format(name),
+            capture=True,
+        )
+        if output:
+            print('[docker network inspect {0}]\n{1}'.format(name, output))
+
+    labeled_networks = _best_effort_local(
+        'docker network ls -q -f label={0}'.format(TEST_NETWORK_LABEL),
+        capture=True,
+    ).split()
+    if labeled_networks:
+        output = _best_effort_local(
+            'docker network inspect {0}'.format(' '.join(labeled_networks)),
+            capture=True,
+        )
+        if output:
+            print('[labeled docker network inspect]\n{0}'.format(output))
+
+    container_names = container_names or []
+    for name in container_names:
+        for command in (
+            'docker inspect {0}'.format(name),
+            'docker exec {0} ip -6 -o addr'.format(name),
+            'docker exec {0} ip -6 neigh'.format(name),
+        ):
+            output = _best_effort_local(command, capture=True)
+            if output:
+                print('[{0}]\n{1}'.format(command, output))
+
+
+def scenario_docker_preflight(gobgp_image):
+    # Fail before collection if the Docker daemon cannot provide the two IPv6
+    # primitives these scenarios depend on: a policy-test-sized IPv6 bridge and
+    # bidirectional link-local reachability between containers.
+    suffix = '{0}_{1}'.format(os.getpid(), int(time.time() * 1000))
+    policy_network = 'gobgp_ipv6_policy_preflight_{0}'.format(suffix)
+    ll_network = 'gobgp_ipv6_ll_preflight_{0}'.format(suffix)
+    c1 = 'gobgp_ipv6_preflight_a_{0}'.format(suffix)
+    c2 = 'gobgp_ipv6_preflight_b_{0}'.format(suffix)
+    sysctls = docker_run_ipv6_sysctl_args()
+
+    try:
+        local(
+            'docker network create --driver bridge --ipv6 --subnet 2001::/96 '
+            '--label {0} {1}'.format(TEST_NETWORK_LABEL, policy_network),
+            capture=True,
+        )
+        local('docker network rm {0}'.format(policy_network), capture=True)
+        local(
+            'docker network create --driver bridge --ipv6 '
+            '--subnet fd00:ffff:1::/64 --label {0} {1}'.format(
+                TEST_NETWORK_LABEL,
+                ll_network,
+            ),
+            capture=True,
+        )
+        for name in (c1, c2):
+            local(
+                'docker run --privileged=true {0} --name {1} -l {2} -id {3}'.format(
+                    sysctls,
+                    name,
+                    TEST_CONTAINER_LABEL,
+                    gobgp_image,
+                ),
+                capture=True,
+            )
+            local('docker network connect {0} {1}'.format(ll_network, name))
+
+        time.sleep(2)
+        c1_lladdr = local(
+            "docker exec {0} sh -c \"ip -6 -o addr show dev eth1 scope link "
+            "| awk '/ fe80:/ {{print \\$4; exit}}' | cut -d/ -f1\"".format(c1),
+            capture=True,
+        )
+        c2_lladdr = local(
+            "docker exec {0} sh -c \"ip -6 -o addr show dev eth1 scope link "
+            "| awk '/ fe80:/ {{print \\$4; exit}}' | cut -d/ -f1\"".format(c2),
+            capture=True,
+        )
+        if not c1_lladdr or not c2_lladdr:
+            raise RuntimeError('IPv6 link-local address was not assigned')
+
+        local(
+            'docker exec {0} ping6 -c 1 -W 1 {1}%eth1'.format(c1, c2_lladdr),
+            timeout=5,
+        )
+        local(
+            'docker exec {0} ping6 -c 1 -W 1 {1}%eth1'.format(c2, c1_lladdr),
+            timeout=5,
+        )
+    except Exception:
+        dump_docker_diagnostics(
+            'scenario Docker IPv6 preflight failed',
+            network_names=[policy_network, ll_network],
+            container_names=[c1, c2],
+        )
+        raise
+    finally:
+        _best_effort_local('docker rm -f {0} {1}'.format(c1, c2), capture=True)
+        for name in (policy_network, ll_network):
+            # The policy network is removed during the positive path; check
+            # existence here so successful preflight cleanup stays quiet.
+            if name in _best_effort_local(
+                'docker network ls --format "{{.Name}}"',
+                capture=True,
+            ).split():
+                _best_effort_local('docker network rm {0}'.format(name), capture=True)
 
 
 class CmdBuffer(list):
@@ -183,14 +407,7 @@ class Bridge(object):
             # throw away first network address
             self.next_ip_address()
 
-        def f():
-            if self.name in get_bridges():
-                self.delete()
-            v6 = ''
-            if self.subnet.version == 6:
-                v6 = '--ipv6'
-            self.id = local('docker network create --driver bridge {0} --subnet {1} --label {2} {3}'.format(v6, subnet, TEST_NETWORK_LABEL, self.name), capture=True)
-        try_several_times(f)
+        self._create_network(subnet)
 
         self.self_ip = self_ip
         if self_ip:
@@ -209,6 +426,86 @@ class Bridge(object):
                 local('ip -6 route del {0}; echo $?'.format(subnet),
                       capture=True)
 
+    def _bridge_link_name(self):
+        if not getattr(self, 'id', ''):
+            return ''
+        return 'br-{0}'.format(self.id[:12])
+
+    def _set_bridge_link_up(self):
+        bridge_link = self._bridge_link_name()
+        if bridge_link:
+            # Network object can exist while the Linux bridge is
+            # still DOWN. Bring it up before route cleanup and container attach.
+            _best_effort_local(
+                'ip link set {0} up >/dev/null 2>&1 || true'.format(bridge_link),
+                capture=True,
+            )
+
+    def _remove_existing_network(self):
+        if self.name in get_bridges():
+            self.delete()
+
+    def _recover_created_network(self):
+        # docker network create can return non-zero after creating the network
+        # object when bridge setup races with kernel route/link initialization.
+        # Reuse that object instead of retrying into a name conflict.
+        try:
+            self.id = local(
+                "docker network inspect -f '{{{{.Id}}}}' {0}".format(self.name),
+                capture=True,
+            )
+        except subprocess.CalledProcessError:
+            return False
+        if not self.id:
+            return False
+        self._set_bridge_link_up()
+        return True
+
+    def _create_network(self, subnet):
+        v6 = ''
+        if self.subnet.version == 6:
+            v6 = '--ipv6'
+
+        command = (
+            'docker network create --driver bridge {0} --subnet {1} '
+            '--label {2} {3}'.format(v6, subnet, TEST_NETWORK_LABEL, self.name)
+        )
+        last_error = None
+        for attempt in range(1, DOCKER_NETWORK_CREATE_RETRIES + 1):
+            self._remove_existing_network()
+            try:
+                self.id = local(command, capture=True)
+                self._set_bridge_link_up()
+                return
+            except subprocess.CalledProcessError as e:
+                last_error = e
+                if self._recover_created_network():
+                    return
+                print(
+                    'docker network create failed for {0} '
+                    '(attempt {1}/{2})'.format(
+                        self.name,
+                        attempt,
+                        DOCKER_NETWORK_CREATE_RETRIES,
+                    )
+                )
+                _best_effort_local(
+                    'docker network rm {0}'.format(self.name),
+                    capture=True,
+                )
+                if attempt < DOCKER_NETWORK_CREATE_RETRIES:
+                    time.sleep(min(attempt, 5))
+
+        # Print diagnostics only after all recovery paths failed, otherwise
+        # transient Docker startup races would drown normal test logs.
+        dump_docker_diagnostics(
+            'docker network create failed for {0}'.format(self.name),
+            network_names=[self.name],
+        )
+        if last_error:
+            raise last_error
+        raise RuntimeError('docker network create failed for {0}'.format(self.name))
+
     def next_ip_address(self):
         return "{0}/{1}".format(next(self._ip_generator),
                                 self.subnet.prefixlen)
@@ -222,7 +519,7 @@ class Bridge(object):
             if self.subnet.version == 6:
                 ip = '--ip6 {0}'.format(ip_addr)
         local("docker network connect {0} {1} {2}".format(ip, self.name, ctn.docker_name()))
-        i = [x for x in list(Client(timeout=60, version='auto').inspect_network(self.id)['Containers'].values()) if x['Name'] == ctn.docker_name()][0]
+        i = [x for x in list(Client(timeout=scale_timeout(60), version='auto').inspect_network(self.id)['Containers'].values()) if x['Name'] == ctn.docker_name()][0]
         if self.subnet.version == 4:
             eth = 'eth{0}'.format(len(ctn.ip_addrs))
             addr = i['IPv4Address']
@@ -263,6 +560,9 @@ class Container(object):
     def run(self):
         c = CmdBuffer(' ')
         c << "docker run --privileged=true"
+        # Keep IPv6 behavior identical for every scenario container; otherwise
+        # per-image defaults leak into route-server and unnumbered tests.
+        c << docker_run_ipv6_sysctl_args()
         for sv in self.shared_volumes:
             c << "-v {0}:{1}".format(sv[0], sv[1])
         c << "--name {0} -l {1} -id {2}".format(self.docker_name(), TEST_CONTAINER_LABEL, self.image)
@@ -288,14 +588,19 @@ class Container(object):
         self.is_running = False
         return ret
 
-    def local(self, cmd, capture=False, stream=False, detach=False, tty=True):
+    def local(self, cmd, capture=False, stream=False, detach=False, tty=True,
+              timeout=None):
         if stream:
-            dckr = Client(timeout=120, version='auto')
+            dckr = Client(timeout=scale_timeout(120), version='auto')
             i = dckr.exec_create(container=self.docker_name(), cmd=cmd)
             return dckr.exec_start(i['Id'], tty=tty, stream=stream, detach=detach)
         else:
             flag = '-d' if detach else ''
-            return local('docker exec {0} {1} {2}'.format(flag, self.docker_name(), cmd), capture)
+            return local(
+                'docker exec {0} {1} {2}'.format(flag, self.docker_name(), cmd),
+                capture,
+                timeout=timeout,
+            )
 
     def get_pid(self):
         if self.is_running:
@@ -533,7 +838,7 @@ class BGPContainer(Container):
     def get_neighbor_state(self, peer_id):
         raise Exception('implement get_neighbor() method')
 
-    def get_reachability(self, prefix, timeout=20):
+    def get_reachability(self, prefix, timeout=DEFAULT_REACHABILITY_TIMEOUT):
         version = netaddr.IPNetwork(prefix).version
         addr = prefix.split('/')[0]
         if version == 4:
@@ -543,34 +848,30 @@ class BGPContainer(Container):
         else:
             raise Exception('unsupported route family: {0}'.format(version))
         cmd = '/bin/bash -c "/bin/{0} -c 1 -w 1 {1} | xargs echo"'.format(ping_cmd, addr)
-        interval = 1
-        count = 0
-        while True:
+
+        def _reachable():
             res = self.local(cmd, capture=True)
             print(yellow(res))
-            if ('1 packets received' in res or '1 received' in res) and '0% packet loss' in res:
-                break
-            time.sleep(interval)
-            count += interval
-            if count >= timeout:
-                raise Exception('timeout')
+            return ('1 packets received' in res or '1 received' in res) and '0% packet loss' in res
+
+        wait_for(_reachable, timeout=timeout, timeout_message='reachability timeout')
         return True
 
-    def wait_for(self, expected_state, peer, timeout=120):
-        interval = 1
-        count = 0
-        while True:
+    def wait_for(self, expected_state, peer, timeout=DEFAULT_WAIT_TIMEOUT):
+        def _state_matches():
             state = self.get_neighbor_state(peer)
             print(yellow("{0}'s peer {1} state: {2}".format(self.router_id,
                                                             peer.router_id,
                                                             state)))
-            if state == expected_state:
-                return
+            return state == expected_state
 
-            time.sleep(interval)
-            count += interval
-            if count >= timeout:
-                raise Exception('timeout')
+        wait_for(
+            _state_matches,
+            timeout=timeout,
+            timeout_message="timeout waiting for {0}'s peer {1} to be {2}".format(
+                self.router_id, peer.router_id, expected_state,
+            ),
+        )
 
     def add_static_route(self, network, next_hop):
         cmd = '/sbin/ip route add {0} via {1}'.format(network, next_hop)

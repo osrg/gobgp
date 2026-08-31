@@ -75,28 +75,15 @@ class GoBGPTestBase(unittest.TestCase):
 
     def test_02_check_gobgp_global_rib(self):
         for q in self.quaggas.values():
-            # paths expected to exist in gobgp's global rib
-            routes = list(q.routes.keys())
-            timeout = 120
-            interval = 1
-            count = 0
-            while True:
-                # gobgp's global rib
+            expected_routes = set(q.routes.keys())
+
+            def _has_expected_routes():
                 state = self.gobgp.get_neighbor_state(q)
                 self.assertEqual(state, BGP_FSM_ESTABLISHED)
-                global_rib = [p['prefix'] for p in self.gobgp.get_global_rib()]
+                global_rib = {p['prefix'] for p in self.gobgp.get_global_rib()}
+                return expected_routes.issubset(global_rib)
 
-                for p in global_rib:
-                    if p in routes:
-                        routes.remove(p)
-
-                if len(routes) == 0:
-                    break
-
-                time.sleep(interval)
-                count += interval
-                if count >= timeout:
-                    raise Exception('timeout')
+            wait_for_completion(_has_expected_routes)
 
     def test_03_check_gobgp_adj_rib_out(self):
         for q in self.quaggas.values():
@@ -126,19 +113,13 @@ class GoBGPTestBase(unittest.TestCase):
 
     # check routes are properly advertised to all BGP speaker
     def test_06_check_quagga_global_rib(self):
-        interval = 1
-        timeout = int(120 / interval)
         for q in self.quaggas.values():
-            done = False
-            for _ in range(timeout):
-                if done:
-                    break
+            def _has_expected_routes():
                 global_rib = q.get_global_rib()
                 # quagga's global_rib must have two routes at least,
                 # a self-generated route and a gobgp-generated route
                 if len(global_rib) < len(q.routes) + len(self.gobgp.routes):
-                    time.sleep(interval)
-                    continue
+                    return False
 
                 peer_info = self.gobgp.peers[q]
                 local_addr = peer_info['local_addr'].split('/')[0]
@@ -154,11 +135,9 @@ class GoBGPTestBase(unittest.TestCase):
                         if rr['prefix'] == r:
                             self.assertEqual(rr['nexthop'], '0.0.0.0')
 
-                done = True
-            if done:
-                continue
-            # should not reach here
-            raise AssertionError
+                return True
+
+            wait_for_completion(_has_expected_routes)
 
     def test_07_add_ebgp_peer(self):
         q3 = QuaggaBGPContainer(name='q3', asn=65001, router_id='192.168.0.4')
@@ -289,5 +268,4 @@ class GoBGPTestBase(unittest.TestCase):
             # route from ibgp so aspath should be empty
             return len(l) == 1 and len(l[0]['aspath']) == 0
         wait_for_completion(f3)
-
 
