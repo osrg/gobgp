@@ -4656,3 +4656,63 @@ func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.
 	require.Never(t, vpnPresentAtS2AdjIn, 10*time.Second, 100*time.Millisecond,
 		"VPN route should not appear at s2 adj-in from s1 after second VPN prefix is added")
 }
+
+func TestPerPeerPolicyIsRouteServerOnly(t *testing.T) {
+	for _, rs := range []bool{false, true} {
+		name := "non-rs-client"
+		if rs {
+			name = "rs-client"
+		}
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			s := NewBgpServer()
+			go s.Serve()
+			err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+				Global: &api.Global{
+					Asn:        1,
+					RouterId:   "1.1.1.1",
+					ListenPort: -1,
+				},
+			})
+			assert.NoError(err)
+			defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+			err = s.AddPolicy(context.Background(),
+				&api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p1"})})
+			assert.NoError(err)
+
+			err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
+				Conf: &api.PeerConf{
+					NeighborAddress: "127.0.0.1",
+					PeerAsn:         2,
+				},
+				RouteServer: &api.RouteServer{
+					RouteServerClient: rs,
+				},
+				ApplyPolicy: &api.ApplyPolicy{
+					ImportPolicy: &api.PolicyAssignment{
+						Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+						DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+						Policies:      []*api.Policy{{Name: "p1"}},
+					},
+				},
+			}})
+			assert.NoError(err)
+
+			// A route server client keeps the policy in use. Any other peer
+			// never reads the assignment, so nothing holds the policy.
+			err = s.DeletePolicy(context.Background(), &api.DeletePolicyRequest{
+				Policy:             &api.Policy{Name: "p1"},
+				All:                true,
+				PreserveStatements: true,
+			})
+			if rs {
+				assert.Error(err)
+				assert.Contains(err.Error(), "in use")
+			} else {
+				assert.NoError(err)
+			}
+		})
+	}
+}

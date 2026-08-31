@@ -364,7 +364,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		}
 		conf := peer.fsm.pConf.ReadOnly()
 		policy := conf.ApplyPolicy
-		if err := s.policy.SetPeerPolicy(peer.ID(), policy); err != nil {
+		if err := s.setPeerPolicy(peer, policy); err != nil {
 			peer.fsm.logger.Error("Failed to set peer policy for dynamic peer", slog.Any("Error", err))
 			conn.Close()
 			return
@@ -2279,6 +2279,9 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 		}
 		ap[table.GLOBAL_RIB_NAME] = *a
 		for _, peer := range s.neighborMap {
+			if !peer.isRouteServerClient() {
+				continue
+			}
 			peer.fsm.logger.Info("call set policy")
 
 			a, err := getConfig(peer.ID())
@@ -3485,6 +3488,18 @@ func (s *BgpServer) addPeerGroup(c *oc.PeerGroup) error {
 	return nil
 }
 
+// setPeerPolicy stores the per peer policy assignment. Only a route server
+// client uses it. ApplyPolicy looks the assignment up by peer.TableID(), which
+// is the neighbor address for a route server client and the global RIB name for
+// every other peer. An entry keyed by the address of a non route server client
+// is never read, and the gRPC API rejects such a peer in toPolicyInfo.
+func (s *BgpServer) setPeerPolicy(peer *peer, a oc.ApplyPolicy) error {
+	if !peer.isRouteServerClient() {
+		return nil
+	}
+	return s.policy.SetPeerPolicy(peer.ID(), a)
+}
+
 func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	// Resolve config defaults BEFORE extracting/validating the neighbor address.
 	// For an unnumbered (interface-only) neighbor added via the gRPC AddPeer API
@@ -3557,7 +3572,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		rib = s.rsRib
 	}
 	peer := newPeer(&s.bgpConfig.Global, c, bgp.BGP_FSM_IDLE, rib, s.policy, s.logger)
-	if err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy); err != nil {
+	if err := s.setPeerPolicy(peer, c.ApplyPolicy); err != nil {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}
 	s.neighborMap[netip.MustParseAddr(addr)] = peer
@@ -3884,7 +3899,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if !conf.ApplyPolicy.Equal(&c.ApplyPolicy) {
 		peer.fsm.logger.Info("Update ApplyPolicy")
 
-		err := s.policy.SetPeerPolicy(peer.ID(), c.ApplyPolicy)
+		err := s.setPeerPolicy(peer, c.ApplyPolicy)
 		if err != nil {
 			peer.fsm.lock.Unlock()
 			return false, fmt.Errorf("failed to set peer policy: %w", err)
