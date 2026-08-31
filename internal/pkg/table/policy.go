@@ -4530,7 +4530,7 @@ func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 	return err
 }
 
-func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []string) (err error) {
+func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool) (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -4542,8 +4542,10 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 		err = fmt.Errorf("not found policy: %s", name)
 		return err
 	}
-	inUse := func(ids []string) bool {
-		for _, id := range ids {
+	// The assignment map holds the global RIB and the route server clients that
+	// still exist. An entry is removed when the peer goes away.
+	inUse := func() bool {
+		for id := range r.assignmentMap {
 			for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
 				for _, y := range r.getPolicy(id, dir) {
 					if x.Name == y.Name {
@@ -4556,7 +4558,7 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 	}
 
 	if all {
-		if inUse(activeId) {
+		if inUse() {
 			err = fmt.Errorf("can't delete. policy %s is in use", name)
 			return err
 		}

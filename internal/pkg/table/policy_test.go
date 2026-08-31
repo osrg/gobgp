@@ -108,7 +108,7 @@ func TestDeletePolicyPreserve(t *testing.T) {
 			{Name: "st2"},
 		},
 	}
-	err := r.DeletePolicy(policy, false, false, nil)
+	err := r.DeletePolicy(policy, false, false)
 	require.NoError(t, err)
 
 	assert.Len(t, r.GetStatement("st1"), 0, "preserve=false")
@@ -117,7 +117,7 @@ func TestDeletePolicyPreserve(t *testing.T) {
 	policy = &Policy{
 		Name: "p2",
 	}
-	err = r.DeletePolicy(policy, true, false, nil)
+	err = r.DeletePolicy(policy, true, false)
 	require.NoError(t, err)
 
 	assert.Len(t, r.GetStatement("st2"), 0, "preserve=false")
@@ -127,7 +127,7 @@ func TestDeletePolicyPreserve(t *testing.T) {
 		Name:       "p3",
 		Statements: []*Statement{{Name: "st4"}},
 	}
-	err = r.DeletePolicy(policy, false, true, nil)
+	err = r.DeletePolicy(policy, false, true)
 	require.NoError(t, err)
 
 	assert.Len(t, r.GetStatement("st4"), 1, "preserve=true")
@@ -135,7 +135,7 @@ func TestDeletePolicyPreserve(t *testing.T) {
 	policy = &Policy{
 		Name: "p4",
 	}
-	err = r.DeletePolicy(policy, true, true, nil)
+	err = r.DeletePolicy(policy, true, true)
 	require.NoError(t, err)
 
 	assert.Len(t, r.GetStatement("st5"), 1, "preserve=true")
@@ -159,7 +159,7 @@ func TestDeletePolicyUnknownStatement(t *testing.T) {
 	err = r.DeletePolicy(&Policy{
 		Name:       "p1",
 		Statements: []*Statement{{Name: "lone"}},
-	}, false, false, nil)
+	}, false, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "lone")
 
@@ -170,7 +170,7 @@ func TestDeletePolicyUnknownStatement(t *testing.T) {
 	err = r.DeletePolicy(&Policy{
 		Name:       "p1",
 		Statements: []*Statement{{Name: "st1"}},
-	}, false, false, nil)
+	}, false, false)
 	require.NoError(t, err)
 
 	assert.Len(t, r.GetPolicy("p1")[0].Statements, 1)
@@ -207,30 +207,46 @@ func TestDeletePeerPolicy(t *testing.T) {
 }
 
 func TestDeletePolicyInUse(t *testing.T) {
-	for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
-		t.Run(dir.String(), func(t *testing.T) {
-			r := NewRoutingPolicy(logger)
+	newPolicy := func(t *testing.T) *RoutingPolicy {
+		r := NewRoutingPolicy(logger)
 
-			err := r.AddStatement(&Statement{Name: "st1"})
-			require.NoError(t, err)
+		err := r.AddStatement(&Statement{Name: "st1"})
+		require.NoError(t, err)
 
-			err = r.AddPolicy(&Policy{
-				Name:       "p1",
-				Statements: []*Statement{{Name: "st1"}},
-			}, true)
-			require.NoError(t, err)
+		err = r.AddPolicy(&Policy{
+			Name:       "p1",
+			Statements: []*Statement{{Name: "st1"}},
+		}, true)
+		require.NoError(t, err)
 
-			id := "10.0.0.1"
-			err = r.AddPolicyAssignment(id, dir, []*oc.PolicyDefinition{{Name: "p1"}}, ROUTE_TYPE_ACCEPT)
-			require.NoError(t, err)
-
-			err = r.DeletePolicy(&Policy{Name: "p1"}, true, true, []string{id})
-			require.Error(t, err, "an assigned policy must not be deleted")
-			assert.Contains(t, err.Error(), "in use")
-
-			assert.Len(t, r.GetPolicy("p1"), 1, "the policy must still exist")
-		})
+		return r
 	}
+
+	for _, id := range []string{GLOBAL_RIB_NAME, "10.0.0.1"} {
+		for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+			t.Run(id+"/"+dir.String(), func(t *testing.T) {
+				r := newPolicy(t)
+
+				err := r.AddPolicyAssignment(id, dir, []*oc.PolicyDefinition{{Name: "p1"}}, ROUTE_TYPE_ACCEPT)
+				require.NoError(t, err)
+
+				err = r.DeletePolicy(&Policy{Name: "p1"}, true, true)
+				require.Error(t, err, "an assigned policy must not be deleted")
+				assert.Contains(t, err.Error(), "in use")
+
+				assert.Len(t, r.GetPolicy("p1"), 1, "the policy must still exist")
+			})
+		}
+	}
+
+	t.Run("not assigned", func(t *testing.T) {
+		r := newPolicy(t)
+
+		err := r.DeletePolicy(&Policy{Name: "p1"}, true, true)
+		require.NoError(t, err)
+
+		assert.Len(t, r.GetPolicy("p1"), 0)
+	})
 }
 
 func TestPrefixCalcurateNoRange(t *testing.T) {

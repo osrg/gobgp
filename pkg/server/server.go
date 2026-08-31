@@ -4375,13 +4375,7 @@ func (s *BgpServer) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest
 			return err
 		}
 
-		l := make([]string, 0, len(s.neighborMap)+1)
-		for _, peer := range s.neighborMap {
-			l = append(l, peer.ID())
-		}
-		l = append(l, table.GLOBAL_RIB_NAME)
-
-		return s.policy.DeletePolicy(p, r.All, r.PreserveStatements, l)
+		return s.policy.DeletePolicy(p, r.All, r.PreserveStatements)
 	}, false)
 }
 
