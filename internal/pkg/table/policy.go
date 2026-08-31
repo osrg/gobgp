@@ -4746,6 +4746,16 @@ func (r *RoutingPolicy) SetPeerPolicy(peerId string, c oc.ApplyPolicy) error {
 	return nil
 }
 
+// DeletePeerPolicy drops the policy assignment of a peer that is gone. Nothing
+// else removes an entry from the assignment map, so without this the map grows
+// every time a dynamic neighbor connects.
+func (r *RoutingPolicy) DeletePeerPolicy(peerId string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.assignmentMap, peerId)
+}
+
 func (r *RoutingPolicy) Reset(rp *oc.RoutingPolicy, ap map[string]oc.ApplyPolicy) error {
 	if rp == nil {
 		return fmt.Errorf("routing Policy is nil in call to Reset")

@@ -4716,3 +4716,68 @@ func TestPerPeerPolicyIsRouteServerOnly(t *testing.T) {
 		})
 	}
 }
+
+func TestDeletePeerDropsPolicyAssignment(t *testing.T) {
+	assert := assert.New(t)
+
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	err = s.AddPolicy(context.Background(),
+		&api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p1"})})
+	assert.NoError(err)
+
+	addPeer := func(policyName string) error {
+		return s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: "127.0.0.1",
+				PeerAsn:         2,
+			},
+			RouteServer: &api.RouteServer{
+				RouteServerClient: true,
+			},
+			ApplyPolicy: &api.ApplyPolicy{
+				ImportPolicy: &api.PolicyAssignment{
+					Direction:     api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+					DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+					Policies:      []*api.Policy{{Name: policyName}},
+				},
+			},
+		}})
+	}
+
+	assignedPolicies := func() []string {
+		names := []string{}
+		err := s.ListPolicyAssignment(context.Background(), &api.ListPolicyAssignmentRequest{
+			Name:      "127.0.0.1",
+			Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+		}, func(a *api.PolicyAssignment) {
+			for _, p := range a.Policies {
+				names = append(names, p.Name)
+			}
+		})
+		assert.NoError(err)
+		return names
+	}
+
+	assert.NoError(addPeer("p1"))
+	assert.Equal([]string{"p1"}, assignedPolicies())
+
+	err = s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: "127.0.0.1"})
+	assert.NoError(err)
+
+	// Adding the peer back with an apply-policy that does not resolve leaves
+	// the assignment unset. The peer must not inherit what the deleted peer
+	// had.
+	assert.NoError(addPeer("not-defined"))
+	assert.Empty(assignedPolicies())
+}

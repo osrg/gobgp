@@ -177,6 +177,35 @@ func TestDeletePolicyUnknownStatement(t *testing.T) {
 	assert.Len(t, r.GetStatement("st1"), 0)
 }
 
+func TestDeletePeerPolicy(t *testing.T) {
+	r := NewRoutingPolicy(logger)
+
+	err := r.AddPolicy(&Policy{Name: "p1"}, true)
+	require.NoError(t, err)
+
+	id := "10.0.0.1"
+	err = r.AddPolicyAssignment(id, POLICY_DIRECTION_IMPORT, []*oc.PolicyDefinition{{Name: "p1"}}, ROUTE_TYPE_ACCEPT)
+	require.NoError(t, err)
+
+	_, ps, err := r.GetPolicyAssignment(id, POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	assert.Len(t, ps, 1)
+
+	r.DeletePeerPolicy(id)
+
+	_, ps, err = r.GetPolicyAssignment(id, POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	assert.Len(t, ps, 0, "the assignment must be gone")
+
+	// The global assignment is not touched.
+	err = r.AddPolicyAssignment(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT, []*oc.PolicyDefinition{{Name: "p1"}}, ROUTE_TYPE_ACCEPT)
+	require.NoError(t, err)
+	r.DeletePeerPolicy(id)
+	_, ps, err = r.GetPolicyAssignment(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	assert.Len(t, ps, 1)
+}
+
 func TestDeletePolicyInUse(t *testing.T) {
 	for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
 		t.Run(dir.String(), func(t *testing.T) {
