@@ -382,35 +382,64 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 	if len(opts) == 0 {
 		return status.Errorf(codes.InvalidArgument, "no events to watch")
 	}
-	simpleSend := func(paths []*api.Path, when time.Time) {
-		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}}, when)
+	simpleSend := func(paths []*api.Path, when time.Time, eventType api.WatchEventResponse_TableEvent_Type) {
+		fn(&api.WatchEventResponse{
+			Event: &api.WatchEventResponse_Table{
+				Table: &api.WatchEventResponse_TableEvent{
+					Type: eventType,
+					Paths: paths,
+				},
+			},
+		}, when)
 	}
 	err := s.bgpServer.WatchEvent(ctx, WatchEventMessageCallbacks{
-		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time) {
+		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time, init bool) {
 			paths := make([]*api.Path, 0, r.BatchSize)
-			for _, path := range pathList {
-				paths = append(paths, toPathApi(path, false, false, false))
-				if r.BatchSize > 0 && len(paths) > int(r.BatchSize) {
-					simpleSend(paths, timestamp)
-					paths = make([]*api.Path, 0, r.BatchSize)
+			if init && len(pathList) == 0 {
+				simpleSend(paths, timestamp, api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_EOR)
+			} else {
+				eventType := api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_UPDATE
+				if init {
+					eventType = api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_INIT
 				}
+				for _, path := range pathList {
+					paths = append(paths, toPathApi(path, false, false, false))
+					if r.BatchSize > 0 && len(paths) > int(r.BatchSize) {
+						simpleSend(paths, timestamp, eventType)
+						paths = make([]*api.Path, 0, r.BatchSize)
+					}
+				}
+
+				eventType = api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_UPDATE
+				if init {
+					eventType = api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_INIT_END
+				}
+				simpleSend(paths, timestamp, eventType)
 			}
-			simpleSend(paths, timestamp)
 		},
-		OnBestPath: func(pathList []*apiutil.Path, timestamp time.Time) {
+		OnBestPath: func(pathList []*apiutil.Path, timestamp time.Time, init bool) {
+			eventType := api.WatchEventResponse_TableEvent_TYPE_BEST_UPDATE
+			if init {
+				eventType = api.WatchEventResponse_TableEvent_TYPE_BEST_INIT
+			}
 			pl := make([]*api.Path, 0, r.BatchSize)
 			for _, path := range pathList {
 				pl = append(pl, toPathApi(path, false, false, false))
 				if r.BatchSize > 0 && len(pl) > int(r.BatchSize) {
-					simpleSend(pl, timestamp)
+					simpleSend(pl, timestamp, eventType)
 					pl = make([]*api.Path, 0, r.BatchSize)
 				}
 			}
-			simpleSend(pl, timestamp)
+
+			eventType = api.WatchEventResponse_TableEvent_TYPE_BEST_UPDATE
+			if init {
+				eventType = api.WatchEventResponse_TableEvent_TYPE_BEST_INIT_END
+			}
+			simpleSend(pl, timestamp, eventType)
 		},
 		OnPathEor: func(path *apiutil.Path, timestamp time.Time) {
 			p := toPathApi(path, false, false, false)
-			simpleSend([]*api.Path{p}, timestamp)
+			simpleSend([]*api.Path{p}, timestamp, api.WatchEventResponse_TableEvent_TYPE_EOR)
 		},
 		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, timestamp time.Time) {
 			p := peer.Peer

@@ -170,7 +170,19 @@ message WatchEventResponse {
   }
 
   message TableEvent {
+    enum Type {
+      TYPE_UNSPECIFIED = 0;
+      TYPE_BEST_INIT = 1;
+      TYPE_BEST_INIT_END = 2;
+      TYPE_BEST_UPDATE = 3;
+      TYPE_EOR = 4;
+      TYPE_ADJ_IN_INIT = 5;
+      TYPE_ADJ_IN_INIT_END = 6;
+      TYPE_ADJ_IN_EOR = 7;
+      TYPE_ADJ_IN_UPDATE = 8;
+    }
     repeated Path paths = 2;
+    Type type = 3;
   }
 
   oneof event {

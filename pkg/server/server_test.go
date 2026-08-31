@@ -3785,7 +3785,7 @@ func TestWatchEvent(test *testing.T) {
 	var count atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	tableCh := make(chan struct{})
-	f := func(paths []*apiutil.Path, _ time.Time) {
+	f := func(paths []*apiutil.Path, _ time.Time, _ bool) {
 		count.Add(int32(len(paths)))
 		if len(paths) > 0 && count.Load() == 2 {
 			cancel()

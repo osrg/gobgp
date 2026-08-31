@@ -658,3 +658,303 @@ func TestNewPrefixFromApiStructRTC(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, p.Prefix.Contains(full.Prefix.Addr()))
 }
+
+func TestGRPCWatchEventTypesAdjIn(t *testing.T) {
+	assert := assert.New(t)
+
+	socketName, err := os.MkdirTemp("", "gobgp-grpc-test-*")
+	assert.NoError(err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(socketName)
+	})
+	socketAddr := "unix://" + socketName + "/gobgp.sock"
+
+	// Start BGP Server 1
+	s1 := NewBgpServer(GrpcListenAddress(socketAddr))
+	go s1.Serve()
+	defer s1.Stop()
+
+	err = s1.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: 48000,
+		},
+	})
+	assert.NoError(err)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	peer1 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         2,
+		},
+		Transport: &api.Transport{
+			PassiveMode: true,
+		},
+		AfiSafis: []*api.AfiSafi{
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+				},
+			},
+		},
+	}
+	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer1})
+	assert.NoError(err)
+
+	s2 := NewBgpServer()
+	go s2.Serve()
+	defer s2.Stop()
+
+	// Start BGP Server 2
+	err = s2.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        2,
+			RouterId:   "2.2.2.2",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	peer2 := &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         1,
+		},
+		Transport: &api.Transport{
+			RemotePort: 48000,
+		},
+		AfiSafis: []*api.AfiSafi{
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+				},
+			},
+		},
+	}
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer2})
+	assert.NoError(err)
+
+	addPath := func(prefix string) uuid.UUID {
+		family := &api.Family{
+			Afi:  api.Family_AFI_IP,
+			Safi: api.Family_SAFI_UNICAST,
+		}
+		nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+			Prefix:    prefix,
+			PrefixLen: 24,
+		}}}
+		attrs := []*api.Attribute{
+			{
+				Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{
+					Origin: 0,
+				}},
+			},
+			{
+				Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{
+					NextHop: "10.0.0.1",
+				}},
+			},
+		}
+		req := apiutil.AddPathRequest{
+			Paths: []*apiutil.Path{
+				mustApi2apiutilPath(&api.Path{
+					Family: family,
+					Nlri:   nlri,
+					Pattrs: attrs,
+				}),
+			},
+		}
+
+		resp, err := s2.AddPath(req)
+		assert.NoError(err)
+
+		return resp[0].UUID
+	}
+
+	conn, err := grpc.NewClient(
+		socketAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	assert.NoError(err)
+	defer conn.Close()
+
+	client := api.NewGoBgpServiceClient(conn)
+
+	establishedWg := GRPCwaitEstablished(t, client, bgp.RF_IPv4_UC)
+	establishedWg.Wait()
+
+	t.Run("adj_in", func(t *testing.T) {
+		// Add paths that should be received during initial dump
+		for _, prefix := range []string{"10.0.1.0", "10.0.2.0", "10.0.3.0", "10.0.4.0"} {
+			addPath(prefix)
+		}
+
+		watchCtx, watchCancel := context.WithCancel(context.Background())
+		resp, err := client.WatchEvent(watchCtx, &api.WatchEventRequest{
+			Table: &api.WatchEventRequest_Table{
+				Filters: []*api.WatchEventRequest_Table_Filter{
+					{
+						Type:        api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
+						PeerAddress: "127.0.0.1",
+						Init:        true,
+					},
+				},
+			},
+			// Note the batch size
+			BatchSize: 1,
+		})
+		assert.NoError(err, "failed to start watch event")
+
+		count := 0
+		lastEventType := api.WatchEventResponse_TableEvent_TYPE_UNSPECIFIED
+		waitCh := make(chan any)
+
+		go func() {
+			for {
+				select {
+				case <-watchCtx.Done():
+					return
+				default:
+					r, err := resp.Recv()
+					assert.NoError(err)
+
+					te := r.GetTable()
+					assert.NotNil(te)
+
+					currentEventType := te.GetType()
+					if lastEventType == api.WatchEventResponse_TableEvent_TYPE_UNSPECIFIED {
+						assert.Equal(currentEventType, api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_INIT)
+					} else if lastEventType == api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_INIT {
+						assert.Contains(
+							[]api.WatchEventResponse_TableEvent_Type{
+								api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_INIT,
+								api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_INIT_END,
+							},
+							currentEventType,
+						)
+					} else if lastEventType == api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_INIT_END {
+						assert.Equal(currentEventType, api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_EOR)
+					} else if lastEventType == api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_EOR {
+						assert.Equal(currentEventType, api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_UPDATE)
+					} else if lastEventType == api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_UPDATE {
+						assert.Equal(currentEventType, api.WatchEventResponse_TableEvent_TYPE_ADJ_IN_UPDATE)
+					} else {
+						t.Errorf("unexpected table event type")
+					}
+					lastEventType = currentEventType
+
+					count += len(te.GetPaths())
+					if count == 4 {
+						// When initial paths have been received, add another
+						// one. This one is expected to have UPDATE event type.
+						addPath("10.0.5.0")
+					} else if count == 5 {
+						watchCancel()
+						waitCh <- nil
+					}
+				}
+			}
+		}()
+
+		<-waitCh
+		assert.Equal(5, count)
+
+		err = s2.DeletePath(
+			apiutil.DeletePathRequest{
+				DeleteAll: true,
+			},
+		)
+		assert.NoError(err)
+	})
+
+	t.Run("best", func(t *testing.T) {
+		// Add paths that should be received during initial dump
+		for _, prefix := range []string{"10.0.1.0", "10.0.2.0", "10.0.3.0", "10.0.4.0"} {
+			addPath(prefix)
+		}
+
+		watchCtx, watchCancel := context.WithCancel(context.Background())
+		resp, err := client.WatchEvent(watchCtx, &api.WatchEventRequest{
+			Table: &api.WatchEventRequest_Table{
+				Filters: []*api.WatchEventRequest_Table_Filter{
+					{
+						Type:        api.WatchEventRequest_Table_Filter_TYPE_BEST,
+						PeerAddress: "127.0.0.1",
+						Init:        true,
+					},
+				},
+			},
+			// Note the batch size
+			BatchSize: 1,
+		})
+		assert.NoError(err)
+
+		count := 0
+		lastEventType := api.WatchEventResponse_TableEvent_TYPE_UNSPECIFIED
+		waitCh := make(chan any)
+
+		go func() {
+			for {
+				select {
+				case <-watchCtx.Done():
+					return
+				default:
+					r, err := resp.Recv()
+					assert.NoError(err)
+
+					te := r.GetTable()
+					assert.NotNil(te)
+
+					currentEventType := te.GetType()
+					if lastEventType == api.WatchEventResponse_TableEvent_TYPE_UNSPECIFIED {
+						assert.Equal(api.WatchEventResponse_TableEvent_TYPE_BEST_INIT, currentEventType)
+					} else if lastEventType == api.WatchEventResponse_TableEvent_TYPE_BEST_INIT {
+						assert.Contains(
+							[]api.WatchEventResponse_TableEvent_Type{
+								api.WatchEventResponse_TableEvent_TYPE_BEST_INIT,
+								api.WatchEventResponse_TableEvent_TYPE_BEST_INIT_END,
+							},
+							currentEventType,
+						)
+					} else if lastEventType == api.WatchEventResponse_TableEvent_TYPE_BEST_INIT_END {
+						assert.Equal(api.WatchEventResponse_TableEvent_TYPE_BEST_UPDATE, currentEventType)
+					} else if lastEventType == api.WatchEventResponse_TableEvent_TYPE_BEST_UPDATE {
+						assert.Equal(api.WatchEventResponse_TableEvent_TYPE_BEST_UPDATE, currentEventType)
+					} else {
+						t.Errorf("unexpected table event type")
+					}
+					lastEventType = currentEventType
+
+					count += len(te.GetPaths())
+					if count == 4 {
+						// When initial paths have been received, add another
+						// one. This one is expected to have UPDATE event type.
+						addPath("10.0.5.0")
+					} else if count == 5 {
+						watchCancel()
+						close(waitCh)
+					}
+				}
+			}
+		}()
+
+		<-waitCh
+		assert.Equal(5, count)
+
+		err = s2.DeletePath(
+			apiutil.DeletePathRequest{
+				DeleteAll: true,
+			},
+		)
+		assert.NoError(err)
+	})
+}

@@ -157,7 +157,7 @@ func runSRPolicyTunnelEncapRound(t *testing.T, withBSID, withCPName, withUnk130,
 	defer watchCancel()
 	go func() {
 		_ = receiver.WatchEvent(watchCtx, WatchEventMessageCallbacks{
-			OnPathUpdate: func(ps []*apiutil.Path, _ time.Time) {
+			OnPathUpdate: func(ps []*apiutil.Path, _ time.Time, _ bool) {
 				select {
 				case rxPaths <- ps:
 				default:

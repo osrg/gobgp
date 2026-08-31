@@ -4736,8 +4736,8 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 }
 
 type WatchEventMessageCallbacks struct {
-	OnPathUpdate func([]*apiutil.Path, time.Time)
-	OnBestPath   func([]*apiutil.Path, time.Time)
+	OnPathUpdate func([]*apiutil.Path, time.Time, bool)
+	OnBestPath   func([]*apiutil.Path, time.Time, bool)
 	OnPathEor    func(*apiutil.Path, time.Time)
 	OnPeerUpdate func(*apiutil.WatchEventMessage_PeerEvent, time.Time)
 }
@@ -4764,7 +4764,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 						for i, path := range msg.PathList {
 							paths[i] = toPathApiUtil(path)
 						}
-						callbacks.OnPathUpdate(paths, msg.Timestamp)
+						callbacks.OnPathUpdate(paths, msg.Timestamp, msg.Init)
 					}
 
 				case *watchEventBestPath:
@@ -4774,7 +4774,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 							for i, path := range paths {
 								p[i] = toPathApiUtil(path)
 							}
-							callbacks.OnBestPath(p, msg.Timestamp)
+							callbacks.OnBestPath(p, msg.Timestamp, msg.Init)
 						}
 						callback(locRIBPathsForBMP(msg))
 					}
@@ -4937,6 +4937,7 @@ type watchEventBestPath struct {
 	WithdrawPathList []*table.Path
 	Vrf              map[uint32]bool
 	Timestamp        time.Time
+	Init             bool
 }
 
 func locRIBPathsForBMP(msg *watchEventBestPath) []*table.Path {
@@ -4978,6 +4979,7 @@ type watchEventEor struct {
 	Family    bgp.Family
 	PeerInfo  *table.PeerInfo
 	Timestamp time.Time
+	Init      bool
 }
 
 type watchOptions struct {
@@ -5220,6 +5222,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 				PathList:      s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, nil),
 				MultiPathList: s.globalRib.GetBestMultiPathList(table.GLOBAL_RIB_NAME, nil),
 				Timestamp:     time.Now(),
+				Init:          true,
 			})
 		}
 		if w.opts.initEor && s.active() == nil {
@@ -5235,6 +5238,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 								Family:    family,
 								PeerInfo:  &peerInfo,
 								Timestamp: now,
+								Init:      true,
 							})
 						}
 					}
