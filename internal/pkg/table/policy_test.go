@@ -141,6 +141,33 @@ func TestDeletePolicyPreserve(t *testing.T) {
 	assert.Len(t, r.GetStatement("st5"), 1, "preserve=true")
 }
 
+func TestDeletePolicyInUse(t *testing.T) {
+	for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+		t.Run(dir.String(), func(t *testing.T) {
+			r := NewRoutingPolicy(logger)
+
+			err := r.AddStatement(&Statement{Name: "st1"})
+			require.NoError(t, err)
+
+			err = r.AddPolicy(&Policy{
+				Name:       "p1",
+				Statements: []*Statement{{Name: "st1"}},
+			}, true)
+			require.NoError(t, err)
+
+			id := "10.0.0.1"
+			err = r.AddPolicyAssignment(id, dir, []*oc.PolicyDefinition{{Name: "p1"}}, ROUTE_TYPE_ACCEPT)
+			require.NoError(t, err)
+
+			err = r.DeletePolicy(&Policy{Name: "p1"}, true, true, []string{id})
+			require.Error(t, err, "an assigned policy must not be deleted")
+			assert.Contains(t, err.Error(), "in use")
+
+			assert.Len(t, r.GetPolicy("p1"), 1, "the policy must still exist")
+		})
+	}
+}
+
 func TestPrefixCalcurateNoRange(t *testing.T) {
 	// create path
 	peer := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("10.0.0.1")}

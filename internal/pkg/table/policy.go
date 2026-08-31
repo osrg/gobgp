@@ -4532,7 +4532,7 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool, activeId []s
 	}
 	inUse := func(ids []string) bool {
 		for _, id := range ids {
-			for _, dir := range []PolicyDirection{POLICY_DIRECTION_EXPORT, POLICY_DIRECTION_EXPORT} {
+			for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
 				for _, y := range r.getPolicy(id, dir) {
 					if x.Name == y.Name {
 						return true
