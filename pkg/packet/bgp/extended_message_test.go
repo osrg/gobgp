@@ -2,8 +2,6 @@ package bgp
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -141,45 +139,4 @@ func TestIsExtendedMessageSerialization(t *testing.T) {
 	require.False(t, IsExtendedMessageSerialization([]*MarshallingOption{{}}))
 	require.True(t, IsExtendedMessageSerialization([]*MarshallingOption{nil, {ExtendedMessage: true}}))
 	require.True(t, IsExtendedMessageSerialization([]*MarshallingOption{{ExtendedMessage: true}, {}}))
-}
-
-// bgpHeaderBytes builds the 19-octet on-the-wire BGP header: an
-// all-ones marker, the declared total message length, then the type.
-// BGPHeader.DecodeFromBytes reads nothing beyond these 19 octets, so
-// the body is deliberately absent.
-func bgpHeaderBytes(msgType uint8, declaredLen uint16) []byte {
-	buf := make([]byte, BGP_HEADER_LENGTH)
-	for i := range 16 {
-		buf[i] = 0xFF
-	}
-	binary.BigEndian.PutUint16(buf[16:18], declaredLen)
-	buf[18] = msgType
-	return buf
-}
-
-// TestParseBGPMessageKeepAliveLength pins RFC 4271 Section 4.4: a
-// KEEPALIVE is header-only, so anything other than 19 octets is
-// malformed. The decoder used to accept any length and return a
-// non-nil message with a nil error.
-func TestParseBGPMessageKeepAliveLength(t *testing.T) {
-	t.Run("exactly_19_accepted", func(t *testing.T) {
-		m, err := ParseBGPMessage(bgpHeaderBytes(BGP_MSG_KEEPALIVE, BGP_HEADER_LENGTH))
-		require.NoError(t, err)
-		require.Equal(t, uint8(BGP_MSG_KEEPALIVE), m.Header.Type)
-	})
-
-	for _, declaredLen := range []uint16{20, 100, BGP_MAX_MESSAGE_LENGTH} {
-		t.Run(fmt.Sprintf("length_%d_rejected", declaredLen), func(t *testing.T) {
-			buf := append(bgpHeaderBytes(BGP_MSG_KEEPALIVE, declaredLen),
-				make([]byte, int(declaredLen)-BGP_HEADER_LENGTH)...)
-			_, err := ParseBGPMessage(buf)
-			require.Error(t, err, "KEEPALIVE with length %d must be rejected", declaredLen)
-
-			var msgErr *MessageError
-			require.ErrorAs(t, err, &msgErr)
-			require.Equal(t, uint8(BGP_ERROR_MESSAGE_HEADER_ERROR), msgErr.TypeCode)
-			require.Equal(t, uint8(BGP_ERROR_SUB_BAD_MESSAGE_LENGTH), msgErr.SubTypeCode)
-			require.Equal(t, binary.BigEndian.AppendUint16(nil, declaredLen), msgErr.Data)
-		})
-	}
 }

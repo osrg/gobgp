@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net"
 	"net/netip"
@@ -7127,4 +7128,30 @@ func TestParseBGPBodyShortBodyErrorData(t *testing.T) {
 	require.Equal(t, uint8(BGP_ERROR_MESSAGE_HEADER_ERROR), me.TypeCode)
 	require.Equal(t, uint8(BGP_ERROR_SUB_BAD_MESSAGE_LENGTH), me.SubTypeCode)
 	require.Equal(t, []byte{0x00, 0x1e}, me.Data)
+}
+
+// TestParseBGPMessageKeepAliveLength pins RFC 4271 Section 4.4: a KEEPALIVE is
+// header-only, so anything other than 19 octets is malformed. The decoder used
+// to accept any length and return a non-nil message with a nil error.
+func TestParseBGPMessageKeepAliveLength(t *testing.T) {
+	t.Run("exactly 19 accepted", func(t *testing.T) {
+		m, err := ParseBGPMessage(bgpMessageHeader(BGP_MSG_KEEPALIVE, BGP_HEADER_LENGTH))
+		require.NoError(t, err)
+		require.Equal(t, uint8(BGP_MSG_KEEPALIVE), m.Header.Type)
+	})
+
+	for _, declaredLen := range []uint16{20, 100, BGP_MAX_MESSAGE_LENGTH} {
+		t.Run(fmt.Sprintf("length %d rejected", declaredLen), func(t *testing.T) {
+			buf := append(bgpMessageHeader(BGP_MSG_KEEPALIVE, declaredLen),
+				make([]byte, int(declaredLen)-BGP_HEADER_LENGTH)...)
+			_, err := ParseBGPMessage(buf)
+			require.Error(t, err, "KEEPALIVE with length %d must be rejected", declaredLen)
+
+			var me *MessageError
+			require.ErrorAs(t, err, &me)
+			require.Equal(t, uint8(BGP_ERROR_MESSAGE_HEADER_ERROR), me.TypeCode)
+			require.Equal(t, uint8(BGP_ERROR_SUB_BAD_MESSAGE_LENGTH), me.SubTypeCode)
+			require.Equal(t, binary.BigEndian.AppendUint16(nil, declaredLen), me.Data)
+		})
+	}
 }
