@@ -1799,6 +1799,12 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		}
 
 		drainChannel(peer.fsm.outgoingCh.Out())
+		// Drop any queued notification. Either it raced with the end of the
+		// session it was meant for, or it was generated while no session was
+		// up, e.g. by BFD detecting a failure while the peer was down. Only
+		// the established loop reads this channel, so a leftover would kill
+		// the next session right after it establishes.
+		drainChannel(peer.fsm.notification)
 
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
 			conf := peer.fsm.pConf.ReadOnly()

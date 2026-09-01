@@ -4781,3 +4781,163 @@ func TestDeletePeerDropsPolicyAssignment(t *testing.T) {
 	assert.NoError(addPeer("not-defined"))
 	assert.Empty(assignedPolicies())
 }
+
+// startServerWithPassivePeer starts a BgpServer without a TCP listener and
+// adds one passive ipv4-unicast neighbor, so tests can drive sessions by
+// injecting MockConnections into the peer's FSM.
+func startServerWithPassivePeer(t *testing.T, asn uint32, peerAddr string) (*BgpServer, *peer) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        asn,
+			RouterId:   "192.168.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { s.StopBgp(ctx, &api.StopBgpRequest{}) })
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				PassiveMode: true,
+			},
+		},
+		AfiSafis: []oc.AfiSafi{
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_IPV4_UNICAST,
+					Enabled:     true,
+				},
+			},
+		},
+	}
+
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ACTIVE)
+	err = s.AddPeer(ctx, &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+	w.Wait(t, 10*time.Second)
+
+	peer := s.neighborMap[netip.MustParseAddr(peerAddr)]
+	require.NotNil(t, peer)
+
+	return s, peer
+}
+
+// establishSession drives the passive peer to ESTABLISHED over a new
+// MockConnection and returns it.
+func establishSession(t *testing.T, s *BgpServer, peer *peer, asn uint32, peerAddr string) *MockConnection {
+	t.Helper()
+
+	m := NewMockConnection()
+	m.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { m.Close() })
+
+	peer.fsm.connCh <- m
+	openMsg, err := bgp.NewBGPOpenMessage(uint16(asn), 90, netip.MustParseAddr(peerAddr),
+		[]bgp.OptionParameterInterface{
+			bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
+				bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC),
+			}),
+		})
+	require.NoError(t, err)
+	m.PushBgpMessage(openMsg)
+	m.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
+
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, 10*time.Second)
+
+	return m
+}
+
+func sentNotification(m *MockConnection) *bgp.BGPNotification {
+	for _, buf := range m.GetSentMessages() {
+		msg, err := bgp.ParseBGPMessage(buf)
+		if err != nil || msg.Header.Type != bgp.BGP_MSG_NOTIFICATION {
+			continue
+		}
+		return msg.Body.(*bgp.BGPNotification)
+	}
+	return nil
+}
+
+// A hard ResetPeer against a peer whose session is down must not affect the
+// session the peer establishes later. Before the fix, the queued NOTIFICATION
+// survived in fsm.notification until the next session reached ESTABLISHED and
+// tore it down moments later, which looped forever against peers that destroy
+// their BFD session when BGP goes down.
+// https://github.com/osrg/gobgp/issues/3561
+func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+
+	// Bring the session down and wait until the peer settles in ACTIVE.
+	// Passive mode and no listener: it cannot progress on its own.
+	m1.Close()
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
+
+	// Reset the peer while it is down: exactly what the BFD code does when
+	// its detect timer expires after the BGP session already ended.
+	err := s.ResetPeer(context.Background(), &api.ResetPeerRequest{
+		Address:       peerAddr,
+		Communication: "BFD is down",
+		Soft:          false,
+	})
+	require.NoError(t, err)
+	require.Len(t, peer.fsm.notification, 1)
+
+	m2 := establishSession(t, s, peer, asn, peerAddr)
+
+	// The stale reset must not reach the new session: it must stay
+	// established, with no NOTIFICATION on its connection.
+	require.Never(t, func() bool {
+		return peer.State() != bgp.BGP_FSM_ESTABLISHED || sentNotification(m2) != nil
+	}, time.Second, 10*time.Millisecond)
+	require.Empty(t, peer.fsm.notification)
+}
+
+// A hard ResetPeer against an established peer must still tear the session
+// down promptly. This is the behavior BFD relies on when it detects a failure
+// on a live session, and the drain that fixes the stale-notification bug must
+// not suppress it.
+func TestResetPeerEstablishedSendsNotification(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+	err := s.ResetPeer(context.Background(), &api.ResetPeerRequest{
+		Address:       peerAddr,
+		Communication: "BFD is down",
+		Soft:          false,
+	})
+	require.NoError(t, err)
+	w.Wait(t, 10*time.Second)
+
+	require.Eventually(t, func() bool {
+		n := sentNotification(m1)
+		return n != nil &&
+			n.ErrorCode == bgp.BGP_ERROR_CEASE &&
+			n.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET
+	}, 10*time.Second, 10*time.Millisecond)
+}
