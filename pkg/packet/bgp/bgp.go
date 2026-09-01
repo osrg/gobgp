@@ -1397,6 +1397,11 @@ type BGPOpen struct {
 }
 
 func (msg *BGPOpen) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	// The length checks in a body decoder only keep it from reading past the
+	// end of the slice, which a caller decoding a body on its own can hand
+	// over too short. The rules RFC 4271 Section 6.1 states on the message
+	// length are checked in parseBody, the only place that knows the length
+	// declared on the wire, so these errors carry no Data field.
 	if len(data) < 10 {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all BGP Open message bytes available")
 	}
@@ -16968,6 +16973,7 @@ type BGPNotification struct {
 }
 
 func (msg *BGPNotification) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	// See BGPOpen.DecodeFromBytes on the split with parseBody.
 	if len(data) < 2 {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "Not all Notification bytes available")
 	}
@@ -17025,15 +17031,9 @@ func ShouldHardReset(subcode uint8, hardResetOnAdminReset bool) bool {
 type BGPKeepAlive struct{}
 
 func (msg *BGPKeepAlive) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	// RFC 4271 Section 4.4: a KEEPALIVE consists of only the message
-	// header and has a length of exactly 19 octets, so the body that
-	// parseBody hands us must be empty. parseBody checks the slice against
-	// the declared length, so the length computed here is the one that was
-	// on the wire, which Section 6.1 requires in the Data field.
-	if len(data) != 0 {
-		length := uint16(BGP_HEADER_LENGTH + len(data))
-		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, length), fmt.Sprintf("KEEPALIVE length must be %d, got %d", BGP_HEADER_LENGTH, length))
-	}
+	// A KEEPALIVE has no body to read, so there is nothing to guard against
+	// here. RFC 4271 Section 4.4 requires the body to be empty, and parseBody
+	// is where that is checked.
 	return nil
 }
 
@@ -17106,7 +17106,9 @@ type BGPHeader struct {
 }
 
 func (msg *BGPHeader) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	// minimum BGP message length
+	// minimum BGP message length. The Data field stays empty here: fewer
+	// than 19 octets means the Length field itself was never read, so
+	// there is no erroneous Length to report.
 	if uint16(len(data)) < BGP_HEADER_LENGTH {
 		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, nil, "not all BGP message header")
 	}
@@ -17165,20 +17167,44 @@ func parseBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMe
 	}
 	msg := &BGPMessage{Header: *h}
 
+	// minBody is the shortest body RFC 4271 Section 6.1 allows for the type,
+	// and exact means the body must be that long and no longer. The rules
+	// live here because h.Len tells us what the peer declared, which is what
+	// Section 6.1 wants in the Data field. A body decoder is handed a slice
+	// alone and cannot tell a short message from a short slice.
+	//
+	// ROUTE-REFRESH is left out on purpose. RFC 7313 Section 5 requires a
+	// wrong length there to be reported as ROUTE-REFRESH Message Error with
+	// the subcode Invalid Message Length, not as a header error, so that
+	// check stays in BGPRouteRefresh.DecodeFromBytes.
+	minBody, exact := 0, false
+
 	switch msg.Header.Type {
 	case BGP_MSG_OPEN:
 		msg.Body = &BGPOpen{}
+		minBody = 10 // version, my AS, hold time, BGP identifier, optional parameters length
 	case BGP_MSG_UPDATE:
 		msg.Body = &BGPUpdate{}
+		minBody = 4 // withdrawn routes length, total path attribute length
 	case BGP_MSG_NOTIFICATION:
 		msg.Body = &BGPNotification{}
+		minBody = 2 // error code, error subcode
 	case BGP_MSG_KEEPALIVE:
 		msg.Body = &BGPKeepAlive{}
+		exact = true // Section 4.4: the message header and nothing else
 	case BGP_MSG_ROUTE_REFRESH:
 		msg.Body = &BGPRouteRefresh{}
 	default:
 		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_TYPE, []byte{msg.Header.Type}, "unknown message type")
 	}
+
+	if len(data) < minBody {
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, h.Len), fmt.Sprintf("too short length %d for message type %d, need at least %d", h.Len, msg.Header.Type, BGP_HEADER_LENGTH+minBody))
+	}
+	if exact && len(data) != minBody {
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, h.Len), fmt.Sprintf("wrong length %d for message type %d, need exactly %d", h.Len, msg.Header.Type, BGP_HEADER_LENGTH+minBody))
+	}
+
 	err := msg.Body.DecodeFromBytes(data, options...)
 	return msg, err
 }

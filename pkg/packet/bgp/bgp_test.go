@@ -7188,3 +7188,53 @@ func TestParseBGPBodyLengthMismatch(t *testing.T) {
 		})
 	}
 }
+
+// TestParseBodyMessageLengthErrorData pins the per-type length rules of RFC
+// 4271 Section 6.1: a message below the minimum length of its type is Bad
+// Message Length, and the Data field must carry the erroneous Length field.
+// The checks used to live in the body decoders, which do not know the declared
+// length, so the Data field was empty or held a length that was never sent.
+func TestParseBodyMessageLengthErrorData(t *testing.T) {
+	tests := []struct {
+		name    string
+		msgType uint8
+		bodyLen int
+	}{
+		{name: "open below the minimum length", msgType: BGP_MSG_OPEN, bodyLen: 9},
+		{name: "update below the minimum length", msgType: BGP_MSG_UPDATE, bodyLen: 3},
+		{name: "notification below the minimum length", msgType: BGP_MSG_NOTIFICATION, bodyLen: 1},
+		{name: "keepalive with a body", msgType: BGP_MSG_KEEPALIVE, bodyLen: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			declaredLen := uint16(BGP_HEADER_LENGTH + tt.bodyLen)
+			buf := append(bgpMessageHeader(tt.msgType, declaredLen), make([]byte, tt.bodyLen)...)
+
+			_, err := ParseBGPMessage(buf)
+			require.Error(t, err)
+
+			var me *MessageError
+			require.ErrorAs(t, err, &me)
+			require.Equal(t, uint8(BGP_ERROR_MESSAGE_HEADER_ERROR), me.TypeCode)
+			require.Equal(t, uint8(BGP_ERROR_SUB_BAD_MESSAGE_LENGTH), me.SubTypeCode)
+			require.Equal(t, binary.BigEndian.AppendUint16(nil, declaredLen), me.Data)
+		})
+	}
+}
+
+// TestParseBodyRouteRefreshLengthError pins RFC 7313 Section 5: a ROUTE-REFRESH
+// of the wrong length is a ROUTE-REFRESH Message Error with the subcode Invalid
+// Message Length, not a header error, so parseBody leaves that check to the
+// body decoder.
+func TestParseBodyRouteRefreshLengthError(t *testing.T) {
+	buf := append(bgpMessageHeader(BGP_MSG_ROUTE_REFRESH, BGP_HEADER_LENGTH+3), make([]byte, 3)...)
+
+	_, err := ParseBGPMessage(buf)
+	require.Error(t, err)
+
+	var me *MessageError
+	require.ErrorAs(t, err, &me)
+	require.Equal(t, uint8(BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR), me.TypeCode)
+	require.Equal(t, uint8(BGP_ERROR_SUB_INVALID_MESSAGE_LENGTH), me.SubTypeCode)
+}
