@@ -2491,3 +2491,121 @@ func TestHandleFSMMessage_ParallelDifferentPeers(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 }
+
+// TestHandleFSMMessage_EORDropsStalePerFamily checks RFC 4724 4.2: once the
+// End-of-RIB marker for an address family is received, the stale routes of
+// that family are dropped. The markers of the other families are not needed.
+func TestHandleFSMMessage_EORDropsStalePerFamily(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65000,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	afiSafi := func(afi api.Family_Afi) *api.AfiSafi {
+		return &api.AfiSafi{
+			Config: &api.AfiSafiConfig{
+				Family:  &api.Family{Afi: afi, Safi: api.Family_SAFI_UNICAST},
+				Enabled: true,
+			},
+			MpGracefulRestart: &api.MpGracefulRestart{
+				Config: &api.MpGracefulRestartConfig{Enabled: true},
+			},
+		}
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: peerAddr.String(),
+				PeerAsn:         65001,
+				AdminDown:       true,
+			},
+			GracefulRestart: &api.GracefulRestart{
+				Enabled:     true,
+				RestartTime: 120,
+			},
+			AfiSafis: []*api.AfiSafi{
+				afiSafi(api.Family_AFI_IP),
+				afiSafi(api.Family_AFI_IP6),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var p *peer
+	err = s.mgmtOperation(func() error {
+		p = s.neighborMap[peerAddr]
+		return nil
+	}, true)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	// The session is established again after a graceful restart of the peer.
+	// Both families were preserved and both still wait for their End-of-RIB
+	// marker.
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.State.SessionState = "established"
+	conf.Timers.State.Uptime = time.Now().Add(-time.Minute).Unix()
+	conf.GracefulRestart.State.Enabled = true
+	conf.GracefulRestart.State.PeerRestarting = true
+	for i := range conf.AfiSafis {
+		conf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
+		conf.AfiSafis[i].MpGracefulRestart.State.Received = true
+		conf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
+	}
+	p.fsm.pConf.Update(&conf)
+	gConf := p.fsm.gConf
+	p.fsm.lock.Unlock()
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+
+	localAddr := netip.MustParseAddr("1.1.1.1")
+	p.peerInfo.Store(table.NewPeerInfo(gConf, p.fsm.pConf.ReadOnly(), 65001, 65000,
+		peerAddr, localAddr, peerAddr, localAddr))
+
+	// One stale route per family.
+	v4, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	require.NoError(t, err)
+	v6, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:10::/64"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}),
+	}
+	info := p.peerInfo.Load()
+	p.adjRibIn.Update([]*table.Path{
+		table.NewPath(bgp.RF_IPv4_UC, info, bgp.PathNLRI{NLRI: v4}, false, attrs, time.Now(), false),
+		table.NewPath(bgp.RF_IPv6_UC, info, bgp.PathNLRI{NLRI: v6}, false, attrs, time.Now(), false),
+	})
+	p.StaleAll([]bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+	require.Equal(t, 1, p.adjRibIn.Count([]bgp.Family{bgp.RF_IPv4_UC}))
+	require.Equal(t, 1, p.adjRibIn.Count([]bgp.Family{bgp.RF_IPv6_UC}))
+
+	// The ipv4-unicast marker drops the ipv4-unicast stale route only. The
+	// peer is still restarting because ipv6-unicast has not finished.
+	s.handleFSMMessage(p, &fsmMsg{
+		MsgType:   fsmMsgBGPMessage,
+		MsgData:   bgp.NewEndOfRib(bgp.RF_IPv4_UC),
+		timestamp: time.Now(),
+	})
+	assert.Equal(t, 0, p.adjRibIn.Count([]bgp.Family{bgp.RF_IPv4_UC}))
+	assert.Equal(t, 1, p.adjRibIn.Count([]bgp.Family{bgp.RF_IPv6_UC}))
+	assert.True(t, p.fsm.pConf.ReadOnly().GracefulRestart.State.PeerRestarting)
+
+	// The ipv6-unicast marker drops the rest and ends the restart.
+	s.handleFSMMessage(p, &fsmMsg{
+		MsgType:   fsmMsgBGPMessage,
+		MsgData:   bgp.NewEndOfRib(bgp.RF_IPv6_UC),
+		timestamp: time.Now(),
+	})
+	assert.Equal(t, 0, p.adjRibIn.Count([]bgp.Family{bgp.RF_IPv6_UC}))
+	assert.False(t, p.fsm.pConf.ReadOnly().GracefulRestart.State.PeerRestarting)
+}

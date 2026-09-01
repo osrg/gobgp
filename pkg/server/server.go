@@ -2260,13 +2260,20 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				conf := peer.fsm.pConf.ReadOnly()
 				peerRestarting := conf.GracefulRestart.State.PeerRestarting
 				if peerRestarting {
-					if peer.receivedAllEOR() {
-						peer.stopPeerRestarting()
-						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
-
-						peer.fsm.logger.Debug("withdraw stale routes", slog.Int("Numbers", len(pathList)))
+					// RFC 4724 4.2
+					// Once the End-of-RIB marker for an address family is
+					// received from the peer, it MUST immediately remove any
+					// routes from the peer that are still marked as stale for
+					// that address family.
+					if pathList := peer.adjRibIn.DropStale(eor); len(pathList) > 0 {
+						peer.fsm.logger.Debug("withdraw stale routes",
+							slog.Any("Families", eor),
+							slog.Int("Numbers", len(pathList)))
 
 						s.propagateUpdate(peer, pathList)
+					}
+					if peer.receivedAllEOR() {
+						peer.stopPeerRestarting()
 					}
 					// we don't delay non-route-target NLRIs when peer is restarting
 					peer.setRtcEORWait(false)
