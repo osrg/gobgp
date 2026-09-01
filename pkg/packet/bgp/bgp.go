@@ -17027,10 +17027,12 @@ type BGPKeepAlive struct{}
 func (msg *BGPKeepAlive) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	// RFC 4271 Section 4.4: a KEEPALIVE consists of only the message
 	// header and has a length of exactly 19 octets, so the body that
-	// parseBody hands us must be empty.
+	// parseBody hands us must be empty. parseBody checks the slice against
+	// the declared length, so the length computed here is the one that was
+	// on the wire, which Section 6.1 requires in the Data field.
 	if len(data) != 0 {
 		length := uint16(BGP_HEADER_LENGTH + len(data))
-		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, length), fmt.Sprintf("KEEPALIVE length must be %d", BGP_HEADER_LENGTH))
+		return NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, length), fmt.Sprintf("KEEPALIVE length must be %d, got %d", BGP_HEADER_LENGTH, length))
 	}
 	return nil
 }
@@ -17148,9 +17150,18 @@ type BGPMessage struct {
 	Body   BGPBody
 }
 
+// parseBody decodes the body of one message. h.Len is the authority on how
+// long that body is: every body decoder assumes it gets exactly the declared
+// body and nothing more. BGPUpdate reads whatever is left after the path
+// attributes as NLRI, and BGPKeepAlive requires an empty slice. So a caller
+// that hands over a different number of bytes gets an error instead of a wrong
+// parse.
+//
+// RFC 4271 Section 6.1: the Data field of a Bad Message Length NOTIFICATION
+// carries the erroneous Length field.
 func parseBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMessage, error) {
-	if len(data) < int(h.Len)-BGP_HEADER_LENGTH {
-		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, h.Len), "Not all BGP message bytes available")
+	if len(data) != int(h.Len)-BGP_HEADER_LENGTH {
+		return nil, NewMessageError(BGP_ERROR_MESSAGE_HEADER_ERROR, BGP_ERROR_SUB_BAD_MESSAGE_LENGTH, binary.BigEndian.AppendUint16(nil, h.Len), fmt.Sprintf("BGP message length %d does not match the body length %d", h.Len, len(data)))
 	}
 	msg := &BGPMessage{Header: *h}
 
@@ -17185,6 +17196,9 @@ func ParseBGPMessage(data []byte, options ...*MarshallingOption) (*BGPMessage, e
 	return parseBody(h, data[BGP_HEADER_LENGTH:h.Len], options...)
 }
 
+// ParseBGPBody decodes a body that the caller read separately from the header,
+// as the FSM does. data must hold exactly the body h declares, that is
+// h.Len - BGP_HEADER_LENGTH bytes.
 func ParseBGPBody(h *BGPHeader, data []byte, options ...*MarshallingOption) (*BGPMessage, error) {
 	return parseBody(h, data, options...)
 }

@@ -7155,3 +7155,36 @@ func TestParseBGPMessageKeepAliveLength(t *testing.T) {
 		})
 	}
 }
+
+// TestParseBGPBodyLengthMismatch pins the parseBody contract: data must hold
+// exactly the body the header declares. A longer slice used to reach the body
+// decoders, which read the extra bytes as part of the message: an UPDATE gained
+// NLRI that was never sent, and a conforming KEEPALIVE was rejected with a
+// length that was never on the wire.
+func TestParseBGPBodyLengthMismatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		msgType     uint8
+		declaredLen uint16
+		bodyLen     int
+	}{
+		{name: "update with trailing bytes", msgType: BGP_MSG_UPDATE, declaredLen: 23, bodyLen: 8},
+		{name: "keepalive with a body", msgType: BGP_MSG_KEEPALIVE, declaredLen: BGP_HEADER_LENGTH, bodyLen: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &BGPHeader{}
+			require.NoError(t, h.DecodeFromBytes(bgpMessageHeader(tt.msgType, tt.declaredLen)))
+
+			_, err := ParseBGPBody(h, make([]byte, tt.bodyLen))
+			require.Error(t, err)
+
+			var me *MessageError
+			require.ErrorAs(t, err, &me)
+			require.Equal(t, uint8(BGP_ERROR_MESSAGE_HEADER_ERROR), me.TypeCode)
+			require.Equal(t, uint8(BGP_ERROR_SUB_BAD_MESSAGE_LENGTH), me.SubTypeCode)
+			require.Equal(t, binary.BigEndian.AppendUint16(nil, tt.declaredLen), me.Data)
+		})
+	}
+}
