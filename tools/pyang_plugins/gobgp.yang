@@ -1843,6 +1843,7 @@ module gobgp {
 
     leaf keychain {
       type keychain-ref;
+      mandatory true;
       description
         "Reference to the TCP-AO keychain used by the peer.";
     }
