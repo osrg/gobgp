@@ -2280,6 +2280,41 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 		c.Config.DefaultExportPolicy = rt
 		return c, nil
 	}
+	applyAssignment := func(ap map[string]oc.ApplyPolicy, assignment *api.PolicyAssignment) error {
+		if assignment == nil {
+			return fmt.Errorf("nil policy assignment")
+		}
+		id, dir, err := s.toPolicyInfo(assignment.Name, assignment.Direction)
+		if err != nil {
+			return err
+		}
+
+		policies := make([]string, 0, len(assignment.Policies))
+		for _, policy := range assignment.Policies {
+			if policy == nil {
+				return fmt.Errorf("nil policy in assignment %q", assignment.Name)
+			}
+			policies = append(policies, policy.Name)
+		}
+
+		c := ap[id]
+		switch dir {
+		case table.POLICY_DIRECTION_IMPORT:
+			c.Config.ImportPolicyList = policies
+			if defaultPolicy, ok := defaultPolicyTypeFromRouteAction(assignment.DefaultAction); ok {
+				c.Config.DefaultImportPolicy = defaultPolicy
+			}
+		case table.POLICY_DIRECTION_EXPORT:
+			c.Config.ExportPolicyList = policies
+			if defaultPolicy, ok := defaultPolicyTypeFromRouteAction(assignment.DefaultAction); ok {
+				c.Config.DefaultExportPolicy = defaultPolicy
+			}
+		default:
+			return fmt.Errorf("invalid policy direction")
+		}
+		ap[id] = c
+		return nil
+	}
 
 	return s.mgmtOperation(func() error {
 		ap := make(map[string]oc.ApplyPolicy, len(s.neighborMap)+1)
@@ -2300,8 +2335,24 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 			}
 			ap[peer.ID()] = *a
 		}
+		for _, assignment := range r.Assignments {
+			if err := applyAssignment(ap, assignment); err != nil {
+				return err
+			}
+		}
 		return s.policy.Reset(rp, ap)
 	}, false)
+}
+
+func defaultPolicyTypeFromRouteAction(action api.RouteAction) (oc.DefaultPolicyType, bool) {
+	switch action {
+	case api.RouteAction_ROUTE_ACTION_ACCEPT:
+		return oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE, true
+	case api.RouteAction_ROUTE_ACTION_REJECT:
+		return oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE, true
+	default:
+		return "", false
+	}
 }
 
 // EVPN MAC MOBILITY HANDLING
