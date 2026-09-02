@@ -50,6 +50,26 @@ func eventuallyCheckState(timeout time.Duration, s *bfdServer, peerAddress netip
 	})
 }
 
+// eventuallyReceivesAfter waits until s has received more packets from peerAddress than
+// the given count. The far end restores its configured Desired Min TX Interval only on
+// reaching Up, and s learns the new value, and with it the shorter detection time (RFC
+// 5880 Section 6.8.4), only from the first packet sent in that state. Since the Up
+// packet is paced rather than sent off-schedule, a test that stops the far end the
+// instant it reports Up can leave s with the 5 x 1s not-Up detection time. Snapshot
+// the count once the far end is Up and wait here for one more packet.
+func eventuallyReceivesAfter(timeout time.Duration, s *bfdServer, peerAddress netip.Addr, count uint64) error {
+	return eventually(timeout, func() error {
+		state, err := s.GetPeerState(peerAddress)
+		if err != nil {
+			return err
+		}
+		if state.state.BfdAsync.ReceivedPackets <= count {
+			return fmt.Errorf("must be: receivedPackets > %d", count)
+		}
+		return nil
+	})
+}
+
 type mockPeerState struct {
 	resetPeerCount int64
 }
@@ -195,8 +215,13 @@ func Test_StateUpDown(t *testing.T) {
 	err = addPeer(s2, 13784)
 	assert.NoError(err)
 
-	// Wait bfdServer.loop() thread
-	time.Sleep(time.Second * 2)
+	// Establishment is now paced at up to one second per handshake step (RFC 5880
+	// Section 6.8.3's not-Up floor: Down and Init both transmit at no faster than 1s),
+	// so reaching Up on both sides can take ~3s rather than being near-instant.
+	err = eventuallyCheckState(6*time.Second, s1, netip.MustParseAddr("127.0.0.1"), api.BfdSessionState_BFD_SESSION_STATE_UP)
+	assert.NoError(err)
+	err = eventuallyCheckState(6*time.Second, s2, netip.MustParseAddr("127.0.0.1"), api.BfdSessionState_BFD_SESSION_STATE_UP)
+	assert.NoError(err)
 
 	// Get state
 	state, err := s1.GetPeerState(netip.MustParseAddr("127.0.0.1"))
@@ -213,6 +238,13 @@ func Test_StateUpDown(t *testing.T) {
 	assert.Equal(state.state.SessionState, api.BfdSessionState_BFD_SESSION_STATE_UP)
 	assert.NotEqual(state.state.BfdAsync.ReceivedPackets, uint64(0))
 	assert.NotEqual(state.state.BfdAsync.TransmittedPackets, uint64(0))
+
+	// s2 restored its 200ms interval on reaching Up, but s1 only learns that from
+	// s2's first Up packet, which is paced (up to 200ms away). Wait for it, or s1's
+	// detection time is still the not-Up 5 x 1s and the 2s wait below fails.
+	received := state.state.BfdAsync.ReceivedPackets
+	err = eventuallyReceivesAfter(2*time.Second, s1, netip.MustParseAddr("127.0.0.1"), received)
+	assert.NoError(err)
 
 	// Stop s2
 	s2.Stop()
@@ -237,13 +269,35 @@ func Test_ResetPeer(t *testing.T) {
 	err = addPeer(s2, 13784)
 	assert.NoError(err)
 
-	time.Sleep(time.Second * 2)
+	// Establishment is now paced at up to one second per handshake step (RFC 5880
+	// Section 6.8.3's not-Up floor), so wait for Up instead of assuming a fixed sleep
+	// covers it. Reaching Up also matters for the wait below: while not yet Up, both
+	// sides advertise the floored (slow) interval, which inflates the detection time
+	// (Section 6.8.4) that governs how long the peer below takes to notice s2 is gone.
+	err = eventuallyCheckState(6*time.Second, s1, netip.MustParseAddr("127.0.0.1"), api.BfdSessionState_BFD_SESSION_STATE_UP)
+	assert.NoError(err)
+	err = eventuallyCheckState(6*time.Second, s2, netip.MustParseAddr("127.0.0.1"), api.BfdSessionState_BFD_SESSION_STATE_UP)
+	assert.NoError(err)
+
+	// s1 learns s2's restored 200ms interval only from s2's first Up packet, which is
+	// paced (up to 200ms away). Wait for it so the detection time below is the Up
+	// 5 x 200ms, not the not-Up 5 x 1s.
+	state, err := s1.GetPeerState(netip.MustParseAddr("127.0.0.1"))
+	assert.NoError(err)
+	err = eventuallyReceivesAfter(2*time.Second, s1, netip.MustParseAddr("127.0.0.1"), state.state.BfdAsync.ReceivedPackets)
+	assert.NoError(err)
 
 	// Stop s2
 	s2.Stop()
 
-	// Wait BFD peer down
-	time.Sleep(time.Second * 2)
+	// Wait for BFD peer down to reset s1's BGP peer.
+	err = eventually(6*time.Second, func() error {
+		if atomic.LoadInt64(&m1.resetPeerCount) == 1 {
+			return nil
+		}
+		return fmt.Errorf("must be: resetPeerCount == 1")
+	})
+	assert.NoError(err)
 
 	s1.Stop()
 
