@@ -780,6 +780,26 @@ func TestGRPCWatchEventTypesAdjIn(t *testing.T) {
 		return resp[0].UUID
 	}
 
+	waitPathsCh := make(chan any)
+	waitPathsCount := func(lenExpected int) {
+		lenActual := 0
+
+		err = s2.ListPath(
+			apiutil.ListPathRequest{
+				TableType:      api.TableType_TABLE_TYPE_GLOBAL,
+				Family:         bgp.RF_IPv4_UC,
+				EnableFiltered: false,
+			},
+			func(prefix bgp.NLRI, paths []*apiutil.Path) {
+				lenActual += len(paths)
+				if lenActual == lenExpected {
+					waitPathsCh <- nil
+				}
+			},
+		)
+		assert.NoError(err)
+	}
+
 	conn, err := grpc.NewClient(
 		socketAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -797,6 +817,9 @@ func TestGRPCWatchEventTypesAdjIn(t *testing.T) {
 		for _, prefix := range []string{"10.0.1.0", "10.0.2.0", "10.0.3.0", "10.0.4.0"} {
 			addPath(prefix)
 		}
+
+		go waitPathsCount(4)
+		<-waitPathsCh
 
 		watchCtx, watchCancel := context.WithCancel(context.Background())
 		resp, err := client.WatchEvent(watchCtx, &api.WatchEventRequest{
@@ -881,6 +904,9 @@ func TestGRPCWatchEventTypesAdjIn(t *testing.T) {
 		for _, prefix := range []string{"10.0.1.0", "10.0.2.0", "10.0.3.0", "10.0.4.0"} {
 			addPath(prefix)
 		}
+
+		go waitPathsCount(4)
+		<-waitPathsCh
 
 		watchCtx, watchCancel := context.WithCancel(context.Background())
 		resp, err := client.WatchEvent(watchCtx, &api.WatchEventRequest{
