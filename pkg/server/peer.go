@@ -93,7 +93,7 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 		return nil
 	}
 
-	return newPeer(g, &conf, bgp.BGP_FSM_ACTIVE, loc, policy, logger)
+	return newPeer(g, &conf, bgp.BGP_FSM_ACTIVE, loc, policy, nil, logger)
 }
 
 // pathIDSet is the set of add-path local identifiers advertised for a destination.
@@ -125,7 +125,7 @@ type peer struct {
 	routeRefreshInProgress sync.RWMutex
 }
 
-func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.TableManager, policy *table.RoutingPolicy, logger *slog.Logger) *peer {
+func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.TableManager, policy *table.RoutingPolicy, tcpAo *tcpAoKeyBinding, logger *slog.Logger) *peer {
 	peer := &peer{
 		localRib:          loc,
 		policy:            policy,
@@ -140,6 +140,7 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.Tab
 	rfs, _ := oc.AfiSafis(conf.AfiSafis).ToRfList()
 	peer.adjRibIn = table.NewAdjRib(logger, rfs)
 	peer.rtmHandler = table.NewRouteTargetMembershipHandler()
+	peer.fsm.tcpAoKeyBinding.Store(tcpAo)
 	return peer
 }
 

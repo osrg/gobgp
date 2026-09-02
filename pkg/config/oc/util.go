@@ -226,7 +226,8 @@ func (n *Neighbor) NeedsResendOpenMessage(new *Neighbor) bool {
 		!n.GracefulRestart.Config.Equal(&new.GracefulRestart.Config) ||
 		isAfiSafiChanged(n.AfiSafis, new.AfiSafis) ||
 		!n.EbgpMultihop.Config.Equal(&new.EbgpMultihop.Config) ||
-		!n.TtlSecurity.Config.Equal(&new.TtlSecurity.Config)
+		!n.TtlSecurity.Config.Equal(&new.TtlSecurity.Config) ||
+		n.TcpAo.Config.Keychain != new.TcpAo.Config.Keychain
 }
 
 // TODO: these regexp are duplicated in api
