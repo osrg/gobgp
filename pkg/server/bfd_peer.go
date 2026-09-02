@@ -58,7 +58,7 @@ type bfdPeer struct {
 
 	eventStart    *time.Ticker
 	eventRxPacket chan *bfd.BFDHeader
-	eventTx       *time.Ticker
+	eventTx       *time.Timer
 	eventExpiry   *time.Ticker
 	eventShutdown chan struct{}
 	shutdownOnce  sync.Once
@@ -106,7 +106,7 @@ func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, confi
 	}
 
 	p.expiryInterval = time.Duration(p.multiplier) * p.rxInterval
-	p.eventTx = time.NewTicker(p.txInterval)
+	p.eventTx = time.NewTimer(p.jitteredTxInterval())
 
 	p.eventExpiry = time.NewTicker(p.expiryInterval)
 	p.eventExpiry.Stop()
@@ -152,6 +152,7 @@ func (p *bfdPeer) loop() {
 		case bfdPacket := <-p.eventRxPacket:
 			p.rxPacket(bfdPacket)
 		case <-p.eventTx.C:
+			p.eventTx.Reset(p.jitteredTxInterval())
 			p.tx()
 		case <-p.eventExpiry.C:
 			p.expiry()
@@ -365,6 +366,21 @@ func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
 		p.sessionState() == api.BfdSessionState_BFD_SESSION_STATE_UP {
 		p.eventExpiry.Reset(p.expiryInterval)
 	}
+}
+
+// jitteredTxInterval returns the interval to wait before sending the next
+// BFD Control packet, based on the configured desired minimum TX interval.
+//
+// RFC 5880 Section 6.8.7: the transmit interval MUST be reduced per packet
+// by a random value of 0 to 25%; when the detect multiplier is 1, the
+// interval MUST be no more than 90% and no less than 75% of the negotiated
+// interval.
+func (p *bfdPeer) jitteredTxInterval() time.Duration {
+	maxPct := 100
+	if p.multiplier == 1 {
+		maxPct = 90
+	}
+	return p.txInterval * time.Duration(randRange(75, maxPct)) / 100
 }
 
 func (p *bfdPeer) tx() {

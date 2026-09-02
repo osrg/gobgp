@@ -355,6 +355,55 @@ func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
 	assert.Equal(int64(0), atomic.LoadInt64(&ps.resetPeerCount))
 }
 
+// Test_JitteredTxInterval pins RFC 5880 Section 6.8.7: the transmit interval
+// must be reduced per packet by a random value of 0 to 25%, and when the
+// detect multiplier is 1, the interval must fall within 75%-90% of the
+// negotiated interval rather than the full 75%-100% range. The observed
+// min/max across many draws must land exactly on those endpoints: hitting
+// both inclusive endpoints, including the narrowed 90% ceiling, is what
+// pins the bounds rather than merely containing them.
+func Test_JitteredTxInterval(t *testing.T) {
+	assert := assert.New(t)
+
+	// multiplier > 1: bounds are [75%, 100%] of txInterval.
+	p := &bfdPeer{multiplier: 3, txInterval: 200 * time.Millisecond}
+
+	minSeen, maxSeen := p.txInterval, time.Duration(0)
+	for range 1000 {
+		d := p.jitteredTxInterval()
+		if d < minSeen {
+			minSeen = d
+		}
+		if d > maxSeen {
+			maxSeen = d
+		}
+	}
+	// 26 integer percentages in [75, 100], ~38.5 expected hits each in 1000
+	// draws; the chance either endpoint is never drawn is about
+	// (25/26)^1000 =~ 1e-17, so exact equality here is not flaky.
+	assert.Equal(150*time.Millisecond, minSeen)
+	assert.Equal(200*time.Millisecond, maxSeen)
+
+	// multiplier == 1: bounds narrow to [75%, 90%] of txInterval.
+	p1 := &bfdPeer{multiplier: 1, txInterval: 200 * time.Millisecond}
+
+	minSeen1, maxSeen1 := p1.txInterval, time.Duration(0)
+	for range 1000 {
+		d := p1.jitteredTxInterval()
+		if d < minSeen1 {
+			minSeen1 = d
+		}
+		if d > maxSeen1 {
+			maxSeen1 = d
+		}
+	}
+	// 16 integer percentages in [75, 90], ~62.5 expected hits each; the
+	// chance either endpoint is missed across 1000 draws is about
+	// (15/16)^1000 =~ 1e-28.
+	assert.Equal(150*time.Millisecond, minSeen1)
+	assert.Equal(180*time.Millisecond, maxSeen1)
+}
+
 func Test_TxPacket(t *testing.T) {
 	assert := assert.New(t)
 
