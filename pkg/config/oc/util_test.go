@@ -272,6 +272,87 @@ func TestNewPeerGroupFromConfigStruct_BfdConfig(t *testing.T) {
 	})
 }
 
+func newPeerFromConfigForTCPAOTest(t *testing.T, tcpAo TcpAo) *api.Peer {
+	t.Helper()
+	n := &Neighbor{
+		Config: NeighborConfig{
+			NeighborAddress: netip.MustParseAddr("192.0.2.1"),
+			PeerAs:          65001,
+		},
+		TcpAo: tcpAo,
+	}
+	p := NewPeerFromConfigStruct(n)
+	require.NotNil(t, p)
+	return p
+}
+
+func newPeerGroupFromConfigForTCPAOTest(t *testing.T, tcpAo TcpAo) *api.PeerGroup {
+	t.Helper()
+	pg := &PeerGroup{
+		Config: PeerGroupConfig{
+			PeerGroupName: "pg-tcp-ao-test",
+			PeerAs:        65001,
+		},
+		TcpAo: tcpAo,
+	}
+	return NewPeerGroupFromConfigStruct(pg)
+}
+
+func TestNewPeerFromConfigStruct_TcpAoConfig(t *testing.T) {
+	t.Run("keychain_and_send_id", func(t *testing.T) {
+		p := newPeerFromConfigForTCPAOTest(t, TcpAo{
+			Config: TcpAoConfig{Keychain: "fabric", SendId: 3},
+		})
+		cfg := p.GetTcpAo()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "fabric", cfg.Keychain)
+		assert.Equal(t, uint32(3), cfg.SendId)
+	})
+
+	// RFC 5925 section 3.1 allows any MKT ID from 0 to 255, so send-id 0
+	// selects the key with SendID 0. It does not mean "not set".
+	t.Run("send_id_zero_is_kept", func(t *testing.T) {
+		p := newPeerFromConfigForTCPAOTest(t, TcpAo{
+			Config: TcpAoConfig{Keychain: "fabric", SendId: 0},
+		})
+		cfg := p.GetTcpAo()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "fabric", cfg.Keychain)
+		assert.Equal(t, uint32(0), cfg.SendId)
+	})
+
+	// An empty keychain is how the config model says that the peer does not
+	// use TCP-AO, so no API message is built even if send-id is set.
+	t.Run("no_keychain_disables_tcp_ao", func(t *testing.T) {
+		p := newPeerFromConfigForTCPAOTest(t, TcpAo{})
+		assert.Nil(t, p.GetTcpAo())
+	})
+
+	t.Run("send_id_without_keychain_is_dropped", func(t *testing.T) {
+		p := newPeerFromConfigForTCPAOTest(t, TcpAo{
+			Config: TcpAoConfig{SendId: 3},
+		})
+		assert.Nil(t, p.GetTcpAo())
+	})
+}
+
+func TestNewPeerGroupFromConfigStruct_TcpAoConfig(t *testing.T) {
+	t.Run("keychain_and_send_id", func(t *testing.T) {
+		pg := newPeerGroupFromConfigForTCPAOTest(t, TcpAo{
+			Config: TcpAoConfig{Keychain: "fabric", SendId: 7},
+		})
+		cfg := pg.GetTcpAo()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "fabric", cfg.Keychain)
+		assert.Equal(t, uint32(7), cfg.SendId)
+	})
+
+	t.Run("no_keychain_disables_tcp_ao", func(t *testing.T) {
+		pg := newPeerGroupFromConfigForTCPAOTest(t, TcpAo{})
+		assert.Nil(t, pg.GetTcpAo())
+	})
+}
+
 func TestParseMaskLength(t *testing.T) {
 	assert := assert.New(t)
 	cases := []struct {
