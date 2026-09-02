@@ -16,6 +16,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -72,6 +73,75 @@ func TestNewPeerGroupFromAPIStructRejectsInvalidAllowOwnAsn(t *testing.T) {
 		},
 	})
 	assert.ErrorContains(t, err, "allow_own_asn is out of range")
+}
+
+func TestNewNeighborFromAPIStructTcpAo(t *testing.T) {
+	newNeighbor := func(t *testing.T, tcpAo *api.TcpAoPeerConfig) (*oc.Neighbor, error) {
+		t.Helper()
+		return newNeighborFromAPIStruct(&api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: "192.0.2.1",
+				PeerAsn:         65001,
+			},
+			TcpAo: tcpAo,
+		})
+	}
+
+	t.Run("keychain_and_send_id", func(t *testing.T) {
+		pconf, err := newNeighbor(t, &api.TcpAoPeerConfig{Keychain: "fabric", SendId: 3})
+		require.NoError(t, err)
+		assert.Equal(t, oc.KeychainRef("fabric"), pconf.TcpAo.Config.Keychain)
+		assert.Equal(t, uint8(3), pconf.TcpAo.Config.SendId)
+	})
+
+	// RFC 5925 section 3.1 requires every MKT ID from 0 to 255 to be
+	// supported, so both ends of that range must survive the conversion.
+	t.Run("send_id_bounds", func(t *testing.T) {
+		for _, sendID := range []uint32{0, 255} {
+			pconf, err := newNeighbor(t, &api.TcpAoPeerConfig{Keychain: "fabric", SendId: sendID})
+			require.NoError(t, err)
+			assert.Equal(t, uint8(sendID), pconf.TcpAo.Config.SendId)
+		}
+	})
+
+	t.Run("send_id_out_of_range", func(t *testing.T) {
+		_, err := newNeighbor(t, &api.TcpAoPeerConfig{Keychain: "fabric", SendId: 256})
+		assert.ErrorContains(t, err, "outside 0..255")
+	})
+
+	t.Run("no_tcp_ao", func(t *testing.T) {
+		pconf, err := newNeighbor(t, nil)
+		require.NoError(t, err)
+		assert.Equal(t, oc.TcpAoConfig{}, pconf.TcpAo.Config)
+	})
+}
+
+func TestNewPeerGroupFromAPIStructTcpAo(t *testing.T) {
+	newPeerGroup := func(t *testing.T, tcpAo *api.TcpAoPeerConfig) (*oc.PeerGroup, error) {
+		t.Helper()
+		return newPeerGroupFromAPIStruct(&api.PeerGroup{
+			Conf:  &api.PeerGroupConf{PeerGroupName: "pg"},
+			TcpAo: tcpAo,
+		})
+	}
+
+	t.Run("keychain_and_send_id", func(t *testing.T) {
+		pconf, err := newPeerGroup(t, &api.TcpAoPeerConfig{Keychain: "fabric", SendId: 7})
+		require.NoError(t, err)
+		assert.Equal(t, oc.KeychainRef("fabric"), pconf.TcpAo.Config.Keychain)
+		assert.Equal(t, uint8(7), pconf.TcpAo.Config.SendId)
+	})
+
+	t.Run("send_id_out_of_range", func(t *testing.T) {
+		_, err := newPeerGroup(t, &api.TcpAoPeerConfig{Keychain: "fabric", SendId: 256})
+		assert.ErrorContains(t, err, "outside 0..255")
+	})
+
+	t.Run("no_tcp_ao", func(t *testing.T) {
+		pconf, err := newPeerGroup(t, nil)
+		require.NoError(t, err)
+		assert.Equal(t, oc.TcpAoConfig{}, pconf.TcpAo.Config)
+	})
 }
 
 func TestToPathApi(t *testing.T) {
