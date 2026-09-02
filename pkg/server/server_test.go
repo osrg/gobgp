@@ -4943,3 +4943,61 @@ func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 			n.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET
 	}, 10*time.Second, 10*time.Millisecond)
 }
+
+// TestFilterPathRRWithdrawalOnClusterLoop verifies that rejecting a newly
+// selected path due to a local RR cluster-loop withdraws the previously
+// advertised path to not leave a stale route on the peer.
+func TestFilterPathRRWithdrawalOnClusterLoop(t *testing.T) {
+	const as = uint32(65000)
+	clusterID := netip.MustParseAddr("255.0.0.2")
+
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	rrPeer := newPeerandInfo(t, as, as, "192.0.2.1", rib)
+
+	conf := rrPeer.fsm.pConf.ReadCopy()
+	conf.RouteReflector.Config.RouteReflectorClient = true
+	conf.RouteReflector.Config.RouteReflectorClusterId = clusterID
+	conf.RouteReflector.State.RouteReflectorClient = true
+	conf.RouteReflector.State.RouteReflectorClusterId = clusterID
+	rrPeer.fsm.pConf.Update(&conf)
+
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.62.0.0/24"))
+	require.NoError(t, err)
+	nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("0.0.0.0"))
+	require.NoError(t, err)
+	clusterList, err := bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
+	require.NoError(t, err)
+
+	oldLocal := table.NewPath(
+		bgp.RF_IPv4_UC,
+		nil,
+		bgp.PathNLRI{NLRI: nlri},
+		false,
+		[]bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+			nextHop,
+		},
+		time.Now(),
+		false,
+	)
+	newReflected := table.NewPath(
+		bgp.RF_IPv4_UC,
+		rrPeer.peerInfo.Load(),
+		bgp.PathNLRI{NLRI: nlri},
+		false,
+		[]bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+			bgp.NewPathAttributeLocalPref(100),
+			clusterList,
+		},
+		time.Now(),
+		false,
+	)
+
+	rrPeer.updateRoutes(oldLocal)
+	got := filterpath(rrPeer, newReflected, oldLocal)
+	require.NotNil(t, got)
+	require.True(t, got.IsWithdraw,
+		"a cluster-loop-filtered new best path must withdraw the old advertised path")
+	require.Equal(t, oldLocal.GetNlri().String(), got.GetNlri().String())
+}

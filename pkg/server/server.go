@@ -520,6 +520,12 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 					conf := peer.fsm.pConf.ReadOnly()
 					rrClusterID := net.ParseIP(conf.RouteReflector.State.RouteReflectorClusterId.String())
 					if slices.Equal(clusterID.AsSlice(), rrClusterID.To4()) {
+						if !path.IsWithdraw && old != nil && peer.hasPathAlreadyBeenSent(old) {
+							// The new best path cannot be reflected to this RR client,
+							// but the old best path was previously advertised. Send an
+							// explicit withdrawal so it is not left stale on the peer.
+							return old.Clone(true)
+						}
 						peer.fsm.logger.Debug("cluster list path attribute has local cluster id, ignore",
 							slog.String("ClusterID", clusterID.String()),
 							slog.Any("Path", path))
