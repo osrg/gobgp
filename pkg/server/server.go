@@ -2841,7 +2841,19 @@ func (s *BgpServer) softResetIn(addr string, family bgp.Family) error {
 		return err
 	}
 	for _, peer := range peers {
-		s.propagateUpdate(peer, peer.adjRibIn.PathList(familiesForSoftreset(peer, family), true))
+		paths := peer.adjRibIn.PathList(familiesForSoftreset(peer, family), false)
+		pathList := make([]*table.Path, 0, len(paths))
+		for _, path := range paths {
+			rejected := peer.isPathRejected(path)
+			path = peer.adjRibIn.SetRejected(path, rejected)
+			if rejected {
+				// An UPDATE received after the config change may already have marked
+				// the cache rejected while the previously accepted route is still installed.
+				path = path.Clone(true)
+			}
+			pathList = append(pathList, path)
+		}
+		s.propagateUpdate(peer, pathList)
 	}
 	return err
 }
@@ -3855,6 +3867,9 @@ func (s *BgpServer) updatePeerGroup(pg *oc.PeerGroup) (needsSoftResetIn bool, er
 	s.peerGroupMap[name].Conf = pg
 
 	for _, n := range s.peerGroupMap[name].members {
+		if err := oc.SetNeighborAsPathOptions(&n, pg); err != nil {
+			return needsSoftResetIn, err
+		}
 		u, err := s.updateNeighbor(&n)
 		if err != nil {
 			return needsSoftResetIn, err
@@ -3881,6 +3896,7 @@ func (s *BgpServer) UpdatePeerGroup(ctx context.Context, r *api.UpdatePeerGroupR
 }
 
 func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err error) {
+	needsSoftResetOut := false
 	var pgConf *oc.PeerGroup
 	if c.Config.PeerGroup != "" {
 		if pg, ok := s.peerGroupMap[c.Config.PeerGroup]; ok {
@@ -3921,7 +3937,10 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if !original.AsPathOptions.Config.Equal(&c.AsPathOptions.Config) {
 		peer.fsm.logger.Info("Update aspath options")
 
-		needsSoftResetIn = true
+		needsSoftResetIn = needsSoftResetIn || original.AsPathOptions.Config.AllowOwnAs != c.AsPathOptions.Config.AllowOwnAs
+		needsSoftResetOut = original.AsPathOptions.Config.ReplacePeerAs != c.AsPathOptions.Config.ReplacePeerAs ||
+			original.AsPathOptions.Config.AllowAsPathLoopLocal != c.AsPathOptions.Config.AllowAsPathLoopLocal
+		conf.AsPathOptions = c.AsPathOptions
 	}
 
 	bfdConfigChanged := !original.Bfd.Config.Equal(&c.Bfd.Config)
@@ -3978,6 +3997,10 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if err == nil {
 		peer.fsm.pConf.Update(&conf)
 		peer.fsm.lock.Unlock()
+		if pgConf != nil {
+			// Retain current explicit member values for subsequent group updates.
+			s.peerGroupMap[conf.Config.PeerGroup].AddMember(conf)
+		}
 		if bfdConfigChanged {
 			err = s.updateBfdPeer(
 				addr,
@@ -3989,6 +4012,9 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 			if err == nil {
 				err = s.setAdminState(addr, "", adminStatePfxCt)
 			}
+		}
+		if err == nil && needsSoftResetOut {
+			err = s.softResetOut(addr, bgp.Family(0), false)
 		}
 	} else {
 		// rollback to original ApplyPolicy

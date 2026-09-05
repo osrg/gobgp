@@ -86,6 +86,37 @@ func TestIsAfiSafiChanged(t *testing.T) {
 	assert.True(t, isAfiSafiChanged(old, new))
 }
 
+func TestNeedsResendOpenMessageASPathOptions(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*Neighbor)
+		hard   bool
+	}{
+		{"unchanged", func(*Neighbor) {}, false},
+		{"allow-own-as", func(n *Neighbor) { n.AsPathOptions.Config.AllowOwnAs = 1 }, false},
+		{"replace-peer-as", func(n *Neighbor) { n.AsPathOptions.Config.ReplacePeerAs = true }, false},
+		{"allow-as-path-loop-local", func(n *Neighbor) { n.AsPathOptions.Config.AllowAsPathLoopLocal = true }, false},
+		{"peer-as", func(n *Neighbor) { n.Config.PeerAs = 65001 }, true},
+		{"local-as", func(n *Neighbor) { n.Config.LocalAs = 65000 }, true},
+		{"admin-down", func(n *Neighbor) { n.Config.AdminDown = true }, true},
+		{"transport", func(n *Neighbor) { n.Transport.Config.RemotePort = 1179 }, true},
+		{"add-path", func(n *Neighbor) { n.AddPaths.Config.Receive = true }, true},
+		{"graceful-restart", func(n *Neighbor) { n.GracefulRestart.Config.Enabled = true }, true},
+		{"afi-safi", func(n *Neighbor) {
+			n.AfiSafis = []AfiSafi{{Config: AfiSafiConfig{AfiSafiName: AFI_SAFI_TYPE_IPV4_UNICAST}}}
+		}, true},
+		{"multihop", func(n *Neighbor) { n.EbgpMultihop.Config.Enabled = true }, true},
+		{"ttl-security", func(n *Neighbor) { n.TtlSecurity.Config.Enabled = true }, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			old, next := &Neighbor{}, &Neighbor{}
+			tc.change(next)
+			assert.Equal(t, tc.hard, old.NeedsResendOpenMessage(next))
+			assert.Equal(t, tc.hard, next.NeedsResendOpenMessage(old))
+		})
+	}
+}
+
 func newPeerFromConfigForBFDTest(t *testing.T, bfd Bfd) *api.Peer {
 	t.Helper()
 	n := &Neighbor{
