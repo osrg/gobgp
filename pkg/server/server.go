@@ -2911,7 +2911,17 @@ func (s *BgpServer) softResetIn(addr string, family bgp.Family) error {
 		return err
 	}
 	for _, peer := range peers {
-		s.propagateUpdate(peer, peer.adjRibIn.PathList(familiesForSoftreset(peer, family), true))
+		paths := peer.adjRibIn.PathList(familiesForSoftreset(peer, family), false)
+		pathList := make([]*table.Path, 0, len(paths))
+		loopGlobals := peer.loopCheckGlobals(s.rrClusterIDs)
+		for _, path := range paths {
+			path, withdrawals := peer.adjRibIn.SetRejected(path, peer.detectsLoop(path, loopGlobals))
+			pathList = append(pathList, withdrawals...)
+			if !path.IsRejected() {
+				pathList = append(pathList, path)
+			}
+		}
+		s.propagateUpdate(peer, pathList)
 	}
 	return err
 }
@@ -4123,6 +4133,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		peer.fsm.logger.Info("Update aspath options")
 
 		needsSoftResetIn = true
+		conf.AsPathOptions = c.AsPathOptions
 	}
 
 	bfdConfigChanged := !original.Bfd.Config.Equal(&c.Bfd.Config)
