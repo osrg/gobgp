@@ -86,14 +86,13 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	n.State.PeerType = n.Config.PeerType
 	if n.Config.PeerType == PEER_TYPE_EXTERNAL {
 		n.State.RemovePrivateAs = n.Config.RemovePrivateAs
-		n.AsPathOptions.State.ReplacePeerAs = n.AsPathOptions.Config.ReplacePeerAs
 	} else {
 		if string(n.Config.RemovePrivateAs) != "" {
 			return fmt.Errorf("can't set remove-private-as for iBGP peer")
 		}
-		if n.AsPathOptions.Config.ReplacePeerAs {
-			return fmt.Errorf("can't set replace-peer-as for iBGP peer")
-		}
+	}
+	if err := SetNeighborAsPathOptions(n, nil); err != nil {
+		return err
 	}
 
 	if !n.State.NeighborAddress.IsValid() {
@@ -101,8 +100,6 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	}
 
 	n.State.PeerAs = n.Config.PeerAs
-	n.AsPathOptions.State.AllowOwnAs = n.AsPathOptions.Config.AllowOwnAs
-	n.AsPathOptions.State.AllowAsPathLoopLocal = n.AsPathOptions.Config.AllowAsPathLoopLocal
 
 	if !v.IsSet("neighbor.error-handling.config.treat-as-withdraw") {
 		n.ErrorHandling.Config.TreatAsWithdraw = true
@@ -522,6 +519,23 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 		b.PolicyDefinitions[idx] = p
 	}
 
+	return nil
+}
+
+// SetNeighborAsPathOptions applies AS path option inheritance and state without
+// defaulting unrelated fields. The neighbor's peer type must already be set.
+func SetNeighborAsPathOptions(n *Neighbor, pg *PeerGroup) error {
+	if pg != nil {
+		v := viper.New()
+		if fields, ok := configuredFields[n.Config.NeighborAddress.String()]; ok {
+			v.Set("neighbor", fields)
+		}
+		overwriteConfig(&n.AsPathOptions.Config, &pg.AsPathOptions.Config, "neighbor.as-path-options.config", v)
+	}
+	if n.Config.PeerType == PEER_TYPE_INTERNAL && n.AsPathOptions.Config.ReplacePeerAs {
+		return fmt.Errorf("can't set replace-peer-as for iBGP peer")
+	}
+	n.AsPathOptions.State = AsPathOptionsState(n.AsPathOptions.Config)
 	return nil
 }
 

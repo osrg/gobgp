@@ -33,6 +33,32 @@ func registerConfiguredFields(t *testing.T, addr string, fields map[string]any) 
 	configuredFields = map[string]any{addr: fields}
 }
 
+func TestSetNeighborAsPathOptions(t *testing.T) {
+	registerConfiguredFields(t, testNeighborAddress, map[string]any{
+		"as-path-options": map[string]any{"config": map[string]any{"allow-own-as": 1}},
+	})
+	n := &Neighbor{
+		Config:        NeighborConfig{NeighborAddress: netip.MustParseAddr(testNeighborAddress), PeerType: PEER_TYPE_EXTERNAL, LocalAs: 65010, PeerAs: 65001},
+		AsPathOptions: AsPathOptions{Config: AsPathOptionsConfig{AllowOwnAs: 2}},
+		Timers:        Timers{Config: TimersConfig{HoldTime: 45}},
+	}
+	pg := &PeerGroup{
+		Config:        PeerGroupConfig{LocalAs: 65020, PeerAs: 65002},
+		AsPathOptions: AsPathOptions{Config: AsPathOptionsConfig{AllowOwnAs: 3, ReplacePeerAs: true, AllowAsPathLoopLocal: true}},
+		Timers:        Timers{Config: TimersConfig{HoldTime: 90}},
+	}
+	config, timers := n.Config, n.Timers
+	require.NoError(t, SetNeighborAsPathOptions(n, pg))
+	want := AsPathOptionsConfig{AllowOwnAs: 2, ReplacePeerAs: true, AllowAsPathLoopLocal: true}
+	assert.Equal(t, want, n.AsPathOptions.Config)
+	assert.Equal(t, AsPathOptionsState(want), n.AsPathOptions.State)
+	assert.Equal(t, config, n.Config)
+	assert.Equal(t, timers, n.Timers)
+
+	n.Config.PeerType = PEER_TYPE_INTERNAL
+	require.EqualError(t, SetNeighborAsPathOptions(n, pg), "can't set replace-peer-as for iBGP peer")
+}
+
 func newNeighborForTcpAoInheritanceTest() *Neighbor {
 	return &Neighbor{
 		Config: NeighborConfig{
