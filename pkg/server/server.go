@@ -2903,7 +2903,17 @@ func (s *BgpServer) softResetIn(addr string, family bgp.Family) error {
 		return err
 	}
 	for _, peer := range peers {
-		s.propagateUpdate(peer, peer.adjRibIn.PathList(familiesForSoftreset(peer, family), true))
+		paths := peer.adjRibIn.PathList(familiesForSoftreset(peer, family), false)
+		pathList := make([]*table.Path, 0, len(paths))
+		loopGlobals := peer.loopCheckGlobals(s.rrClusterIDs)
+		for _, path := range paths {
+			path, withdrawals := peer.adjRibIn.SetRejected(path, peer.detectsLoop(path, loopGlobals))
+			pathList = append(pathList, withdrawals...)
+			if !path.IsRejected() {
+				pathList = append(pathList, path)
+			}
+		}
+		s.propagateUpdate(peer, pathList)
 	}
 	return err
 }
@@ -4074,6 +4084,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	// new record of what the operator asked for. See addNeighbor.
 	configuredConf := cloneNeighborConfig(c)
 
+	needsSoftResetOut := false
 	var pgConf *oc.PeerGroup
 	if c.Config.PeerGroup != "" {
 		if pg, ok := s.peerGroupMap[c.Config.PeerGroup]; ok {
@@ -4114,7 +4125,10 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if !original.AsPathOptions.Config.Equal(&c.AsPathOptions.Config) {
 		peer.fsm.logger.Info("Update aspath options")
 
-		needsSoftResetIn = true
+		needsSoftResetIn = needsSoftResetIn || original.AsPathOptions.Config.AllowOwnAs != c.AsPathOptions.Config.AllowOwnAs
+		needsSoftResetOut = original.AsPathOptions.Config.ReplacePeerAs != c.AsPathOptions.Config.ReplacePeerAs ||
+			original.AsPathOptions.Config.AllowAsPathLoopLocal != c.AsPathOptions.Config.AllowAsPathLoopLocal
+		conf.AsPathOptions = c.AsPathOptions
 	}
 
 	bfdConfigChanged := !original.Bfd.Config.Equal(&c.Bfd.Config)
@@ -4211,6 +4225,9 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 			if err == nil {
 				err = s.setAdminState(addr, "", adminStatePfxCt)
 			}
+		}
+		if err == nil && needsSoftResetOut {
+			err = s.softResetOut(addr, bgp.Family(0), false)
 		}
 	} else {
 		// rollback to original ApplyPolicy
