@@ -269,6 +269,10 @@ message LsLinkDescriptor {
   string neighbor_addr_ipv4 = 4;
   string interface_addr_ipv6 = 5;
   string neighbor_addr_ipv6 = 6;
+  // RFC 9552 allows only one MT-ID in a Link Descriptor, but a receiver must
+  // accept and forward an NLRI that carries more. This reports what was
+  // received.
+  repeated uint32 multi_topo_ids = 7;
 }
 
 enum LsOspfRouteType {
