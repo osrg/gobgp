@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -696,16 +697,31 @@ func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) (*api.LsNodeDescriptor, er
 }
 
 func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) (*api.LsLinkDescriptor, error) {
-	// Both identifiers keep explicit presence: 0 is a valid Link Remote
-	// Identifier meaning "unknown" (RFC 5307, Section 1.1), so flattening an
-	// absent identifier to 0 would fabricate a Link Local/Remote Identifiers TLV.
+	var multiTopoIDs []uint32
+	if len(n.MultiTopoIDs) > 0 {
+		ids := make([]uint16, 0, len(n.MultiTopoIDs))
+		for id := range n.MultiTopoIDs {
+			ids = append(ids, id)
+		}
+		slices.Sort(ids)
+
+		multiTopoIDs = make([]uint32, len(ids))
+		for i, id := range ids {
+			multiTopoIDs[i] = uint32(id)
+		}
+	}
+
 	return &api.LsLinkDescriptor{
+		// Both identifiers keep explicit presence: 0 is a valid Link Remote
+		// Identifier meaning "unknown" (RFC 5307, Section 1.1), so flattening an
+		// absent identifier to 0 would fabricate a Link Local/Remote Identifiers TLV.
 		LinkLocalId:       n.LinkLocalID,
 		LinkRemoteId:      n.LinkRemoteID,
 		InterfaceAddrIpv4: ipOrDefault(n.InterfaceAddrIPv4),
 		NeighborAddrIpv4:  ipOrDefault(n.NeighborAddrIPv4),
 		InterfaceAddrIpv6: ipOrDefault(n.InterfaceAddrIPv6),
 		NeighborAddrIpv6:  ipOrDefault(n.NeighborAddrIPv6),
+		MultiTopoId:       multiTopoIDs,
 	}, nil
 }
 
@@ -980,6 +996,16 @@ func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor,
 	}
 	if desc.NeighborAddrIPv6, err = parseLsLinkAddr("neighbor_addr_ipv6", ld.GetNeighborAddrIpv6()); err != nil {
 		return nil, err
+	}
+
+	if ld != nil && len(ld.GetMultiTopoId()) > 0 {
+		desc.MultiTopoIDs = make(map[uint16]struct{}, len(ld.GetMultiTopoId()))
+		for _, id := range ld.GetMultiTopoId() {
+			if id > 0xfff {
+				return nil, fmt.Errorf("invalid MT-ID: %d", id)
+			}
+			desc.MultiTopoIDs[uint16(id)] = struct{}{}
+		}
 	}
 
 	return desc, nil
