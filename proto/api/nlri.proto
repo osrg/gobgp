@@ -269,6 +269,7 @@ message LsLinkDescriptor {
   string neighbor_addr_ipv4 = 4;
   string interface_addr_ipv6 = 5;
   string neighbor_addr_ipv6 = 6;
+  optional uint32 multi_topo_id = 7;
 }
 
 enum LsOspfRouteType {

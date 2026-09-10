@@ -699,6 +699,11 @@ func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) (*api.LsLinkDescriptor, er
 	// Both identifiers keep explicit presence: 0 is a valid Link Remote
 	// Identifier meaning "unknown" (RFC 5307, Section 1.1), so flattening an
 	// absent identifier to 0 would fabricate a Link Local/Remote Identifiers TLV.
+	multiTopoID, err := marshalLsLinkMultiTopoID(n.MultiTopoIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	return &api.LsLinkDescriptor{
 		LinkLocalId:       n.LinkLocalID,
 		LinkRemoteId:      n.LinkRemoteID,
@@ -706,6 +711,7 @@ func MarshalLsLinkDescriptor(n *bgp.LsLinkDescriptor) (*api.LsLinkDescriptor, er
 		NeighborAddrIpv4:  ipOrDefault(n.NeighborAddrIPv4),
 		InterfaceAddrIpv6: ipOrDefault(n.InterfaceAddrIPv6),
 		NeighborAddrIpv6:  ipOrDefault(n.NeighborAddrIPv6),
+		MultiTopoId:       multiTopoID,
 	}, nil
 }
 
@@ -982,7 +988,36 @@ func UnmarshalLsLinkDescriptor(ld *api.LsLinkDescriptor) (*bgp.LsLinkDescriptor,
 		return nil, err
 	}
 
+	if ld != nil && ld.MultiTopoId != nil {
+		id := ld.GetMultiTopoId()
+		if id > 0xfff {
+			return nil, fmt.Errorf("invalid MT-ID: %d", id)
+		}
+		desc.MultiTopoIDs = map[uint16]struct{}{
+			uint16(id): {},
+		}
+	}
+
 	return desc, nil
+}
+
+func marshalLsLinkMultiTopoID(ids map[uint16]struct{}) (*uint32, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	if len(ids) > 1 {
+		return nil, fmt.Errorf("multiple MT-IDs in Link Descriptor")
+	}
+
+	for id := range ids {
+		if id > 0xfff {
+			return nil, fmt.Errorf("invalid MT-ID: %d", id)
+		}
+		v := uint32(id)
+		return &v, nil
+	}
+
+	return nil, nil
 }
 
 // parseLsLinkAddr parses one optional link descriptor address. An empty string

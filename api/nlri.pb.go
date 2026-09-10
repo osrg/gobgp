@@ -2138,6 +2138,7 @@ type LsLinkDescriptor struct {
 	NeighborAddrIpv4  string  `protobuf:"bytes,4,opt,name=neighbor_addr_ipv4,json=neighborAddrIpv4,proto3" json:"neighbor_addr_ipv4,omitempty"`
 	InterfaceAddrIpv6 string  `protobuf:"bytes,5,opt,name=interface_addr_ipv6,json=interfaceAddrIpv6,proto3" json:"interface_addr_ipv6,omitempty"`
 	NeighborAddrIpv6  string  `protobuf:"bytes,6,opt,name=neighbor_addr_ipv6,json=neighborAddrIpv6,proto3" json:"neighbor_addr_ipv6,omitempty"`
+	MultiTopoId       *uint32 `protobuf:"varint,7,opt,name=multi_topo_id,json=multiTopoId,proto3,oneof" json:"multi_topo_id,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -2212,6 +2213,13 @@ func (x *LsLinkDescriptor) GetNeighborAddrIpv6() string {
 		return x.NeighborAddrIpv6
 	}
 	return ""
+}
+
+func (x *LsLinkDescriptor) GetMultiTopoId() uint32 {
+	if x != nil && x.MultiTopoId != nil {
+		return *x.MultiTopoId
+	}
+	return 0
 }
 
 type LsPrefixDescriptor struct {
@@ -3736,16 +3744,18 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\rbgp_router_id\x18\x06 \x01(\tR\vbgpRouterId\x128\n" +
 	"\x18bgp_confederation_member\x18\a \x01(\rR\x16bgpConfederationMember\x12/\n" +
 	"\x14local_router_id_ipv4\x18\b \x01(\tR\x11localRouterIdIpv4\x12/\n" +
-	"\x14local_router_id_ipv6\x18\t \x01(\tR\x11localRouterIdIpv6\"\xc7\x02\n" +
+	"\x14local_router_id_ipv6\x18\t \x01(\tR\x11localRouterIdIpv6\"\x82\x03\n" +
 	"\x10LsLinkDescriptor\x12'\n" +
 	"\rlink_local_id\x18\x01 \x01(\rH\x00R\vlinkLocalId\x88\x01\x01\x12)\n" +
 	"\x0elink_remote_id\x18\x02 \x01(\rH\x01R\flinkRemoteId\x88\x01\x01\x12.\n" +
 	"\x13interface_addr_ipv4\x18\x03 \x01(\tR\x11interfaceAddrIpv4\x12,\n" +
 	"\x12neighbor_addr_ipv4\x18\x04 \x01(\tR\x10neighborAddrIpv4\x12.\n" +
 	"\x13interface_addr_ipv6\x18\x05 \x01(\tR\x11interfaceAddrIpv6\x12,\n" +
-	"\x12neighbor_addr_ipv6\x18\x06 \x01(\tR\x10neighborAddrIpv6B\x10\n" +
+	"\x12neighbor_addr_ipv6\x18\x06 \x01(\tR\x10neighborAddrIpv6\x12'\n" +
+	"\rmulti_topo_id\x18\a \x01(\rH\x02R\vmultiTopoId\x88\x01\x01B\x10\n" +
 	"\x0e_link_local_idB\x11\n" +
-	"\x0f_link_remote_id\"{\n" +
+	"\x0f_link_remote_idB\x10\n" +
+	"\x0e_multi_topo_id\"{\n" +
 	"\x12LsPrefixDescriptor\x12'\n" +
 	"\x0fip_reachability\x18\x01 \x03(\tR\x0eipReachability\x12<\n" +
 	"\x0fospf_route_type\x18\x02 \x01(\x0e2\x14.api.LsOspfRouteTypeR\rospfRouteType\"B\n" +
