@@ -223,7 +223,7 @@ var (
 	)
 	bgpPeerTypeDesc = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "peer", "type"),
-		"Type of the BGP peer, internal (0) or external (1)",
+		"Type of the BGP peer, internal (1) or external (2)",
 		peerLabels, nil,
 	)
 	bgpPeerAsnDesc = prometheus.NewDesc(
@@ -350,7 +350,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 		send(bgpPeerSendCommunityFlagDesc, uint64(peerState.GetSendCommunity()))
 		// Whether BGP Private AS is being removed (1) or not (0)
 		send(bgpPeerRemovePrivateAsFlagDesc, uint64(peerState.GetRemovePrivate()))
-		// Peer Type (0) for internal, (1) for external
+		// Peer Type (1) for internal, (2) for external
 		send(bgpPeerTypeDesc, uint64(peerState.GetType()))
 
 		// Whether authentication password is being set (1) or not (0)
