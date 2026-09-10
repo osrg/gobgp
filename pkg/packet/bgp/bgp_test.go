@@ -5208,7 +5208,7 @@ func Test_PathAttributeLs(t *testing.T) {
 				0x04, 0x4b, 0x00, 0x07, 0x01, 0x01, 0x00, 0x00, 0x01, 0x88, 0x94, // Adjacency SID: 100500
 			},
 			"{LsAttributes: {Local RouterID IPv4: 1.1.1.1} {Local RouterID IPv6: 2001:db8::beef} {Remote RouterID IPv4: 2.2.2.2} {Remote RouterID IPv6: 2001:db8::dead} {Admin Group: 07070707} {Max Link BW: 329.39062} {Max Reservable Link BW: 329.39062} {Unreserved BW: [329.39062 329.39062 329.39062 329.39062 329.39062 329.39062 329.39062 329.39062]} {TE Default metric: 117901063} {IGP metric: 1} {Opaque link attribute: [1 2 3]} {Link Name: rtr} {Adjacency SID: 100500} }",
-			`{"type":41,"flags":128,"node":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"link":{"name":"rtr","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","remote_router_id_ipv4":"2.2.2.2","remote_router_id_ipv6":"2001:db8::dead","admin_group":117901063,"default_te_metric":117901063,"igp_metric":1,"opaque":"AQID","bandwidth":329.39062,"reservable_bandwidth":329.39062,"unreserved_bandwidth":[329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062],"adjacency_sid":100500},"prefix":{},"bgp_peer_segment":{},"srv6_sid":{}}`,
+			`{"type":41,"flags":128,"node":{"local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef"},"link":{"name":"rtr","local_router_id_ipv4":"1.1.1.1","local_router_id_ipv6":"2001:db8::beef","remote_router_id_ipv4":"2.2.2.2","remote_router_id_ipv6":"2001:db8::dead","admin_group":117901063,"default_te_metric":117901063,"igp_metric":1,"opaque":"AQID","bandwidth":329.39062,"reservable_bandwidth":329.39062,"unreserved_bandwidth":[329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062,329.39062],"adjacency_sid":100500,"sr_adjacency_sids":[{"flags":1,"weight":1,"sid":100500}]},"prefix":{},"bgp_peer_segment":{},"srv6_sid":{}}`,
 			true, false,
 		},
 		{
@@ -5536,6 +5536,32 @@ func Test_PathAttributeLs_MultiPrefixSID(t *testing.T) {
 		assert.Equal(uint32(100500), ls.Prefix.SrPrefixSIDs[0].SID)
 		assert.Equal(uint8(128), ls.Prefix.SrPrefixSIDs[1].Algorithm)
 		assert.Equal(uint32(100501), ls.Prefix.SrPrefixSIDs[1].SID)
+	}
+}
+
+func Test_PathAttributeLs_DualStackAdjacencySID(t *testing.T) {
+	assert := assert.New(t)
+
+	in := []byte{
+		0x80, 0x29, 0x16, // Optional attribute, BGP_ATTR_TYPE_LS, length 22 (two 11-byte Adjacency-SID TLVs)
+		0x04, 0x4b, 0x00, 0x07, 0x00, 0x01, 0x00, 0x00, 0x01, 0x88, 0x94, // Adjacency-SID, F=0 (IPv4), SID 100500
+		0x04, 0x4b, 0x00, 0x07, 0x80, 0x01, 0x00, 0x00, 0x01, 0x88, 0x95, // Adjacency-SID, F=1 (IPv6), SID 100501
+	}
+
+	attr := PathAttributeLs{}
+	assert.NoError(attr.DecodeFromBytes(in))
+
+	ls := attr.Extract()
+	assert.NotNil(ls.Link.SrAdjacencySID)
+	if ls.Link.SrAdjacencySID != nil {
+		assert.Equal(uint32(100501), *ls.Link.SrAdjacencySID)
+	}
+	assert.Len(ls.Link.SrAdjacencySIDs, 2)
+	if len(ls.Link.SrAdjacencySIDs) == 2 {
+		assert.Equal(uint8(0x00), ls.Link.SrAdjacencySIDs[0].Flags)
+		assert.Equal(uint32(100500), ls.Link.SrAdjacencySIDs[0].SID)
+		assert.Equal(uint8(0x80), ls.Link.SrAdjacencySIDs[1].Flags)
+		assert.Equal(uint32(100501), ls.Link.SrAdjacencySIDs[1].SID)
 	}
 }
 

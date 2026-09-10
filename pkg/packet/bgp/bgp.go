@@ -11086,10 +11086,16 @@ type LsAttributeLink struct {
 	UnreservedBandwidth *[8]float32 `json:"unreserved_bandwidth,omitempty"`
 	Srlgs               *[]uint32   `json:"srlgs,omitempty"`
 
-	// TODO flag
-	SrAdjacencySID *uint32 `json:"adjacency_sid,omitempty"`
+	// Retained for API compatibility; mirrors the last Adjacency-SID TLV.
+	SrAdjacencySID  *uint32                       `json:"adjacency_sid,omitempty"`
+	SrAdjacencySIDs []LsAttributeLinkAdjacencySID `json:"sr_adjacency_sids,omitempty"`
+	Srv6EndXSID     *LsSrv6EndXSID                `json:"srv6_end_x_sid,omitempty"`
+}
 
-	Srv6EndXSID *LsSrv6EndXSID `json:"srv6_end_x_sid,omitempty"`
+type LsAttributeLinkAdjacencySID struct {
+	Flags  uint8  `json:"flags"`
+	Weight uint8  `json:"weight"`
+	SID    uint32 `json:"sid"`
 }
 
 type LsAttributePrefix struct {
@@ -11247,6 +11253,11 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVAdjacencySID:
 			l.Link.SrAdjacencySID = &v.SID
+			l.Link.SrAdjacencySIDs = append(l.Link.SrAdjacencySIDs, LsAttributeLinkAdjacencySID{
+				Flags:  v.Flags,
+				Weight: v.Weight,
+				SID:    v.SID,
+			})
 
 		case *LsTLVSrv6EndXSID:
 			l.Link.Srv6EndXSID = v.Extract()

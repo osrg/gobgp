@@ -469,8 +469,15 @@ message LsAttributeLink {
   uint32 min_unidirectional_link_delay = 19;
   uint32 max_unidirectional_link_delay = 20;
   uint32 unidirectional_delay_variation = 21;
+
+  repeated LsAttributeLinkAdjacencySID sr_adjacency_sids = 22;
 }
 
+message LsAttributeLinkAdjacencySID {
+  uint32 flags = 1;
+  uint32 weight = 2;
+  uint32 sid = 3;
+}
 message LsAttributePrefix {
   LsIGPFlags igp_flags = 1;
   bytes opaque = 2;

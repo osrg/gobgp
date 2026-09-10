@@ -1911,6 +1911,50 @@ func TestFullCycleFlexAlgoDefAndFAPM(t *testing.T) {
 	assert.Equal(t, uint32(10000), back.Prefix.FadPrefixMetrics[0].Metric)
 }
 
+func TestLsAttributeDualStackAdjacencySIDRoundTrip(t *testing.T) {
+	tlvs := []bgp.LsTLVInterface{
+		&bgp.LsTLVAdjacencySID{
+			LsTLV:  bgp.LsTLV{Type: bgp.LS_TLV_ADJACENCY_SID},
+			Flags:  0x00, // F flag clear: IPv4
+			Weight: 1,
+			SID:    100500,
+		},
+		&bgp.LsTLVAdjacencySID{
+			LsTLV:  bgp.LsTLV{Type: bgp.LS_TLV_ADJACENCY_SID},
+			Flags:  0x80, // F flag set: IPv6
+			Weight: 1,
+			SID:    100501,
+		},
+	}
+	pa := &bgp.PathAttributeLs{TLVs: tlvs}
+
+	apiAttr, err := NewLsAttributeFromNative(pa)
+	require.NoError(t, err)
+	require.NotNil(t, apiAttr)
+
+	require.Len(t, apiAttr.Link.SrAdjacencySids, 2)
+	assert.Equal(t, uint32(0x00), apiAttr.Link.SrAdjacencySids[0].Flags)
+	assert.Equal(t, uint32(100500), apiAttr.Link.SrAdjacencySids[0].Sid)
+	assert.Equal(t, uint32(0x80), apiAttr.Link.SrAdjacencySids[1].Flags)
+	assert.Equal(t, uint32(100501), apiAttr.Link.SrAdjacencySids[1].Sid)
+	// Singular field retains the last TLV.
+	assert.Equal(t, uint32(100501), apiAttr.Link.SrAdjacencySid)
+
+	enc, err := proto.Marshal(apiAttr)
+	require.NoError(t, err)
+	clone := &api.LsAttribute{}
+	require.NoError(t, proto.Unmarshal(enc, clone))
+	assert.True(t, proto.Equal(apiAttr, clone))
+
+	back, err := UnmarshalLsAttribute(clone)
+	require.NoError(t, err)
+	require.Len(t, back.Link.SrAdjacencySIDs, 2)
+	assert.Equal(t, uint8(0x00), back.Link.SrAdjacencySIDs[0].Flags)
+	assert.Equal(t, uint32(100500), back.Link.SrAdjacencySIDs[0].SID)
+	assert.Equal(t, uint8(0x80), back.Link.SrAdjacencySIDs[1].Flags)
+	assert.Equal(t, uint32(100501), back.Link.SrAdjacencySIDs[1].SID)
+}
+
 // TestFlexAlgo_FullWirePath drives the full RFC 9351 / RFC 9085
 // path end-to-end:
 //

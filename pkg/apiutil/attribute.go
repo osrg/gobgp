@@ -1276,6 +1276,14 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		if a.Link.SrAdjacencySid != 0 {
 			linkSrAdjacencySid = &a.Link.SrAdjacencySid
 		}
+		var linkAdjacencySIDs []bgp.LsAttributeLinkAdjacencySID
+		for _, sid := range a.Link.SrAdjacencySids {
+			linkAdjacencySIDs = append(linkAdjacencySIDs, bgp.LsAttributeLinkAdjacencySID{
+				Flags:  uint8(sid.Flags),
+				Weight: uint8(sid.Weight),
+				SID:    sid.Sid,
+			})
+		}
 		var srv6EndXSID *bgp.LsSrv6EndXSID
 		if a.Link.Srv6EndXSid != nil {
 			sids := make([]netip.Addr, 0, len(a.Link.Srv6EndXSid.Sids))
@@ -1320,6 +1328,7 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			UnreservedBandwidth:           unreservedBandwidth,
 			Srlgs:                         linkSrlgs,
 			SrAdjacencySID:                linkSrAdjacencySid,
+			SrAdjacencySIDs:               linkAdjacencySIDs,
 			Srv6EndXSID:                   srv6EndXSID,
 		}
 	}
@@ -3150,6 +3159,16 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 			IncludeAllAffinity: append([]uint32(nil), fad.IncludeAll...),
 			DefinitionFlags:    append([]byte(nil), fad.Flags...),
 			ExcludeSrlg:        append([]uint32(nil), fad.ExcludeSRLG...),
+		})
+	}
+
+	// RFC 8667 Section 2.2.1: surface every Adjacency-SID TLV; the
+	// singular sr_adjacency_sid field above retains the last TLV.
+	for _, sid := range attr.Link.SrAdjacencySIDs {
+		apiAttr.Link.SrAdjacencySids = append(apiAttr.Link.SrAdjacencySids, &api.LsAttributeLinkAdjacencySID{
+			Flags:  uint32(sid.Flags),
+			Weight: uint32(sid.Weight),
+			Sid:    sid.SID,
 		})
 	}
 
