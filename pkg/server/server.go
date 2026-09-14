@@ -142,6 +142,7 @@ type BgpServer struct {
 	policy        *table.RoutingPolicy
 	listeners     []*netutils.TCPListener
 	neighborMap   map[netip.Addr]*peer
+	rrClusterIDs  map[netip.Addr]struct{}
 	peerGroupMap  map[string]*peerGroup
 	globalRib     *table.TableManager
 	rsRib         *table.TableManager
@@ -184,6 +185,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	s := &BgpServer{
 		shared:       shared,
 		neighborMap:  make(map[netip.Addr]*peer),
+		rrClusterIDs: make(map[netip.Addr]struct{}),
 		peerGroupMap: make(map[string]*peerGroup),
 		policy:       table.NewRoutingPolicy(logger),
 		mgmtCh:       make(chan *mgmtOp),
@@ -371,6 +373,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		}
 
 		s.neighborMap[addr] = peer
+		s.rebuildLocalClusterIDs()
 		// register BFD for the dynamic neighbor too (explicit neighbors do this in addNeighbor): the
 		// BFD config is inherited from the peer group. Without this, BFD never runs for dynamic peers.
 		if s.bfdServer != nil && conf.Bfd.Config.Enabled {
@@ -1613,6 +1616,7 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	key := netip.MustParseAddr(peer.ID())
 	if s.neighborMap[key] == peer {
 		delete(s.neighborMap, key)
+		s.rebuildLocalClusterIDs()
 		// Drop the policy assignment of this peer as well. Only a route server
 		// client has one, but peer.ID() is always an address and never collides
 		// with the global RIB name, so there is nothing to check here.
@@ -1953,7 +1957,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		case bgp.BGP_MSG_ROUTE_REFRESH:
 			s.handleRouteRefresh(peer, e)
 		case bgp.BGP_MSG_UPDATE:
-			pathList, eor, isLimit := peer.handleUpdate(e)
+			pathList, eor, isLimit := peer.handleUpdate(e, s.rrClusterIDs)
 			if isLimit {
 				_ = s.setAdminState(peer.ID(), "", adminStatePfxCt)
 				return
@@ -3586,6 +3590,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}
 	s.neighborMap[netip.MustParseAddr(addr)] = peer
+	s.rebuildLocalClusterIDs()
 	if name := c.Config.PeerGroup; name != "" {
 		s.peerGroupMap[name].AddMember(*c)
 	}
@@ -3603,6 +3608,22 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	}
 	s.startFsmHandler(peer)
 	return nil
+}
+
+// rebuildLocalClusterIDs rebuilds the set of effective cluster IDs used by this BGP speaker.
+func (s *BgpServer) rebuildLocalClusterIDs() {
+	ids := make(map[netip.Addr]struct{})
+	for _, peer := range s.neighborMap {
+		conf := peer.fsm.pConf.ReadOnly()
+		if !conf.RouteReflector.Config.RouteReflectorClient {
+			continue
+		}
+		clusterID := conf.RouteReflector.State.RouteReflectorClusterId
+		if clusterID.IsValid() {
+			ids[clusterID] = struct{}{}
+		}
+	}
+	s.rrClusterIDs = ids
 }
 
 func apiBfdSessionStateToOC(state api.BfdSessionState) oc.BfdSessionState {
@@ -3978,6 +3999,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if err == nil {
 		peer.fsm.pConf.Update(&conf)
 		peer.fsm.lock.Unlock()
+		s.rebuildLocalClusterIDs()
 		if bfdConfigChanged {
 			err = s.updateBfdPeer(
 				addr,
