@@ -25,6 +25,8 @@ Supported behavior:
 - peer-group BFD configuration inherited by neighbors;
 - default destination UDP port `3784`;
 - source UDP port selected from the RFC 5881 dynamic range `49152..65535`;
+- source IP selected from the neighbor transport `local-address` when configured,
+  or by the kernel when unset;
 - outgoing BFD packets sent with TTL/Hop Limit `255`;
 - BFD states `DOWN`, `INIT`, `UP`, and `ADMIN_DOWN`;
 - Poll/Final handling in control packets;
@@ -242,6 +244,8 @@ If the BFD session does not come up:
   neighbor address;
 - verify that UDP `3784` is reachable in both directions;
 - verify that the remote system accepts source ports from `49152..65535`;
+- verify that the neighbor transport `local-address`, when configured, exists on
+  the host and is compatible with `bind-interface`;
 - avoid setting a non-default `port` unless the remote peer is known to listen
   there;
 - check JSON peer output for `state.bfd_state.session_state`;

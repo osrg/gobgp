@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"net/netip"
 	"sync/atomic"
 	"testing"
@@ -68,6 +69,86 @@ func Test_BfdPeerRemoteUDPAddrZone(t *testing.T) {
 	defer g.Stop()
 
 	assert.Empty(g.remoteUDPAddr().Zone)
+}
+
+func Test_BfdPeerLocalUDPAddr(t *testing.T) {
+	tests := []struct {
+		name         string
+		localAddress netip.Addr
+		expectedIP   string
+		expectedZone string
+	}{
+		{name: "unset"},
+		{name: "unspecified IPv4", localAddress: netip.IPv4Unspecified()},
+		{name: "unspecified IPv6", localAddress: netip.IPv6Unspecified()},
+		{name: "IPv4", localAddress: netip.MustParseAddr("192.0.2.1"), expectedIP: "192.0.2.1"},
+		{name: "IPv6", localAddress: netip.MustParseAddr("2001:db8::1"), expectedIP: "2001:db8::1"},
+		{name: "link-local IPv6", localAddress: netip.MustParseAddr("fe80::1%eth0"), expectedIP: "fe80::1", expectedZone: "eth0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			addr := (&bfdPeer{localAddress: tt.localAddress}).localUDPAddr()
+
+			if tt.expectedIP == "" {
+				assert.Nil(t, addr.IP)
+			} else {
+				assert.Equal(t, tt.expectedIP, addr.IP.String())
+			}
+
+			assert.Equal(t, tt.expectedZone, addr.Zone)
+			assert.GreaterOrEqual(t, addr.Port, bfdSourcePortMin)
+			assert.LessOrEqual(t, addr.Port, bfdSourcePortMax)
+		})
+	}
+}
+
+func Test_BfdPeerStartClientUsesLocalAddress(t *testing.T) {
+	for _, localAddress := range []netip.Addr{
+		netip.MustParseAddr("127.0.0.1"),
+		netip.MustParseAddr("::1"),
+	} {
+		t.Run(localAddress.String(), func(t *testing.T) {
+			listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: localAddress.AsSlice()})
+			if !assert.NoError(t, err) {
+				return
+			}
+			defer listener.Close()
+
+			peer := &bfdPeer{
+				logger:       slog.Default(),
+				peerAddress:  localAddress,
+				peerPort:     listener.LocalAddr().(*net.UDPAddr).Port,
+				localAddress: localAddress,
+			}
+			peer.startClient()
+			if !assert.NotNil(t, peer.udpClient) {
+				return
+			}
+			defer peer.udpClient.Close()
+
+			actual := peer.udpClient.LocalAddr().(*net.UDPAddr)
+			assert.Equal(t, localAddress.String(), actual.IP.String())
+			assert.GreaterOrEqual(t, actual.Port, bfdSourcePortMin)
+			assert.LessOrEqual(t, actual.Port, bfdSourcePortMax)
+		})
+	}
+}
+
+func Test_NewBfdPeerLocalAddressAndBindInterface(t *testing.T) {
+	localAddress := netip.MustParseAddr("2001:db8::1")
+	p := newBfdPeer(
+		&mockPeerState{},
+		slog.Default(),
+		netip.MustParseAddr("2001:db8::2"),
+		oc.BfdConfig{Enabled: true},
+		localAddress,
+		"eth0",
+	)
+	defer p.Stop()
+
+	assert.Equal(t, localAddress, p.localAddress)
+	assert.Equal(t, "eth0", p.bindInterface)
 }
 
 func Test_BfdPeerStopIdempotent(t *testing.T) {
