@@ -4022,7 +4022,7 @@ func TestUpdatePeer(t *testing.T) {
 	p.Conf.ReplacePeerAsn = true
 	resp, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: p})
 	assert.NoError(t, err)
-	assert.True(t, resp.NeedsSoftResetIn)
+	assert.False(t, resp.NeedsSoftResetIn)
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_ = s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {

@@ -657,6 +657,35 @@ func (peer *peer) updatePrefixLimitConfig(conf *oc.Neighbor, c []oc.AfiSafi) (bo
 	return reachLimit, nil
 }
 
+// isPathRejected applies the same loop checks to received and cached routes.
+func (peer *peer) isPathRejected(path *table.Path) bool {
+	if path.IsWithdraw {
+		return false
+	}
+	conf := peer.fsm.pConf.ReadOnly()
+	peer.fsm.lock.Lock()
+	confedEnabled := peer.fsm.gConf.Confederation.Config.Enabled
+	confedID := peer.fsm.gConf.Confederation.Config.Identifier
+	routerID := peer.fsm.gConf.Config.RouterId
+	peer.fsm.lock.Unlock()
+
+	// RFC4271 9.1.2 and RFC5065 4: exclude AS loops from route selection,
+	// including occurrences of the Confederation ID.
+	if aspath := path.GetAsPath(); aspath != nil {
+		if hasOwnASLoop(conf.Config.LocalAs, int(conf.AsPathOptions.Config.AllowOwnAs), aspath, confedID, confedEnabled) {
+			return true
+		}
+	}
+	// RFC4456 8: ignore a route with our own ORIGINATOR_ID.
+	if conf.State.PeerType == oc.PEER_TYPE_INTERNAL && path.GetOriginatorID() == routerID {
+		peer.fsm.logger.Debug("Originator ID is mine, ignore",
+			slog.String("OriginatorID", path.GetOriginatorID().String()),
+			slog.String("Data", path.String()))
+		return true
+	}
+	return false
+}
+
 func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	update := m.Body.(*bgp.BGPUpdate)
@@ -685,42 +714,9 @@ func (peer *peer) handleUpdate(e *fsmMsg) ([]*table.Path, []bgp.Family, bool) {
 				eor = append(eor, family)
 				continue
 			}
-			// RFC4271 9.1.2 Phase 2: Route Selection
-			//
-			// If the AS_PATH attribute of a BGP route contains an AS loop, the BGP
-			// route should be excluded from the Phase 2 decision function.
-			if aspath := path.GetAsPath(); aspath != nil {
-				localAS := conf.Config.LocalAs
-				allowOwnAS := int(conf.AsPathOptions.Config.AllowOwnAs)
-
-				// RFC 5065 Section 4: Get Confederation ID for AS loop detection
-				// Copy primitive values while holding the lock to avoid data race
-				peer.fsm.lock.Lock()
-				confedEnabled := peer.fsm.gConf.Confederation.Config.Enabled
-				confedID := peer.fsm.gConf.Confederation.Config.Identifier
-				peer.fsm.lock.Unlock()
-
-				if hasOwnASLoop(localAS, allowOwnAS, aspath, confedID, confedEnabled) {
-					path.SetRejected(true)
-					continue
-				}
-			}
-			// RFC4456 8. Avoiding Routing Information Loops
-			// A router that recognizes the ORIGINATOR_ID attribute SHOULD
-			// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
-			isIBGPPeer := peer.isIBGPPeer()
-			peer.fsm.lock.Lock()
-			routerId := peer.fsm.gConf.Config.RouterId
-			peer.fsm.lock.Unlock()
-			if isIBGPPeer {
-				if path.GetOriginatorID() == routerId {
-					peer.fsm.logger.Debug("Originator ID is mine, ignore",
-						slog.String("OriginatorID", path.GetOriginatorID().String()),
-						slog.String("Data", path.String()))
-
-					path.SetRejected(true)
-					continue
-				}
+			if peer.isPathRejected(path) {
+				path.SetRejected(true)
+				continue
 			}
 			paths = append(paths, path)
 		}

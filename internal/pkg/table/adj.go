@@ -18,6 +18,7 @@ package table
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -38,6 +39,22 @@ func NewAdjRib(logger *slog.Logger, rfList []bgp.Family) *AdjRib {
 		accepted: make(map[bgp.Family]int),
 		logger:   logger,
 	}
+}
+
+// SetRejected replaces a cached path without retaining another layer of path
+// history. Attribute slices are copied so later changes cannot alter old views.
+func (adj *AdjRib) SetRejected(path *Path, rejected bool) *Path {
+	if path.IsRejected() == rejected {
+		return path
+	}
+	updated := path.Clone(false)
+	updated.parent = path.parent
+	updated.info = path.info
+	updated.pathAttrs = slices.Clone(path.pathAttrs)
+	updated.dels = slices.Clone(path.dels)
+	updated.SetRejected(rejected)
+	adj.Update([]*Path{updated})
+	return updated
 }
 
 func (adj *AdjRib) Update(pathList []*Path) {

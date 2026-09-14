@@ -73,6 +73,67 @@ func TestAddPath(t *testing.T) {
 	assert.Equal(t, 0, len(adj.table[family].GetDestinations()))
 }
 
+func TestAdjRibSetRejectedPreservesPath(t *testing.T) {
+	for _, modified := range []bool{false, true} {
+		name := "received"
+		if modified {
+			name = "modified"
+		}
+		t.Run(name, func(t *testing.T) {
+			family := bgp.RF_IPv4_UC
+			families := []bgp.Family{family}
+			adj := NewAdjRib(logger, families)
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.83.0.0/24"))
+			require.NoError(t, err)
+			source := &PeerInfo{Address: netip.MustParseAddr("192.0.2.1"), AS: 65001}
+			path := NewPath(family, source, bgp.PathNLRI{NLRI: nlri, ID: 11}, false, []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0), bgp.NewPathAttributeMultiExitDisc(50), bgp.NewPathAttributeLocalPref(100),
+			}, time.Now(), true)
+			path.localID = 22
+			path.IsNexthopInvalid = true
+			path.MarkStale(true)
+			path.SetIsFromExternal(true)
+			if modified {
+				path = path.Clone(false)
+				require.NoError(t, path.SetMed(60, true))
+				path.RemoveLocalPref()
+			}
+			adj.Update([]*Path{path})
+			initial, parent := path, path.parent
+			attrs, hash := path.GetPathAttrs(), path.GetHash()
+			for range 8 {
+				previous := path
+				rejected := !previous.IsRejected()
+				path = adj.SetRejected(previous, rejected)
+				assert.NotSame(t, previous, path)
+				assert.Equal(t, !rejected, previous.IsRejected())
+				assert.True(t, path.parent == parent, "cached ancestry must not grow")
+				assert.Equal(t, attrs, path.GetPathAttrs())
+				assert.Equal(t, hash, path.GetHash())
+				assert.Same(t, source, path.GetSource())
+				assert.Equal(t, initial.GetTimestamp(), path.GetTimestamp())
+				assert.Equal(t, uint32(11), path.RemoteID())
+				assert.Equal(t, uint32(22), path.LocalID())
+				assert.True(t, path.IsStale())
+				assert.True(t, path.IsFromExternal())
+				assert.True(t, path.NoImplicitWithdraw())
+				assert.True(t, path.IsNexthopInvalid)
+				assert.False(t, path.IsWithdraw)
+				assert.Equal(t, 1, adj.Count(families))
+				accepted := 1
+				if rejected {
+					accepted = 0
+				}
+				assert.Equal(t, accepted, adj.Accepted(families))
+				assert.Same(t, path, adj.SetRejected(path, rejected))
+			}
+			// An attribute edit on the replacement must not mutate retained old views.
+			require.NoError(t, path.SetMed(99, true))
+			assert.Equal(t, attrs, initial.GetPathAttrs())
+		})
+	}
+}
+
 func TestAddPathAdjOut(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
