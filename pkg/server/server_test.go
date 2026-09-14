@@ -1747,6 +1747,80 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	assert.Nil(t, path)
 }
 
+func TestInboundClusterLoopCheck(t *testing.T) {
+	const (
+		as     = uint32(65000)
+		family = bgp.RF_IPv4_UC
+	)
+	var (
+		clusterID1 = netip.MustParseAddr("255.0.0.1")
+		clusterID2 = netip.MustParseAddr("255.0.0.2")
+	)
+	localClusterIDs := map[netip.Addr]struct{}{
+		clusterID1: {},
+		clusterID2: {},
+	}
+	newIBGPPeer := func(t *testing.T, address string, rib *table.TableManager) *peer {
+		t.Helper()
+		peer := newPeerandInfo(t, as, as, address, rib)
+		peer.fsm.lock.Lock()
+		peer.fsm.gConf.Config.RouterId = netip.MustParseAddr("192.0.2.254")
+		peer.fsm.lock.Unlock()
+		return peer
+	}
+
+	newUpdate := func(t *testing.T) *fsmMsg {
+		t.Helper()
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.62.2.0/24"))
+		require.NoError(t, err)
+		clusterList, err := bgp.NewPathAttributeClusterList([]netip.Addr{clusterID2})
+		require.NoError(t, err)
+		return &fsmMsg{
+			MsgData: bgp.NewBGPUpdateMessage(
+				nil,
+				[]bgp.PathAttributeInterface{
+					bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+					clusterList,
+				},
+				[]bgp.PathNLRI{{NLRI: nlri}},
+			),
+			timestamp: time.Now(),
+		}
+	}
+
+	t.Run("rejected before Adj-RIB-In accounting", func(t *testing.T) {
+		rib := table.NewTableManager(logger, []bgp.Family{family})
+		peer := newIBGPPeer(t, "192.0.2.1", rib)
+
+		paths, _, isLimit := peer.handleUpdate(newUpdate(t), localClusterIDs)
+
+		require.False(t, isLimit)
+		require.Empty(t, paths)
+		require.Equal(t, 1, peer.adjRibIn.Count([]bgp.Family{family}))
+		require.Zero(t, peer.adjRibIn.Accepted([]bgp.Family{family}))
+		stored := peer.adjRibIn.PathList([]bgp.Family{family}, false)
+		require.Len(t, stored, 1)
+		require.True(t, stored[0].IsRejected())
+	})
+
+	t.Run("route server client bypasses cluster check", func(t *testing.T) {
+		rib := table.NewTableManager(logger, []bgp.Family{family})
+		peer := newIBGPPeer(t, "192.0.2.2", rib)
+		peer.fsm.lock.Lock()
+		conf := peer.fsm.pConf.ReadCopy()
+		conf.RouteServer.Config.RouteServerClient = true
+		peer.fsm.pConf.Update(&conf)
+		peer.fsm.lock.Unlock()
+
+		paths, _, isLimit := peer.handleUpdate(newUpdate(t), localClusterIDs)
+
+		require.False(t, isLimit)
+		require.Len(t, paths, 1)
+		require.False(t, paths[0].IsRejected())
+		require.Equal(t, 1, peer.adjRibIn.Accepted([]bgp.Family{family}))
+	})
+}
+
 func TestFilterpathWithRejectPolicy(t *testing.T) {
 	rib1 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	p1 := newPeerandInfo(t, 1, 2, "192.168.0.1", rib1)
