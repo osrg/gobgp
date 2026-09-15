@@ -5089,6 +5089,8 @@ const (
 	LS_PROTOCOL_STATIC
 	LS_PROTOCOL_OSPF_V3
 	LS_PROTOCOL_BGP
+	LS_PROTOCOL_RSVP_TE         // draft-ietf-idr-bgp-ls-te-path
+	LS_PROTOCOL_SEGMENT_ROUTING // RFC 9857
 )
 
 func (l LsProtocolID) String() string {
@@ -5107,6 +5109,10 @@ func (l LsProtocolID) String() string {
 		return "OSPFv3"
 	case LS_PROTOCOL_BGP:
 		return "BGP"
+	case LS_PROTOCOL_RSVP_TE:
+		return "RSVP-TE"
+	case LS_PROTOCOL_SEGMENT_ROUTING:
+		return "SR"
 	default:
 		return fmt.Sprintf("LsProtocolID(%d)", uint8(l))
 	}

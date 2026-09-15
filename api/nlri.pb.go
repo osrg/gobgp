@@ -83,13 +83,16 @@ func (LsNLRIType) EnumDescriptor() ([]byte, []int) {
 type LsProtocolID int32
 
 const (
-	LsProtocolID_LS_PROTOCOL_ID_UNSPECIFIED LsProtocolID = 0
-	LsProtocolID_LS_PROTOCOL_ID_ISIS_L1     LsProtocolID = 1
-	LsProtocolID_LS_PROTOCOL_ID_ISIS_L2     LsProtocolID = 2
-	LsProtocolID_LS_PROTOCOL_ID_OSPF_V2     LsProtocolID = 3
-	LsProtocolID_LS_PROTOCOL_ID_DIRECT      LsProtocolID = 4
-	LsProtocolID_LS_PROTOCOL_ID_STATIC      LsProtocolID = 5
-	LsProtocolID_LS_PROTOCOL_ID_OSPF_V3     LsProtocolID = 6
+	LsProtocolID_LS_PROTOCOL_ID_UNSPECIFIED     LsProtocolID = 0
+	LsProtocolID_LS_PROTOCOL_ID_ISIS_L1         LsProtocolID = 1
+	LsProtocolID_LS_PROTOCOL_ID_ISIS_L2         LsProtocolID = 2
+	LsProtocolID_LS_PROTOCOL_ID_OSPF_V2         LsProtocolID = 3
+	LsProtocolID_LS_PROTOCOL_ID_DIRECT          LsProtocolID = 4
+	LsProtocolID_LS_PROTOCOL_ID_STATIC          LsProtocolID = 5
+	LsProtocolID_LS_PROTOCOL_ID_OSPF_V3         LsProtocolID = 6
+	LsProtocolID_LS_PROTOCOL_ID_BGP             LsProtocolID = 7
+	LsProtocolID_LS_PROTOCOL_ID_RSVP_TE         LsProtocolID = 8
+	LsProtocolID_LS_PROTOCOL_ID_SEGMENT_ROUTING LsProtocolID = 9
 )
 
 // Enum value maps for LsProtocolID.
@@ -102,15 +105,21 @@ var (
 		4: "LS_PROTOCOL_ID_DIRECT",
 		5: "LS_PROTOCOL_ID_STATIC",
 		6: "LS_PROTOCOL_ID_OSPF_V3",
+		7: "LS_PROTOCOL_ID_BGP",
+		8: "LS_PROTOCOL_ID_RSVP_TE",
+		9: "LS_PROTOCOL_ID_SEGMENT_ROUTING",
 	}
 	LsProtocolID_value = map[string]int32{
-		"LS_PROTOCOL_ID_UNSPECIFIED": 0,
-		"LS_PROTOCOL_ID_ISIS_L1":     1,
-		"LS_PROTOCOL_ID_ISIS_L2":     2,
-		"LS_PROTOCOL_ID_OSPF_V2":     3,
-		"LS_PROTOCOL_ID_DIRECT":      4,
-		"LS_PROTOCOL_ID_STATIC":      5,
-		"LS_PROTOCOL_ID_OSPF_V3":     6,
+		"LS_PROTOCOL_ID_UNSPECIFIED":     0,
+		"LS_PROTOCOL_ID_ISIS_L1":         1,
+		"LS_PROTOCOL_ID_ISIS_L2":         2,
+		"LS_PROTOCOL_ID_OSPF_V2":         3,
+		"LS_PROTOCOL_ID_DIRECT":          4,
+		"LS_PROTOCOL_ID_STATIC":          5,
+		"LS_PROTOCOL_ID_OSPF_V3":         6,
+		"LS_PROTOCOL_ID_BGP":             7,
+		"LS_PROTOCOL_ID_RSVP_TE":         8,
+		"LS_PROTOCOL_ID_SEGMENT_ROUTING": 9,
 	}
 )
 
@@ -3651,7 +3660,7 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\x11LS_NLRI_TYPE_LINK\x10\x02\x12\x1a\n" +
 	"\x16LS_NLRI_TYPE_PREFIX_V4\x10\x03\x12\x1a\n" +
 	"\x16LS_NLRI_TYPE_PREFIX_V6\x10\x04\x12\x19\n" +
-	"\x15LS_NLRI_TYPE_SRV6_SID\x10\x06*\xd4\x01\n" +
+	"\x15LS_NLRI_TYPE_SRV6_SID\x10\x06*\xac\x02\n" +
 	"\fLsProtocolID\x12\x1e\n" +
 	"\x1aLS_PROTOCOL_ID_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16LS_PROTOCOL_ID_ISIS_L1\x10\x01\x12\x1a\n" +
@@ -3659,7 +3668,10 @@ const file_api_nlri_proto_rawDesc = "" +
 	"\x16LS_PROTOCOL_ID_OSPF_V2\x10\x03\x12\x19\n" +
 	"\x15LS_PROTOCOL_ID_DIRECT\x10\x04\x12\x19\n" +
 	"\x15LS_PROTOCOL_ID_STATIC\x10\x05\x12\x1a\n" +
-	"\x16LS_PROTOCOL_ID_OSPF_V3\x10\x06*\xfb\x01\n" +
+	"\x16LS_PROTOCOL_ID_OSPF_V3\x10\x06\x12\x16\n" +
+	"\x12LS_PROTOCOL_ID_BGP\x10\a\x12\x1a\n" +
+	"\x16LS_PROTOCOL_ID_RSVP_TE\x10\b\x12\"\n" +
+	"\x1eLS_PROTOCOL_ID_SEGMENT_ROUTING\x10\t*\xfb\x01\n" +
 	"\x0fLsOspfRouteType\x12\"\n" +
 	"\x1eLS_OSPF_ROUTE_TYPE_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dLS_OSPF_ROUTE_TYPE_INTRA_AREA\x10\x01\x12!\n" +
