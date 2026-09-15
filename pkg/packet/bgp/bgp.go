@@ -11146,12 +11146,13 @@ type LsAttributeSrv6SID struct {
 // SRv6 Binding SID and Segment List TLVs may appear once per Binding SID
 // and per segment list of the candidate path.
 type LsAttributeSrPolicy struct {
-	BindingSID        *LsSrBindingSID         `json:"binding_sid,omitempty"`
-	Srv6BindingSIDs   []LsSrv6BindingSID      `json:"srv6_binding_sids,omitempty"`
-	State             *LsSrCandidatePathState `json:"state,omitempty"`
-	CandidatePathName *string                 `json:"candidate_path_name,omitempty"`
-	PolicyName        *string                 `json:"policy_name,omitempty"`
-	SegmentLists      []LsSrSegmentList       `json:"segment_lists,omitempty"`
+	BindingSID        *LsSrBindingSID               `json:"binding_sid,omitempty"`
+	Srv6BindingSIDs   []LsSrv6BindingSID            `json:"srv6_binding_sids,omitempty"`
+	State             *LsSrCandidatePathState       `json:"state,omitempty"`
+	CandidatePathName *string                       `json:"candidate_path_name,omitempty"`
+	PolicyName        *string                       `json:"policy_name,omitempty"`
+	Constraints       *LsSrCandidatePathConstraints `json:"constraints,omitempty"`
+	SegmentLists      []LsSrSegmentList             `json:"segment_lists,omitempty"`
 }
 
 type LsAttribute struct {
@@ -11339,6 +11340,11 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 				l.SrPolicy.PolicyName = &v.Name
 			}
 
+		case *LsTLVSrCandidatePathConstraints:
+			if l.SrPolicy.Constraints == nil {
+				l.SrPolicy.Constraints = v.Extract()
+			}
+
 		case *LsTLVSrSegmentList:
 			l.SrPolicy.SegmentLists = append(l.SrPolicy.SegmentLists, *v.Extract())
 		}
@@ -11483,6 +11489,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 			tlv = &LsTLVSrv6EndpointBehavior{}
 
 		// SR Policy Candidate Path related TLVs (RFC 9857).
+		case LS_TLV_SR_CP_CONSTRAINTS:
+			tlv = &LsTLVSrCandidatePathConstraints{}
+
 		case LS_TLV_SR_BINDING_SID:
 			tlv = &LsTLVSrBindingSID{}
 

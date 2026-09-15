@@ -10,6 +10,7 @@ bsid
 buflen
 cidr
 distinguisher
+dpuatsfh
 dscp
 ebgp
 enlp
@@ -44,6 +45,7 @@ nexthop
 nexthops
 nlri
 ospf
+pcep
 pmsi
 prepend
 reachability
