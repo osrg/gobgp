@@ -4669,6 +4669,37 @@ func Test_LsNodeDescriptor(t *testing.T) {
 	}
 }
 
+func Test_LsTLVSerializeLength(t *testing.T) {
+	v4 := netip.MustParseAddr("10.0.0.1")
+	v6 := netip.MustParseAddr("2001:db8::1")
+
+	b, err := NewLsTLVLocalIPv4RouterID(&v4).Serialize()
+	assert.NoError(t, err)
+	assert.Len(t, b, tlvHdrLen+4)
+
+	b, err = NewLsTLVRemoteIPv4RouterID(&v4).Serialize()
+	assert.NoError(t, err)
+	assert.Len(t, b, tlvHdrLen+4)
+
+	b, err = NewLsTLVLocalIPv6RouterID(&v6).Serialize()
+	assert.NoError(t, err)
+	assert.Len(t, b, tlvHdrLen+16)
+
+	b, err = NewLsTLVRemoteIPv6RouterID(&v6).Serialize()
+	assert.NoError(t, err)
+	assert.Len(t, b, tlvHdrLen+16)
+
+	sid := uint32(1000002)
+	b, err = NewLsTLVPrefixSID(&sid).Serialize()
+	assert.NoError(t, err)
+	assert.Len(t, b, tlvHdrLen+8)
+
+	attr := []byte{0xde, 0xad, 0xbe, 0xef}
+	b, err = NewLsTLVOpaquePrefixAttr(&attr).Serialize()
+	assert.NoError(t, err)
+	assert.Len(t, b, tlvHdrLen+len(attr))
+}
+
 func Test_LsAddrPrefix(t *testing.T) {
 	assert := assert.New(t)
 
