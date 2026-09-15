@@ -54,6 +54,7 @@ sadb
 safi
 srgb
 srlg
+srpolicy
 subcode
 syscall
 syslog
