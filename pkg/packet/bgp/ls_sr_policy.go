@@ -9,17 +9,20 @@ package bgp
 //   - SR Binding SID TLV (1201), SRv6 Binding SID TLV (1212)
 //   - SR Candidate Path State TLV (1202)
 //   - SR Candidate Path Name TLV (1203), SR Policy Name TLV (1213)
+//   - SR Segment List TLV (1205) with its sub-TLVs: SR Segment (1206),
+//     SR Segment List Metric (1207), SR Segment List Bandwidth (1216) and
+//     SR Segment List Identifier (1217)
 //
-// Not decoded yet: the SR Candidate Path Constraints TLV (1204) and the SR
-// Segment List TLV (1205); PathAttributeLs keeps them as opaque TLVs.
-// Unknown TLVs nested in the decoded ones are kept opaque and
-// re-serialized as received.
+// Not decoded yet: the SR Candidate Path Constraints TLV (1204);
+// PathAttributeLs keeps it as an opaque TLV. Unknown TLVs nested in the
+// decoded ones are kept opaque and re-serialized as received.
 
 import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/netip"
 	"strings"
 )
@@ -43,6 +46,14 @@ func lsMplsLabelToField(label uint32) []byte {
 	b := make([]byte, 4)
 	binary.BigEndian.PutUint32(b, label<<12)
 	return b
+}
+
+// lsValidBandwidth reports whether a received bandwidth value is usable.
+// A negative, NaN or infinite value stays in the TLV list, so it is still
+// re-serialized as received, but is kept out of the model (NaN and the
+// infinities cannot be marshalled to JSON at all).
+func lsValidBandwidth(bw float32) bool {
+	return bw >= 0 && !math.IsNaN(float64(bw)) && !math.IsInf(float64(bw), 0)
 }
 
 // lsAddrBytes returns addr as a fixed-size slice of n (4 or 16) bytes. An
@@ -1072,11 +1083,863 @@ func (l *LsTLVSrPolicyName) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
+// SR Segment List Metric sub-TLV (1207), RFC 9857 Section 5.7.2
+
+const (
+	lsSrSegmentListMetricFlagMargin   uint8 = 1 << 7 // M-Flag
+	lsSrSegmentListMetricFlagAbsolute uint8 = 1 << 6 // A-Flag
+	lsSrSegmentListMetricFlagBound    uint8 = 1 << 5 // B-Flag
+	lsSrSegmentListMetricFlagValue    uint8 = 1 << 4 // V-Flag
+)
+
+type LsSrSegmentListMetricFlags struct {
+	Margin   bool `json:"margin"`
+	Absolute bool `json:"absolute"`
+	Bound    bool `json:"bound"`
+	Value    bool `json:"value"`
+}
+
+type LsSrSegmentListMetric struct {
+	MetricType uint8                      `json:"metric_type"`
+	Flags      LsSrSegmentListMetricFlags `json:"flags"`
+	Margin     uint32                     `json:"margin"`
+	Bound      uint32                     `json:"bound"`
+	Value      uint32                     `json:"value"`
+}
+
+type LsTLVSrSegmentListMetric struct {
+	LsTLV
+	MetricType uint8
+	Flags      uint8
+	Margin     uint32
+	Bound      uint32
+	Value      uint32
+}
+
+func NewLsTLVSrSegmentListMetric(l *LsSrSegmentListMetric) *LsTLVSrSegmentListMetric {
+	var flags uint8
+	if l.Flags.Margin {
+		flags |= lsSrSegmentListMetricFlagMargin
+	}
+	if l.Flags.Absolute {
+		flags |= lsSrSegmentListMetricFlagAbsolute
+	}
+	if l.Flags.Bound {
+		flags |= lsSrSegmentListMetricFlagBound
+	}
+	if l.Flags.Value {
+		flags |= lsSrSegmentListMetricFlagValue
+	}
+
+	return &LsTLVSrSegmentListMetric{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_SEGMENT_LIST_METRIC,
+			Length: 16,
+		},
+		MetricType: l.MetricType,
+		Flags:      flags,
+		Margin:     l.Margin,
+		Bound:      l.Bound,
+		Value:      l.Value,
+	}
+}
+
+func (l *LsTLVSrSegmentListMetric) Extract() *LsSrSegmentListMetric {
+	return &LsSrSegmentListMetric{
+		MetricType: l.MetricType,
+		Flags: LsSrSegmentListMetricFlags{
+			Margin:   l.Flags&lsSrSegmentListMetricFlagMargin != 0,
+			Absolute: l.Flags&lsSrSegmentListMetricFlagAbsolute != 0,
+			Bound:    l.Flags&lsSrSegmentListMetricFlagBound != 0,
+			Value:    l.Flags&lsSrSegmentListMetricFlagValue != 0,
+		},
+		Margin: l.Margin,
+		Bound:  l.Bound,
+		Value:  l.Value,
+	}
+}
+
+func (l *LsTLVSrSegmentListMetric) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_SEGMENT_LIST_METRIC {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 16 {
+		return malformedAttrListErr("Incorrect SR Segment List Metric length")
+	}
+
+	l.MetricType = value[0]
+	l.Flags = value[1]
+	// value[2:4] is reserved and ignored.
+	l.Margin = binary.BigEndian.Uint32(value[4:8])
+	l.Bound = binary.BigEndian.Uint32(value[8:12])
+	l.Value = binary.BigEndian.Uint32(value[12:16])
+
+	return nil
+}
+
+func (l *LsTLVSrSegmentListMetric) Serialize() ([]byte, error) {
+	buf := make([]byte, 16)
+	buf[0] = l.MetricType
+	buf[1] = l.Flags
+	binary.BigEndian.PutUint32(buf[4:8], l.Margin)
+	binary.BigEndian.PutUint32(buf[8:12], l.Bound)
+	binary.BigEndian.PutUint32(buf[12:16], l.Value)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrSegmentListMetric) String() string {
+	return fmt.Sprintf("{Metric: Type:%d Margin:%d Bound:%d Value:%d Flags:%s}",
+		l.MetricType, l.Margin, l.Bound, l.Value, lsFlagLetters(uint16(l.Flags)<<8, "MABV"))
+}
+
+func (l *LsTLVSrSegmentListMetric) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrSegmentListMetric
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrSegmentListMetric) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Segment List Bandwidth sub-TLV (1216), RFC 9857 Section 5.7.3
+
+type LsTLVSrSegmentListBandwidth struct {
+	LsTLV
+	Bandwidth float32
+}
+
+func NewLsTLVSrSegmentListBandwidth(bw *float32) *LsTLVSrSegmentListBandwidth {
+	return &LsTLVSrSegmentListBandwidth{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_SEGMENT_LIST_BANDWIDTH,
+			Length: 4,
+		},
+		Bandwidth: *bw,
+	}
+}
+
+func (l *LsTLVSrSegmentListBandwidth) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_SEGMENT_LIST_BANDWIDTH {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect SR Segment List Bandwidth length")
+	}
+
+	// The value is not checked: RFC 9552 section 8.2.2 forbids treating
+	// the attribute as malformed based on TLV contents. lsValidBandwidth
+	// keeps a nonsensical value out of the model instead.
+	l.Bandwidth = math.Float32frombits(binary.BigEndian.Uint32(value))
+
+	return nil
+}
+
+func (l *LsTLVSrSegmentListBandwidth) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, math.Float32bits(l.Bandwidth))
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrSegmentListBandwidth) String() string {
+	return fmt.Sprintf("{Bandwidth: %v}", l.Bandwidth)
+}
+
+func (l *LsTLVSrSegmentListBandwidth) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsTLVType `json:"type"`
+		Bandwidth float32   `json:"bandwidth"`
+	}{
+		l.Type,
+		l.Bandwidth,
+	})
+}
+
+func (l *LsTLVSrSegmentListBandwidth) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Segment List Identifier sub-TLV (1217), RFC 9857 Section 5.7.4
+
+type LsTLVSrSegmentListIdentifier struct {
+	LsTLV
+	Identifier uint32
+}
+
+func NewLsTLVSrSegmentListIdentifier(id *uint32) *LsTLVSrSegmentListIdentifier {
+	return &LsTLVSrSegmentListIdentifier{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_SEGMENT_LIST_IDENTIFIER,
+			Length: 4,
+		},
+		Identifier: *id,
+	}
+}
+
+func (l *LsTLVSrSegmentListIdentifier) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_SEGMENT_LIST_IDENTIFIER {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect SR Segment List Identifier length")
+	}
+
+	l.Identifier = binary.BigEndian.Uint32(value)
+	return nil
+}
+
+func (l *LsTLVSrSegmentListIdentifier) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, l.Identifier)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrSegmentListIdentifier) String() string {
+	return fmt.Sprintf("{Identifier: %d}", l.Identifier)
+}
+
+func (l *LsTLVSrSegmentListIdentifier) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type       LsTLVType `json:"type"`
+		Identifier uint32    `json:"identifier"`
+	}{
+		l.Type,
+		l.Identifier,
+	})
+}
+
+func (l *LsTLVSrSegmentListIdentifier) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Segment sub-TLV (1206), RFC 9857 Section 5.7.1
+
+// LsSrSegmentType is the Segment Type of an SR Segment sub-TLV, see the
+// "SR Segment Types" table in RFC 9857 Section 5.7.1 (letters follow RFC 9256).
+type LsSrSegmentType uint8
+
+const (
+	LS_SR_SEGMENT_TYPE_UNKNOWN LsSrSegmentType = iota
+	LS_SR_SEGMENT_TYPE_A_MPLS_LABEL
+	LS_SR_SEGMENT_TYPE_B_SRV6_SID
+	LS_SR_SEGMENT_TYPE_C_IPV4_NODE
+	LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS
+	LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE
+	LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY
+	LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS
+	LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS
+	LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6
+	LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6
+	LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6
+)
+
+func (t LsSrSegmentType) String() string {
+	switch t {
+	case LS_SR_SEGMENT_TYPE_A_MPLS_LABEL:
+		return "A"
+	case LS_SR_SEGMENT_TYPE_B_SRV6_SID:
+		return "B"
+	case LS_SR_SEGMENT_TYPE_C_IPV4_NODE:
+		return "C"
+	case LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS:
+		return "D"
+	case LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE:
+		return "E"
+	case LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY:
+		return "F"
+	case LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS:
+		return "G"
+	case LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS:
+		return "H"
+	case LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6:
+		return "I"
+	case LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6:
+		return "J"
+	case LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6:
+		return "K"
+	default:
+		return fmt.Sprintf("LsSrSegmentType(%d)", uint8(t))
+	}
+}
+
+// IsSRv6 reports whether the segment's SID field carries a 16-octet SRv6 SID
+// (true) or a 4-octet SR-MPLS label field (false).
+func (t LsSrSegmentType) IsSRv6() bool {
+	switch t {
+	case LS_SR_SEGMENT_TYPE_B_SRV6_SID,
+		LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6,
+		LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6,
+		LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6:
+		return true
+	}
+	return false
+}
+
+// lsSrSegmentSIDLen returns the size of the SID field for a segment type and
+// whether the type is known.
+func lsSrSegmentSIDLen(t LsSrSegmentType) (int, bool) {
+	if t == LS_SR_SEGMENT_TYPE_UNKNOWN || t > LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6 {
+		return 0, false
+	}
+	if t.IsSRv6() {
+		return 16, true
+	}
+	return 4, true
+}
+
+// lsSrSegmentDescLen returns the size of the Segment Descriptor that follows
+// the SID field for a known segment type.
+func lsSrSegmentDescLen(t LsSrSegmentType) int {
+	switch t {
+	case LS_SR_SEGMENT_TYPE_A_MPLS_LABEL, LS_SR_SEGMENT_TYPE_B_SRV6_SID:
+		return 1
+	case LS_SR_SEGMENT_TYPE_C_IPV4_NODE:
+		return 1 + 4
+	case LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS, LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6:
+		return 1 + 16
+	case LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE, LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY:
+		return 4 + 4
+	case LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS, LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6:
+		return 16 + 4 + 16 + 4
+	case LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS, LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6:
+		return 16 + 16
+	}
+	return 0
+}
+
+const (
+	lsSrSegmentFlagSIDPresent     uint16 = 1 << 15 // S-Flag
+	lsSrSegmentFlagExplicit       uint16 = 1 << 14 // E-Flag
+	lsSrSegmentFlagVerified       uint16 = 1 << 13 // V-Flag
+	lsSrSegmentFlagResolved       uint16 = 1 << 12 // R-Flag
+	lsSrSegmentFlagAlgorithmValid uint16 = 1 << 11 // A-Flag
+)
+
+type LsSrSegmentFlags struct {
+	SIDPresent     bool `json:"sid_present"`
+	Explicit       bool `json:"explicit"`
+	Verified       bool `json:"verified"`
+	Resolved       bool `json:"resolved"`
+	AlgorithmValid bool `json:"algorithm_valid"`
+}
+
+// LsSrSegment is the decoded SR Segment sub-TLV. Which fields are meaningful
+// depends on SegmentType:
+//   - Label: SR-MPLS types (A, C, D, E, F, G, H); SID: SRv6 types (B, I, J, K)
+//   - Algorithm: A, B, C, D, I
+//   - LocalAddress: node address for C, D, E, I; local address for F, G, H, J, K
+//   - RemoteAddress: F, G, H, J, K
+//   - LocalInterfaceID: E, G, J; RemoteInterfaceID: G, J
+type LsSrSegment struct {
+	SegmentType       LsSrSegmentType         `json:"segment_type"`
+	Flags             LsSrSegmentFlags        `json:"flags"`
+	Label             uint32                  `json:"label,omitempty"`
+	SID               netip.Addr              `json:"sid,omitzero"`
+	Algorithm         uint8                   `json:"algorithm"`
+	LocalAddress      netip.Addr              `json:"local_address,omitzero"`
+	RemoteAddress     netip.Addr              `json:"remote_address,omitzero"`
+	LocalInterfaceID  uint32                  `json:"local_interface_id,omitempty"`
+	RemoteInterfaceID uint32                  `json:"remote_interface_id,omitempty"`
+	EndpointBehavior  *LsSrv6EndpointBehavior `json:"endpoint_behavior,omitempty"`
+	SIDStructure      *LsSrv6SIDStructure     `json:"sid_structure,omitempty"`
+}
+
+type LsTLVSrSegment struct {
+	LsTLV
+	SegmentType       LsSrSegmentType
+	Flags             uint16
+	Label             uint32
+	SID               netip.Addr
+	Algorithm         uint8
+	LocalAddress      netip.Addr
+	RemoteAddress     netip.Addr
+	LocalInterfaceID  uint32
+	RemoteInterfaceID uint32
+	SubTLVs           []LsTLVInterface
+}
+
+func NewLsTLVSrSegment(l *LsSrSegment) *LsTLVSrSegment {
+	var flags uint16
+	if l.Flags.SIDPresent {
+		flags |= lsSrSegmentFlagSIDPresent
+	}
+	if l.Flags.Explicit {
+		flags |= lsSrSegmentFlagExplicit
+	}
+	if l.Flags.Verified {
+		flags |= lsSrSegmentFlagVerified
+	}
+	if l.Flags.Resolved {
+		flags |= lsSrSegmentFlagResolved
+	}
+	if l.Flags.AlgorithmValid {
+		flags |= lsSrSegmentFlagAlgorithmValid
+	}
+
+	subTLVs := lsSrv6SubTLVsFromModel(l.EndpointBehavior, l.SIDStructure)
+	sidLen, _ := lsSrSegmentSIDLen(l.SegmentType)
+
+	return &LsTLVSrSegment{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_SEGMENT,
+			Length: uint16(4 + sidLen + lsSrSegmentDescLen(l.SegmentType) + lsSubTLVsLen(subTLVs)),
+		},
+		SegmentType:       l.SegmentType,
+		Flags:             flags,
+		Label:             l.Label,
+		SID:               l.SID,
+		Algorithm:         l.Algorithm,
+		LocalAddress:      l.LocalAddress,
+		RemoteAddress:     l.RemoteAddress,
+		LocalInterfaceID:  l.LocalInterfaceID,
+		RemoteInterfaceID: l.RemoteInterfaceID,
+		SubTLVs:           subTLVs,
+	}
+}
+
+func (l *LsTLVSrSegment) Extract() *LsSrSegment {
+	eb, ss := lsSrv6SubTLVsToModel(l.SubTLVs)
+	s := &LsSrSegment{
+		SegmentType: l.SegmentType,
+		Flags: LsSrSegmentFlags{
+			SIDPresent:     l.Flags&lsSrSegmentFlagSIDPresent != 0,
+			Explicit:       l.Flags&lsSrSegmentFlagExplicit != 0,
+			Verified:       l.Flags&lsSrSegmentFlagVerified != 0,
+			Resolved:       l.Flags&lsSrSegmentFlagResolved != 0,
+			AlgorithmValid: l.Flags&lsSrSegmentFlagAlgorithmValid != 0,
+		},
+		Algorithm:         l.Algorithm,
+		LocalAddress:      l.LocalAddress,
+		RemoteAddress:     l.RemoteAddress,
+		LocalInterfaceID:  l.LocalInterfaceID,
+		RemoteInterfaceID: l.RemoteInterfaceID,
+		EndpointBehavior:  eb,
+		SIDStructure:      ss,
+	}
+	// The SID field is always present on the wire but only carries a value
+	// when the S-Flag is set.
+	if s.Flags.SIDPresent {
+		s.Label = l.Label
+		s.SID = l.SID
+	}
+	return s
+}
+
+func (l *LsTLVSrSegment) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_SEGMENT {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 4 {
+		return malformedAttrListErr("Incorrect SR Segment length")
+	}
+
+	l.SegmentType = LsSrSegmentType(value[0])
+	// value[1] is reserved and ignored.
+	l.Flags = binary.BigEndian.Uint16(value[2:4])
+
+	sidLen, ok := lsSrSegmentSIDLen(l.SegmentType)
+	if !ok {
+		return fmt.Errorf("%w: SR Segment Type %d", errLsSkipTLV, uint8(l.SegmentType))
+	}
+	descLen := lsSrSegmentDescLen(l.SegmentType)
+
+	if len(value) < 4+sidLen+descLen {
+		return malformedAttrListErr("Incorrect SR Segment length")
+	}
+
+	p := 4
+	if sidLen == 16 {
+		l.SID = netip.AddrFrom16([16]byte(value[p : p+16]))
+	} else {
+		l.Label = lsMplsLabelFromField(value[p : p+4])
+	}
+	p += sidLen
+
+	desc := value[p : p+descLen]
+	switch l.SegmentType {
+	case LS_SR_SEGMENT_TYPE_A_MPLS_LABEL, LS_SR_SEGMENT_TYPE_B_SRV6_SID:
+		l.Algorithm = desc[0]
+	case LS_SR_SEGMENT_TYPE_C_IPV4_NODE:
+		l.Algorithm = desc[0]
+		l.LocalAddress = netip.AddrFrom4([4]byte(desc[1:5]))
+	case LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS, LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6:
+		l.Algorithm = desc[0]
+		l.LocalAddress = netip.AddrFrom16([16]byte(desc[1:17]))
+	case LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE:
+		l.LocalAddress = netip.AddrFrom4([4]byte(desc[:4]))
+		l.LocalInterfaceID = binary.BigEndian.Uint32(desc[4:8])
+	case LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY:
+		l.LocalAddress = netip.AddrFrom4([4]byte(desc[:4]))
+		l.RemoteAddress = netip.AddrFrom4([4]byte(desc[4:8]))
+	case LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS, LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6:
+		l.LocalAddress = netip.AddrFrom16([16]byte(desc[:16]))
+		l.LocalInterfaceID = binary.BigEndian.Uint32(desc[16:20])
+		l.RemoteAddress = netip.AddrFrom16([16]byte(desc[20:36]))
+		l.RemoteInterfaceID = binary.BigEndian.Uint32(desc[36:40])
+	case LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS, LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6:
+		l.LocalAddress = netip.AddrFrom16([16]byte(desc[:16]))
+		l.RemoteAddress = netip.AddrFrom16([16]byte(desc[16:32]))
+	}
+	p += descLen
+
+	l.SubTLVs, err = lsWalkSubTLVs(value[p:], lsSrv6SubTLVAlloc)
+	return err
+}
+
+func (l *LsTLVSrSegment) Serialize() ([]byte, error) {
+	sidLen, ok := lsSrSegmentSIDLen(l.SegmentType)
+	if !ok {
+		return nil, malformedAttrListErr("Unknown SR Segment Type")
+	}
+
+	// Refuse only what the wire format cannot carry: a label wider than
+	// its 20-bit field and an address that does not fit an IPv4
+	// descriptor slot. Any decoded segment passes, so a received
+	// attribute always re-serializes; LsSrSegment.Validate covers the
+	// semantic checks when a segment is built through the API.
+	if sidLen == 4 && l.Label > 0xfffff {
+		return nil, malformedAttrListErr("SR segment label exceeds 20 bits")
+	}
+	fits4 := func(addr netip.Addr) bool {
+		return !addr.IsValid() || addr.Unmap().Is4()
+	}
+	switch l.SegmentType {
+	case LS_SR_SEGMENT_TYPE_C_IPV4_NODE, LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE, LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY:
+		if !fits4(l.LocalAddress) || !fits4(l.RemoteAddress) {
+			return nil, malformedAttrListErr("SR segment address does not fit an IPv4 descriptor")
+		}
+	}
+
+	buf := make([]byte, 4)
+	buf[0] = uint8(l.SegmentType)
+	binary.BigEndian.PutUint16(buf[2:4], l.Flags)
+
+	if sidLen == 16 {
+		buf = append(buf, lsAddrBytes(l.SID, 16)...)
+	} else {
+		buf = append(buf, lsMplsLabelToField(l.Label)...)
+	}
+
+	switch l.SegmentType {
+	case LS_SR_SEGMENT_TYPE_A_MPLS_LABEL, LS_SR_SEGMENT_TYPE_B_SRV6_SID:
+		buf = append(buf, l.Algorithm)
+	case LS_SR_SEGMENT_TYPE_C_IPV4_NODE:
+		buf = append(buf, l.Algorithm)
+		buf = append(buf, lsAddrBytes(l.LocalAddress, 4)...)
+	case LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS, LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6:
+		buf = append(buf, l.Algorithm)
+		buf = append(buf, lsAddrBytes(l.LocalAddress, 16)...)
+	case LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE:
+		buf = append(buf, lsAddrBytes(l.LocalAddress, 4)...)
+		buf = binary.BigEndian.AppendUint32(buf, l.LocalInterfaceID)
+	case LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY:
+		buf = append(buf, lsAddrBytes(l.LocalAddress, 4)...)
+		buf = append(buf, lsAddrBytes(l.RemoteAddress, 4)...)
+	case LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS, LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6:
+		buf = append(buf, lsAddrBytes(l.LocalAddress, 16)...)
+		buf = binary.BigEndian.AppendUint32(buf, l.LocalInterfaceID)
+		buf = append(buf, lsAddrBytes(l.RemoteAddress, 16)...)
+		buf = binary.BigEndian.AppendUint32(buf, l.RemoteInterfaceID)
+	case LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS, LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6:
+		buf = append(buf, lsAddrBytes(l.LocalAddress, 16)...)
+		buf = append(buf, lsAddrBytes(l.RemoteAddress, 16)...)
+	}
+
+	sub, err := lsSerializeSubTLVs(l.SubTLVs)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, sub...)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrSegment) String() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "{Segment: Type:%s", l.SegmentType)
+	if l.SegmentType.IsSRv6() {
+		fmt.Fprintf(&b, " SID:%s", l.SID)
+	} else {
+		fmt.Fprintf(&b, " Label:%d", l.Label)
+	}
+	switch l.SegmentType {
+	case LS_SR_SEGMENT_TYPE_A_MPLS_LABEL, LS_SR_SEGMENT_TYPE_B_SRV6_SID:
+		fmt.Fprintf(&b, " Algo:%d", l.Algorithm)
+	case LS_SR_SEGMENT_TYPE_C_IPV4_NODE, LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS, LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6:
+		fmt.Fprintf(&b, " Node:%s Algo:%d", l.LocalAddress, l.Algorithm)
+	case LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE:
+		fmt.Fprintf(&b, " Node:%s IfID:%d", l.LocalAddress, l.LocalInterfaceID)
+	case LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY, LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS, LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6:
+		fmt.Fprintf(&b, " Local:%s Remote:%s", l.LocalAddress, l.RemoteAddress)
+	case LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS, LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6:
+		fmt.Fprintf(&b, " Local:%s/%d Remote:%s/%d", l.LocalAddress, l.LocalInterfaceID, l.RemoteAddress, l.RemoteInterfaceID)
+	}
+	fmt.Fprintf(&b, " Flags:%s}", lsFlagLetters(l.Flags, "SEVRA"))
+	return b.String()
+}
+
+func (l *LsTLVSrSegment) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrSegment
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrSegment) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Segment List TLV (1205), RFC 9857 Section 5.7
+
+const (
+	lsSrSegmentListFlagSRv6           uint16 = 1 << 15 // D-Flag
+	lsSrSegmentListFlagExplicit       uint16 = 1 << 14 // E-Flag
+	lsSrSegmentListFlagComputed       uint16 = 1 << 13 // C-Flag
+	lsSrSegmentListFlagVerified       uint16 = 1 << 12 // V-Flag
+	lsSrSegmentListFlagResolved       uint16 = 1 << 11 // R-Flag
+	lsSrSegmentListFlagFailed         uint16 = 1 << 10 // F-Flag
+	lsSrSegmentListFlagAllAlgorithm   uint16 = 1 << 9  // A-Flag
+	lsSrSegmentListFlagAllTopology    uint16 = 1 << 8  // T-Flag
+	lsSrSegmentListFlagRemovedByFault uint16 = 1 << 7  // M-Flag
+)
+
+type LsSrSegmentListFlags struct {
+	SRv6           bool `json:"srv6"`
+	Explicit       bool `json:"explicit"`
+	Computed       bool `json:"computed"`
+	Verified       bool `json:"verified"`
+	Resolved       bool `json:"resolved"`
+	Failed         bool `json:"failed"`
+	AllAlgorithm   bool `json:"all_algorithm"`
+	AllTopology    bool `json:"all_topology"`
+	RemovedByFault bool `json:"removed_by_fault"`
+}
+
+type LsSrSegmentList struct {
+	Flags      LsSrSegmentListFlags    `json:"flags"`
+	MTID       uint16                  `json:"mtid"`
+	Algorithm  uint8                   `json:"algorithm"`
+	Weight     uint32                  `json:"weight"`
+	Segments   []LsSrSegment           `json:"segments"`
+	Metrics    []LsSrSegmentListMetric `json:"metrics,omitempty"`
+	Bandwidth  *float32                `json:"bandwidth,omitempty"`
+	Identifier *uint32                 `json:"identifier,omitempty"`
+}
+
+type LsTLVSrSegmentList struct {
+	LsTLV
+	Flags     uint16
+	MTID      uint16
+	Algorithm uint8
+	Weight    uint32
+	SubTLVs   []LsTLVInterface
+}
+
+const lsSrSegmentListFixedLen = 12
+
+func NewLsTLVSrSegmentList(l *LsSrSegmentList) *LsTLVSrSegmentList {
+	var flags uint16
+	set := func(on bool, bit uint16) {
+		if on {
+			flags |= bit
+		}
+	}
+	set(l.Flags.SRv6, lsSrSegmentListFlagSRv6)
+	set(l.Flags.Explicit, lsSrSegmentListFlagExplicit)
+	set(l.Flags.Computed, lsSrSegmentListFlagComputed)
+	set(l.Flags.Verified, lsSrSegmentListFlagVerified)
+	set(l.Flags.Resolved, lsSrSegmentListFlagResolved)
+	set(l.Flags.Failed, lsSrSegmentListFlagFailed)
+	set(l.Flags.AllAlgorithm, lsSrSegmentListFlagAllAlgorithm)
+	set(l.Flags.AllTopology, lsSrSegmentListFlagAllTopology)
+	set(l.Flags.RemovedByFault, lsSrSegmentListFlagRemovedByFault)
+
+	subTLVs := []LsTLVInterface{}
+	for i := range l.Segments {
+		subTLVs = append(subTLVs, NewLsTLVSrSegment(&l.Segments[i]))
+	}
+	for i := range l.Metrics {
+		subTLVs = append(subTLVs, NewLsTLVSrSegmentListMetric(&l.Metrics[i]))
+	}
+	if l.Bandwidth != nil {
+		subTLVs = append(subTLVs, NewLsTLVSrSegmentListBandwidth(l.Bandwidth))
+	}
+	if l.Identifier != nil {
+		subTLVs = append(subTLVs, NewLsTLVSrSegmentListIdentifier(l.Identifier))
+	}
+
+	return &LsTLVSrSegmentList{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_SEGMENT_LIST,
+			Length: uint16(lsSrSegmentListFixedLen + lsSubTLVsLen(subTLVs)),
+		},
+		Flags:     flags,
+		MTID:      l.MTID,
+		Algorithm: l.Algorithm,
+		Weight:    l.Weight,
+		SubTLVs:   subTLVs,
+	}
+}
+
+func (l *LsTLVSrSegmentList) Extract() *LsSrSegmentList {
+	sl := &LsSrSegmentList{
+		Flags: LsSrSegmentListFlags{
+			SRv6:           l.Flags&lsSrSegmentListFlagSRv6 != 0,
+			Explicit:       l.Flags&lsSrSegmentListFlagExplicit != 0,
+			Computed:       l.Flags&lsSrSegmentListFlagComputed != 0,
+			Verified:       l.Flags&lsSrSegmentListFlagVerified != 0,
+			Resolved:       l.Flags&lsSrSegmentListFlagResolved != 0,
+			Failed:         l.Flags&lsSrSegmentListFlagFailed != 0,
+			AllAlgorithm:   l.Flags&lsSrSegmentListFlagAllAlgorithm != 0,
+			AllTopology:    l.Flags&lsSrSegmentListFlagAllTopology != 0,
+			RemovedByFault: l.Flags&lsSrSegmentListFlagRemovedByFault != 0,
+		},
+		MTID:      l.MTID,
+		Algorithm: l.Algorithm,
+		Weight:    l.Weight,
+		Segments:  []LsSrSegment{},
+	}
+
+	for _, sub := range l.SubTLVs {
+		switch v := sub.(type) {
+		case *LsTLVSrSegment:
+			sl.Segments = append(sl.Segments, *v.Extract())
+		case *LsTLVSrSegmentListMetric:
+			sl.Metrics = append(sl.Metrics, *v.Extract())
+		case *LsTLVSrSegmentListBandwidth:
+			if sl.Bandwidth == nil && lsValidBandwidth(v.Bandwidth) {
+				bw := v.Bandwidth
+				sl.Bandwidth = &bw
+			}
+		case *LsTLVSrSegmentListIdentifier:
+			if sl.Identifier == nil {
+				id := v.Identifier
+				sl.Identifier = &id
+			}
+		}
+	}
+
+	return sl
+}
+
+func lsSrSegmentListSubTLVAlloc(t LsTLVType) LsTLVInterface {
+	switch t {
+	case LS_TLV_SR_SEGMENT:
+		return &LsTLVSrSegment{}
+	case LS_TLV_SR_SEGMENT_LIST_METRIC:
+		return &LsTLVSrSegmentListMetric{}
+	case LS_TLV_SR_SEGMENT_LIST_BANDWIDTH:
+		return &LsTLVSrSegmentListBandwidth{}
+	case LS_TLV_SR_SEGMENT_LIST_IDENTIFIER:
+		return &LsTLVSrSegmentListIdentifier{}
+	}
+	return nil
+}
+
+func (l *LsTLVSrSegmentList) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_SEGMENT_LIST {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < lsSrSegmentListFixedLen {
+		return malformedAttrListErr("Incorrect SR Segment List length")
+	}
+
+	l.Flags = binary.BigEndian.Uint16(value[:2])
+	// value[2:4] is reserved and ignored.
+	l.MTID = binary.BigEndian.Uint16(value[4:6])
+	l.Algorithm = value[6]
+	// value[7] is reserved and ignored.
+	l.Weight = binary.BigEndian.Uint32(value[8:12])
+
+	l.SubTLVs, err = lsWalkSubTLVs(value[lsSrSegmentListFixedLen:], lsSrSegmentListSubTLVAlloc)
+	return err
+}
+
+func (l *LsTLVSrSegmentList) Serialize() ([]byte, error) {
+	buf := make([]byte, lsSrSegmentListFixedLen)
+	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+	binary.BigEndian.PutUint16(buf[4:6], l.MTID)
+	buf[6] = l.Algorithm
+	binary.BigEndian.PutUint32(buf[8:12], l.Weight)
+
+	sub, err := lsSerializeSubTLVs(l.SubTLVs)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, sub...)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrSegmentList) String() string {
+	subs := make([]string, 0, len(l.SubTLVs))
+	for _, sub := range l.SubTLVs {
+		subs = append(subs, sub.String())
+	}
+	return fmt.Sprintf("{SR Segment List: Weight:%d MTID:%d Algo:%d Flags:%s %s}",
+		l.Weight, l.MTID, l.Algorithm, lsFlagLetters(l.Flags, "DECVRFATM"), strings.Join(subs, " "))
+}
+
+func (l *LsTLVSrSegmentList) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrSegmentList
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrSegmentList) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
 // LsAttribute helpers
 
 // NewLsAttributeSrPolicyTLVs builds the RFC 9857 attribute TLVs for an SR
 // Policy candidate path, in a fixed order: SR Binding SID, SRv6 Binding SID,
-// Candidate Path State, Candidate Path Name and Policy Name.
+// Candidate Path State, Candidate Path Name, Policy Name and then one SR
+// Segment List TLV per segment list.
 func NewLsAttributeSrPolicyTLVs(sp *LsAttributeSrPolicy) []LsTLVInterface {
 	tlvs := []LsTLVInterface{}
 
@@ -1094,6 +1957,9 @@ func NewLsAttributeSrPolicyTLVs(sp *LsAttributeSrPolicy) []LsTLVInterface {
 	}
 	if sp.PolicyName != nil {
 		tlvs = append(tlvs, NewLsTLVSrPolicyName(sp.PolicyName))
+	}
+	for i := range sp.SegmentLists {
+		tlvs = append(tlvs, NewLsTLVSrSegmentList(&sp.SegmentLists[i]))
 	}
 
 	return tlvs

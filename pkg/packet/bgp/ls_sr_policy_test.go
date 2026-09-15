@@ -259,6 +259,27 @@ func Test_LsSrPolicyCandidatePathNLRIConstructAndJSON(t *testing.T) {
 	assert.Error(err)
 }
 
+// srPolicySegmentTLV frames an SR Segment sub-TLV: type, reserved, flags,
+// SID field and descriptor.
+func srPolicySegmentTLV(segType byte, flags uint16, sid []byte, desc ...[]byte) []byte {
+	hdr := []byte{segType, 0}
+	hdr = binary.BigEndian.AppendUint16(hdr, flags)
+	body := [][]byte{hdr, sid}
+	body = append(body, desc...)
+	return tlvBytes(1206, body...)
+}
+
+func srPolicySegmentListTLV(flags uint16, weight uint32, subTLVs ...[]byte) []byte {
+	hdr := binary.BigEndian.AppendUint16(nil, flags)
+	hdr = append(hdr, 0, 0) // reserved
+	hdr = append(hdr, 0, 0) // MTID
+	hdr = append(hdr, 0, 0) // algorithm, reserved
+	hdr = binary.BigEndian.AppendUint32(hdr, weight)
+	body := [][]byte{hdr}
+	body = append(body, subTLVs...)
+	return tlvBytes(1205, body...)
+}
+
 var (
 	srv6EndpointBehaviorTLV = tlvBytes(1250, []byte{0x00, 0x30, 0x00, 0x00}) // End.B6.Encaps (48), flags 0, algo 0
 	srv6SIDStructureTLV     = tlvBytes(1252, []byte{32, 16, 16, 64})
@@ -299,6 +320,431 @@ func srPolicyBaseAttrModel() LsAttributeSrPolicy {
 		CandidatePathName: &cpName,
 		PolicyName:        &policyName,
 	}
+}
+
+func srPolicyMplsAttrBytes() []byte {
+	return lsAttrBytes(
+		// SR Binding SID: B + L flags, label 24001, no specified BSID.
+		tlvBytes(1201, []byte{0x50, 0x00, 0x00, 0x00}, labelField(24001), be32(0)),
+		// CP State: priority 10, flags A+E+V, preference 200.
+		tlvBytes(1202, []byte{10, 0, 0x58, 0x00}, be32(200)),
+		tlvBytes(1203, []byte("cp1")),
+		tlvBytes(1213, []byte("pol-blue")),
+		srPolicySegmentListTLV(0x5000, 1, // flags E+V, weight 1
+			srPolicySegmentTLV(1, 0xc000, labelField(16001), []byte{0}),
+			srPolicySegmentTLV(3, 0xc000, labelField(16002), []byte{0}, ip4("10.0.0.3")),
+			srPolicySegmentTLV(5, 0xc000, labelField(24005), ip4("10.0.0.5"), be32(7)),
+			srPolicySegmentTLV(6, 0xc000, labelField(24006), ip4("10.0.0.6"), ip4("10.0.0.7")),
+			tlvBytes(1207, []byte{1, 0x10, 0, 0}, be32(0), be32(0), be32(30)), // metric type 1, V flag, value 30
+			tlvBytes(1216, []byte{0x4e, 0x6e, 0x6b, 0x28}),                    // float32(1e9)
+			tlvBytes(1217, be32(7)),
+		),
+		srPolicySegmentListTLV(0x4000, 2, // flags E, weight 2
+			srPolicySegmentTLV(1, 0xc000, labelField(16003), []byte{0}),
+		),
+	)
+}
+
+func srPolicyMplsAttrModel() LsAttributeSrPolicy {
+	cpName := "cp1"
+	policyName := "pol-blue"
+	bw := float32(1e9)
+	id := uint32(7)
+	return LsAttributeSrPolicy{
+		BindingSID: &LsSrBindingSID{Flags: LsSrBindingSIDFlags{Allocated: true, FromSRLB: true}, Label: 24001},
+		State: &LsSrCandidatePathState{
+			Priority:   10,
+			Flags:      LsSrCandidatePathStateFlags{Active: true, Evaluated: true, ValidSIDList: true},
+			Preference: 200,
+		},
+		CandidatePathName: &cpName,
+		PolicyName:        &policyName,
+		SegmentLists: []LsSrSegmentList{
+			{
+				Flags:  LsSrSegmentListFlags{Explicit: true, Verified: true},
+				Weight: 1,
+				Segments: []LsSrSegment{
+					{SegmentType: LS_SR_SEGMENT_TYPE_A_MPLS_LABEL, Flags: LsSrSegmentFlags{SIDPresent: true, Explicit: true}, Label: 16001},
+					{SegmentType: LS_SR_SEGMENT_TYPE_C_IPV4_NODE, Flags: LsSrSegmentFlags{SIDPresent: true, Explicit: true}, Label: 16002, LocalAddress: netip.MustParseAddr("10.0.0.3")},
+					{SegmentType: LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE, Flags: LsSrSegmentFlags{SIDPresent: true, Explicit: true}, Label: 24005, LocalAddress: netip.MustParseAddr("10.0.0.5"), LocalInterfaceID: 7},
+					{SegmentType: LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY, Flags: LsSrSegmentFlags{SIDPresent: true, Explicit: true}, Label: 24006, LocalAddress: netip.MustParseAddr("10.0.0.6"), RemoteAddress: netip.MustParseAddr("10.0.0.7")},
+				},
+				Metrics:    []LsSrSegmentListMetric{{MetricType: 1, Flags: LsSrSegmentListMetricFlags{Value: true}, Value: 30}},
+				Bandwidth:  &bw,
+				Identifier: &id,
+			},
+			{
+				Flags:  LsSrSegmentListFlags{Explicit: true},
+				Weight: 2,
+				Segments: []LsSrSegment{
+					{SegmentType: LS_SR_SEGMENT_TYPE_A_MPLS_LABEL, Flags: LsSrSegmentFlags{SIDPresent: true, Explicit: true}, Label: 16003},
+				},
+			},
+		},
+	}
+}
+
+func srPolicySrv6AttrBytes() []byte {
+	return lsAttrBytes(
+		tlvBytes(1212, []byte{0x80, 0x00, 0x00, 0x00}, ip6("fc00:0:1::1"), ip6("::"), srv6EndpointBehaviorTLV, srv6SIDStructureTLV),
+		srPolicySegmentListTLV(0xc000, 1, // flags D+E
+			srPolicySegmentTLV(2, 0xc000, ip6("fc00:0:2::1"), []byte{0}, srv6EndpointBehaviorTLV, srv6SIDStructureTLV),
+			srPolicySegmentTLV(9, 0xc000, ip6("fc00:0:3::1"), []byte{0}, ip6("2001:db8::3")),
+			srPolicySegmentTLV(10, 0xc000, ip6("fc00:0:4::1"), ip6("2001:db8::4"), be32(1), ip6("2001:db8::5"), be32(2)),
+			srPolicySegmentTLV(11, 0xc000, ip6("fc00:0:6::1"), ip6("2001:db8::6"), ip6("2001:db8::7")),
+		),
+	)
+}
+
+func srPolicySrv6AttrModel() LsAttributeSrPolicy {
+	eb := &LsSrv6EndpointBehavior{EndpointBehavior: 48}
+	ss := &LsSrv6SIDStructure{LocalBlock: 32, LocalNode: 16, LocalFunc: 16, LocalArg: 64}
+	explicit := LsSrSegmentFlags{SIDPresent: true, Explicit: true}
+	return LsAttributeSrPolicy{
+		Srv6BindingSIDs: []LsSrv6BindingSID{{
+			Flags:            LsSrv6BindingSIDFlags{Allocated: true},
+			SID:              netip.MustParseAddr("fc00:0:1::1"),
+			SpecifiedSID:     netip.MustParseAddr("::"),
+			EndpointBehavior: eb,
+			SIDStructure:     ss,
+		}},
+		SegmentLists: []LsSrSegmentList{
+			{
+				Flags:  LsSrSegmentListFlags{SRv6: true, Explicit: true},
+				Weight: 1,
+				Segments: []LsSrSegment{
+					{SegmentType: LS_SR_SEGMENT_TYPE_B_SRV6_SID, Flags: explicit, SID: netip.MustParseAddr("fc00:0:2::1"), EndpointBehavior: eb, SIDStructure: ss},
+					{SegmentType: LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6, Flags: explicit, SID: netip.MustParseAddr("fc00:0:3::1"), LocalAddress: netip.MustParseAddr("2001:db8::3")},
+					{SegmentType: LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6, Flags: explicit, SID: netip.MustParseAddr("fc00:0:4::1"), LocalAddress: netip.MustParseAddr("2001:db8::4"), LocalInterfaceID: 1, RemoteAddress: netip.MustParseAddr("2001:db8::5"), RemoteInterfaceID: 2},
+					{SegmentType: LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6, Flags: explicit, SID: netip.MustParseAddr("fc00:0:6::1"), LocalAddress: netip.MustParseAddr("2001:db8::6"), RemoteAddress: netip.MustParseAddr("2001:db8::7")},
+				},
+			},
+		},
+	}
+}
+
+func srPolicyMplsV6AttrBytes() []byte {
+	return lsAttrBytes(
+		// SR Binding SID with D flag: SRv6 BSID and specified BSID.
+		tlvBytes(1201, []byte{0xc0, 0x00, 0x00, 0x00}, ip6("fc00:0:1::1"), ip6("fc00:0:1::2")),
+		srPolicySegmentListTLV(0x0000, 0,
+			srPolicySegmentTLV(4, 0x8000, labelField(16004), []byte{128}, ip6("2001:db8::4")),
+			srPolicySegmentTLV(7, 0x8000, labelField(24007), ip6("2001:db8::7"), be32(70), ip6("2001:db8::8"), be32(80)),
+			srPolicySegmentTLV(8, 0x8000, labelField(24008), ip6("2001:db8::8"), ip6("2001:db8::9")),
+		),
+	)
+}
+
+func srPolicyMplsV6AttrModel() LsAttributeSrPolicy {
+	present := LsSrSegmentFlags{SIDPresent: true}
+	return LsAttributeSrPolicy{
+		BindingSID: &LsSrBindingSID{
+			Flags:        LsSrBindingSIDFlags{SRv6: true, Allocated: true},
+			SID:          netip.MustParseAddr("fc00:0:1::1"),
+			SpecifiedSID: netip.MustParseAddr("fc00:0:1::2"),
+		},
+		SegmentLists: []LsSrSegmentList{
+			{
+				Segments: []LsSrSegment{
+					{SegmentType: LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS, Flags: present, Label: 16004, Algorithm: 128, LocalAddress: netip.MustParseAddr("2001:db8::4")},
+					{SegmentType: LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS, Flags: present, Label: 24007, LocalAddress: netip.MustParseAddr("2001:db8::7"), LocalInterfaceID: 70, RemoteAddress: netip.MustParseAddr("2001:db8::8"), RemoteInterfaceID: 80},
+					{SegmentType: LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS, Flags: present, Label: 24008, LocalAddress: netip.MustParseAddr("2001:db8::8"), RemoteAddress: netip.MustParseAddr("2001:db8::9")},
+				},
+			},
+		},
+	}
+}
+
+func Test_PathAttributeLsSrPolicy(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name string
+		in   []byte
+		str  string
+		want LsAttributeSrPolicy
+	}{
+		{
+			"binding sids, state and names",
+			srPolicyBaseAttrBytes(),
+			"{LsAttributes: {SR Binding SID: 24001 Specified: 0 Flags: BL} {SRv6 Binding SID: fc00:0:1::1 Specified: fc00:0:1::2 Flags: B} {SR CP State: Priority:10 Preference:200 Flags:AEV} {SR CP Name: cp1} {SR Policy Name: pol-blue} }",
+			srPolicyBaseAttrModel(),
+		},
+		{
+			"sr-mpls candidate path",
+			srPolicyMplsAttrBytes(),
+			"{LsAttributes: {SR Binding SID: 24001 Specified: 0 Flags: BL} {SR CP State: Priority:10 Preference:200 Flags:AEV} {SR CP Name: cp1} {SR Policy Name: pol-blue} " +
+				"{SR Segment List: Weight:1 MTID:0 Algo:0 Flags:EV {Segment: Type:A Label:16001 Algo:0 Flags:SE} {Segment: Type:C Label:16002 Node:10.0.0.3 Algo:0 Flags:SE} {Segment: Type:E Label:24005 Node:10.0.0.5 IfID:7 Flags:SE} {Segment: Type:F Label:24006 Local:10.0.0.6 Remote:10.0.0.7 Flags:SE} {Metric: Type:1 Margin:0 Bound:0 Value:30 Flags:V} {Bandwidth: 1e+09} {Identifier: 7}} " +
+				"{SR Segment List: Weight:2 MTID:0 Algo:0 Flags:E {Segment: Type:A Label:16003 Algo:0 Flags:SE}} }",
+			srPolicyMplsAttrModel(),
+		},
+		{
+			"srv6 candidate path",
+			srPolicySrv6AttrBytes(),
+			"{LsAttributes: {SRv6 Binding SID: fc00:0:1::1 Specified: :: Flags: B} " +
+				"{SR Segment List: Weight:1 MTID:0 Algo:0 Flags:DE {Segment: Type:B SID:fc00:0:2::1 Algo:0 Flags:SE} {Segment: Type:I SID:fc00:0:3::1 Node:2001:db8::3 Algo:0 Flags:SE} {Segment: Type:J SID:fc00:0:4::1 Local:2001:db8::4/1 Remote:2001:db8::5/2 Flags:SE} {Segment: Type:K SID:fc00:0:6::1 Local:2001:db8::6 Remote:2001:db8::7 Flags:SE}} }",
+			srPolicySrv6AttrModel(),
+		},
+		{
+			"srv6 binding sid in SR BSID TLV and ipv6 sr-mpls segments",
+			srPolicyMplsV6AttrBytes(),
+			"{LsAttributes: {SR Binding SID: fc00:0:1::1 Specified: fc00:0:1::2 Flags: DB} " +
+				"{SR Segment List: Weight:0 MTID:0 Algo:0 Flags:- {Segment: Type:D Label:16004 Node:2001:db8::4 Algo:128 Flags:S} {Segment: Type:G Label:24007 Local:2001:db8::7/70 Remote:2001:db8::8/80 Flags:S} {Segment: Type:H Label:24008 Local:2001:db8::8 Remote:2001:db8::9 Flags:S}} }",
+			srPolicyMplsV6AttrModel(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Wire -> native.
+			attr := PathAttributeLs{}
+			assert.NoError(attr.DecodeFromBytes(test.in))
+			assert.Equal(test.str, attr.String())
+			assert.Equal(test.want, attr.Extract().SrPolicy)
+
+			// Byte-exact round trip.
+			got, err := attr.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, got)
+
+			// The JSON "sr_policy" object matches the extracted model.
+			j, err := attr.MarshalJSON()
+			assert.NoError(err)
+			var m map[string]json.RawMessage
+			assert.NoError(json.Unmarshal(j, &m))
+			wantJSON, err := json.Marshal(test.want)
+			assert.NoError(err)
+			assert.JSONEq(string(wantJSON), string(m["sr_policy"]))
+
+			// Native model -> wire through the constructors.
+			built := PathAttributeLs{
+				PathAttribute: PathAttribute{Flags: attr.Flags, Type: BGP_ATTR_TYPE_LS},
+				TLVs:          NewLsAttributeTLVs(&LsAttribute{SrPolicy: test.want}),
+			}
+			got, err = built.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, got)
+		})
+	}
+}
+
+func Test_PathAttributeLsSrPolicyTolerance(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("unknown segment type is forwarded, siblings decoded", func(t *testing.T) {
+		in := lsAttrBytes(
+			srPolicySegmentListTLV(0x4000, 1,
+				srPolicySegmentTLV(12, 0xc000, be32(0), []byte{1, 2, 3}),
+				srPolicySegmentTLV(1, 0xc000, labelField(16001), []byte{0}),
+				tlvBytes(0xdead, []byte{0xff}),
+			),
+		)
+		attr := PathAttributeLs{}
+		assert.NoError(attr.DecodeFromBytes(in))
+		sp := attr.Extract().SrPolicy
+		if assert.Len(sp.SegmentLists, 1) && assert.Len(sp.SegmentLists[0].Segments, 1) {
+			assert.EqualValues(16001, sp.SegmentLists[0].Segments[0].Label)
+		}
+		wire, err := attr.Serialize()
+		require.NoError(t, err)
+		assert.Equal(in, wire)
+	})
+
+	t.Run("segment without S flag exposes no SID", func(t *testing.T) {
+		in := lsAttrBytes(
+			srPolicySegmentListTLV(0x4000, 1,
+				srPolicySegmentTLV(3, 0x4000, labelField(16002), []byte{0}, ip4("10.0.0.3")),
+			),
+		)
+		attr := PathAttributeLs{}
+		assert.NoError(attr.DecodeFromBytes(in))
+		seg := attr.Extract().SrPolicy.SegmentLists[0].Segments[0]
+		assert.False(seg.Flags.SIDPresent)
+		assert.EqualValues(0, seg.Label)
+		assert.Equal(netip.MustParseAddr("10.0.0.3"), seg.LocalAddress)
+		// The raw label is still re-serialized.
+		got, err := attr.Serialize()
+		assert.NoError(err)
+		assert.Equal(in, got)
+	})
+
+	t.Run("invalid bandwidth is forwarded but kept out of the model", func(t *testing.T) {
+		// RFC 9552 section 8.2.2: TLV contents do not make the attribute
+		// malformed. A NaN or negative bandwidth is re-serialized as
+		// received; the model takes the first valid instance.
+		in := lsAttrBytes(
+			srPolicySegmentListTLV(0, 1,
+				tlvBytes(1216, []byte{0xff, 0xc0, 0, 0}), // NaN
+				tlvBytes(1216, []byte{0xbf, 0x80, 0, 0}), // -1.0
+				tlvBytes(1216, []byte{0x3f, 0x80, 0, 0}), // 1.0
+			),
+		)
+		attr := PathAttributeLs{}
+		assert.NoError(attr.DecodeFromBytes(in))
+		if bw := attr.Extract().SrPolicy.SegmentLists[0].Bandwidth; assert.NotNil(bw) {
+			assert.EqualValues(1.0, *bw)
+		}
+		_, err := attr.MarshalJSON()
+		assert.NoError(err)
+		got, err := attr.Serialize()
+		assert.NoError(err)
+		assert.Equal(in, got)
+	})
+
+	t.Run("duplicate single-instance TLVs: first wins", func(t *testing.T) {
+		in := lsAttrBytes(
+			tlvBytes(1202, []byte{1, 0, 0x40, 0x00}, be32(100)),
+			tlvBytes(1202, []byte{2, 0, 0x00, 0x00}, be32(200)),
+			tlvBytes(1213, []byte("first")),
+			tlvBytes(1213, []byte("second")),
+			tlvBytes(1201, []byte{0x40, 0x00, 0x00, 0x00}, labelField(1), be32(0)),
+			tlvBytes(1201, []byte{0x40, 0x00, 0x00, 0x00}, labelField(2), be32(0)),
+			srPolicySegmentListTLV(0, 1,
+				tlvBytes(1217, be32(1)),
+				tlvBytes(1217, be32(2)),
+				tlvBytes(1216, []byte{0x3f, 0x80, 0x00, 0x00}),
+				tlvBytes(1216, []byte{0x40, 0x00, 0x00, 0x00}),
+			),
+		)
+		attr := PathAttributeLs{}
+		assert.NoError(attr.DecodeFromBytes(in))
+		sp := attr.Extract().SrPolicy
+		assert.EqualValues(100, sp.State.Preference)
+		assert.Equal("first", *sp.PolicyName)
+		assert.EqualValues(1, sp.BindingSID.Label)
+		assert.EqualValues(1, *sp.SegmentLists[0].Identifier)
+		assert.EqualValues(1.0, *sp.SegmentLists[0].Bandwidth)
+		// All instances are kept for faithful re-serialization.
+		got, err := attr.Serialize()
+		assert.NoError(err)
+		assert.Equal(in, got)
+	})
+}
+
+func Test_PathAttributeLsSrPolicyMalformed(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name string
+		in   []byte
+	}{
+		{"binding sid too short", lsAttrBytes(tlvBytes(1201, []byte{0, 0, 0, 0}, labelField(1), []byte{0, 0, 0}))},
+		{"binding sid D flag with mpls length", lsAttrBytes(tlvBytes(1201, []byte{0x80, 0, 0, 0}, labelField(1), be32(0)))},
+		{"binding sid mpls flag with srv6 length", lsAttrBytes(tlvBytes(1201, []byte{0, 0, 0, 0}, ip6("::1"), ip6("::")))},
+		{"srv6 binding sid too short", lsAttrBytes(tlvBytes(1212, []byte{0, 0, 0, 0}, ip6("::1"), []byte{0}))},
+		{"cp state too short", lsAttrBytes(tlvBytes(1202, []byte{1, 0, 0, 0}, []byte{0, 0, 1}))},
+		{"cp state too long", lsAttrBytes(tlvBytes(1202, []byte{1, 0, 0, 0}, be32(1), []byte{0}))},
+		{"segment list too short", lsAttrBytes(tlvBytes(1205, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}))},
+		{"metric too short", lsAttrBytes(srPolicySegmentListTLV(0, 1, tlvBytes(1207, []byte{1, 0, 0, 0}, be32(0), be32(0), []byte{0, 0, 0})))},
+		{"bandwidth wrong length", lsAttrBytes(srPolicySegmentListTLV(0, 1, tlvBytes(1216, []byte{0, 0, 0})))},
+		{"identifier wrong length", lsAttrBytes(srPolicySegmentListTLV(0, 1, tlvBytes(1217, []byte{0, 0, 0, 0, 0})))},
+		{"segment header too short", lsAttrBytes(srPolicySegmentListTLV(0, 1, tlvBytes(1206, []byte{1, 0, 0})))},
+		{"segment type C truncated descriptor", lsAttrBytes(srPolicySegmentListTLV(0, 1, srPolicySegmentTLV(3, 0x8000, labelField(1), []byte{0}, []byte{10, 0, 0})))},
+		{"segment type B truncated sid", lsAttrBytes(srPolicySegmentListTLV(0, 1, srPolicySegmentTLV(2, 0x8000, ip4("1.1.1.1"), []byte{0})))},
+		{"truncated sub-TLV inside segment list", lsAttrBytes(srPolicySegmentListTLV(0, 1, []byte{0x04, 0xb6, 0x00, 0x10, 0x01, 0x00}))},
+		{"truncated sub-TLV inside srv6 binding sid", lsAttrBytes(tlvBytes(1212, []byte{0, 0, 0, 0}, ip6("::1"), ip6("::"), []byte{0x04, 0xe2, 0x00, 0x04, 0x00}))},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			attr := PathAttributeLs{}
+			assert.Error(attr.DecodeFromBytes(test.in))
+		})
+	}
+}
+
+func Test_LsSrPolicyConstructorsUseLsTLVTypes(t *testing.T) {
+	assert := assert.New(t)
+
+	desc := NewLsTLVSrPolicyCandidatePathDescriptor(&LsSrPolicyCandidatePathDescriptor{
+		Endpoint:          netip.MustParseAddr("10.0.0.1"),
+		OriginatorAddress: netip.MustParseAddr("10.0.0.2"),
+	})
+	assert.EqualValues(LS_TLV_SR_POLICY_CP_DESC, desc.Type)
+	assert.EqualValues(24, desc.Length)
+
+	assert.EqualValues(LS_TLV_SR_BINDING_SID, NewLsTLVSrBindingSID(&LsSrBindingSID{}).Type)
+	assert.EqualValues(12, NewLsTLVSrBindingSID(&LsSrBindingSID{}).Length)
+	assert.EqualValues(36, NewLsTLVSrBindingSID(&LsSrBindingSID{Flags: LsSrBindingSIDFlags{SRv6: true}}).Length)
+
+	// A label wider than the 20-bit field must be refused, not truncated.
+	_, err := NewLsTLVSrBindingSID(&LsSrBindingSID{Label: 1 << 20}).Serialize()
+	assert.Error(err)
+	_, err = NewLsTLVSrBindingSID(&LsSrBindingSID{SpecifiedLabel: 1 << 20}).Serialize()
+	assert.Error(err)
+
+	srv6BSID := NewLsTLVSrv6BindingSID(&LsSrv6BindingSID{
+		SID:              netip.MustParseAddr("fc00::1"),
+		EndpointBehavior: &LsSrv6EndpointBehavior{EndpointBehavior: 48},
+		SIDStructure:     &LsSrv6SIDStructure{LocalBlock: 32, LocalNode: 16, LocalFunc: 16},
+	})
+	assert.EqualValues(LS_TLV_SRV6_BINDING_SID, srv6BSID.Type)
+	assert.EqualValues(36+8+8, srv6BSID.Length)
+	if assert.Len(srv6BSID.SubTLVs, 2) {
+		assert.EqualValues(LS_TLV_SRV6_ENDPOINT_BEHAVIOR, srv6BSID.SubTLVs[0].GetLsTLV().Type)
+		assert.EqualValues(LS_TLV_SRV6_SID_STRUCTURE, srv6BSID.SubTLVs[1].GetLsTLV().Type)
+	}
+
+	assert.EqualValues(LS_TLV_SR_CP_STATE, NewLsTLVSrCandidatePathState(&LsSrCandidatePathState{}).Type)
+
+	name := "name"
+	assert.EqualValues(LS_TLV_SR_CP_NAME, NewLsTLVSrCandidatePathName(&name).Type)
+	assert.EqualValues(LS_TLV_SR_POLICY_NAME, NewLsTLVSrPolicyName(&name).Type)
+
+	assert.EqualValues(LS_TLV_SR_SEGMENT_LIST_METRIC, NewLsTLVSrSegmentListMetric(&LsSrSegmentListMetric{}).Type)
+	bw := float32(1)
+	assert.EqualValues(LS_TLV_SR_SEGMENT_LIST_BANDWIDTH, NewLsTLVSrSegmentListBandwidth(&bw).Type)
+	id := uint32(1)
+	assert.EqualValues(LS_TLV_SR_SEGMENT_LIST_IDENTIFIER, NewLsTLVSrSegmentListIdentifier(&id).Type)
+
+	segLens := map[LsSrSegmentType]uint16{
+		LS_SR_SEGMENT_TYPE_A_MPLS_LABEL:               4 + 4 + 1,
+		LS_SR_SEGMENT_TYPE_B_SRV6_SID:                 4 + 16 + 1,
+		LS_SR_SEGMENT_TYPE_C_IPV4_NODE:                4 + 4 + 5,
+		LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS:           4 + 4 + 17,
+		LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE:      4 + 4 + 8,
+		LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY:           4 + 4 + 8,
+		LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS: 4 + 4 + 40,
+		LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS:      4 + 4 + 32,
+		LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6:           4 + 16 + 17,
+		LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6: 4 + 16 + 40,
+		LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6:      4 + 16 + 32,
+	}
+	for segType, want := range segLens {
+		local, remote := netip.IPv6Unspecified(), netip.IPv6Unspecified()
+		if segType == LS_SR_SEGMENT_TYPE_C_IPV4_NODE || segType == LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE || segType == LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY {
+			local, remote = netip.IPv4Unspecified(), netip.IPv4Unspecified()
+		}
+		seg := NewLsTLVSrSegment(&LsSrSegment{SegmentType: segType, LocalAddress: local, RemoteAddress: remote})
+		assert.EqualValues(LS_TLV_SR_SEGMENT, seg.Type)
+		assert.Equal(want, seg.Length, segType.String())
+		// Serialized length must agree with the declared length.
+		ser, err := seg.Serialize()
+		assert.NoError(err, segType.String())
+		assert.Len(ser, int(want)+4, segType.String())
+	}
+
+	// Unknown segment types cannot be serialized.
+	_, err = NewLsTLVSrSegment(&LsSrSegment{SegmentType: 42}).Serialize()
+	assert.Error(err)
+
+	sl := NewLsTLVSrSegmentList(&LsSrSegmentList{
+		Segments:   []LsSrSegment{{SegmentType: LS_SR_SEGMENT_TYPE_A_MPLS_LABEL}},
+		Metrics:    []LsSrSegmentListMetric{{}},
+		Bandwidth:  &bw,
+		Identifier: &id,
+	})
+	assert.EqualValues(LS_TLV_SR_SEGMENT_LIST, sl.Type)
+	assert.EqualValues(12+(4+9)+(4+16)+(4+4)+(4+4), sl.Length)
+	if assert.Len(sl.SubTLVs, 4) {
+		assert.EqualValues(LS_TLV_SR_SEGMENT, sl.SubTLVs[0].GetLsTLV().Type)
+		assert.EqualValues(LS_TLV_SR_SEGMENT_LIST_METRIC, sl.SubTLVs[1].GetLsTLV().Type)
+		assert.EqualValues(LS_TLV_SR_SEGMENT_LIST_BANDWIDTH, sl.SubTLVs[2].GetLsTLV().Type)
+		assert.EqualValues(LS_TLV_SR_SEGMENT_LIST_IDENTIFIER, sl.SubTLVs[3].GetLsTLV().Type)
+	}
+
+	// An empty SR Policy category produces no TLVs.
+	assert.Empty(NewLsAttributeSrPolicyTLVs(&LsAttributeSrPolicy{}))
 }
 
 func Test_LsSrPolicyCandidatePathDescriptorSerializeRequiresAddresses(t *testing.T) {
@@ -424,156 +870,35 @@ func TestLsSrPolicyHeadendDestinationKey(t *testing.T) {
 	}
 }
 
-func Test_LsSrPolicyConstructorsUseLsTLVTypes(t *testing.T) {
-	assert := assert.New(t)
-
-	desc := NewLsTLVSrPolicyCandidatePathDescriptor(&LsSrPolicyCandidatePathDescriptor{
-		Endpoint:          netip.MustParseAddr("10.0.0.1"),
-		OriginatorAddress: netip.MustParseAddr("10.0.0.2"),
-	})
-	assert.EqualValues(LS_TLV_SR_POLICY_CP_DESC, desc.Type)
-	assert.EqualValues(24, desc.Length)
-
-	assert.EqualValues(LS_TLV_SR_BINDING_SID, NewLsTLVSrBindingSID(&LsSrBindingSID{}).Type)
-	assert.EqualValues(12, NewLsTLVSrBindingSID(&LsSrBindingSID{}).Length)
-	assert.EqualValues(36, NewLsTLVSrBindingSID(&LsSrBindingSID{Flags: LsSrBindingSIDFlags{SRv6: true}}).Length)
-
-	// A label wider than the 20-bit field must be refused, not truncated.
-	_, err := NewLsTLVSrBindingSID(&LsSrBindingSID{Label: 1 << 20}).Serialize()
-	assert.Error(err)
-	_, err = NewLsTLVSrBindingSID(&LsSrBindingSID{SpecifiedLabel: 1 << 20}).Serialize()
-	assert.Error(err)
-
-	srv6BSID := NewLsTLVSrv6BindingSID(&LsSrv6BindingSID{
-		SID:              netip.MustParseAddr("fc00::1"),
-		EndpointBehavior: &LsSrv6EndpointBehavior{EndpointBehavior: 48},
-		SIDStructure:     &LsSrv6SIDStructure{LocalBlock: 32, LocalNode: 16, LocalFunc: 16},
-	})
-	assert.EqualValues(LS_TLV_SRV6_BINDING_SID, srv6BSID.Type)
-	assert.EqualValues(36+8+8, srv6BSID.Length)
-	if assert.Len(srv6BSID.SubTLVs, 2) {
-		assert.EqualValues(LS_TLV_SRV6_ENDPOINT_BEHAVIOR, srv6BSID.SubTLVs[0].GetLsTLV().Type)
-		assert.EqualValues(LS_TLV_SRV6_SID_STRUCTURE, srv6BSID.SubTLVs[1].GetLsTLV().Type)
-	}
-
-	assert.EqualValues(LS_TLV_SR_CP_STATE, NewLsTLVSrCandidatePathState(&LsSrCandidatePathState{}).Type)
-
-	name := "name"
-	assert.EqualValues(LS_TLV_SR_CP_NAME, NewLsTLVSrCandidatePathName(&name).Type)
-	assert.EqualValues(LS_TLV_SR_POLICY_NAME, NewLsTLVSrPolicyName(&name).Type)
-
-	// An empty SR Policy category produces no TLVs.
-	assert.Empty(NewLsAttributeSrPolicyTLVs(&LsAttributeSrPolicy{}))
+func TestLsSrPolicyNestedUnknownTLVs(t *testing.T) {
+	unknown := tlvBytes(65000, []byte{1, 2, 3, 4})
+	wire := lsAttrBytes(
+		tlvBytes(1212, []byte{0x80, 0, 0, 0}, ip6("fc00::1"), ip6("::"), unknown),
+		srPolicySegmentListTLV(0xc000, 1, srPolicySegmentTLV(2, 0xc000, ip6("fc00::2"), []byte{0}, unknown)),
+	)
+	attr := &PathAttributeLs{}
+	require.NoError(t, attr.DecodeFromBytes(wire))
+	got, err := attr.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, wire, got)
 }
 
-func Test_PathAttributeLsSrPolicy(t *testing.T) {
-	assert := assert.New(t)
-
-	tests := []struct {
-		name string
-		in   []byte
-		str  string
-		want LsAttributeSrPolicy
-	}{
-		{
-			"binding sids, state and names",
-			srPolicyBaseAttrBytes(),
-			"{LsAttributes: {SR Binding SID: 24001 Specified: 0 Flags: BL} {SRv6 Binding SID: fc00:0:1::1 Specified: fc00:0:1::2 Flags: B} {SR CP State: Priority:10 Preference:200 Flags:AEV} {SR CP Name: cp1} {SR Policy Name: pol-blue} }",
-			srPolicyBaseAttrModel(),
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// Wire -> native.
-			attr := PathAttributeLs{}
-			assert.NoError(attr.DecodeFromBytes(test.in))
-			assert.Equal(test.str, attr.String())
-			assert.Equal(test.want, attr.Extract().SrPolicy)
-
-			// Byte-exact round trip.
-			got, err := attr.Serialize()
-			assert.NoError(err)
-			assert.Equal(test.in, got)
-
-			// The JSON "sr_policy" object matches the extracted model.
-			j, err := attr.MarshalJSON()
-			assert.NoError(err)
-			var m map[string]json.RawMessage
-			assert.NoError(json.Unmarshal(j, &m))
-			wantJSON, err := json.Marshal(test.want)
-			assert.NoError(err)
-			assert.JSONEq(string(wantJSON), string(m["sr_policy"]))
-
-			// Native model -> wire through the constructors.
-			built := PathAttributeLs{
-				PathAttribute: PathAttribute{Flags: attr.Flags, Type: BGP_ATTR_TYPE_LS},
-				TLVs:          NewLsAttributeTLVs(&LsAttribute{SrPolicy: test.want}),
-			}
-			got, err = built.Serialize()
-			assert.NoError(err)
-			assert.Equal(test.in, got)
-		})
-	}
+func TestLsSrSegmentSerializeInvalidAddress(t *testing.T) {
+	seg := NewLsTLVSrSegment(&LsSrSegment{SegmentType: LS_SR_SEGMENT_TYPE_C_IPV4_NODE, LocalAddress: netip.MustParseAddr("2001:db8::1")})
+	_, err := seg.Serialize()
+	require.Error(t, err)
 }
 
-func Test_PathAttributeLsSrPolicyMalformed(t *testing.T) {
-	assert := assert.New(t)
-
-	tests := []struct {
-		name string
-		in   []byte
-	}{
-		{"binding sid too short", lsAttrBytes(tlvBytes(1201, []byte{0, 0, 0, 0}, labelField(1), []byte{0, 0, 0}))},
-		{"binding sid D flag with mpls length", lsAttrBytes(tlvBytes(1201, []byte{0x80, 0, 0, 0}, labelField(1), be32(0)))},
-		{"binding sid mpls flag with srv6 length", lsAttrBytes(tlvBytes(1201, []byte{0, 0, 0, 0}, ip6("::1"), ip6("::")))},
-		{"srv6 binding sid too short", lsAttrBytes(tlvBytes(1212, []byte{0, 0, 0, 0}, ip6("::1"), []byte{0}))},
-		{"cp state too short", lsAttrBytes(tlvBytes(1202, []byte{1, 0, 0, 0}, []byte{0, 0, 1}))},
-		{"cp state too long", lsAttrBytes(tlvBytes(1202, []byte{1, 0, 0, 0}, be32(1), []byte{0}))},
-		{"truncated sub-TLV inside srv6 binding sid", lsAttrBytes(tlvBytes(1212, []byte{0, 0, 0, 0}, ip6("::1"), ip6("::"), []byte{0x04, 0xe2, 0x00, 0x04, 0x00}))},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			attr := PathAttributeLs{}
-			assert.Error(attr.DecodeFromBytes(test.in))
-		})
-	}
-}
-
-func Test_PathAttributeLsSrPolicyTolerance(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("duplicate single-instance TLVs: first wins", func(t *testing.T) {
-		in := lsAttrBytes(
-			tlvBytes(1202, []byte{1, 0, 0x40, 0x00}, be32(100)),
-			tlvBytes(1202, []byte{2, 0, 0x00, 0x00}, be32(200)),
-			tlvBytes(1213, []byte("first")),
-			tlvBytes(1213, []byte("second")),
-			tlvBytes(1201, []byte{0x40, 0x00, 0x00, 0x00}, labelField(1), be32(0)),
-			tlvBytes(1201, []byte{0x40, 0x00, 0x00, 0x00}, labelField(2), be32(0)),
-		)
-		attr := PathAttributeLs{}
-		assert.NoError(attr.DecodeFromBytes(in))
-		sp := attr.Extract().SrPolicy
-		assert.EqualValues(100, sp.State.Preference)
-		assert.Equal("first", *sp.PolicyName)
-		assert.EqualValues(1, sp.BindingSID.Label)
-		// All instances are kept for faithful re-serialization.
-		got, err := attr.Serialize()
-		assert.NoError(err)
-		assert.Equal(in, got)
-	})
-
-	t.Run("unknown sub-TLV inside the SRv6 binding SID is forwarded", func(t *testing.T) {
-		in := lsAttrBytes(tlvBytes(1212, []byte{0x80, 0, 0, 0}, ip6("fc00::1"), ip6("::"), tlvBytes(65000, []byte{1, 2, 3, 4})))
-		attr := PathAttributeLs{}
-		require.NoError(t, attr.DecodeFromBytes(in))
-		if assert.Len(attr.Extract().SrPolicy.Srv6BindingSIDs, 1) {
-			assert.Equal(netip.MustParseAddr("fc00::1"), attr.Extract().SrPolicy.Srv6BindingSIDs[0].SID)
-		}
-		got, err := attr.Serialize()
-		require.NoError(t, err)
-		assert.Equal(in, got)
-	})
+// Any 16-octet SID is wire-legal, so a decoded segment must re-serialize
+// even when the SID reads as an IPv4-mapped address that the API-side
+// LsSrSegment.Validate would refuse.
+func TestLsSrSegmentDecodedAlwaysReserializes(t *testing.T) {
+	wire := lsAttrBytes(
+		srPolicySegmentListTLV(0xc000, 1, srPolicySegmentTLV(2, 0xc000, ip6("::ffff:1.2.3.4"), []byte{0})),
+	)
+	attr := &PathAttributeLs{}
+	require.NoError(t, attr.DecodeFromBytes(wire))
+	got, err := attr.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, wire, got)
 }
