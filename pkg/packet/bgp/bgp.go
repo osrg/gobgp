@@ -11143,13 +11143,15 @@ type LsAttributeSrv6SID struct {
 
 // LsAttributeSrPolicy holds the BGP-LS attribute TLVs that describe an SR
 // Policy Candidate Path (RFC 9857). Single-instance TLVs are pointers; the
-// SRv6 Binding SID TLV may appear once per Binding SID of the candidate path.
+// SRv6 Binding SID and Segment List TLVs may appear once per Binding SID
+// and per segment list of the candidate path.
 type LsAttributeSrPolicy struct {
 	BindingSID        *LsSrBindingSID         `json:"binding_sid,omitempty"`
 	Srv6BindingSIDs   []LsSrv6BindingSID      `json:"srv6_binding_sids,omitempty"`
 	State             *LsSrCandidatePathState `json:"state,omitempty"`
 	CandidatePathName *string                 `json:"candidate_path_name,omitempty"`
 	PolicyName        *string                 `json:"policy_name,omitempty"`
+	SegmentLists      []LsSrSegmentList       `json:"segment_lists,omitempty"`
 }
 
 type LsAttribute struct {
@@ -11336,6 +11338,9 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 			if l.SrPolicy.PolicyName == nil {
 				l.SrPolicy.PolicyName = &v.Name
 			}
+
+		case *LsTLVSrSegmentList:
+			l.SrPolicy.SegmentLists = append(l.SrPolicy.SegmentLists, *v.Extract())
 		}
 	}
 
@@ -11492,6 +11497,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		case LS_TLV_SR_POLICY_NAME:
 			tlv = &LsTLVSrPolicyName{}
+
+		case LS_TLV_SR_SEGMENT_LIST:
+			tlv = &LsTLVSrSegmentList{}
 
 		default:
 			// RFC 9552 Section 5.1: unknown TLV types are preserved and
