@@ -366,12 +366,14 @@ func addTcpAoKeys(raw syscall.RawConn, peerAddr netip.Addr, interfaceName string
 	return netutils.AddTCPAOKeysSockopt(raw, tcpAoPeerPrefix(peerAddr), interfaceName, config)
 }
 
-func deleteTcpAoKeys(raw syscall.RawConn, peerAddr netip.Addr, interfaceName string, socketKeys *tcpAoSocketKeys) error {
+// deleteTcpAoKeys removes the given keys from one socket. Pass delAsync only
+// for a listening socket; the kernel rejects it on any other socket.
+func deleteTcpAoKeys(raw syscall.RawConn, peerAddr netip.Addr, interfaceName string, socketKeys *tcpAoSocketKeys, delAsync bool) error {
 	config, err := socketKeys.netutilsConfig(false)
 	if err != nil {
 		return err
 	}
-	return netutils.DeleteTCPAOKeysSockopt(raw, tcpAoPeerPrefix(peerAddr), interfaceName, config)
+	return netutils.DeleteTCPAOKeysSockopt(raw, tcpAoPeerPrefix(peerAddr), interfaceName, config, delAsync)
 }
 
 func addTcpAoKeysToListeners(listeners []*net.TCPListener, peerAddr netip.Addr, interfaceName string, socketKeys *tcpAoSocketKeys) error {
@@ -403,7 +405,7 @@ func deleteTcpAoKeysFromListeners(listeners []*net.TCPListener, peerAddr netip.A
 	for _, listener := range listeners {
 		raw, err := listener.SyscallConn()
 		if err == nil {
-			err = deleteTcpAoKeys(raw, peerAddr, interfaceName, socketKeys)
+			err = deleteTcpAoKeys(raw, peerAddr, interfaceName, socketKeys, true)
 		}
 		if err != nil {
 			result = append(result, err)

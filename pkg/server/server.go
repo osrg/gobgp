@@ -5695,7 +5695,7 @@ func (s *BgpServer) updateTcpAoKeychainSockets(name string, added, deleted []net
 				continue
 			}
 			if len(deleted) != 0 {
-				if err := deleteTcpAoKeys(raw, peerAddr, interfaceName, deletedKeys); err != nil {
+				if err := deleteTcpAoKeys(raw, peerAddr, interfaceName, deletedKeys, true); err != nil {
 					logError(peer, "listener", fmt.Errorf("delete TCP-AO keys: %w", err))
 				}
 			}
@@ -5719,7 +5719,7 @@ func (s *BgpServer) updateTcpAoKeychainSockets(name string, added, deleted []net
 				continue
 			}
 			if len(deleted) != 0 {
-				if err := deleteTcpAoKeys(raw, peerAddr, interfaceName, deletedKeys); err != nil {
+				if err := deleteTcpAoKeys(raw, peerAddr, interfaceName, deletedKeys, false); err != nil {
 					logError(peer, "connection", fmt.Errorf("delete TCP-AO keys: %w", err))
 				}
 			}

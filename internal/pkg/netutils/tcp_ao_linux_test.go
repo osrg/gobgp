@@ -83,10 +83,10 @@ func TestTCPAOKeyLifecycle(t *testing.T) {
 		require.Equal(t, key.ReceiveID, state.ReceiveID)
 	}
 
-	// delete the first key
+	// delete the first key, asynchronously as a listening socket allows
 	err = DeleteTCPAOKeysSockopt(raw, peer, "", TCPAOConfig{Keys: []TCPAOKey{{
 		SendID: 7, ReceiveID: 9,
-	}}})
+	}}}, true)
 	require.NoError(t, err)
 	states, err = GetTCPAOKeyStateSockopt(raw)
 	require.NoError(t, err)
@@ -94,14 +94,64 @@ func TestTCPAOKeyLifecycle(t *testing.T) {
 	require.Equal(t, uint8(8), states[0].SendID)
 	require.Equal(t, uint8(10), states[0].ReceiveID)
 
-	// delete the remaining key
+	// delete the remaining key, this time synchronously
 	err = DeleteTCPAOKeysSockopt(raw, peer, "", TCPAOConfig{Keys: []TCPAOKey{{
 		SendID: 8, ReceiveID: 10,
-	}}})
+	}}}, false)
 	require.NoError(t, err)
 	states, err = GetTCPAOKeyStateSockopt(raw)
 	require.NoError(t, err)
 	require.Empty(t, states)
+}
+
+// The kernel takes del_async on a listening socket only, because a listener has
+// no CurrentKey and no RNextKey to check. It returns EINVAL on any other
+// socket, so passing the flag for the wrong socket breaks every key deletion on
+// a live session.
+func TestTCPAODeleteAsyncRejectedOnConnectedSocket(t *testing.T) {
+	peer := netip.MustParsePrefix("127.0.0.1/32")
+	serverConfig := TCPAOConfig{Keys: []TCPAOKey{
+		{SendID: 20, ReceiveID: 10, Algorithm: TCPAOAlgorithmHMACSHA256MAC96, MasterKey: []byte("secret")},
+		{SendID: 21, ReceiveID: 11, Algorithm: TCPAOAlgorithmHMACSHA256MAC96, MasterKey: []byte("secret")},
+	}}
+	listenConfig := net.ListenConfig{Control: func(_, _ string, raw syscall.RawConn) error {
+		return AddTCPAOKeysSockopt(raw, peer, "", serverConfig)
+	}}
+	listenConfig.SetMultipathTCP(false)
+	listener, err := listenConfig.Listen(context.Background(), "tcp4", "127.0.0.1:0")
+	skipTCPAONotSupported(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	current := uint8(10)
+	clientConfig := TCPAOConfig{
+		Keys: []TCPAOKey{
+			{SendID: 10, ReceiveID: 20, Algorithm: TCPAOAlgorithmHMACSHA256MAC96, MasterKey: []byte("secret")},
+			{SendID: 11, ReceiveID: 21, Algorithm: TCPAOAlgorithmHMACSHA256MAC96, MasterKey: []byte("secret")},
+		},
+		PreferredSendID: &current,
+	}
+	dialer := net.Dialer{Timeout: time.Second}
+	dialer.Control = func(network, address string, raw syscall.RawConn) error {
+		return DialerControl(slog.Default(), network, address, raw, 0, 0, 0, "", "", 0, &clientConfig)
+	}
+	clientConn, err := dialer.DialContext(context.Background(), "tcp4", listener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { clientConn.Close() })
+	clientRaw, err := clientConn.(*net.TCPConn).SyscallConn()
+	require.NoError(t, err)
+
+	// key 11 is neither CurrentKey nor RNextKey, so only the flag decides the
+	// outcome here.
+	deleted := TCPAOConfig{Keys: []TCPAOKey{{SendID: 11, ReceiveID: 21}}}
+	err = DeleteTCPAOKeysSockopt(clientRaw, peer, "", deleted, true)
+	require.ErrorIs(t, err, syscall.EINVAL)
+
+	err = DeleteTCPAOKeysSockopt(clientRaw, peer, "", deleted, false)
+	require.NoError(t, err)
+	states, err := GetTCPAOKeyStateSockopt(clientRaw)
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	require.Equal(t, uint8(10), states[0].SendID)
 }
 
 func TestTCPAOKeyStateListenSocketManyKeys(t *testing.T) {
