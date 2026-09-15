@@ -229,6 +229,7 @@ enum LsNLRIType {
   LS_NLRI_TYPE_LINK = 2;
   LS_NLRI_TYPE_PREFIX_V4 = 3;
   LS_NLRI_TYPE_PREFIX_V6 = 4;
+  LS_NLRI_TYPE_SR_POLICY_CANDIDATE_PATH = 5;
   LS_NLRI_TYPE_SRV6_SID = 6;
 }
 
@@ -253,6 +254,9 @@ message LsNodeDescriptor {
   string igp_router_id = 5;
   string bgp_router_id = 6;
   uint32 bgp_confederation_member = 7;
+  // RFC 9857 requires at least one of these in the headend descriptors.
+  string local_router_id_ipv4 = 8;
+  string local_router_id_ipv6 = 9;
 }
 
 message LsLinkDescriptor {
@@ -311,11 +315,31 @@ message LsMultiTopologyIdentifier {
   repeated uint32 multi_topo_ids = 1;
 }
 
-// TODO: LsSrPolicyiCandidatePathNLRI
 message LsSrv6SIDNLRI {
   LsNodeDescriptor local_node = 1;
   LsSrv6SIDInformation srv6_sid_information = 2;
   LsMultiTopologyIdentifier multi_topo_id = 3;
+}
+
+// SR Policy Candidate Path Descriptor TLV (RFC 9857 Section 4.1).
+message LsSrPolicyCandidatePathDescriptor {
+  // Protocol-Origin (RFC 9857): 1 PCEP, 2 BGP, 3 configuration;
+  // 10, 20 and 30 are the corresponding values when the producer is a PCE.
+  uint32 protocol_origin = 1;
+  // IPv4 or IPv6 endpoint of the SR Policy.
+  string endpoint = 2;
+  uint32 color = 3;
+  uint32 originator_asn = 4;
+  // IPv4 or IPv6 address of the originator of the candidate path.
+  string originator_address = 5;
+  uint32 discriminator = 6;
+}
+
+// SR Policy Candidate Path NLRI (RFC 9857 Section 4).
+message LsSrPolicyCandidatePathNLRI {
+  // Node descriptors of the headend of the SR Policy.
+  LsNodeDescriptor local_node = 1;
+  LsSrPolicyCandidatePathDescriptor candidate_path_descriptor = 2;
 }
 
 // LsAddrPrefix represents the NLRI for:
@@ -329,6 +353,7 @@ message LsAddrPrefix {
       LsPrefixV4NLRI prefix_v4 = 3;
       LsPrefixV6NLRI prefix_v6 = 4;
       LsSrv6SIDNLRI srv6_sid = 5;
+      LsSrPolicyCandidatePathNLRI sr_policy_candidate_path = 6;
     }
   }
   LsNLRI nlri = 2;

@@ -25,6 +25,7 @@ goroutine
 goroutines
 grpc
 gzip
+headend
 ibgp
 interwork
 ipproto
