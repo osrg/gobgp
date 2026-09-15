@@ -415,6 +415,9 @@ class GoBGPContainer(BGPContainer):
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv4-mup'}})
                 afi_safi_list.append({'config': {'afi-safi-name': 'ipv6-mup'}})
 
+            if info.get('ls'):
+                afi_safi_list.append({'config': {'afi-safi-name': 'ls'}})
+
             neigh_addr = None
             interface = None
             peer_as = None

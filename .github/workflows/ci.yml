@@ -692,6 +692,22 @@ jobs:
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 -m pytest test/scenario_test/mup_test.py --gobgp-image gobgp -x -s
 
+  bgp-ls:
+    name: bgp-ls
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifact
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          sudo apt-get install python3-setuptools
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 -m pytest test/scenario_test/bgp_ls_test.py --gobgp-image gobgp -x -s
+
   tcp-md5:
     name: tcp-md5
     runs-on: ubuntu-24.04
