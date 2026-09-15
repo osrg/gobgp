@@ -2106,6 +2106,14 @@ func Test_ExtendedCommunitiesAttribute_MUPInvalidSubType(t *testing.T) {
 	}
 }
 
+// A Link-State NLRI type that has no API representation must be reported
+// rather than marshalled as an LsAddrPrefix without an NLRI.
+func Test_MarshalLsNLRIUnhandledType(t *testing.T) {
+	_, err := MarshalNLRI(&bgp.LsAddrPrefix{Type: bgp.LS_NLRI_TYPE_NODE})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported BGP-LS NLRI type")
+}
+
 // A Link-State NLRI whose mandatory sub-messages are omitted must be rejected
 // with an error rather than nil-dereferencing while it is unmarshalled.
 func Test_UnmarshalLsNLRIMissingSubMessages(t *testing.T) {

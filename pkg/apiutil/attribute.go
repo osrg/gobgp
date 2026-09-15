@@ -1727,6 +1727,8 @@ func MarshalNLRI(value bgp.NLRI) (*api.NLRI, error) {
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
 				Identifier: n.Identifier,
 			}}
+		default:
+			return nil, fmt.Errorf("unsupported BGP-LS NLRI type %T", n)
 		}
 	case *bgp.SRPolicyNLRI:
 		nlri.Nlri = &api.NLRI_SrPolicy{SrPolicy: &api.SRPolicyNLRI{
