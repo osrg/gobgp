@@ -4669,6 +4669,14 @@ func Test_LsNodeDescriptor(t *testing.T) {
 	}
 }
 
+func Test_LsProtocolIDString(t *testing.T) {
+	assert.Equal(t, "BGP", LsProtocolID(LS_PROTOCOL_BGP).String())
+	assert.Equal(t, "RSVP-TE", LsProtocolID(LS_PROTOCOL_RSVP_TE).String())
+	assert.Equal(t, "SR", LsProtocolID(LS_PROTOCOL_SEGMENT_ROUTING).String())
+	assert.EqualValues(t, 9, LS_PROTOCOL_SEGMENT_ROUTING)
+	assert.Equal(t, "LsProtocolID(10)", LsProtocolID(10).String())
+}
+
 func Test_LsTLVSerializeLength(t *testing.T) {
 	v4 := netip.MustParseAddr("10.0.0.1")
 	v6 := netip.MustParseAddr("2001:db8::1")
