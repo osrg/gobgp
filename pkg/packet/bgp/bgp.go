@@ -7000,7 +7000,7 @@ func NewLsTLVLocalIPv6RouterID(l *netip.Addr) *LsTLVLocalIPv6RouterID {
 	return &LsTLVLocalIPv6RouterID{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_IPV6_LOCAL_ROUTER_ID,
-			Length: 0,
+			Length: 16,
 		},
 		IP: *l,
 	}
@@ -7057,7 +7057,7 @@ func NewLsTLVRemoteIPv6RouterID(l *netip.Addr) *LsTLVRemoteIPv6RouterID {
 	return &LsTLVRemoteIPv6RouterID{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_IPV6_REMOTE_ROUTER_ID,
-			Length: 4,
+			Length: 16,
 		},
 		IP: *l,
 	}
@@ -10078,7 +10078,7 @@ func NewLsTLVPrefixSID(l *uint32) *LsTLVPrefixSID {
 	return &LsTLVPrefixSID{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_PREFIX_SID,
-			Length: 0,
+			Length: 8,
 		},
 		Flags:     flags, // TODO: Implementation for IGP
 		Algorithm: 0,     // TODO: Implementation for IGP
@@ -10424,7 +10424,7 @@ func NewLsTLVOpaquePrefixAttr(l *[]byte) *LsTLVOpaquePrefixAttr {
 	return &LsTLVOpaquePrefixAttr{
 		LsTLV: LsTLV{
 			Type:   LS_TLV_OPAQUE_PREFIX_ATTR,
-			Length: 0,
+			Length: uint16(len(*l)),
 		},
 		Attr: *l,
 	}
