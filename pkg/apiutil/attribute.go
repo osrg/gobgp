@@ -690,6 +690,8 @@ func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) (*api.LsNodeDescriptor, er
 		IgpRouterId:            d.IGPRouterID,
 		BgpRouterId:            AddrOrEmpty(d.BGPRouterID),
 		BgpConfederationMember: d.BGPConfederationMember,
+		LocalRouterIdIpv4:      AddrOrEmpty(d.LocalRouterID),
+		LocalRouterIdIpv6:      AddrOrEmpty(d.LocalRouterIDv6),
 	}, nil
 }
 
@@ -891,12 +893,24 @@ func UnmarshalLsBgpPeerSegmentSid(a *api.LsBgpPeerSegmentSID) (*bgp.LsBgpPeerSeg
 }
 
 func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor, error) {
+	return unmarshalLsNodeDescriptor(nd, false)
+}
+
+// unmarshalLsNodeDescriptor converts a node descriptor. Only the SR Policy
+// headend descriptor may carry the local Router-ID sub-TLVs (RFC 9857
+// section 3); accepting them for another NLRI type would emit a sub-TLV
+// RFC 9552 does not define there, which receiving speakers drop, so the
+// NLRI would differ between the originator and every downstream speaker.
+func unmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor, headend bool) (*bgp.LsNodeDescriptor, error) {
 	// The Local Node Descriptors TLV "is a mandatory TLV in all three types of
 	// NLRIs (node, link, and prefix)" (RFC 7752, Section 3.2.1.2) and the Remote
 	// Node Descriptors TLV "is a mandatory TLV for Link NLRIs" (Section
 	// 3.2.1.3), so an absent descriptor cannot be defaulted.
 	if nd == nil {
 		return nil, errors.New("LS node descriptor is nil")
+	}
+	if !headend && (nd.LocalRouterIdIpv4 != "" || nd.LocalRouterIdIpv6 != "") {
+		return nil, errors.New("local_router_id_ipv4 and local_router_id_ipv6 are only valid for the SR Policy headend")
 	}
 	// An empty string means the BGP Router-ID is absent. A non-empty one must
 	// parse: silently keeping the zero Addr would make a malformed request
@@ -909,6 +923,22 @@ func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor,
 			return nil, fmt.Errorf("invalid bgp_router_id %q: %w", id, err)
 		}
 	}
+	localRouterID, err := lsParseAddr("local_router_id_ipv4", nd.LocalRouterIdIpv4)
+	if err != nil {
+		return nil, err
+	}
+	if localRouterID.IsValid() && !localRouterID.Is4() {
+		return nil, fmt.Errorf("local_router_id_ipv4 must be an IPv4 address")
+	}
+	localRouterIDv6, err := lsParseAddr("local_router_id_ipv6", nd.LocalRouterIdIpv6)
+	if err != nil {
+		return nil, err
+	}
+	// TLV 1029 only requires 16 octets, so a peer's Router-ID can decode
+	// to an IPv4-mapped address; Is6 is true for one, so it converts back.
+	if localRouterIDv6.IsValid() && !localRouterIDv6.Is6() {
+		return nil, fmt.Errorf("local_router_id_ipv6 must be an IPv6 address")
+	}
 	return &bgp.LsNodeDescriptor{
 		Asn:                    nd.Asn,
 		BGPLsID:                nd.BgpLsId,
@@ -917,6 +947,8 @@ func UnmarshalLsNodeDescriptor(nd *api.LsNodeDescriptor) (*bgp.LsNodeDescriptor,
 		IGPRouterID:            nd.IgpRouterId,
 		BGPRouterID:            bgpRouterId,
 		BGPConfederationMember: nd.BgpConfederationMember,
+		LocalRouterID:          localRouterID,
+		LocalRouterIDv6:        localRouterIDv6,
 	}, nil
 }
 
@@ -1423,6 +1455,15 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		lsAttr.Srv6SID = lsSrv6SID
 	}
 
+	// For AttributeSrPolicy
+	if a.SrPolicy != nil {
+		srPolicy, err := UnmarshalLsAttributeSrPolicy(a.SrPolicy)
+		if err != nil {
+			return nil, err
+		}
+		lsAttr.SrPolicy = *srPolicy
+	}
+
 	return lsAttr, nil
 }
 
@@ -1733,6 +1774,18 @@ func MarshalNLRI(value bgp.NLRI) (*api.NLRI, error) {
 				Type:       api.LsNLRIType_LS_NLRI_TYPE_SRV6_SID,
 				Nlri:       srv6,
 				Length:     uint32(v.Length),
+				ProtocolId: api.LsProtocolID(n.ProtocolID),
+				Identifier: n.Identifier,
+			}}
+		case *bgp.LsSrPolicyCandidatePathNLRI:
+			cp, err := MarshalLsSrPolicyCandidatePathNLRI(n)
+			if err != nil {
+				return nil, err
+			}
+			nlri.Nlri = &api.NLRI_LsAddrPrefix{LsAddrPrefix: &api.LsAddrPrefix{
+				Type:       api.LsNLRIType_LS_NLRI_TYPE_SR_POLICY_CANDIDATE_PATH,
+				Nlri:       cp,
+				Length:     uint32(n.Length),
 				ProtocolId: api.LsProtocolID(n.ProtocolID),
 				Identifier: n.Identifier,
 			}}
@@ -2239,6 +2292,13 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 				Length: uint16(v.Length),
 				NLRI:   srv6SID,
 			}
+
+		case *api.LsAddrPrefix_LsNLRI_SrPolicyCandidatePath:
+			cp, err := UnmarshalLsSrPolicyCandidatePathNLRI(t.SrPolicyCandidatePath, bgp.LsProtocolID(v.ProtocolId), v.Identifier)
+			if err != nil {
+				return nil, err
+			}
+			nlri = cp
 
 		default:
 			return nil, fmt.Errorf("unknown LS prefix type %v", t)
@@ -3088,6 +3148,7 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 		},
 		BgpPeerSegment: bgpPeerSegment,
 		Srv6Sid:        srv6SID,
+		SrPolicy:       MarshalLsAttributeSrPolicy(&attr.SrPolicy),
 	}
 
 	if attr.Node.Flags != nil {

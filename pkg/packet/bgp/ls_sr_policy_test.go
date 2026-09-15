@@ -1125,8 +1125,7 @@ func TestLsSrSegmentSerializeInvalidAddress(t *testing.T) {
 }
 
 // Any 16-octet SID is wire-legal, so a decoded segment must re-serialize
-// even when the SID reads as an IPv4-mapped address that the API-side
-// LsSrSegment.Validate would refuse.
+// even when the SID reads as an IPv4-mapped address.
 func TestLsSrSegmentDecodedAlwaysReserializes(t *testing.T) {
 	wire := lsAttrBytes(
 		srPolicySegmentListTLV(0xc000, 1, srPolicySegmentTLV(2, 0xc000, ip6("::ffff:1.2.3.4"), []byte{0})),

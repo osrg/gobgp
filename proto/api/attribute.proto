@@ -572,12 +572,287 @@ message LsAttributeSrv6SID {
   LsSrv6BgpPeerNodeSID srv6_bgp_peer_node_sid = 3;
 }
 
+// SR Binding SID TLV (RFC 9857 Section 5.1).
+message LsSrBindingSIDFlags {
+  // D-Flag: the Binding SID is an SRv6 SID (set) or an SR-MPLS label (clear).
+  bool srv6 = 1;
+  // B-Flag: the Binding SID is allocated.
+  bool allocated = 2;
+  // U-Flag: the specified Binding SID is unavailable.
+  bool unavailable = 3;
+  // L-Flag: the Binding SID is allocated from the SRLB.
+  bool from_srlb = 4;
+  // F-Flag: the Binding SID was allocated as a fallback.
+  bool fallback = 5;
+}
+
+message LsSrBindingSID {
+  LsSrBindingSIDFlags flags = 1;
+  // Label and specified_label are used when flags.srv6 is false.
+  uint32 label = 2;
+  uint32 specified_label = 3;
+  // Sid and specified_sid are used when flags.srv6 is true.
+  string sid = 4;
+  string specified_sid = 5;
+}
+
+// SRv6 Binding SID TLV (RFC 9857 Section 5.2).
+message LsSrv6BindingSIDFlags {
+  bool allocated = 1;
+  bool unavailable = 2;
+  bool fallback = 3;
+}
+
+message LsSrv6BindingSID {
+  LsSrv6BindingSIDFlags flags = 1;
+  string sid = 2;
+  string specified_sid = 3;
+  LsSrv6EndpointBehavior endpoint_behavior = 4;
+  LsSrv6SIDStructure sid_structure = 5;
+}
+
+// SR Candidate Path State TLV (RFC 9857 Section 5.3).
+message LsSrCandidatePathStateFlags {
+  bool shutdown = 1;
+  bool active = 2;
+  bool backup = 3;
+  bool evaluated = 4;
+  bool valid_sid_list = 5;
+  bool on_demand = 6;
+  bool delegated = 7;
+  bool provisioned = 8;
+  bool drop_upon_invalid = 9;
+  bool transit_eligible = 10;
+  bool dropping = 11;
+}
+
+message LsSrCandidatePathState {
+  uint32 priority = 1;
+  LsSrCandidatePathStateFlags flags = 2;
+  uint32 preference = 3;
+}
+
+// SR Segment Types (RFC 9857 Section 5.7.1, letters follow RFC 9256).
+enum LsSrSegmentType {
+  LS_SR_SEGMENT_TYPE_UNSPECIFIED = 0;
+  LS_SR_SEGMENT_TYPE_A_MPLS_LABEL = 1;
+  LS_SR_SEGMENT_TYPE_B_SRV6_SID = 2;
+  LS_SR_SEGMENT_TYPE_C_IPV4_NODE = 3;
+  LS_SR_SEGMENT_TYPE_D_IPV6_NODE_MPLS = 4;
+  LS_SR_SEGMENT_TYPE_E_IPV4_NODE_INTERFACE = 5;
+  LS_SR_SEGMENT_TYPE_F_IPV4_ADJACENCY = 6;
+  LS_SR_SEGMENT_TYPE_G_IPV6_NODE_INTERFACE_MPLS = 7;
+  LS_SR_SEGMENT_TYPE_H_IPV6_ADJACENCY_MPLS = 8;
+  LS_SR_SEGMENT_TYPE_I_IPV6_NODE_SRV6 = 9;
+  LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6 = 10;
+  LS_SR_SEGMENT_TYPE_K_IPV6_ADJACENCY_SRV6 = 11;
+}
+
+message LsSrSegmentFlags {
+  bool sid_present = 1;
+  bool explicit = 2;
+  bool verified = 3;
+  bool resolved = 4;
+  bool algorithm_valid = 5;
+}
+
+// SR Segment sub-TLV (RFC 9857 Section 5.7.1). Which fields are meaningful
+// depends on the segment type:
+// - label: SR-MPLS types (A, C, D, E, F, G, H); sid: SRv6 types (B, I, J, K)
+// - algorithm: A, B, C, D, I
+// - local_address: node address for C, D, E, I; local address for F, G, H, J, K
+// - remote_address: F, G, H, J, K
+// - local_interface_id: E, G, J; remote_interface_id: G, J
+message LsSrSegment {
+  LsSrSegmentType segment_type = 1;
+  LsSrSegmentFlags flags = 2;
+  uint32 label = 3;
+  string sid = 4;
+  uint32 algorithm = 5;
+  string local_address = 6;
+  string remote_address = 7;
+  uint32 local_interface_id = 8;
+  uint32 remote_interface_id = 9;
+  LsSrv6EndpointBehavior endpoint_behavior = 10;
+  LsSrv6SIDStructure sid_structure = 11;
+}
+
+message LsSrSegmentListFlags {
+  bool srv6 = 1;
+  bool explicit = 2;
+  bool computed = 3;
+  bool verified = 4;
+  bool resolved = 5;
+  bool failed = 6;
+  bool all_algorithm = 7;
+  bool all_topology = 8;
+  bool removed_by_fault = 9;
+}
+
+message LsSrSegmentListMetricFlags {
+  bool margin = 1;
+  bool absolute = 2;
+  bool bound = 3;
+  bool value = 4;
+}
+
+// SR Segment List Metric sub-TLV (RFC 9857 Section 5.7.2).
+message LsSrSegmentListMetric {
+  uint32 metric_type = 1;
+  LsSrSegmentListMetricFlags flags = 2;
+  uint32 margin = 3;
+  uint32 bound = 4;
+  uint32 value = 5;
+}
+
+// SR Segment List Bandwidth sub-TLV (RFC 9857 Section 5.7.3), bytes per second.
+message LsSrSegmentListBandwidth {
+  float bandwidth = 1;
+}
+
+// SR Segment List Identifier sub-TLV (RFC 9857 Section 5.7.4).
+message LsSrSegmentListIdentifier {
+  uint32 identifier = 1;
+}
+
+// SR Segment List TLV (RFC 9857 Section 5.7).
+message LsSrSegmentList {
+  LsSrSegmentListFlags flags = 1;
+  uint32 mtid = 2;
+  uint32 algorithm = 3;
+  uint32 weight = 4;
+  repeated LsSrSegment segments = 5;
+  repeated LsSrSegmentListMetric metrics = 6;
+  LsSrSegmentListBandwidth bandwidth = 7;
+  LsSrSegmentListIdentifier identifier = 8;
+}
+
+// Flags of the SR Candidate Path Constraints TLV (RFC 9857 Section 5.6).
+message LsSrCandidatePathConstraintsFlags {
+  // D-Flag: the candidate path uses an SRv6 data plane.
+  bool srv6 = 1;
+  // P-Flag: prefer only protected SIDs.
+  bool protected_only = 2;
+  // U-Flag: prefer only unprotected SIDs.
+  bool unprotected_only = 3;
+  // A-Flag: use only SIDs of the specified algorithm.
+  bool algorithm_only = 4;
+  // T-Flag: use only SIDs of the specified topology.
+  bool topology_only = 5;
+  // S-Flag: P or U is a strict constraint rather than a preference.
+  bool strict = 6;
+  // F-Flag: the path is fixed once computed.
+  bool fixed = 7;
+  // H-Flag: the path uses only hop-by-hop adjacency SIDs.
+  bool hop_by_hop = 8;
+}
+
+// SR Affinity Constraint sub-TLV (RFC 9857 Section 5.6.1). Each Extended
+// Administrative Group is a list of 32-bit words, the first word holding
+// bits 0 to 31.
+message LsSrAffinityConstraint {
+  repeated uint32 exclude_any = 1;
+  repeated uint32 include_any = 2;
+  repeated uint32 include_all = 3;
+}
+
+// SR Bandwidth Constraint sub-TLV (RFC 9857 Section 5.6.3), bytes per second.
+message LsSrBandwidthConstraint {
+  float bandwidth = 1;
+}
+
+message LsSrDisjointGroupRequestFlags {
+  bool srlg = 1;
+  bool node = 2;
+  bool link = 3;
+  bool fallback = 4;
+  bool best_path_fallback = 5;
+}
+
+message LsSrDisjointGroupStatusFlags {
+  bool srlg = 1;
+  bool node = 2;
+  bool link = 3;
+  bool fallback = 4;
+  bool best_path_fallback = 5;
+  bool invalidated = 6;
+}
+
+// SR Disjoint Group Constraint sub-TLV (RFC 9857 Section 5.6.4). The group
+// is identified by group_id, or by pcep_association when the producer
+// encoded a whole PCEP ASSOCIATION Object instead of a 4-octet identifier.
+message LsSrDisjointGroupConstraint {
+  LsSrDisjointGroupRequestFlags request_flags = 1;
+  LsSrDisjointGroupStatusFlags status_flags = 2;
+  uint32 group_id = 3;
+  bytes pcep_association = 4;
+}
+
+message LsSrBidirectionalGroupFlags {
+  // R-Flag: the candidate path forms the reverse path.
+  bool reverse = 1;
+  // C-Flag: the bidirectional path is co-routed.
+  bool co_routed = 2;
+}
+
+// SR Bidirectional Group Constraint sub-TLV (RFC 9857 Section 5.6.5).
+message LsSrBidirectionalGroupConstraint {
+  LsSrBidirectionalGroupFlags flags = 1;
+  uint32 group_id = 2;
+  bytes pcep_association = 3;
+}
+
+message LsSrMetricConstraintFlags {
+  // O-Flag: this is the optimization metric of a dynamic path.
+  bool optimization = 1;
+  // M-Flag: margin is specified.
+  bool margin = 2;
+  // A-Flag: the margin is an absolute value rather than a percentage.
+  bool absolute = 3;
+  // B-Flag: bound is specified.
+  bool bound = 4;
+}
+
+// SR Metric Constraint sub-TLV (RFC 9857 Section 5.6.6).
+message LsSrMetricConstraint {
+  uint32 metric_type = 1;
+  LsSrMetricConstraintFlags flags = 2;
+  uint32 margin = 3;
+  uint32 bound = 4;
+}
+
+// SR Candidate Path Constraints TLV (RFC 9857 Section 5.6).
+message LsSrCandidatePathConstraints {
+  LsSrCandidatePathConstraintsFlags flags = 1;
+  uint32 mtid = 2;
+  uint32 algorithm = 3;
+  LsSrAffinityConstraint affinity = 4;
+  // SR SRLG Constraint sub-TLV (RFC 9857 Section 5.6.2).
+  repeated uint32 srlgs = 5;
+  LsSrBandwidthConstraint bandwidth = 6;
+  LsSrDisjointGroupConstraint disjoint_group = 7;
+  LsSrBidirectionalGroupConstraint bidirectional_group = 8;
+  repeated LsSrMetricConstraint metrics = 9;
+}
+
+// BGP-LS attribute TLVs of an SR Policy Candidate Path NLRI (RFC 9857 Section 5).
+message LsAttributeSrPolicy {
+  LsSrBindingSID binding_sid = 1;
+  repeated LsSrv6BindingSID srv6_binding_sids = 2;
+  LsSrCandidatePathState state = 3;
+  optional string candidate_path_name = 4;
+  optional string policy_name = 5;
+  repeated LsSrSegmentList segment_lists = 6;
+  LsSrCandidatePathConstraints constraints = 7;
+}
+
 message LsAttribute {
   LsAttributeNode node = 1;
   LsAttributeLink link = 2;
   LsAttributePrefix prefix = 3;
   LsAttributeBgpPeerSegment bgp_peer_segment = 4;
   LsAttributeSrv6SID srv6_sid = 5;
+  LsAttributeSrPolicy sr_policy = 6;
 }
 
 message UnknownAttribute {

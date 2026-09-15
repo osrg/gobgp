@@ -2150,6 +2150,45 @@ func Test_ExtendedCommunitiesAttribute_MUPInvalidSubType(t *testing.T) {
 	}
 }
 
+func Test_LsNodeDescriptorLocalRouterIDRoundTrip(t *testing.T) {
+	in := &api.LsNodeDescriptor{Asn: 65001, BgpRouterId: "1.1.1.1", LocalRouterIdIpv4: "10.0.0.1", LocalRouterIdIpv6: "2001:db8::1"}
+
+	// Only the SR Policy headend descriptor may carry the Router-IDs; any
+	// other NLRI type would emit a sub-TLV RFC 9552 does not define there.
+	_, err := UnmarshalLsNodeDescriptor(in)
+	require.ErrorContains(t, err, "only valid for the SR Policy headend")
+
+	native, err := unmarshalLsNodeDescriptor(in, true)
+	require.NoError(t, err)
+	assert.Equal(t, netip.MustParseAddr("10.0.0.1"), native.LocalRouterID)
+	assert.Equal(t, netip.MustParseAddr("2001:db8::1"), native.LocalRouterIDv6)
+	out, err := MarshalLsNodeDescriptor(native)
+	require.NoError(t, err)
+	assert.True(t, proto.Equal(in, out), "got %v", out)
+
+	// Absent Router-IDs stay absent.
+	out, err = MarshalLsNodeDescriptor(&bgp.LsNodeDescriptor{Asn: 65001})
+	require.NoError(t, err)
+	assert.Empty(t, out.LocalRouterIdIpv4)
+	assert.Empty(t, out.LocalRouterIdIpv6)
+
+	for _, tt := range []struct {
+		name string
+		nd   *api.LsNodeDescriptor
+	}{
+		{"unparseable", &api.LsNodeDescriptor{LocalRouterIdIpv4: "x"}},
+		{"ipv6 in the ipv4 field", &api.LsNodeDescriptor{LocalRouterIdIpv4: "2001:db8::1"}},
+		{"ipv4 in the ipv6 field", &api.LsNodeDescriptor{LocalRouterIdIpv6: "10.0.0.1"}},
+		{"ipv4-mapped ipv6", &api.LsNodeDescriptor{LocalRouterIdIpv6: "::ffff:10.0.0.1"}},
+		{"zone", &api.LsNodeDescriptor{LocalRouterIdIpv6: "fe80::1%eth0"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := UnmarshalLsNodeDescriptor(tt.nd)
+			assert.Error(t, err)
+		})
+	}
+}
+
 // A Link-State NLRI type that has no API representation must be reported
 // rather than marshalled as an LsAddrPrefix without an NLRI.
 func Test_MarshalLsNLRIUnhandledType(t *testing.T) {
