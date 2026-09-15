@@ -823,7 +823,6 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	}
 }
 
-// NexthopLookup exists in only quagga (zebra API version 2 and 3)
 func Test_IPRouteBody_SerializeWithoutLabelsFrr6To7dot2(t *testing.T) {
 	// Before frr7.3 the nexthop label_num octet is only present when the route
 	// carries MessageLabel, so a route without labels must round-trip through
@@ -864,6 +863,7 @@ func Test_IPRouteBody_SerializeWithoutLabelsFrr6To7dot2(t *testing.T) {
 	}
 }
 
+// NexthopLookup exists in only quagga (zebra API version 2 and 3)
 func Test_nexthopLookupBody(t *testing.T) {
 	assert := assert.New(t)
 
