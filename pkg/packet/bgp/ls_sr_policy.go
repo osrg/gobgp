@@ -12,10 +12,12 @@ package bgp
 //   - SR Segment List TLV (1205) with its sub-TLVs: SR Segment (1206),
 //     SR Segment List Metric (1207), SR Segment List Bandwidth (1216) and
 //     SR Segment List Identifier (1217)
+//   - SR Candidate Path Constraints TLV (1204) with its sub-TLVs: SR
+//     Affinity Constraint (1208), SR SRLG Constraint (1209), SR Bandwidth
+//     Constraint (1210), SR Disjoint Group Constraint (1211), SR
+//     Bidirectional Group Constraint (1214) and SR Metric Constraint (1215)
 //
-// Not decoded yet: the SR Candidate Path Constraints TLV (1204);
-// PathAttributeLs keeps it as an opaque TLV. Unknown TLVs nested in the
-// decoded ones are kept opaque and re-serialized as received.
+// Unknown TLVs nested in these are kept opaque and re-serialized as received.
 
 import (
 	"encoding/binary"
@@ -24,6 +26,7 @@ import (
 	"fmt"
 	"math"
 	"net/netip"
+	"strconv"
 	"strings"
 )
 
@@ -1934,12 +1937,905 @@ func (l *LsTLVSrSegmentList) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
+// SR Candidate Path Constraints TLV (1204), RFC 9857 Section 5.6
+
+const (
+	lsSrCPConstraintsFlagSRv6            uint16 = 1 << 15 // D-Flag
+	lsSrCPConstraintsFlagProtectedOnly   uint16 = 1 << 14 // P-Flag
+	lsSrCPConstraintsFlagUnprotectedOnly uint16 = 1 << 13 // U-Flag
+	lsSrCPConstraintsFlagAlgorithmOnly   uint16 = 1 << 12 // A-Flag
+	lsSrCPConstraintsFlagTopologyOnly    uint16 = 1 << 11 // T-Flag
+	lsSrCPConstraintsFlagStrict          uint16 = 1 << 10 // S-Flag
+	lsSrCPConstraintsFlagFixed           uint16 = 1 << 9  // F-Flag
+	lsSrCPConstraintsFlagHopByHop        uint16 = 1 << 8  // H-Flag
+)
+
+type LsSrCandidatePathConstraintsFlags struct {
+	SRv6            bool `json:"srv6"`
+	ProtectedOnly   bool `json:"protected_only"`
+	UnprotectedOnly bool `json:"unprotected_only"`
+	AlgorithmOnly   bool `json:"algorithm_only"`
+	TopologyOnly    bool `json:"topology_only"`
+	Strict          bool `json:"strict"`
+	Fixed           bool `json:"fixed"`
+	HopByHop        bool `json:"hop_by_hop"`
+}
+
+// LsSrCandidatePathConstraints is the native model of the SR Candidate Path
+// Constraints TLV. The single-instance sub-TLVs are pointers or slices that
+// are empty when absent; the Metric Constraint sub-TLV may appear once per
+// metric type.
+type LsSrCandidatePathConstraints struct {
+	Flags              LsSrCandidatePathConstraintsFlags `json:"flags"`
+	MTID               uint16                            `json:"mtid"`
+	Algorithm          uint8                             `json:"algorithm"`
+	Affinity           *LsSrAffinityConstraint           `json:"affinity,omitempty"`
+	SRLGs              []uint32                          `json:"srlgs,omitempty"`
+	Bandwidth          *float32                          `json:"bandwidth,omitempty"`
+	DisjointGroup      *LsSrDisjointGroupConstraint      `json:"disjoint_group,omitempty"`
+	BidirectionalGroup *LsSrBidirectionalGroupConstraint `json:"bidirectional_group,omitempty"`
+	Metrics            []LsSrMetricConstraint            `json:"metrics,omitempty"`
+}
+
+type LsTLVSrCandidatePathConstraints struct {
+	LsTLV
+	Flags     uint16
+	MTID      uint16
+	Algorithm uint8
+	SubTLVs   []LsTLVInterface
+}
+
+const lsSrCPConstraintsFixedLen = 8
+
+func NewLsTLVSrCandidatePathConstraints(c *LsSrCandidatePathConstraints) *LsTLVSrCandidatePathConstraints {
+	var flags uint16
+	set := func(on bool, bit uint16) {
+		if on {
+			flags |= bit
+		}
+	}
+	set(c.Flags.SRv6, lsSrCPConstraintsFlagSRv6)
+	set(c.Flags.ProtectedOnly, lsSrCPConstraintsFlagProtectedOnly)
+	set(c.Flags.UnprotectedOnly, lsSrCPConstraintsFlagUnprotectedOnly)
+	set(c.Flags.AlgorithmOnly, lsSrCPConstraintsFlagAlgorithmOnly)
+	set(c.Flags.TopologyOnly, lsSrCPConstraintsFlagTopologyOnly)
+	set(c.Flags.Strict, lsSrCPConstraintsFlagStrict)
+	set(c.Flags.Fixed, lsSrCPConstraintsFlagFixed)
+	set(c.Flags.HopByHop, lsSrCPConstraintsFlagHopByHop)
+
+	subTLVs := []LsTLVInterface{}
+	if c.Affinity != nil {
+		subTLVs = append(subTLVs, NewLsTLVSrAffinityConstraint(c.Affinity))
+	}
+	if len(c.SRLGs) > 0 {
+		subTLVs = append(subTLVs, NewLsTLVSrSRLGConstraint(c.SRLGs))
+	}
+	if c.Bandwidth != nil {
+		subTLVs = append(subTLVs, NewLsTLVSrBandwidthConstraint(c.Bandwidth))
+	}
+	if c.DisjointGroup != nil {
+		subTLVs = append(subTLVs, NewLsTLVSrDisjointGroupConstraint(c.DisjointGroup))
+	}
+	if c.BidirectionalGroup != nil {
+		subTLVs = append(subTLVs, NewLsTLVSrBidirectionalGroupConstraint(c.BidirectionalGroup))
+	}
+	for i := range c.Metrics {
+		subTLVs = append(subTLVs, NewLsTLVSrMetricConstraint(&c.Metrics[i]))
+	}
+
+	return &LsTLVSrCandidatePathConstraints{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_CP_CONSTRAINTS,
+			Length: uint16(lsSrCPConstraintsFixedLen + lsSubTLVsLen(subTLVs)),
+		},
+		Flags:     flags,
+		MTID:      c.MTID,
+		Algorithm: c.Algorithm,
+		SubTLVs:   subTLVs,
+	}
+}
+
+// Extract returns the native model. Single-instance sub-TLVs use the first
+// instance; the rest are ignored as RFC 9857 requires.
+func (l *LsTLVSrCandidatePathConstraints) Extract() *LsSrCandidatePathConstraints {
+	c := &LsSrCandidatePathConstraints{
+		Flags: LsSrCandidatePathConstraintsFlags{
+			SRv6:            l.Flags&lsSrCPConstraintsFlagSRv6 != 0,
+			ProtectedOnly:   l.Flags&lsSrCPConstraintsFlagProtectedOnly != 0,
+			UnprotectedOnly: l.Flags&lsSrCPConstraintsFlagUnprotectedOnly != 0,
+			AlgorithmOnly:   l.Flags&lsSrCPConstraintsFlagAlgorithmOnly != 0,
+			TopologyOnly:    l.Flags&lsSrCPConstraintsFlagTopologyOnly != 0,
+			Strict:          l.Flags&lsSrCPConstraintsFlagStrict != 0,
+			Fixed:           l.Flags&lsSrCPConstraintsFlagFixed != 0,
+			HopByHop:        l.Flags&lsSrCPConstraintsFlagHopByHop != 0,
+		},
+		MTID:      l.MTID,
+		Algorithm: l.Algorithm,
+	}
+
+	for _, sub := range l.SubTLVs {
+		switch v := sub.(type) {
+		case *LsTLVSrAffinityConstraint:
+			if c.Affinity == nil {
+				c.Affinity = v.Extract()
+			}
+		case *LsTLVSrSRLGConstraint:
+			if c.SRLGs == nil {
+				c.SRLGs = append([]uint32(nil), v.SRLGs...)
+			}
+		case *LsTLVSrBandwidthConstraint:
+			if c.Bandwidth == nil && lsValidBandwidth(v.Bandwidth) {
+				bw := v.Bandwidth
+				c.Bandwidth = &bw
+			}
+		case *LsTLVSrDisjointGroupConstraint:
+			if c.DisjointGroup == nil {
+				c.DisjointGroup = v.Extract()
+			}
+		case *LsTLVSrBidirectionalGroupConstraint:
+			if c.BidirectionalGroup == nil {
+				c.BidirectionalGroup = v.Extract()
+			}
+		case *LsTLVSrMetricConstraint:
+			c.Metrics = append(c.Metrics, *v.Extract())
+		}
+	}
+
+	return c
+}
+
+func lsSrCPConstraintsSubTLVAlloc(t LsTLVType) LsTLVInterface {
+	switch t {
+	case LS_TLV_SR_AFFINITY_CONSTRAINT:
+		return &LsTLVSrAffinityConstraint{}
+	case LS_TLV_SR_SRLG_CONSTRAINT:
+		return &LsTLVSrSRLGConstraint{}
+	case LS_TLV_SR_BANDWIDTH_CONSTRAINT:
+		return &LsTLVSrBandwidthConstraint{}
+	case LS_TLV_SR_DISJOINT_GROUP_CONSTRAINT:
+		return &LsTLVSrDisjointGroupConstraint{}
+	case LS_TLV_SR_BIDIR_GROUP_CONSTRAINT:
+		return &LsTLVSrBidirectionalGroupConstraint{}
+	case LS_TLV_SR_METRIC_CONSTRAINT:
+		return &LsTLVSrMetricConstraint{}
+	}
+	return nil
+}
+
+func (l *LsTLVSrCandidatePathConstraints) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_CP_CONSTRAINTS {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < lsSrCPConstraintsFixedLen {
+		return malformedAttrListErr("Incorrect SR Candidate Path Constraints length")
+	}
+
+	l.Flags = binary.BigEndian.Uint16(value[:2])
+	// value[2:4] is reserved and ignored.
+	l.MTID = binary.BigEndian.Uint16(value[4:6])
+	l.Algorithm = value[6]
+	// value[7] is reserved and ignored.
+
+	l.SubTLVs, err = lsWalkSubTLVs(value[lsSrCPConstraintsFixedLen:], lsSrCPConstraintsSubTLVAlloc)
+	return err
+}
+
+func (l *LsTLVSrCandidatePathConstraints) Serialize() ([]byte, error) {
+	buf := make([]byte, lsSrCPConstraintsFixedLen)
+	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+	binary.BigEndian.PutUint16(buf[4:6], l.MTID)
+	buf[6] = l.Algorithm
+
+	sub, err := lsSerializeSubTLVs(l.SubTLVs)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, sub...)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrCandidatePathConstraints) String() string {
+	subs := make([]string, 0, len(l.SubTLVs))
+	for _, sub := range l.SubTLVs {
+		subs = append(subs, sub.String())
+	}
+	s := fmt.Sprintf("{SR CP Constraints: MTID:%d Algo:%d Flags:%s", l.MTID, l.Algorithm, lsFlagLetters(l.Flags, "DPUATSFH"))
+	if len(subs) > 0 {
+		s += " " + strings.Join(subs, " ")
+	}
+	return s + "}"
+}
+
+func (l *LsTLVSrCandidatePathConstraints) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrCandidatePathConstraints
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrCandidatePathConstraints) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Affinity Constraint sub-TLV (1208), RFC 9857 Section 5.6.1
+
+// LsSrAffinityConstraint carries the Extended Administrative Group (RFC 7308)
+// bit masks of the candidate path. Each mask is a sequence of 32-bit words,
+// the first word holding bits 0 to 31.
+type LsSrAffinityConstraint struct {
+	ExcludeAny []uint32 `json:"exclude_any,omitempty"`
+	IncludeAny []uint32 `json:"include_any,omitempty"`
+	IncludeAll []uint32 `json:"include_all,omitempty"`
+}
+
+type LsTLVSrAffinityConstraint struct {
+	LsTLV
+	ExcludeAny []uint32
+	IncludeAny []uint32
+	IncludeAll []uint32
+}
+
+// lsSrEAGMaxWords is the largest bit mask a 1-octet size field can describe.
+const lsSrEAGMaxWords = 0xff
+
+func NewLsTLVSrAffinityConstraint(a *LsSrAffinityConstraint) *LsTLVSrAffinityConstraint {
+	return &LsTLVSrAffinityConstraint{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_AFFINITY_CONSTRAINT,
+			Length: uint16(4 + 4*(len(a.ExcludeAny)+len(a.IncludeAny)+len(a.IncludeAll))),
+		},
+		ExcludeAny: append([]uint32(nil), a.ExcludeAny...),
+		IncludeAny: append([]uint32(nil), a.IncludeAny...),
+		IncludeAll: append([]uint32(nil), a.IncludeAll...),
+	}
+}
+
+func (l *LsTLVSrAffinityConstraint) Extract() *LsSrAffinityConstraint {
+	return &LsSrAffinityConstraint{
+		ExcludeAny: append([]uint32(nil), l.ExcludeAny...),
+		IncludeAny: append([]uint32(nil), l.IncludeAny...),
+		IncludeAll: append([]uint32(nil), l.IncludeAll...),
+	}
+}
+
+func lsSrEAGWords(b []byte) []uint32 {
+	if len(b) == 0 {
+		return nil
+	}
+	words := make([]uint32, 0, len(b)/4)
+	for i := 0; i+4 <= len(b); i += 4 {
+		words = append(words, binary.BigEndian.Uint32(b[i:i+4]))
+	}
+	return words
+}
+
+func lsSrEAGBytes(words []uint32) []byte {
+	b := make([]byte, 0, 4*len(words))
+	for _, w := range words {
+		b = binary.BigEndian.AppendUint32(b, w)
+	}
+	return b
+}
+
+func lsSrEAGString(words []uint32) string {
+	if len(words) == 0 {
+		return "-"
+	}
+	s := make([]string, 0, len(words))
+	for _, w := range words {
+		s = append(s, fmt.Sprintf("0x%08x", w))
+	}
+	return strings.Join(s, ",")
+}
+
+func (l *LsTLVSrAffinityConstraint) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_AFFINITY_CONSTRAINT {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 4 {
+		return malformedAttrListErr("Incorrect SR Affinity Constraint length")
+	}
+
+	exclAny, inclAny, inclAll := int(value[0]), int(value[1]), int(value[2])
+	// value[3] is reserved and ignored.
+	if len(value) != 4+4*(exclAny+inclAny+inclAll) {
+		return malformedAttrListErr("SR Affinity Constraint length does not match the EAG sizes")
+	}
+
+	rest := value[4:]
+	l.ExcludeAny = lsSrEAGWords(rest[:4*exclAny])
+	rest = rest[4*exclAny:]
+	l.IncludeAny = lsSrEAGWords(rest[:4*inclAny])
+	rest = rest[4*inclAny:]
+	l.IncludeAll = lsSrEAGWords(rest[:4*inclAll])
+
+	return nil
+}
+
+func (l *LsTLVSrAffinityConstraint) Serialize() ([]byte, error) {
+	if len(l.ExcludeAny) > lsSrEAGMaxWords || len(l.IncludeAny) > lsSrEAGMaxWords || len(l.IncludeAll) > lsSrEAGMaxWords {
+		return nil, errors.New("SR Affinity Constraint EAG exceeds 255 words")
+	}
+
+	buf := []byte{byte(len(l.ExcludeAny)), byte(len(l.IncludeAny)), byte(len(l.IncludeAll)), 0}
+	buf = append(buf, lsSrEAGBytes(l.ExcludeAny)...)
+	buf = append(buf, lsSrEAGBytes(l.IncludeAny)...)
+	buf = append(buf, lsSrEAGBytes(l.IncludeAll)...)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrAffinityConstraint) String() string {
+	return fmt.Sprintf("{Affinity: ExclAny:%s InclAny:%s InclAll:%s}",
+		lsSrEAGString(l.ExcludeAny), lsSrEAGString(l.IncludeAny), lsSrEAGString(l.IncludeAll))
+}
+
+func (l *LsTLVSrAffinityConstraint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrAffinityConstraint
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrAffinityConstraint) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR SRLG Constraint sub-TLV (1209), RFC 9857 Section 5.6.2
+
+type LsTLVSrSRLGConstraint struct {
+	LsTLV
+	SRLGs []uint32
+}
+
+func NewLsTLVSrSRLGConstraint(srlgs []uint32) *LsTLVSrSRLGConstraint {
+	return &LsTLVSrSRLGConstraint{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_SRLG_CONSTRAINT,
+			Length: uint16(4 * len(srlgs)),
+		},
+		SRLGs: append([]uint32(nil), srlgs...),
+	}
+}
+
+func (l *LsTLVSrSRLGConstraint) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_SRLG_CONSTRAINT {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) == 0 || len(value)%4 != 0 {
+		return malformedAttrListErr("Incorrect SR SRLG Constraint length")
+	}
+
+	l.SRLGs = lsSrEAGWords(value)
+
+	return nil
+}
+
+func (l *LsTLVSrSRLGConstraint) Serialize() ([]byte, error) {
+	if len(l.SRLGs) == 0 {
+		return nil, errors.New("SR SRLG Constraint requires at least one SRLG")
+	}
+	return l.LsTLV.Serialize(lsSrEAGBytes(l.SRLGs))
+}
+
+func (l *LsTLVSrSRLGConstraint) String() string {
+	return fmt.Sprintf("{SRLG: %v}", l.SRLGs)
+}
+
+func (l *LsTLVSrSRLGConstraint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		SRLGs []uint32  `json:"srlgs"`
+	}{
+		l.Type,
+		l.SRLGs,
+	})
+}
+
+func (l *LsTLVSrSRLGConstraint) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Bandwidth Constraint sub-TLV (1210), RFC 9857 Section 5.6.3
+
+type LsTLVSrBandwidthConstraint struct {
+	LsTLV
+	Bandwidth float32
+}
+
+func NewLsTLVSrBandwidthConstraint(bw *float32) *LsTLVSrBandwidthConstraint {
+	return &LsTLVSrBandwidthConstraint{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_BANDWIDTH_CONSTRAINT,
+			Length: 4,
+		},
+		Bandwidth: *bw,
+	}
+}
+
+func (l *LsTLVSrBandwidthConstraint) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_BANDWIDTH_CONSTRAINT {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect SR Bandwidth Constraint length")
+	}
+
+	// The value is not checked: RFC 9552 section 8.2.2 forbids treating
+	// the attribute as malformed based on TLV contents. lsValidBandwidth
+	// keeps a nonsensical value out of the model instead.
+	l.Bandwidth = math.Float32frombits(binary.BigEndian.Uint32(value))
+
+	return nil
+}
+
+func (l *LsTLVSrBandwidthConstraint) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, math.Float32bits(l.Bandwidth))
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrBandwidthConstraint) String() string {
+	return fmt.Sprintf("{Bandwidth: %v}", l.Bandwidth)
+}
+
+func (l *LsTLVSrBandwidthConstraint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsTLVType `json:"type"`
+		Bandwidth float32   `json:"bandwidth"`
+	}{
+		l.Type,
+		l.Bandwidth,
+	})
+}
+
+func (l *LsTLVSrBandwidthConstraint) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// Group identifiers shared by the Disjoint Group and Bidirectional Group
+// Constraint sub-TLVs. The identifier is a 4-octet group ID, or the whole
+// PCEP ASSOCIATION Object when the producer cannot map it to 4 octets.
+
+func lsSrGroupIdentifier(groupID uint32, association []byte) []byte {
+	if len(association) > 0 {
+		return append([]byte(nil), association...)
+	}
+	return binary.BigEndian.AppendUint32(nil, groupID)
+}
+
+func lsSrGroupIdentifierSplit(id []byte) (uint32, []byte) {
+	if len(id) == 4 {
+		return binary.BigEndian.Uint32(id), nil
+	}
+	return 0, append([]byte(nil), id...)
+}
+
+func lsSrGroupIdentifierString(id []byte) string {
+	if len(id) == 4 {
+		return strconv.FormatUint(uint64(binary.BigEndian.Uint32(id)), 10)
+	}
+	return fmt.Sprintf("%x", id)
+}
+
+// SR Disjoint Group Constraint sub-TLV (1211), RFC 9857 Section 5.6.4
+
+const (
+	lsSrDisjointGroupFlagSRLG             uint8 = 1 << 7 // S-Flag
+	lsSrDisjointGroupFlagNode             uint8 = 1 << 6 // N-Flag
+	lsSrDisjointGroupFlagLink             uint8 = 1 << 5 // L-Flag
+	lsSrDisjointGroupFlagFallback         uint8 = 1 << 4 // F-Flag
+	lsSrDisjointGroupFlagBestPathFallback uint8 = 1 << 3 // I-Flag
+	lsSrDisjointGroupFlagInvalidated      uint8 = 1 << 2 // X-Flag, status only
+)
+
+type LsSrDisjointGroupRequestFlags struct {
+	SRLG             bool `json:"srlg"`
+	Node             bool `json:"node"`
+	Link             bool `json:"link"`
+	Fallback         bool `json:"fallback"`
+	BestPathFallback bool `json:"best_path_fallback"`
+}
+
+type LsSrDisjointGroupStatusFlags struct {
+	SRLG             bool `json:"srlg"`
+	Node             bool `json:"node"`
+	Link             bool `json:"link"`
+	Fallback         bool `json:"fallback"`
+	BestPathFallback bool `json:"best_path_fallback"`
+	Invalidated      bool `json:"invalidated"`
+}
+
+type LsSrDisjointGroupConstraint struct {
+	RequestFlags    LsSrDisjointGroupRequestFlags `json:"request_flags"`
+	StatusFlags     LsSrDisjointGroupStatusFlags  `json:"status_flags"`
+	GroupID         uint32                        `json:"group_id"`
+	PcepAssociation []byte                        `json:"pcep_association,omitempty"`
+}
+
+type LsTLVSrDisjointGroupConstraint struct {
+	LsTLV
+	RequestFlags uint8
+	StatusFlags  uint8
+	Identifier   []byte
+}
+
+func NewLsTLVSrDisjointGroupConstraint(d *LsSrDisjointGroupConstraint) *LsTLVSrDisjointGroupConstraint {
+	var request, status uint8
+	set := func(flags *uint8, on bool, bit uint8) {
+		if on {
+			*flags |= bit
+		}
+	}
+	set(&request, d.RequestFlags.SRLG, lsSrDisjointGroupFlagSRLG)
+	set(&request, d.RequestFlags.Node, lsSrDisjointGroupFlagNode)
+	set(&request, d.RequestFlags.Link, lsSrDisjointGroupFlagLink)
+	set(&request, d.RequestFlags.Fallback, lsSrDisjointGroupFlagFallback)
+	set(&request, d.RequestFlags.BestPathFallback, lsSrDisjointGroupFlagBestPathFallback)
+	set(&status, d.StatusFlags.SRLG, lsSrDisjointGroupFlagSRLG)
+	set(&status, d.StatusFlags.Node, lsSrDisjointGroupFlagNode)
+	set(&status, d.StatusFlags.Link, lsSrDisjointGroupFlagLink)
+	set(&status, d.StatusFlags.Fallback, lsSrDisjointGroupFlagFallback)
+	set(&status, d.StatusFlags.BestPathFallback, lsSrDisjointGroupFlagBestPathFallback)
+	set(&status, d.StatusFlags.Invalidated, lsSrDisjointGroupFlagInvalidated)
+
+	id := lsSrGroupIdentifier(d.GroupID, d.PcepAssociation)
+	return &LsTLVSrDisjointGroupConstraint{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_DISJOINT_GROUP_CONSTRAINT,
+			Length: uint16(4 + len(id)),
+		},
+		RequestFlags: request,
+		StatusFlags:  status,
+		Identifier:   id,
+	}
+}
+
+func (l *LsTLVSrDisjointGroupConstraint) Extract() *LsSrDisjointGroupConstraint {
+	groupID, association := lsSrGroupIdentifierSplit(l.Identifier)
+	return &LsSrDisjointGroupConstraint{
+		RequestFlags: LsSrDisjointGroupRequestFlags{
+			SRLG:             l.RequestFlags&lsSrDisjointGroupFlagSRLG != 0,
+			Node:             l.RequestFlags&lsSrDisjointGroupFlagNode != 0,
+			Link:             l.RequestFlags&lsSrDisjointGroupFlagLink != 0,
+			Fallback:         l.RequestFlags&lsSrDisjointGroupFlagFallback != 0,
+			BestPathFallback: l.RequestFlags&lsSrDisjointGroupFlagBestPathFallback != 0,
+		},
+		StatusFlags: LsSrDisjointGroupStatusFlags{
+			SRLG:             l.StatusFlags&lsSrDisjointGroupFlagSRLG != 0,
+			Node:             l.StatusFlags&lsSrDisjointGroupFlagNode != 0,
+			Link:             l.StatusFlags&lsSrDisjointGroupFlagLink != 0,
+			Fallback:         l.StatusFlags&lsSrDisjointGroupFlagFallback != 0,
+			BestPathFallback: l.StatusFlags&lsSrDisjointGroupFlagBestPathFallback != 0,
+			Invalidated:      l.StatusFlags&lsSrDisjointGroupFlagInvalidated != 0,
+		},
+		GroupID:         groupID,
+		PcepAssociation: association,
+	}
+}
+
+func (l *LsTLVSrDisjointGroupConstraint) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_DISJOINT_GROUP_CONSTRAINT {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 8 {
+		return malformedAttrListErr("Incorrect SR Disjoint Group Constraint length")
+	}
+
+	l.RequestFlags = value[0]
+	l.StatusFlags = value[1]
+	// value[2:4] is reserved and ignored.
+	l.Identifier = append([]byte(nil), value[4:]...)
+
+	return nil
+}
+
+func (l *LsTLVSrDisjointGroupConstraint) Serialize() ([]byte, error) {
+	if len(l.Identifier) < 4 {
+		return nil, errors.New("SR Disjoint Group Constraint requires a group identifier")
+	}
+	buf := []byte{l.RequestFlags, l.StatusFlags, 0, 0}
+	buf = append(buf, l.Identifier...)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrDisjointGroupConstraint) String() string {
+	return fmt.Sprintf("{Disjoint Group: ID:%s Request:%s Status:%s}",
+		lsSrGroupIdentifierString(l.Identifier),
+		lsFlagLetters(uint16(l.RequestFlags)<<8, "SNLFI"),
+		lsFlagLetters(uint16(l.StatusFlags)<<8, "SNLFIX"))
+}
+
+func (l *LsTLVSrDisjointGroupConstraint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrDisjointGroupConstraint
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrDisjointGroupConstraint) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Bidirectional Group Constraint sub-TLV (1214), RFC 9857 Section 5.6.5
+
+const (
+	lsSrBidirectionalGroupFlagReverse  uint16 = 1 << 15 // R-Flag
+	lsSrBidirectionalGroupFlagCoRouted uint16 = 1 << 14 // C-Flag
+)
+
+type LsSrBidirectionalGroupFlags struct {
+	Reverse  bool `json:"reverse"`
+	CoRouted bool `json:"co_routed"`
+}
+
+type LsSrBidirectionalGroupConstraint struct {
+	Flags           LsSrBidirectionalGroupFlags `json:"flags"`
+	GroupID         uint32                      `json:"group_id"`
+	PcepAssociation []byte                      `json:"pcep_association,omitempty"`
+}
+
+type LsTLVSrBidirectionalGroupConstraint struct {
+	LsTLV
+	Flags      uint16
+	Identifier []byte
+}
+
+func NewLsTLVSrBidirectionalGroupConstraint(b *LsSrBidirectionalGroupConstraint) *LsTLVSrBidirectionalGroupConstraint {
+	var flags uint16
+	if b.Flags.Reverse {
+		flags |= lsSrBidirectionalGroupFlagReverse
+	}
+	if b.Flags.CoRouted {
+		flags |= lsSrBidirectionalGroupFlagCoRouted
+	}
+
+	id := lsSrGroupIdentifier(b.GroupID, b.PcepAssociation)
+	return &LsTLVSrBidirectionalGroupConstraint{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_BIDIR_GROUP_CONSTRAINT,
+			Length: uint16(4 + len(id)),
+		},
+		Flags:      flags,
+		Identifier: id,
+	}
+}
+
+func (l *LsTLVSrBidirectionalGroupConstraint) Extract() *LsSrBidirectionalGroupConstraint {
+	groupID, association := lsSrGroupIdentifierSplit(l.Identifier)
+	return &LsSrBidirectionalGroupConstraint{
+		Flags: LsSrBidirectionalGroupFlags{
+			Reverse:  l.Flags&lsSrBidirectionalGroupFlagReverse != 0,
+			CoRouted: l.Flags&lsSrBidirectionalGroupFlagCoRouted != 0,
+		},
+		GroupID:         groupID,
+		PcepAssociation: association,
+	}
+}
+
+func (l *LsTLVSrBidirectionalGroupConstraint) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_BIDIR_GROUP_CONSTRAINT {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 8 {
+		return malformedAttrListErr("Incorrect SR Bidirectional Group Constraint length")
+	}
+
+	l.Flags = binary.BigEndian.Uint16(value[:2])
+	// value[2:4] is reserved and ignored.
+	l.Identifier = append([]byte(nil), value[4:]...)
+
+	return nil
+}
+
+func (l *LsTLVSrBidirectionalGroupConstraint) Serialize() ([]byte, error) {
+	if len(l.Identifier) < 4 {
+		return nil, errors.New("SR Bidirectional Group Constraint requires a group identifier")
+	}
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+	buf = append(buf, l.Identifier...)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrBidirectionalGroupConstraint) String() string {
+	return fmt.Sprintf("{Bidirectional Group: ID:%s Flags:%s}",
+		lsSrGroupIdentifierString(l.Identifier), lsFlagLetters(l.Flags, "RC"))
+}
+
+func (l *LsTLVSrBidirectionalGroupConstraint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrBidirectionalGroupConstraint
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrBidirectionalGroupConstraint) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Metric Constraint sub-TLV (1215), RFC 9857 Section 5.6.6
+
+const (
+	lsSrMetricConstraintFlagOptimization uint8 = 1 << 7 // O-Flag
+	lsSrMetricConstraintFlagMargin       uint8 = 1 << 6 // M-Flag
+	lsSrMetricConstraintFlagAbsolute     uint8 = 1 << 5 // A-Flag
+	lsSrMetricConstraintFlagBound        uint8 = 1 << 4 // B-Flag
+)
+
+type LsSrMetricConstraintFlags struct {
+	Optimization bool `json:"optimization"`
+	Margin       bool `json:"margin"`
+	Absolute     bool `json:"absolute"`
+	Bound        bool `json:"bound"`
+}
+
+type LsSrMetricConstraint struct {
+	MetricType uint8                     `json:"metric_type"`
+	Flags      LsSrMetricConstraintFlags `json:"flags"`
+	Margin     uint32                    `json:"margin"`
+	Bound      uint32                    `json:"bound"`
+}
+
+type LsTLVSrMetricConstraint struct {
+	LsTLV
+	MetricType uint8
+	Flags      uint8
+	Margin     uint32
+	Bound      uint32
+}
+
+func NewLsTLVSrMetricConstraint(m *LsSrMetricConstraint) *LsTLVSrMetricConstraint {
+	var flags uint8
+	if m.Flags.Optimization {
+		flags |= lsSrMetricConstraintFlagOptimization
+	}
+	if m.Flags.Margin {
+		flags |= lsSrMetricConstraintFlagMargin
+	}
+	if m.Flags.Absolute {
+		flags |= lsSrMetricConstraintFlagAbsolute
+	}
+	if m.Flags.Bound {
+		flags |= lsSrMetricConstraintFlagBound
+	}
+
+	return &LsTLVSrMetricConstraint{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_METRIC_CONSTRAINT,
+			Length: 12,
+		},
+		MetricType: m.MetricType,
+		Flags:      flags,
+		Margin:     m.Margin,
+		Bound:      m.Bound,
+	}
+}
+
+func (l *LsTLVSrMetricConstraint) Extract() *LsSrMetricConstraint {
+	return &LsSrMetricConstraint{
+		MetricType: l.MetricType,
+		Flags: LsSrMetricConstraintFlags{
+			Optimization: l.Flags&lsSrMetricConstraintFlagOptimization != 0,
+			Margin:       l.Flags&lsSrMetricConstraintFlagMargin != 0,
+			Absolute:     l.Flags&lsSrMetricConstraintFlagAbsolute != 0,
+			Bound:        l.Flags&lsSrMetricConstraintFlagBound != 0,
+		},
+		Margin: l.Margin,
+		Bound:  l.Bound,
+	}
+}
+
+func (l *LsTLVSrMetricConstraint) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_METRIC_CONSTRAINT {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 12 {
+		return malformedAttrListErr("Incorrect SR Metric Constraint length")
+	}
+
+	l.MetricType = value[0]
+	l.Flags = value[1]
+	// value[2:4] is reserved and ignored.
+	l.Margin = binary.BigEndian.Uint32(value[4:8])
+	l.Bound = binary.BigEndian.Uint32(value[8:12])
+
+	return nil
+}
+
+func (l *LsTLVSrMetricConstraint) Serialize() ([]byte, error) {
+	buf := make([]byte, 12)
+	buf[0] = l.MetricType
+	buf[1] = l.Flags
+	binary.BigEndian.PutUint32(buf[4:8], l.Margin)
+	binary.BigEndian.PutUint32(buf[8:12], l.Bound)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrMetricConstraint) String() string {
+	return fmt.Sprintf("{Metric Constraint: Type:%d Margin:%d Bound:%d Flags:%s}",
+		l.MetricType, l.Margin, l.Bound, lsFlagLetters(uint16(l.Flags)<<8, "OMAB"))
+}
+
+func (l *LsTLVSrMetricConstraint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrMetricConstraint
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrMetricConstraint) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
 // LsAttribute helpers
 
 // NewLsAttributeSrPolicyTLVs builds the RFC 9857 attribute TLVs for an SR
 // Policy candidate path, in a fixed order: SR Binding SID, SRv6 Binding SID,
-// Candidate Path State, Candidate Path Name, Policy Name and then one SR
-// Segment List TLV per segment list.
+// Candidate Path State, Candidate Path Name, Policy Name, Candidate Path
+// Constraints and then one SR Segment List TLV per segment list.
 func NewLsAttributeSrPolicyTLVs(sp *LsAttributeSrPolicy) []LsTLVInterface {
 	tlvs := []LsTLVInterface{}
 
@@ -1957,6 +2853,9 @@ func NewLsAttributeSrPolicyTLVs(sp *LsAttributeSrPolicy) []LsTLVInterface {
 	}
 	if sp.PolicyName != nil {
 		tlvs = append(tlvs, NewLsTLVSrPolicyName(sp.PolicyName))
+	}
+	if sp.Constraints != nil {
+		tlvs = append(tlvs, NewLsTLVSrCandidatePathConstraints(sp.Constraints))
 	}
 	for i := range sp.SegmentLists {
 		tlvs = append(tlvs, NewLsTLVSrSegmentList(&sp.SegmentLists[i]))

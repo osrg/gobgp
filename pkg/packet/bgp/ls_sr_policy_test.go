@@ -71,7 +71,6 @@ func labelField(label uint32) []byte {
 
 // Headend node descriptor: ASN 65001, BGP-LS ID 0, BGP Router-ID 1.1.1.1.
 var srPolicyHeadendTLV = tlvBytes(256,
-
 	tlvBytes(512, be32(65001)),
 	tlvBytes(513, be32(0)),
 	tlvBytes(516, ip4("1.1.1.1")),
@@ -531,6 +530,54 @@ func Test_PathAttributeLsSrPolicy(t *testing.T) {
 func Test_PathAttributeLsSrPolicyTolerance(t *testing.T) {
 	assert := assert.New(t)
 
+	t.Run("constraints TLV is decoded and forwarded", func(t *testing.T) {
+		in := lsAttrBytes(
+			tlvBytes(1202, []byte{10, 0, 0x40, 0x00}, be32(200)),
+			tlvBytes(1204, []byte{0x80, 0x00, 0, 0, 0, 0, 0, 0},
+				tlvBytes(1208, []byte{1, 0, 0, 0}, be32(0xff)),
+				tlvBytes(1210, be32(1)),
+				tlvBytes(1215, []byte{1, 0x80, 0, 0}, be32(1), be32(2)),
+			),
+			srPolicySegmentListTLV(0x4000, 1, srPolicySegmentTLV(1, 0xc000, labelField(16001), []byte{0})),
+		)
+		attr := PathAttributeLs{}
+		assert.NoError(attr.DecodeFromBytes(in))
+		sp := attr.Extract().SrPolicy
+		if assert.NotNil(sp.State) {
+			assert.True(sp.State.Flags.Active)
+		}
+		if assert.NotNil(sp.Constraints) {
+			assert.True(sp.Constraints.Flags.SRv6)
+			if assert.NotNil(sp.Constraints.Affinity) {
+				assert.Equal([]uint32{0xff}, sp.Constraints.Affinity.ExcludeAny)
+			}
+			if assert.Len(sp.Constraints.Metrics, 1) {
+				assert.True(sp.Constraints.Metrics[0].Flags.Optimization)
+			}
+		}
+		assert.Len(sp.SegmentLists, 1)
+		assert.Len(attr.TLVs, 3)
+		wire, err := attr.Serialize()
+		require.NoError(t, err)
+		assert.Equal(in, wire)
+	})
+
+	t.Run("invalid bandwidth constraint is forwarded but kept out of the model", func(t *testing.T) {
+		// RFC 9552 section 8.2.2: TLV contents do not make the attribute
+		// malformed. A negative bandwidth is re-serialized as received.
+		in := lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1210, []byte{0xbf, 0x80, 0, 0})))
+		attr := PathAttributeLs{}
+		assert.NoError(attr.DecodeFromBytes(in))
+		if c := attr.Extract().SrPolicy.Constraints; assert.NotNil(c) {
+			assert.Nil(c.Bandwidth)
+		}
+		_, err := attr.MarshalJSON()
+		assert.NoError(err)
+		got, err := attr.Serialize()
+		assert.NoError(err)
+		assert.Equal(in, got)
+	})
+
 	t.Run("unknown segment type is forwarded, siblings decoded", func(t *testing.T) {
 		in := lsAttrBytes(
 			srPolicySegmentListTLV(0x4000, 1,
@@ -643,6 +690,16 @@ func Test_PathAttributeLsSrPolicyMalformed(t *testing.T) {
 		{"segment type B truncated sid", lsAttrBytes(srPolicySegmentListTLV(0, 1, srPolicySegmentTLV(2, 0x8000, ip4("1.1.1.1"), []byte{0})))},
 		{"truncated sub-TLV inside segment list", lsAttrBytes(srPolicySegmentListTLV(0, 1, []byte{0x04, 0xb6, 0x00, 0x10, 0x01, 0x00}))},
 		{"truncated sub-TLV inside srv6 binding sid", lsAttrBytes(tlvBytes(1212, []byte{0, 0, 0, 0}, ip6("::1"), ip6("::"), []byte{0x04, 0xe2, 0x00, 0x04, 0x00}))},
+		{"constraints too short", lsAttrBytes(tlvBytes(1204, []byte{0, 0, 0, 0, 0, 0, 0}))},
+		{"affinity size mismatch", lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1208, []byte{1, 0, 0, 0})))},
+		{"affinity too short", lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1208, []byte{0, 0, 0})))},
+		{"srlg empty", lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1209)))},
+		{"srlg not a multiple of 4", lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1209, []byte{0, 0, 0, 1, 0})))},
+		{"bandwidth constraint wrong length", lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1210, []byte{0, 0, 0})))},
+		{"disjoint group too short", lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1211, []byte{0, 0, 0, 0, 1, 2, 3})))},
+		{"bidirectional group too short", lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1214, []byte{0, 0, 0, 0, 1, 2, 3})))},
+		{"metric constraint wrong length", lsAttrBytes(srPolicyConstraintsTLVWith(tlvBytes(1215, []byte{1, 0, 0, 0}, be32(0), be32(0), be32(0))))},
+		{"truncated sub-TLV inside constraints", lsAttrBytes(srPolicyConstraintsTLVWith([]byte{0x04, 0xb8, 0x00, 0x10, 0x01}))},
 	}
 
 	for _, test := range tests {
@@ -651,6 +708,184 @@ func Test_PathAttributeLsSrPolicyMalformed(t *testing.T) {
 			assert.Error(attr.DecodeFromBytes(test.in))
 		})
 	}
+}
+
+// srPolicyConstraintsTLVWith wraps sub-TLVs in a Constraints TLV whose
+// fixed fields are all zero.
+func srPolicyConstraintsTLVWith(subTLVs ...[]byte) []byte {
+	return tlvBytes(1204, append([][]byte{{0, 0, 0, 0, 0, 0, 0, 0}}, subTLVs...)...)
+}
+
+func srPolicyConstraintsTLV() []byte {
+	return tlvBytes(1204, []byte{0xd0, 0x00, 0, 0, 0x00, 0x02, 128, 0},
+		tlvBytes(1208, []byte{1, 2, 0, 0}, be32(0xff), be32(1), be32(0x80000000)),
+		tlvBytes(1209, be32(10), be32(20)),
+		tlvBytes(1210, []byte{0x4e, 0x6e, 0x6b, 0x28}),
+		tlvBytes(1211, []byte{0xa0, 0x20, 0, 0}, be32(7)),
+		tlvBytes(1214, []byte{0x40, 0x00, 0, 0}, be32(9)),
+		tlvBytes(1215, []byte{0, 0x80, 0, 0}, be32(0), be32(0)),
+		tlvBytes(1215, []byte{1, 0x70, 0, 0}, be32(5), be32(100)),
+	)
+}
+
+func srPolicyConstraintsModel() LsSrCandidatePathConstraints {
+	bw := float32(1e9)
+	return LsSrCandidatePathConstraints{
+		Flags:     LsSrCandidatePathConstraintsFlags{SRv6: true, ProtectedOnly: true, AlgorithmOnly: true},
+		MTID:      2,
+		Algorithm: 128,
+		Affinity:  &LsSrAffinityConstraint{ExcludeAny: []uint32{0xff}, IncludeAny: []uint32{1, 0x80000000}},
+		SRLGs:     []uint32{10, 20},
+		Bandwidth: &bw,
+		DisjointGroup: &LsSrDisjointGroupConstraint{
+			RequestFlags: LsSrDisjointGroupRequestFlags{SRLG: true, Link: true},
+			StatusFlags:  LsSrDisjointGroupStatusFlags{Link: true},
+			GroupID:      7,
+		},
+		BidirectionalGroup: &LsSrBidirectionalGroupConstraint{Flags: LsSrBidirectionalGroupFlags{CoRouted: true}, GroupID: 9},
+		Metrics: []LsSrMetricConstraint{
+			{MetricType: 0, Flags: LsSrMetricConstraintFlags{Optimization: true}},
+			{MetricType: 1, Flags: LsSrMetricConstraintFlags{Margin: true, Absolute: true, Bound: true}, Margin: 5, Bound: 100},
+		},
+	}
+}
+
+func Test_PathAttributeLsSrPolicyConstraints(t *testing.T) {
+	assert := assert.New(t)
+
+	in := lsAttrBytes(srPolicyConstraintsTLV())
+	want := srPolicyConstraintsModel()
+
+	// Wire -> native.
+	attr := PathAttributeLs{}
+	require.NoError(t, attr.DecodeFromBytes(in))
+	assert.Equal("{LsAttributes: {SR CP Constraints: MTID:2 Algo:128 Flags:DPA "+
+		"{Affinity: ExclAny:0x000000ff InclAny:0x00000001,0x80000000 InclAll:-} {SRLG: [10 20]} {Bandwidth: 1e+09} "+
+		"{Disjoint Group: ID:7 Request:SL Status:L} {Bidirectional Group: ID:9 Flags:C} "+
+		"{Metric Constraint: Type:0 Margin:0 Bound:0 Flags:O} {Metric Constraint: Type:1 Margin:5 Bound:100 Flags:MAB}} }",
+		attr.String())
+	sp := attr.Extract().SrPolicy
+	if assert.NotNil(sp.Constraints) {
+		assert.Equal(want, *sp.Constraints)
+	}
+
+	// Byte-exact round trip.
+	got, err := attr.Serialize()
+	require.NoError(t, err)
+	assert.Equal(in, got)
+
+	// The JSON "sr_policy" object matches the extracted model.
+	j, err := attr.MarshalJSON()
+	require.NoError(t, err)
+	var m map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(j, &m))
+	wantJSON, err := json.Marshal(LsAttributeSrPolicy{Constraints: &want})
+	require.NoError(t, err)
+	assert.JSONEq(string(wantJSON), string(m["sr_policy"]))
+
+	// Native model -> wire through the constructors.
+	built := PathAttributeLs{
+		PathAttribute: PathAttribute{Flags: attr.Flags, Type: BGP_ATTR_TYPE_LS},
+		TLVs:          NewLsAttributeTLVs(&LsAttribute{SrPolicy: LsAttributeSrPolicy{Constraints: &want}}),
+	}
+	got, err = built.Serialize()
+	require.NoError(t, err)
+	assert.Equal(in, got)
+
+	t.Run("pcep association, duplicates and unknown sub-TLVs", func(t *testing.T) {
+		association := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+		in := lsAttrBytes(srPolicyConstraintsTLVWith(
+			tlvBytes(1211, []byte{0x40, 0, 0, 0}, association),
+			tlvBytes(1214, []byte{0x80, 0, 0, 0}, association),
+			tlvBytes(1209, be32(1)),
+			tlvBytes(1209, be32(2)),
+			tlvBytes(1210, []byte{0x3f, 0x80, 0, 0}),
+			tlvBytes(1210, []byte{0x40, 0x00, 0, 0}),
+			tlvBytes(65000, []byte{0xaa}),
+		))
+		attr := PathAttributeLs{}
+		require.NoError(t, attr.DecodeFromBytes(in))
+		c := attr.Extract().SrPolicy.Constraints
+		require.NotNil(t, c)
+		if assert.NotNil(c.DisjointGroup) {
+			assert.True(c.DisjointGroup.RequestFlags.Node)
+			assert.EqualValues(0, c.DisjointGroup.GroupID)
+			assert.Equal(association, c.DisjointGroup.PcepAssociation)
+		}
+		if assert.NotNil(c.BidirectionalGroup) {
+			assert.True(c.BidirectionalGroup.Flags.Reverse)
+			assert.Equal(association, c.BidirectionalGroup.PcepAssociation)
+		}
+		assert.Equal([]uint32{1}, c.SRLGs)
+		if assert.NotNil(c.Bandwidth) {
+			assert.EqualValues(1.0, *c.Bandwidth)
+		}
+		assert.Contains(attr.String(), "{Disjoint Group: ID:0102030405060708 Request:N Status:-}")
+
+		// All instances and the unknown sub-TLV are kept for forwarding.
+		got, err := attr.Serialize()
+		require.NoError(t, err)
+		assert.Equal(in, got)
+
+		// The model rebuilds the association object as received.
+		built := PathAttributeLs{
+			PathAttribute: PathAttribute{Flags: attr.Flags, Type: BGP_ATTR_TYPE_LS},
+			TLVs:          NewLsAttributeTLVs(&LsAttribute{SrPolicy: LsAttributeSrPolicy{Constraints: c}}),
+		}
+		wire, err := built.Serialize()
+		require.NoError(t, err)
+		decoded := PathAttributeLs{}
+		require.NoError(t, decoded.DecodeFromBytes(wire))
+		assert.Equal(c, decoded.Extract().SrPolicy.Constraints)
+	})
+
+	t.Run("duplicate constraints TLV: first wins", func(t *testing.T) {
+		in := lsAttrBytes(
+			srPolicyConstraintsTLVWith(tlvBytes(1209, be32(1))),
+			srPolicyConstraintsTLVWith(tlvBytes(1209, be32(2))),
+		)
+		attr := PathAttributeLs{}
+		require.NoError(t, attr.DecodeFromBytes(in))
+		assert.Equal([]uint32{1}, attr.Extract().SrPolicy.Constraints.SRLGs)
+		assert.Len(attr.TLVs, 2)
+	})
+}
+
+func Test_LsSrConstraintConstructorsUseLsTLVTypes(t *testing.T) {
+	assert := assert.New(t)
+
+	c := NewLsTLVSrCandidatePathConstraints(&LsSrCandidatePathConstraints{})
+	assert.EqualValues(LS_TLV_SR_CP_CONSTRAINTS, c.Type)
+	assert.EqualValues(8, c.Length)
+
+	full := NewLsTLVSrCandidatePathConstraints(&LsSrCandidatePathConstraints{
+		Affinity:           &LsSrAffinityConstraint{IncludeAll: []uint32{1, 2}},
+		SRLGs:              []uint32{1},
+		Bandwidth:          new(float32),
+		DisjointGroup:      &LsSrDisjointGroupConstraint{GroupID: 1},
+		BidirectionalGroup: &LsSrBidirectionalGroupConstraint{PcepAssociation: []byte{1, 2, 3, 4, 5, 6}},
+		Metrics:            []LsSrMetricConstraint{{MetricType: 1}},
+	})
+	// 8 + (4+12) + (4+4) + (4+4) + (4+8) + (4+10) + (4+12)
+	assert.EqualValues(8+16+8+8+12+14+16, full.Length)
+	types := []LsTLVType{}
+	for _, sub := range full.SubTLVs {
+		types = append(types, sub.GetLsTLV().Type)
+	}
+	assert.Equal([]LsTLVType{
+		LS_TLV_SR_AFFINITY_CONSTRAINT, LS_TLV_SR_SRLG_CONSTRAINT, LS_TLV_SR_BANDWIDTH_CONSTRAINT,
+		LS_TLV_SR_DISJOINT_GROUP_CONSTRAINT, LS_TLV_SR_BIDIR_GROUP_CONSTRAINT, LS_TLV_SR_METRIC_CONSTRAINT,
+	}, types)
+	wire, err := full.Serialize()
+	require.NoError(t, err)
+	assert.Len(wire, int(full.Length)+4)
+
+	// An EAG longer than the 1-octet size field allows cannot be encoded.
+	tooLong := NewLsTLVSrAffinityConstraint(&LsSrAffinityConstraint{ExcludeAny: make([]uint32, 256)})
+	_, err = tooLong.Serialize()
+	assert.Error(err)
+	_, err = NewLsTLVSrSRLGConstraint(nil).Serialize()
+	assert.Error(err)
 }
 
 func Test_LsSrPolicyConstructorsUseLsTLVTypes(t *testing.T) {
