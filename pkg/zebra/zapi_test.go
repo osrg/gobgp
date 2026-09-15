@@ -823,6 +823,46 @@ func Test_IPRouteBody_IPv6(t *testing.T) {
 	}
 }
 
+func Test_IPRouteBody_SerializeWithoutLabelsFrr6To7dot2(t *testing.T) {
+	// Before frr7.3 the nexthop label_num octet is only present when the route
+	// carries MessageLabel, so a route without labels must round-trip through
+	// serialize and decodeFromBytes unchanged.
+	for _, name := range []string{"frr6", "frr7", "frr7.2"} {
+		t.Run(name, func(t *testing.T) {
+			version := uint8(6)
+			software := NewSoftware(version, name)
+			r := &IPRouteBody{
+				Type:    RouteBGP,
+				Message: MessageNexthop | MessageDistance | MessageMetric | MessageMTU,
+				Safi:    SafiUnicast,
+				Prefix: Prefix{
+					Family:    syscall.AF_INET,
+					PrefixLen: 24,
+					Prefix:    netip.MustParseAddr("192.168.100.0"),
+				},
+				Nexthops: []Nexthop{{
+					Type:    nexthopTypeIPv4IFIndex,
+					Gate:    netip.MustParseAddr("10.0.0.1"),
+					Ifindex: 2,
+				}},
+				Distance: 20,
+				Metric:   100,
+				Mtu:      1500,
+			}
+			buf, err := r.serialize(version, software)
+			require.NoError(t, err)
+
+			d := &IPRouteBody{API: RouteAdd}
+			require.NoError(t, d.decodeFromBytes(buf, version, software))
+			assert.Equal(t, uint8(0), d.Nexthops[0].LabelNum)
+			assert.Equal(t, uint32(2), d.Nexthops[0].Ifindex)
+			assert.Equal(t, uint8(20), d.Distance)
+			assert.Equal(t, uint32(100), d.Metric)
+			assert.Equal(t, uint32(1500), d.Mtu)
+		})
+	}
+}
+
 // NexthopLookup exists in only quagga (zebra API version 2 and 3)
 func Test_nexthopLookupBody(t *testing.T) {
 	assert := assert.New(t)
