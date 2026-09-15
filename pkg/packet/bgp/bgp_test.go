@@ -5679,6 +5679,8 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&LsTLVSrv6SIDInfo{}).DecodeFromBytes(data)
 		(&LsTLVMultiTopoID{}).DecodeFromBytes(data)
 		(&LsSrv6SIDNLRI{}).DecodeFromBytes(data)
+		(&LsSrPolicyCandidatePathNLRI{}).DecodeFromBytes(data)
+		(&LsTLVSrPolicyCandidatePathDescriptor{}).DecodeFromBytes(data)
 		(&LsTLV{}).DecodeFromBytes(data)
 		(&LsTLVLinkID{}).DecodeFromBytes(data)
 		(&LsTLVIPv4InterfaceAddr{}).DecodeFromBytes(data)
