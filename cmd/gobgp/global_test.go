@@ -23,6 +23,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_ParsePath(t *testing.T) {
@@ -424,6 +425,211 @@ func Test_ParseLsSrv6SIDMultiTopoID(t *testing.T) {
 				_, err := nlri.Serialize()
 				assert.NoError(t, err)
 			})
+		})
+	}
+}
+
+func Test_ParseLsSrPolicyCandidatePath(t *testing.T) {
+	assert := assert.New(t)
+
+	args := strings.Split("srpolicy identifier 1 local-router-id 10.0.0.1 local-asn 65001 local-bgp-router-id 1.1.1.1 endpoint 10.0.0.2 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1 policy-name blue cp-name cp1 bsid 24001 specified-bsid 24002 priority 10 preference 200 state-flags AEV segment-list 1:16001,16002 2:fc00::1,fc00::2", " ")
+	path, err := parsePath(bgp.RF_LS, args)
+	assert.NoError(err)
+	assert.NotNil(path)
+
+	nlri, err := apiutil.GetNativeNlri(path)
+	assert.NoError(err)
+	assert.Equal("NLRI { SRPOLICY_CP { LOCAL_NODE: {ASN: 65001, BGP LS ID: 0, BGP ROUTER ID: 1.1.1.1, IPv4 ROUTER ID: 10.0.0.1} ENDPOINT: 10.0.0.2 COLOR: 100 ORIGIN: 3 ORIGINATOR: 65001/1.1.1.1 DISCRIMINATOR: 1 SR:1 } }", nlri.String())
+
+	attrs, err := apiutil.GetNativePathAttributes(path)
+	assert.NoError(err)
+
+	var lsAttr *bgp.PathAttributeLs
+	for _, a := range attrs {
+		if v, ok := a.(*bgp.PathAttributeLs); ok {
+			lsAttr = v
+			break
+		}
+	}
+	if !assert.NotNil(lsAttr) {
+		return
+	}
+	sp := lsAttr.Extract().SrPolicy
+
+	if assert.NotNil(sp.BindingSID) {
+		assert.EqualValues(24001, sp.BindingSID.Label)
+		assert.EqualValues(24002, sp.BindingSID.SpecifiedLabel)
+		assert.True(sp.BindingSID.Flags.Allocated)
+	}
+	if assert.NotNil(sp.State) {
+		assert.EqualValues(10, sp.State.Priority)
+		assert.EqualValues(200, sp.State.Preference)
+		assert.True(sp.State.Flags.Active)
+		assert.True(sp.State.Flags.Evaluated)
+		assert.True(sp.State.Flags.ValidSIDList)
+		assert.False(sp.State.Flags.Backup)
+	}
+	if assert.NotNil(sp.PolicyName) {
+		assert.Equal("blue", *sp.PolicyName)
+	}
+	if assert.NotNil(sp.CandidatePathName) {
+		assert.Equal("cp1", *sp.CandidatePathName)
+	}
+	if assert.Len(sp.SegmentLists, 2) {
+		mpls := sp.SegmentLists[0]
+		assert.EqualValues(1, mpls.Weight)
+		assert.False(mpls.Flags.SRv6)
+		// A clear V or R flag reads as failed verification or resolution
+		// (RFC 9857 sections 5.7 and 5.7.1), so injected paths set them.
+		assert.True(mpls.Flags.Verified)
+		assert.True(mpls.Flags.Resolved)
+		if assert.Len(mpls.Segments, 2) {
+			assert.Equal(bgp.LS_SR_SEGMENT_TYPE_A_MPLS_LABEL, mpls.Segments[0].SegmentType)
+			assert.EqualValues(16001, mpls.Segments[0].Label)
+			assert.EqualValues(16002, mpls.Segments[1].Label)
+			assert.True(mpls.Segments[0].Flags.Verified)
+			assert.True(mpls.Segments[0].Flags.Resolved)
+		}
+		srv6 := sp.SegmentLists[1]
+		assert.EqualValues(2, srv6.Weight)
+		assert.True(srv6.Flags.SRv6)
+		if assert.Len(srv6.Segments, 2) {
+			assert.Equal(bgp.LS_SR_SEGMENT_TYPE_B_SRV6_SID, srv6.Segments[0].SegmentType)
+			assert.Equal("fc00::1", srv6.Segments[0].SID.String())
+			assert.Equal("fc00::2", srv6.Segments[1].SID.String())
+		}
+	}
+}
+
+func Test_ParseLsSrPolicyCandidatePathConstraints(t *testing.T) {
+	assert := assert.New(t)
+
+	base := "srpolicy identifier 1 local-router-id 10.0.0.1 local-asn 65001 local-bgp-router-id 1.1.1.1 endpoint 10.0.0.2 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1 segment-list 1:16001"
+	constraintsOf := func(args string) (*bgp.LsSrCandidatePathConstraints, error) {
+		path, err := parsePath(bgp.RF_LS, strings.Split(args, " "))
+		if err != nil {
+			return nil, err
+		}
+		attrs, err := apiutil.GetNativePathAttributes(path)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range attrs {
+			if v, ok := a.(*bgp.PathAttributeLs); ok {
+				return v.Extract().SrPolicy.Constraints, nil
+			}
+		}
+		return nil, nil
+	}
+
+	c, err := constraintsOf(base + " constraint-flags DAS constraint-mtid 2 constraint-algorithm 128 constraint-exclude-any 0xff constraint-include-any 1,0x80000000 constraint-srlg 10 20 constraint-bandwidth 1e9 constraint-disjoint-group 7:SL:L constraint-bidir-group 9:C constraint-metric 0:O 1:MAB:5:100")
+	assert.NoError(err)
+	if !assert.NotNil(c) {
+		return
+	}
+	assert.Equal(bgp.LsSrCandidatePathConstraintsFlags{SRv6: true, AlgorithmOnly: true, Strict: true}, c.Flags)
+	assert.EqualValues(2, c.MTID)
+	assert.EqualValues(128, c.Algorithm)
+	assert.Equal(&bgp.LsSrAffinityConstraint{ExcludeAny: []uint32{0xff}, IncludeAny: []uint32{1, 0x80000000}}, c.Affinity)
+	assert.Equal([]uint32{10, 20}, c.SRLGs)
+	if assert.NotNil(c.Bandwidth) {
+		assert.EqualValues(1e9, *c.Bandwidth)
+	}
+	assert.Equal(&bgp.LsSrDisjointGroupConstraint{
+		RequestFlags: bgp.LsSrDisjointGroupRequestFlags{SRLG: true, Link: true},
+		StatusFlags:  bgp.LsSrDisjointGroupStatusFlags{Link: true},
+		GroupID:      7,
+	}, c.DisjointGroup)
+	assert.Equal(&bgp.LsSrBidirectionalGroupConstraint{Flags: bgp.LsSrBidirectionalGroupFlags{CoRouted: true}, GroupID: 9}, c.BidirectionalGroup)
+	assert.Equal([]bgp.LsSrMetricConstraint{
+		{MetricType: 0, Flags: bgp.LsSrMetricConstraintFlags{Optimization: true}},
+		{MetricType: 1, Flags: bgp.LsSrMetricConstraintFlags{Margin: true, Absolute: true, Bound: true}, Margin: 5, Bound: 100},
+	}, c.Metrics)
+
+	// Without constraint arguments no Constraints TLV is built.
+	c, err = constraintsOf(base)
+	assert.NoError(err)
+	assert.Nil(c)
+
+	for _, tt := range []struct{ name, extra string }{
+		{"unknown flag letter", "constraint-flags X"},
+		{"protected and unprotected", "constraint-flags PU"},
+		{"mtid out of range", "constraint-mtid 70000"},
+		{"eag word out of range", "constraint-exclude-any 0x1ffffffff"},
+		{"bad srlg", "constraint-srlg x"},
+		{"negative bandwidth", "constraint-bandwidth -1"},
+		{"bad group flags", "constraint-disjoint-group 1:Q"},
+		{"too many group fields", "constraint-bidir-group 1:R:C"},
+		{"bad metric flags", "constraint-metric 1:Z"},
+		{"metric type only", "constraint-metric 2"},
+		{"metric type out of range", "constraint-metric 256"},
+		{"too many metric fields", "constraint-metric 1:O:1:2:3"},
+		{"duplicate O flag", "constraint-metric 1:O 2:O"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := constraintsOf(base + " " + tt.extra)
+			assert.Error(err)
+		})
+	}
+}
+
+func Test_ParseLsSrPolicyCandidatePathErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		args string
+		msg  string
+	}{
+		{"missing endpoint", "srpolicy identifier 1 local-router-id 10.0.0.1 local-asn 65001 local-bgp-router-id 1.1.1.1 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1 policy-name x", "endpoint is required"},
+		{"missing headend", "srpolicy identifier 1 local-router-id 10.0.0.1 endpoint 10.0.0.2 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1 policy-name x", "headend producer requires local-asn and local-bgp-router-id"},
+		{"mixed segment list", "srpolicy identifier 1 local-router-id 10.0.0.1 local-asn 65001 local-bgp-router-id 1.1.1.1 endpoint 10.0.0.2 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1 segment-list 1:16001,fc00::1", "cannot mix"},
+		{"bad state flags", "srpolicy identifier 1 local-router-id 10.0.0.1 local-asn 65001 local-bgp-router-id 1.1.1.1 endpoint 10.0.0.2 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1 state-flags AX", "invalid state-flags"},
+		{"specified bsid without bsid", "srpolicy identifier 1 local-router-id 10.0.0.1 local-asn 65001 local-bgp-router-id 1.1.1.1 endpoint 10.0.0.2 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1 specified-bsid 1", "specified-bsid requires"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert := assert.New(t)
+			path, err := parsePath(bgp.RF_LS, strings.Split(test.args, " "))
+			if assert.Error(err) {
+				assert.Contains(err.Error(), test.msg)
+			}
+			assert.Nil(path)
+		})
+	}
+}
+
+func TestParseLsSrPolicyProtocolAndHeadend(t *testing.T) {
+	base := "srpolicy identifier 0 local-router-id 10.0.0.1 local-asn 65001 local-bgp-router-id 1.1.1.1 endpoint 10.0.0.2 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1"
+	for _, tt := range []struct {
+		name       string
+		args       string
+		wantOrigin uint8
+		wantErr    bool
+	}{
+		{"default configuration origin", base, 3, false},
+		{"BGP origin", base + " protocol-origin 2 protocol 9", 2, false},
+		{"wrong protocol", base + " protocol 2", 0, true},
+		{"missing headend address", strings.Replace(base, "local-router-id 10.0.0.1 ", "", 1), 0, true},
+		{"IPv6 BGP ID", strings.Replace(base, "local-bgp-router-id 1.1.1.1", "local-bgp-router-id 2001:db8::1", 1), 0, true},
+		{"PCE headend address only", "srpolicy identifier 0 local-router-id 2001:db8::1 endpoint 2001:db8::2 color 100 originator-asn 0 originator-address :: discriminator 1 protocol-origin 30", 30, false},
+		{"multiple SRv6 BSIDs", base + " srv6-bsid fc00::1 fc00::2 specified-bsid :: fc00::3", 3, false},
+		{"mismatched specified BSIDs", base + " srv6-bsid fc00::1 fc00::2 specified-bsid fc00::3", 0, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path, err := parsePath(bgp.RF_LS, strings.Fields(tt.args))
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			native, err := apiutil.GetNativeNlri(path)
+			require.NoError(t, err)
+			wire, err := native.Serialize()
+			require.NoError(t, err)
+			decoded, err := bgp.NLRIFromSlice(bgp.RF_LS, wire)
+			require.NoError(t, err)
+			cp := decoded.(*bgp.LsAddrPrefix).NLRI.(*bgp.LsSrPolicyCandidatePathNLRI)
+			require.EqualValues(t, bgp.LS_PROTOCOL_SEGMENT_ROUTING, cp.ProtocolID)
+			require.Equal(t, tt.wantOrigin, cp.CandidatePathDesc.(*bgp.LsTLVSrPolicyCandidatePathDescriptor).ProtocolOrigin)
 		})
 	}
 }
