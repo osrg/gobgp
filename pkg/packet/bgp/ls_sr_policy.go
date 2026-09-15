@@ -1,11 +1,19 @@
 package bgp
 
 // This file implements the BGP-LS SR Policy Candidate Path NLRI (type 5)
-// defined in RFC 9857 "Advertisement of Segment Routing Policies Using BGP
-// Link-State": the NLRI with the SR Policy Candidate Path Descriptor TLV
-// (554) and the headend Local Node Descriptors TLV. The attribute TLVs of
-// RFC 9857 section 5 are not decoded yet. PathAttributeLs keeps them as
-// opaque TLVs and re-serializes them unchanged.
+// and the related BGP-LS Attribute TLVs defined in RFC 9857
+// "Advertisement of Segment Routing Policies Using BGP Link-State".
+//
+// Implemented:
+//   - NLRI type 5 with the SR Policy Candidate Path Descriptor TLV (554)
+//   - SR Binding SID TLV (1201), SRv6 Binding SID TLV (1212)
+//   - SR Candidate Path State TLV (1202)
+//   - SR Candidate Path Name TLV (1203), SR Policy Name TLV (1213)
+//
+// Not decoded yet: the SR Candidate Path Constraints TLV (1204) and the SR
+// Segment List TLV (1205); PathAttributeLs keeps them as opaque TLVs.
+// Unknown TLVs nested in the decoded ones are kept opaque and
+// re-serialized as received.
 
 import (
 	"encoding/binary"
@@ -15,6 +23,27 @@ import (
 	"net/netip"
 	"strings"
 )
+
+// errLsSkipTLV is returned by a sub-TLV decoder when the sub-TLV is well
+// formed at the TLV level but carries content this implementation cannot
+// interpret (e.g. an unknown SR Segment Type). Keep these sub-TLVs opaque
+// so a speaker can still forward the complete attribute.
+var errLsSkipTLV = errors.New("skip unsupported BGP-LS sub-TLV")
+
+// lsMplsLabelFromField decodes an MPLS label from the 4-octet SID/BSID field
+// layout used by RFC 9857: Label (20 bits) | TC (3) | S (1) | TTL (8).
+// TC, S and TTL are reserved and ignored.
+func lsMplsLabelFromField(b []byte) uint32 {
+	return binary.BigEndian.Uint32(b[:4]) >> 12
+}
+
+// lsMplsLabelToField encodes an MPLS label into the 4-octet RFC 9857 field
+// layout with the reserved TC, S and TTL bits cleared.
+func lsMplsLabelToField(label uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, label<<12)
+	return b
+}
 
 // lsAddrBytes returns addr as a fixed-size slice of n (4 or 16) bytes. An
 // invalid address yields n zero bytes.
@@ -28,6 +57,103 @@ func lsAddrBytes(addr netip.Addr, n int) []byte {
 	}
 	a := addr.As16()
 	return a[:]
+}
+
+// lsWalkSubTLVs iterates over a sequence of BGP-LS sub-TLVs. alloc returns
+// the concrete TLV for a type, or nil to keep an unknown type opaque.
+func lsWalkSubTLVs(data []byte, alloc func(LsTLVType) LsTLVInterface) ([]LsTLVInterface, error) {
+	subTLVs := []LsTLVInterface{}
+
+	for len(data) >= tlvHdrLen {
+		hdr := &LsTLV{}
+		if _, err := hdr.DecodeFromBytes(data); err != nil {
+			return nil, err
+		}
+
+		sub := alloc(hdr.Type)
+		if sub == nil {
+			sub = &lsTLVUnknown{}
+		}
+
+		if err := sub.DecodeFromBytes(data); err != nil {
+			if errors.Is(err, errLsSkipTLV) {
+				sub = &lsTLVUnknown{}
+				if err := sub.DecodeFromBytes(data); err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, err
+			}
+		}
+		subTLVs = append(subTLVs, sub)
+		data = data[hdr.Len():]
+	}
+
+	if len(data) != 0 {
+		return nil, malformedAttrListErr("Truncated BGP-LS sub-TLV header")
+	}
+	return subTLVs, nil
+}
+
+func lsSerializeSubTLVs(subTLVs []LsTLVInterface) ([]byte, error) {
+	buf := []byte{}
+	for _, sub := range subTLVs {
+		ser, err := sub.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, ser...)
+	}
+	return buf, nil
+}
+
+func lsSubTLVsLen(subTLVs []LsTLVInterface) int {
+	n := 0
+	for _, sub := range subTLVs {
+		n += sub.Len()
+	}
+	return n
+}
+
+// lsSrv6SubTLVAlloc allocates the SRv6 sub-TLVs (RFC 9514) that RFC 9857
+// allows inside the SRv6 Binding SID TLV and the SR Segment sub-TLV.
+func lsSrv6SubTLVAlloc(t LsTLVType) LsTLVInterface {
+	switch t {
+	case LS_TLV_SRV6_ENDPOINT_BEHAVIOR:
+		return &LsTLVSrv6EndpointBehavior{}
+	case LS_TLV_SRV6_SID_STRUCTURE:
+		return &LsTLVSrv6SIDStructure{}
+	}
+	return nil
+}
+
+func lsSrv6SubTLVsFromModel(eb *LsSrv6EndpointBehavior, ss *LsSrv6SIDStructure) []LsTLVInterface {
+	subTLVs := []LsTLVInterface{}
+	if eb != nil {
+		subTLVs = append(subTLVs, NewLsTLVSrv6EndpointBehavior(eb))
+	}
+	if ss != nil {
+		subTLVs = append(subTLVs, NewLsTLVSrv6SIDStructure(ss))
+	}
+	return subTLVs
+}
+
+func lsSrv6SubTLVsToModel(subTLVs []LsTLVInterface) (*LsSrv6EndpointBehavior, *LsSrv6SIDStructure) {
+	var eb *LsSrv6EndpointBehavior
+	var ss *LsSrv6SIDStructure
+	for _, sub := range subTLVs {
+		switch v := sub.(type) {
+		case *LsTLVSrv6EndpointBehavior:
+			if eb == nil {
+				eb = v.Extract()
+			}
+		case *LsTLVSrv6SIDStructure:
+			if ss == nil {
+				ss = v.Extract()
+			}
+		}
+	}
+	return eb, ss
 }
 
 // SR Policy Candidate Path Descriptor TLV (554), RFC 9857 Section 4.1
@@ -387,4 +513,588 @@ func (l *LsSrPolicyCandidatePathNLRI) MarshalJSON() ([]byte, error) {
 		LocalNode:     *local,
 		CandidatePath: *cpTLV.Extract(),
 	})
+}
+
+// SR Binding SID TLV (1201), RFC 9857 Section 5.1
+
+const (
+	lsSrBindingSIDFlagSRv6        uint16 = 1 << 15 // D-Flag
+	lsSrBindingSIDFlagAllocated   uint16 = 1 << 14 // B-Flag
+	lsSrBindingSIDFlagUnavailable uint16 = 1 << 13 // U-Flag
+	lsSrBindingSIDFlagFromSRLB    uint16 = 1 << 12 // L-Flag
+	lsSrBindingSIDFlagFallback    uint16 = 1 << 11 // F-Flag
+)
+
+type LsSrBindingSIDFlags struct {
+	SRv6        bool `json:"srv6"`
+	Allocated   bool `json:"allocated"`
+	Unavailable bool `json:"unavailable"`
+	FromSRLB    bool `json:"from_srlb"`
+	Fallback    bool `json:"fallback"`
+}
+
+// LsSrBindingSID is the decoded SR Binding SID TLV. Label and SpecifiedLabel
+// are used when Flags.SRv6 is false, SID and SpecifiedSID otherwise.
+type LsSrBindingSID struct {
+	Flags          LsSrBindingSIDFlags `json:"flags"`
+	Label          uint32              `json:"label"`
+	SpecifiedLabel uint32              `json:"specified_label"`
+	SID            netip.Addr          `json:"sid,omitzero"`
+	SpecifiedSID   netip.Addr          `json:"specified_sid,omitzero"`
+}
+
+type LsTLVSrBindingSID struct {
+	LsTLV
+	Flags          uint16
+	Label          uint32
+	SpecifiedLabel uint32
+	SID            netip.Addr
+	SpecifiedSID   netip.Addr
+}
+
+func NewLsTLVSrBindingSID(l *LsSrBindingSID) *LsTLVSrBindingSID {
+	var flags uint16
+	length := uint16(12)
+	if l.Flags.SRv6 {
+		flags |= lsSrBindingSIDFlagSRv6
+		length = 36
+	}
+	if l.Flags.Allocated {
+		flags |= lsSrBindingSIDFlagAllocated
+	}
+	if l.Flags.Unavailable {
+		flags |= lsSrBindingSIDFlagUnavailable
+	}
+	if l.Flags.FromSRLB {
+		flags |= lsSrBindingSIDFlagFromSRLB
+	}
+	if l.Flags.Fallback {
+		flags |= lsSrBindingSIDFlagFallback
+	}
+
+	return &LsTLVSrBindingSID{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_BINDING_SID,
+			Length: length,
+		},
+		Flags:          flags,
+		Label:          l.Label,
+		SpecifiedLabel: l.SpecifiedLabel,
+		SID:            l.SID,
+		SpecifiedSID:   l.SpecifiedSID,
+	}
+}
+
+func (l *LsTLVSrBindingSID) Extract() *LsSrBindingSID {
+	return &LsSrBindingSID{
+		Flags: LsSrBindingSIDFlags{
+			SRv6:        l.Flags&lsSrBindingSIDFlagSRv6 != 0,
+			Allocated:   l.Flags&lsSrBindingSIDFlagAllocated != 0,
+			Unavailable: l.Flags&lsSrBindingSIDFlagUnavailable != 0,
+			FromSRLB:    l.Flags&lsSrBindingSIDFlagFromSRLB != 0,
+			Fallback:    l.Flags&lsSrBindingSIDFlagFallback != 0,
+		},
+		Label:          l.Label,
+		SpecifiedLabel: l.SpecifiedLabel,
+		SID:            l.SID,
+		SpecifiedSID:   l.SpecifiedSID,
+	}
+}
+
+func (l *LsTLVSrBindingSID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_BINDING_SID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < 4 {
+		return malformedAttrListErr("Incorrect SR Binding SID length")
+	}
+
+	l.Flags = binary.BigEndian.Uint16(value[:2])
+	// value[2:4] is reserved and ignored.
+
+	if l.Flags&lsSrBindingSIDFlagSRv6 != 0 {
+		if len(value) != 36 {
+			return malformedAttrListErr("Incorrect SR Binding SID length")
+		}
+		l.SID = netip.AddrFrom16([16]byte(value[4:20]))
+		l.SpecifiedSID = netip.AddrFrom16([16]byte(value[20:36]))
+		return nil
+	}
+
+	if len(value) != 12 {
+		return malformedAttrListErr("Incorrect SR Binding SID length")
+	}
+	l.Label = lsMplsLabelFromField(value[4:8])
+	l.SpecifiedLabel = lsMplsLabelFromField(value[8:12])
+
+	return nil
+}
+
+func (l *LsTLVSrBindingSID) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+
+	if l.Flags&lsSrBindingSIDFlagSRv6 != 0 {
+		buf = append(buf, lsAddrBytes(l.SID, 16)...)
+		buf = append(buf, lsAddrBytes(l.SpecifiedSID, 16)...)
+	} else {
+		// A decoded label is at most 20 bits; only a hand-built TLV can
+		// carry one that does not fit the field.
+		if l.Label > 0xfffff || l.SpecifiedLabel > 0xfffff {
+			return nil, malformedAttrListErr("SR Binding SID label exceeds 20 bits")
+		}
+		buf = append(buf, lsMplsLabelToField(l.Label)...)
+		buf = append(buf, lsMplsLabelToField(l.SpecifiedLabel)...)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrBindingSID) String() string {
+	if l.Flags&lsSrBindingSIDFlagSRv6 != 0 {
+		return fmt.Sprintf("{SR Binding SID: %s Specified: %s Flags: %s}", l.SID, l.SpecifiedSID, l.flagString())
+	}
+	return fmt.Sprintf("{SR Binding SID: %d Specified: %d Flags: %s}", l.Label, l.SpecifiedLabel, l.flagString())
+}
+
+func (l *LsTLVSrBindingSID) flagString() string {
+	return lsFlagLetters(l.Flags, "DBULF")
+}
+
+func (l *LsTLVSrBindingSID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrBindingSID
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrBindingSID) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// lsFlagLetters renders the set bits of a 16-bit flag word, MSB first, using
+// one letter per bit as given in letters. Unset bits are omitted.
+func lsFlagLetters(flags uint16, letters string) string {
+	var b strings.Builder
+	for i, r := range letters {
+		if flags&(uint16(1)<<(15-i)) != 0 {
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "-"
+	}
+	return b.String()
+}
+
+// SRv6 Binding SID TLV (1212), RFC 9857 Section 5.2
+
+const (
+	lsSrv6BindingSIDFlagAllocated   uint16 = 1 << 15 // B-Flag
+	lsSrv6BindingSIDFlagUnavailable uint16 = 1 << 14 // U-Flag
+	lsSrv6BindingSIDFlagFallback    uint16 = 1 << 13 // F-Flag
+)
+
+type LsSrv6BindingSIDFlags struct {
+	Allocated   bool `json:"allocated"`
+	Unavailable bool `json:"unavailable"`
+	Fallback    bool `json:"fallback"`
+}
+
+type LsSrv6BindingSID struct {
+	Flags            LsSrv6BindingSIDFlags   `json:"flags"`
+	SID              netip.Addr              `json:"sid"`
+	SpecifiedSID     netip.Addr              `json:"specified_sid"`
+	EndpointBehavior *LsSrv6EndpointBehavior `json:"endpoint_behavior,omitempty"`
+	SIDStructure     *LsSrv6SIDStructure     `json:"sid_structure,omitempty"`
+}
+
+type LsTLVSrv6BindingSID struct {
+	LsTLV
+	Flags        uint16
+	SID          netip.Addr
+	SpecifiedSID netip.Addr
+	SubTLVs      []LsTLVInterface
+}
+
+const lsSrv6BindingSIDFixedLen = 36
+
+func NewLsTLVSrv6BindingSID(l *LsSrv6BindingSID) *LsTLVSrv6BindingSID {
+	var flags uint16
+	if l.Flags.Allocated {
+		flags |= lsSrv6BindingSIDFlagAllocated
+	}
+	if l.Flags.Unavailable {
+		flags |= lsSrv6BindingSIDFlagUnavailable
+	}
+	if l.Flags.Fallback {
+		flags |= lsSrv6BindingSIDFlagFallback
+	}
+
+	subTLVs := lsSrv6SubTLVsFromModel(l.EndpointBehavior, l.SIDStructure)
+
+	return &LsTLVSrv6BindingSID{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SRV6_BINDING_SID,
+			Length: uint16(lsSrv6BindingSIDFixedLen + lsSubTLVsLen(subTLVs)),
+		},
+		Flags:        flags,
+		SID:          l.SID,
+		SpecifiedSID: l.SpecifiedSID,
+		SubTLVs:      subTLVs,
+	}
+}
+
+func (l *LsTLVSrv6BindingSID) Extract() *LsSrv6BindingSID {
+	eb, ss := lsSrv6SubTLVsToModel(l.SubTLVs)
+	return &LsSrv6BindingSID{
+		Flags: LsSrv6BindingSIDFlags{
+			Allocated:   l.Flags&lsSrv6BindingSIDFlagAllocated != 0,
+			Unavailable: l.Flags&lsSrv6BindingSIDFlagUnavailable != 0,
+			Fallback:    l.Flags&lsSrv6BindingSIDFlagFallback != 0,
+		},
+		SID:              l.SID,
+		SpecifiedSID:     l.SpecifiedSID,
+		EndpointBehavior: eb,
+		SIDStructure:     ss,
+	}
+}
+
+func (l *LsTLVSrv6BindingSID) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SRV6_BINDING_SID {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < lsSrv6BindingSIDFixedLen {
+		return malformedAttrListErr("Incorrect SRv6 Binding SID length")
+	}
+
+	l.Flags = binary.BigEndian.Uint16(value[:2])
+	// value[2:4] is reserved and ignored.
+	l.SID = netip.AddrFrom16([16]byte(value[4:20]))
+	l.SpecifiedSID = netip.AddrFrom16([16]byte(value[20:36]))
+
+	l.SubTLVs, err = lsWalkSubTLVs(value[lsSrv6BindingSIDFixedLen:], lsSrv6SubTLVAlloc)
+	return err
+}
+
+func (l *LsTLVSrv6BindingSID) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+	buf = append(buf, lsAddrBytes(l.SID, 16)...)
+	buf = append(buf, lsAddrBytes(l.SpecifiedSID, 16)...)
+
+	sub, err := lsSerializeSubTLVs(l.SubTLVs)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, sub...)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrv6BindingSID) String() string {
+	return fmt.Sprintf("{SRv6 Binding SID: %s Specified: %s Flags: %s}", l.SID, l.SpecifiedSID, lsFlagLetters(l.Flags, "BUF"))
+}
+
+func (l *LsTLVSrv6BindingSID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrv6BindingSID
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrv6BindingSID) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Candidate Path State TLV (1202), RFC 9857 Section 5.3
+
+const (
+	lsSrCPStateFlagShutdown        uint16 = 1 << 15 // S-Flag
+	lsSrCPStateFlagActive          uint16 = 1 << 14 // A-Flag
+	lsSrCPStateFlagBackup          uint16 = 1 << 13 // B-Flag
+	lsSrCPStateFlagEvaluated       uint16 = 1 << 12 // E-Flag
+	lsSrCPStateFlagValidSIDList    uint16 = 1 << 11 // V-Flag
+	lsSrCPStateFlagOnDemand        uint16 = 1 << 10 // O-Flag
+	lsSrCPStateFlagDelegated       uint16 = 1 << 9  // D-Flag
+	lsSrCPStateFlagProvisioned     uint16 = 1 << 8  // C-Flag
+	lsSrCPStateFlagDropUponInvalid uint16 = 1 << 7  // I-Flag
+	lsSrCPStateFlagTransitEligible uint16 = 1 << 6  // T-Flag
+	lsSrCPStateFlagDropping        uint16 = 1 << 5  // U-Flag
+)
+
+type LsSrCandidatePathStateFlags struct {
+	Shutdown        bool `json:"shutdown"`
+	Active          bool `json:"active"`
+	Backup          bool `json:"backup"`
+	Evaluated       bool `json:"evaluated"`
+	ValidSIDList    bool `json:"valid_sid_list"`
+	OnDemand        bool `json:"on_demand"`
+	Delegated       bool `json:"delegated"`
+	Provisioned     bool `json:"provisioned"`
+	DropUponInvalid bool `json:"drop_upon_invalid"`
+	TransitEligible bool `json:"transit_eligible"`
+	Dropping        bool `json:"dropping"`
+}
+
+type LsSrCandidatePathState struct {
+	Priority   uint8                       `json:"priority"`
+	Flags      LsSrCandidatePathStateFlags `json:"flags"`
+	Preference uint32                      `json:"preference"`
+}
+
+type LsTLVSrCandidatePathState struct {
+	LsTLV
+	Priority   uint8
+	Flags      uint16
+	Preference uint32
+}
+
+func NewLsTLVSrCandidatePathState(l *LsSrCandidatePathState) *LsTLVSrCandidatePathState {
+	var flags uint16
+	set := func(on bool, bit uint16) {
+		if on {
+			flags |= bit
+		}
+	}
+	set(l.Flags.Shutdown, lsSrCPStateFlagShutdown)
+	set(l.Flags.Active, lsSrCPStateFlagActive)
+	set(l.Flags.Backup, lsSrCPStateFlagBackup)
+	set(l.Flags.Evaluated, lsSrCPStateFlagEvaluated)
+	set(l.Flags.ValidSIDList, lsSrCPStateFlagValidSIDList)
+	set(l.Flags.OnDemand, lsSrCPStateFlagOnDemand)
+	set(l.Flags.Delegated, lsSrCPStateFlagDelegated)
+	set(l.Flags.Provisioned, lsSrCPStateFlagProvisioned)
+	set(l.Flags.DropUponInvalid, lsSrCPStateFlagDropUponInvalid)
+	set(l.Flags.TransitEligible, lsSrCPStateFlagTransitEligible)
+	set(l.Flags.Dropping, lsSrCPStateFlagDropping)
+
+	return &LsTLVSrCandidatePathState{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_CP_STATE,
+			Length: 8,
+		},
+		Priority:   l.Priority,
+		Flags:      flags,
+		Preference: l.Preference,
+	}
+}
+
+func (l *LsTLVSrCandidatePathState) Extract() *LsSrCandidatePathState {
+	return &LsSrCandidatePathState{
+		Priority: l.Priority,
+		Flags: LsSrCandidatePathStateFlags{
+			Shutdown:        l.Flags&lsSrCPStateFlagShutdown != 0,
+			Active:          l.Flags&lsSrCPStateFlagActive != 0,
+			Backup:          l.Flags&lsSrCPStateFlagBackup != 0,
+			Evaluated:       l.Flags&lsSrCPStateFlagEvaluated != 0,
+			ValidSIDList:    l.Flags&lsSrCPStateFlagValidSIDList != 0,
+			OnDemand:        l.Flags&lsSrCPStateFlagOnDemand != 0,
+			Delegated:       l.Flags&lsSrCPStateFlagDelegated != 0,
+			Provisioned:     l.Flags&lsSrCPStateFlagProvisioned != 0,
+			DropUponInvalid: l.Flags&lsSrCPStateFlagDropUponInvalid != 0,
+			TransitEligible: l.Flags&lsSrCPStateFlagTransitEligible != 0,
+			Dropping:        l.Flags&lsSrCPStateFlagDropping != 0,
+		},
+		Preference: l.Preference,
+	}
+}
+
+func (l *LsTLVSrCandidatePathState) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_CP_STATE {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 8 {
+		return malformedAttrListErr("Incorrect SR Candidate Path State length")
+	}
+
+	l.Priority = value[0]
+	// value[1] is reserved and ignored.
+	l.Flags = binary.BigEndian.Uint16(value[2:4])
+	l.Preference = binary.BigEndian.Uint32(value[4:8])
+
+	return nil
+}
+
+func (l *LsTLVSrCandidatePathState) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = l.Priority
+	binary.BigEndian.PutUint16(buf[2:4], l.Flags)
+	binary.BigEndian.PutUint32(buf[4:8], l.Preference)
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrCandidatePathState) String() string {
+	return fmt.Sprintf("{SR CP State: Priority:%d Preference:%d Flags:%s}", l.Priority, l.Preference, lsFlagLetters(l.Flags, "SABEVODCITU"))
+}
+
+func (l *LsTLVSrCandidatePathState) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		*LsSrCandidatePathState
+	}{
+		l.Type,
+		l.Extract(),
+	})
+}
+
+func (l *LsTLVSrCandidatePathState) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// SR Candidate Path Name TLV (1203) and SR Policy Name TLV (1213),
+// RFC 9857 Sections 5.5 and 5.4
+
+type LsTLVSrCandidatePathName struct {
+	LsTLV
+	Name string
+}
+
+func NewLsTLVSrCandidatePathName(name *string) *LsTLVSrCandidatePathName {
+	return &LsTLVSrCandidatePathName{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_CP_NAME,
+			Length: uint16(len(*name)),
+		},
+		Name: *name,
+	}
+}
+
+func (l *LsTLVSrCandidatePathName) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_CP_NAME {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	l.Name = string(value)
+	return nil
+}
+
+func (l *LsTLVSrCandidatePathName) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize([]byte(l.Name))
+}
+
+func (l *LsTLVSrCandidatePathName) String() string {
+	return fmt.Sprintf("{SR CP Name: %s}", l.Name)
+}
+
+func (l *LsTLVSrCandidatePathName) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		Name string    `json:"candidate_path_name"`
+	}{
+		l.Type,
+		l.Name,
+	})
+}
+
+func (l *LsTLVSrCandidatePathName) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+type LsTLVSrPolicyName struct {
+	LsTLV
+	Name string
+}
+
+func NewLsTLVSrPolicyName(name *string) *LsTLVSrPolicyName {
+	return &LsTLVSrPolicyName{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SR_POLICY_NAME,
+			Length: uint16(len(*name)),
+		},
+		Name: *name,
+	}
+}
+
+func (l *LsTLVSrPolicyName) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SR_POLICY_NAME {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	l.Name = string(value)
+	return nil
+}
+
+func (l *LsTLVSrPolicyName) Serialize() ([]byte, error) {
+	return l.LsTLV.Serialize([]byte(l.Name))
+}
+
+func (l *LsTLVSrPolicyName) String() string {
+	return fmt.Sprintf("{SR Policy Name: %s}", l.Name)
+}
+
+func (l *LsTLVSrPolicyName) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type LsTLVType `json:"type"`
+		Name string    `json:"policy_name"`
+	}{
+		l.Type,
+		l.Name,
+	})
+}
+
+func (l *LsTLVSrPolicyName) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// LsAttribute helpers
+
+// NewLsAttributeSrPolicyTLVs builds the RFC 9857 attribute TLVs for an SR
+// Policy candidate path, in a fixed order: SR Binding SID, SRv6 Binding SID,
+// Candidate Path State, Candidate Path Name and Policy Name.
+func NewLsAttributeSrPolicyTLVs(sp *LsAttributeSrPolicy) []LsTLVInterface {
+	tlvs := []LsTLVInterface{}
+
+	if sp.BindingSID != nil {
+		tlvs = append(tlvs, NewLsTLVSrBindingSID(sp.BindingSID))
+	}
+	for i := range sp.Srv6BindingSIDs {
+		tlvs = append(tlvs, NewLsTLVSrv6BindingSID(&sp.Srv6BindingSIDs[i]))
+	}
+	if sp.State != nil {
+		tlvs = append(tlvs, NewLsTLVSrCandidatePathState(sp.State))
+	}
+	if sp.CandidatePathName != nil {
+		tlvs = append(tlvs, NewLsTLVSrCandidatePathName(sp.CandidatePathName))
+	}
+	if sp.PolicyName != nil {
+		tlvs = append(tlvs, NewLsTLVSrPolicyName(sp.PolicyName))
+	}
+
+	return tlvs
 }

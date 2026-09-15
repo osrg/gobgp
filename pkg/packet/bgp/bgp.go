@@ -6375,6 +6375,8 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 		tlvs = append(tlvs, NewLsTLVSrv6EndpointBehavior(lsAttr.Srv6SID.Srv6EndpointBehavior))
 	}
 
+	tlvs = append(tlvs, NewLsAttributeSrPolicyTLVs(&lsAttr.SrPolicy)...)
+
 	return tlvs
 }
 
@@ -11139,12 +11141,24 @@ type LsAttributeSrv6SID struct {
 	Srv6EndpointBehavior *LsSrv6EndpointBehavior `json:"srv6_endpoint_behavior,omitempty"`
 }
 
+// LsAttributeSrPolicy holds the BGP-LS attribute TLVs that describe an SR
+// Policy Candidate Path (RFC 9857). Single-instance TLVs are pointers; the
+// SRv6 Binding SID TLV may appear once per Binding SID of the candidate path.
+type LsAttributeSrPolicy struct {
+	BindingSID        *LsSrBindingSID         `json:"binding_sid,omitempty"`
+	Srv6BindingSIDs   []LsSrv6BindingSID      `json:"srv6_binding_sids,omitempty"`
+	State             *LsSrCandidatePathState `json:"state,omitempty"`
+	CandidatePathName *string                 `json:"candidate_path_name,omitempty"`
+	PolicyName        *string                 `json:"policy_name,omitempty"`
+}
+
 type LsAttribute struct {
 	Node           LsAttributeNode           `json:"node"`
 	Link           LsAttributeLink           `json:"link"`
 	Prefix         LsAttributePrefix         `json:"prefix"`
 	BgpPeerSegment LsAttributeBgpPeerSegment `json:"bgp_peer_segment"`
 	Srv6SID        LsAttributeSrv6SID        `json:"srv6_sid"`
+	SrPolicy       LsAttributeSrPolicy       `json:"sr_policy,omitzero"`
 }
 
 type PathAttributeLs struct {
@@ -11297,6 +11311,31 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVSrv6EndpointBehavior:
 			l.Srv6SID.Srv6EndpointBehavior = v.Extract()
+
+		// SR Policy Candidate Path TLVs (RFC 9857). Single-instance TLVs:
+		// the first valid instance is used and the rest are ignored.
+		case *LsTLVSrBindingSID:
+			if l.SrPolicy.BindingSID == nil {
+				l.SrPolicy.BindingSID = v.Extract()
+			}
+
+		case *LsTLVSrv6BindingSID:
+			l.SrPolicy.Srv6BindingSIDs = append(l.SrPolicy.Srv6BindingSIDs, *v.Extract())
+
+		case *LsTLVSrCandidatePathState:
+			if l.SrPolicy.State == nil {
+				l.SrPolicy.State = v.Extract()
+			}
+
+		case *LsTLVSrCandidatePathName:
+			if l.SrPolicy.CandidatePathName == nil {
+				l.SrPolicy.CandidatePathName = &v.Name
+			}
+
+		case *LsTLVSrPolicyName:
+			if l.SrPolicy.PolicyName == nil {
+				l.SrPolicy.PolicyName = &v.Name
+			}
 		}
 	}
 
@@ -11437,6 +11476,22 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		case LS_TLV_SRV6_ENDPOINT_BEHAVIOR:
 			tlv = &LsTLVSrv6EndpointBehavior{}
+
+		// SR Policy Candidate Path related TLVs (RFC 9857).
+		case LS_TLV_SR_BINDING_SID:
+			tlv = &LsTLVSrBindingSID{}
+
+		case LS_TLV_SRV6_BINDING_SID:
+			tlv = &LsTLVSrv6BindingSID{}
+
+		case LS_TLV_SR_CP_STATE:
+			tlv = &LsTLVSrCandidatePathState{}
+
+		case LS_TLV_SR_CP_NAME:
+			tlv = &LsTLVSrCandidatePathName{}
+
+		case LS_TLV_SR_POLICY_NAME:
+			tlv = &LsTLVSrPolicyName{}
 
 		default:
 			// RFC 9552 Section 5.1: unknown TLV types are preserved and
