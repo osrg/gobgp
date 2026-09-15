@@ -9,7 +9,7 @@
 
 ### Add routes
 
-Currently, gobgp global rib add supports adding only NODE NLRI, LINK NLRI, SRv6 SID NLRI and PREFIXV6 NLRI.
+Currently, gobgp global rib add supports adding only NODE NLRI, LINK NLRI, SRv6 SID NLRI, PREFIXV6 NLRI and SR Policy Candidate Path NLRI.
 
 ```shell
 # NODE NLRI
@@ -23,7 +23,22 @@ $ gobgp global rib add -a ls prefixv6 protocol <protocol> identifier <identifier
 
 # SRv6 SID NLRI
 $ gobgp global rib add -a ls srv6sid protocol <protocol> identifier <identifier> [local-asn <local-asn>] [local-bgp-ls-id <local-bgp-ls-id>] [local-bgp-router-id <local-bgp-router-id>] [local-igp-router-id <local-igp-router-id>] [local-bgp-confederation-member <local-bgp-confederation-member>] sids <sids>... [multi-topology-id <multi-topology-id>...] [peer-as <peer-as>] [peer-bgp-id <peer-bgp-id>] [flags <flags>] [weight <weight>] [srv6-endpoint-behavior <srv6-endpoint-behavior>] [srv6-flags <srv6-flags>] [srv6-algo <srv6-algo>] [srv6-structure-lb <srv6-structure-lb>] [srv6-structure-ln <srv6-structure-ln>] [srv6-structure-fun <srv6-structure-fun>] [srv6-structure-arg <srv6-structure-arg>]
+
+# SR Policy Candidate Path NLRI (RFC 9857)
+$ gobgp global rib add -a ls srpolicy [protocol 9] identifier <identifier> local-router-id <headend> [local-asn <local-asn>] [local-bgp-ls-id <local-bgp-ls-id>] [local-bgp-router-id <local-bgp-router-id>] [local-igp-router-id <local-igp-router-id>] [local-bgp-confederation-member <local-bgp-confederation-member>] endpoint <endpoint> color <color> originator-asn <originator-asn> originator-address <originator-address> discriminator <discriminator> [protocol-origin <protocol-origin>] [policy-name <policy-name>] [cp-name <cp-name>] [bsid <label>] [srv6-bsid <sid>...] [specified-bsid <label|sid>...] [priority <priority>] [preference <preference>] [state-flags <flags>] [segment-list <weight>:<sid>[,<sid>...]...] [constraint-flags <constraint-flags>] [constraint-mtid <constraint-mtid>] [constraint-algorithm <constraint-algorithm>] [constraint-exclude-any <eag>] [constraint-include-any <eag>] [constraint-include-all <eag>] [constraint-srlg <srlg>...] [constraint-bandwidth <bps>] [constraint-disjoint-group <id>[:<request-flags>[:<status-flags>]]] [constraint-bidir-group <id>[:<flags>]] [constraint-metric <type>:<flags>[:<margin>[:<bound>]]...]
 ```
+
+For the SR Policy Candidate Path NLRI, `protocol` must be 9 (Segment Routing) and defaults to that value.
+`local-router-id` is the IPv4 or IPv6 address identifying the policy headend (TLV 1028 or 1029); it can differ from `local-bgp-router-id`.
+`protocol-origin` defaults to 3 (configuration). Values 1 and 2 report PCEP and BGP SR Policy respectively; 10, 20 and 30 are their PCE-producer variants.
+For headend-produced advertisements (origins 1, 2 and 3), `local-asn` and `local-bgp-router-id` are also required. A PCE may report only the headend's `local-router-id`.
+`state-flags` is a string of letters from `SABEVODCITU` (Shutdown, Active, Backup, Evaluated, Valid SID list, On-demand, Delegated, provisioned by PCE (C), drop-upon-Invalid, Transit eligible, dropping (U)).
+Each `segment-list` argument is one segment list: a weight followed by a comma-separated list of MPLS labels (segment type A) or SRv6 SIDs (segment type B). The segment list and its segments are advertised with the V and R flags set, since a clear flag reads as failed verification or resolution (RFC 9857 Sections 5.7 and 5.7.1).
+`srv6-bsid` accepts multiple SIDs. If `specified-bsid` is supplied, give one value per SRv6 Binding SID in the same order; `::` denotes an unspecified value.
+The `constraint-*` arguments fill the SR Candidate Path Constraints TLV (1204). `constraint-flags` is a string of letters from `DPUATSFH` (SRv6 Data plane, Protected only, Unprotected only, Algorithm only, Topology only, Strict, Fixed, Hop-by-hop).
+An `<eag>` is an Extended Administrative Group given as comma-separated 32-bit words, the first word holding bits 0 to 31, for example `0xff` or `1,0x80000000`.
+`constraint-disjoint-group` takes the group identifier followed by optional request flags from `SNLFI` and status flags from `SNLFIX`; `constraint-bidir-group` takes the group identifier and optional flags from `RC`.
+Each `constraint-metric` is a metric type followed by flags from `OMAB` (Optimization metric, Margin, Absolute margin, Bound) and optional margin and bound, for example `1:MAB:5:100`.
 
 ### Show routes
 
@@ -87,6 +102,21 @@ $ gobgp global rib -a ls
    Network                                                                                                                                            Next Hop             AS_PATH              Age        Attrs
 *  NLRI { SRv6SID { LOCAL_NODE: {ASN: 65001, BGP LS ID: 0, BGP ROUTER ID: 192.168.1.1} SRv6_SID: {SIDs: fd00::1} MULTI_TOPO_IDs: {MultiTopoIDs: 2}} } 0.0.0.0                                   00:07:20   [{Origin: ?} {LsAttributes: {SRv6 SID Structure: LocalBlock:48 LocalNode:16 LocalFunc:16 LocalArg:0} {SRv6 BGP PeerNode SID: Flags:0 Weight:0 PeerAS:65002 PeerBgpID:192.168.1.2} {SRv6 Endpoint Behavior: EndpointBehavior:30 Flags:0 Algorithm:0} }]
 ```
+
+### Example - SR Policy Candidate Path NLRI
+
+```shell
+# Add routes
+$ gobgp global rib add -a ls srpolicy identifier 0 local-router-id 10.0.0.1 local-asn 65001 local-bgp-router-id 1.1.1.1 endpoint 10.0.0.2 color 100 originator-asn 65001 originator-address 1.1.1.1 discriminator 1 policy-name blue cp-name cp1 bsid 24001 priority 10 preference 200 state-flags AEV segment-list 1:16002,24006 2:16003
+
+# Show routes
+$ gobgp global rib -a ls
+   Network                                                                                                                                                        Next Hop             AS_PATH              Age        Attrs
+*> NLRI { SRPOLICY_CP { LOCAL_NODE: {ASN: 65001, BGP LS ID: 0, BGP ROUTER ID: 1.1.1.1, IPv4 ROUTER ID: 10.0.0.1} ENDPOINT: 10.0.0.2 COLOR: 100 ORIGIN: 3 ORIGINATOR: 65001/1.1.1.1 DISCRIMINATOR: 1 SR:0 } } 0.0.0.0                                   00:00:03   [{Origin: ?} {LsAttributes: {SR Binding SID: 24001 Specified: 0 Flags: B} {SR CP State: Priority:10 Preference:200 Flags:AEV} {SR CP Name: cp1} {SR Policy Name: blue} {SR Segment List: Weight:1 MTID:0 Algo:0 Flags:ECVR {Segment: Type:A Label:16002 Algo:0 Flags:SEVR} {Segment: Type:A Label:24006 Algo:0 Flags:SEVR}} {SR Segment List: Weight:2 MTID:0 Algo:0 Flags:ECVR {Segment: Type:A Label:16003 Algo:0 Flags:SEVR}} }]
+```
+
+Candidate paths received from SR headends or a PCE are exposed over the gRPC API as `LsAddrPrefix` with an `LsSrPolicyCandidatePathNLRI` and an `LsAttribute` whose `sr_policy` field carries the Binding SID, repeated `srv6_binding_sids`, candidate path state, names, `constraints` and segment lists.
+Unknown TLVs nested in these are preserved when forwarding, but are not exposed in the structured API.
 
 ### Example - PREFIXv6 NLRI
 

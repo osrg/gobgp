@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"regexp"
@@ -2820,6 +2821,557 @@ func parseLsSRv6SIDNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, erro
 	return nlri, pathAttr, nil
 }
 
+// lsParseUintArg parses the single value of an optional reserved parameter.
+func lsParseUintArg(m map[string][]string, key string, bits int) (uint64, bool, error) {
+	v, ok := m[key]
+	if !ok || len(v) == 0 {
+		return 0, false, nil
+	}
+	n, err := strconv.ParseUint(v[0], 10, bits)
+	if err != nil {
+		return 0, false, fmt.Errorf("invalid %s: %v", key, err)
+	}
+	return n, true, nil
+}
+
+// lsParseSegmentListArg parses one "<weight>:<sid>[,<sid>...]" token. All
+// SIDs must be either MPLS labels (segment type A) or SRv6 SIDs (type B).
+func lsParseSegmentListArg(arg string) (*bgp.LsSrSegmentList, error) {
+	weightStr, sidsStr, ok := strings.Cut(arg, ":")
+	if !ok {
+		return nil, fmt.Errorf("invalid segment-list %q: expected <weight>:<sid>[,<sid>...]", arg)
+	}
+	weight, err := strconv.ParseUint(weightStr, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid segment-list weight %q: %v", weightStr, err)
+	}
+
+	// The V and R flags are set: a clear one reads as "failed verification"
+	// or "failed resolution" (RFC 9857 sections 5.7 and 5.7.1), which must
+	// not be claimed for an operator-injected path.
+	sl := &bgp.LsSrSegmentList{
+		Flags:  bgp.LsSrSegmentListFlags{Explicit: true, Computed: true, Verified: true, Resolved: true},
+		Weight: uint32(weight),
+	}
+	for _, sidStr := range strings.Split(sidsStr, ",") {
+		seg := bgp.LsSrSegment{Flags: bgp.LsSrSegmentFlags{SIDPresent: true, Explicit: true, Verified: true, Resolved: true}}
+		if addr, err := netip.ParseAddr(sidStr); err == nil && addr.Is6() && !addr.Is4In6() && addr.Zone() == "" {
+			seg.SegmentType = bgp.LS_SR_SEGMENT_TYPE_B_SRV6_SID
+			seg.SID = addr
+		} else {
+			label, err := strconv.ParseUint(sidStr, 10, 20)
+			if err != nil {
+				return nil, fmt.Errorf("invalid segment %q: expected an MPLS label or an SRv6 SID", sidStr)
+			}
+			seg.SegmentType = bgp.LS_SR_SEGMENT_TYPE_A_MPLS_LABEL
+			seg.Label = uint32(label)
+		}
+		sl.Segments = append(sl.Segments, seg)
+	}
+
+	srv6 := sl.Segments[0].SegmentType == bgp.LS_SR_SEGMENT_TYPE_B_SRV6_SID
+	for _, seg := range sl.Segments {
+		if seg.SegmentType == bgp.LS_SR_SEGMENT_TYPE_B_SRV6_SID != srv6 {
+			return nil, fmt.Errorf("invalid segment-list %q: cannot mix MPLS labels and SRv6 SIDs", arg)
+		}
+	}
+	sl.Flags.SRv6 = srv6
+
+	return sl, nil
+}
+
+// lsParseFlagLetters returns the set of upper-case flag letters in value,
+// each of which must come from letters.
+func lsParseFlagLetters(name, value, letters string) (map[rune]bool, error) {
+	set := map[rune]bool{}
+	for _, r := range strings.ToUpper(value) {
+		if !strings.ContainsRune(letters, r) {
+			return nil, fmt.Errorf("invalid %s %q: expected letters from %s", name, value, letters)
+		}
+		set[r] = true
+	}
+	return set, nil
+}
+
+// lsParseEAGArg parses an Extended Administrative Group given as
+// comma-separated 32-bit words, the first word holding bits 0 to 31.
+func lsParseEAGArg(name, value string) ([]uint32, error) {
+	words := []uint32{}
+	for _, s := range strings.Split(value, ",") {
+		w, err := strconv.ParseUint(s, 0, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s: %v", name, err)
+		}
+		words = append(words, uint32(w))
+	}
+	if len(words) > 0xff {
+		return nil, fmt.Errorf("invalid %s: at most 255 words", name)
+	}
+	return words, nil
+}
+
+// lsParseGroupArg parses <id>[:<flags>...] of a disjoint or bidirectional
+// group constraint. letters holds the permitted letters of each flags field.
+func lsParseGroupArg(name, value string, letters ...string) (uint32, []map[rune]bool, error) {
+	parts := strings.Split(value, ":")
+	if len(parts) > 1+len(letters) {
+		return 0, nil, fmt.Errorf("invalid %s %q", name, value)
+	}
+	id, err := strconv.ParseUint(parts[0], 0, 32)
+	if err != nil {
+		return 0, nil, fmt.Errorf("invalid %s: %v", name, err)
+	}
+	flags := make([]map[rune]bool, len(letters))
+	for i := range letters {
+		flags[i] = map[rune]bool{}
+		if i+1 < len(parts) {
+			if flags[i], err = lsParseFlagLetters(name, parts[i+1], letters[i]); err != nil {
+				return 0, nil, err
+			}
+		}
+	}
+	return uint32(id), flags, nil
+}
+
+// lsParseSrPolicyConstraintsArgs builds the SR Candidate Path Constraints
+// from the constraint-* arguments, or returns nil when none is given.
+func lsParseSrPolicyConstraintsArgs(m map[string][]string) (*bgp.LsSrCandidatePathConstraints, error) {
+	// Only the arguments actually supplied end up in m, so any populated
+	// constraint-* key means a Constraints TLV was asked for.
+	present := false
+	for key, values := range m {
+		if strings.HasPrefix(key, "constraint-") && len(values) > 0 {
+			present = true
+			break
+		}
+	}
+	if !present {
+		return nil, nil
+	}
+
+	c := &bgp.LsSrCandidatePathConstraints{}
+	if v := m["constraint-flags"]; len(v) > 0 {
+		set, err := lsParseFlagLetters("constraint-flags", v[0], "DPUATSFH")
+		if err != nil {
+			return nil, err
+		}
+		if set['P'] && set['U'] {
+			return nil, fmt.Errorf("constraint-flags P and U are mutually exclusive")
+		}
+		c.Flags = bgp.LsSrCandidatePathConstraintsFlags{
+			SRv6:            set['D'],
+			ProtectedOnly:   set['P'],
+			UnprotectedOnly: set['U'],
+			AlgorithmOnly:   set['A'],
+			TopologyOnly:    set['T'],
+			Strict:          set['S'],
+			Fixed:           set['F'],
+			HopByHop:        set['H'],
+		}
+	}
+	mtid, _, err := lsParseUintArg(m, "constraint-mtid", 16)
+	if err != nil {
+		return nil, err
+	}
+	c.MTID = uint16(mtid)
+	algorithm, _, err := lsParseUintArg(m, "constraint-algorithm", 8)
+	if err != nil {
+		return nil, err
+	}
+	c.Algorithm = uint8(algorithm)
+
+	for _, key := range []string{"constraint-exclude-any", "constraint-include-any", "constraint-include-all"} {
+		v := m[key]
+		if len(v) == 0 {
+			continue
+		}
+		words, err := lsParseEAGArg(key, v[0])
+		if err != nil {
+			return nil, err
+		}
+		if c.Affinity == nil {
+			c.Affinity = &bgp.LsSrAffinityConstraint{}
+		}
+		switch key {
+		case "constraint-exclude-any":
+			c.Affinity.ExcludeAny = words
+		case "constraint-include-any":
+			c.Affinity.IncludeAny = words
+		default:
+			c.Affinity.IncludeAll = words
+		}
+	}
+
+	for _, s := range m["constraint-srlg"] {
+		srlg, err := strconv.ParseUint(s, 0, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid constraint-srlg: %v", err)
+		}
+		c.SRLGs = append(c.SRLGs, uint32(srlg))
+	}
+
+	if v := m["constraint-bandwidth"]; len(v) > 0 {
+		bw, err := strconv.ParseFloat(v[0], 32)
+		if err != nil || bw < 0 || math.IsInf(bw, 0) || math.IsNaN(bw) {
+			return nil, fmt.Errorf("invalid constraint-bandwidth %q", v[0])
+		}
+		f := float32(bw)
+		c.Bandwidth = &f
+	}
+
+	if v := m["constraint-disjoint-group"]; len(v) > 0 {
+		id, flags, err := lsParseGroupArg("constraint-disjoint-group", v[0], "SNLFI", "SNLFIX")
+		if err != nil {
+			return nil, err
+		}
+		request, status := flags[0], flags[1]
+		c.DisjointGroup = &bgp.LsSrDisjointGroupConstraint{
+			RequestFlags: bgp.LsSrDisjointGroupRequestFlags{
+				SRLG:             request['S'],
+				Node:             request['N'],
+				Link:             request['L'],
+				Fallback:         request['F'],
+				BestPathFallback: request['I'],
+			},
+			StatusFlags: bgp.LsSrDisjointGroupStatusFlags{
+				SRLG:             status['S'],
+				Node:             status['N'],
+				Link:             status['L'],
+				Fallback:         status['F'],
+				BestPathFallback: status['I'],
+				Invalidated:      status['X'],
+			},
+			GroupID: id,
+		}
+	}
+
+	if v := m["constraint-bidir-group"]; len(v) > 0 {
+		id, flags, err := lsParseGroupArg("constraint-bidir-group", v[0], "RC")
+		if err != nil {
+			return nil, err
+		}
+		c.BidirectionalGroup = &bgp.LsSrBidirectionalGroupConstraint{
+			Flags:   bgp.LsSrBidirectionalGroupFlags{Reverse: flags[0]['R'], CoRouted: flags[0]['C']},
+			GroupID: id,
+		}
+	}
+
+	optimization := false
+	for _, arg := range m["constraint-metric"] {
+		// <type>:<flags>[:<margin>[:<bound>]]
+		parts := strings.Split(arg, ":")
+		if len(parts) < 2 || len(parts) > 4 {
+			return nil, fmt.Errorf("invalid constraint-metric %q", arg)
+		}
+		metricType, err := strconv.ParseUint(parts[0], 10, 8)
+		if err != nil {
+			return nil, fmt.Errorf("invalid constraint-metric type: %v", err)
+		}
+		metric := bgp.LsSrMetricConstraint{MetricType: uint8(metricType)}
+		set, err := lsParseFlagLetters("constraint-metric flags", parts[1], "OMAB")
+		if err != nil {
+			return nil, err
+		}
+		// The O-flag "MUST NOT be set in more than one instance of this
+		// TLV for a given candidate path advertisement" (RFC 9857
+		// section 5.6.6).
+		if set['O'] && optimization {
+			return nil, fmt.Errorf("only one constraint-metric may carry the O flag")
+		}
+		optimization = optimization || set['O']
+		metric.Flags = bgp.LsSrMetricConstraintFlags{Optimization: set['O'], Margin: set['M'], Absolute: set['A'], Bound: set['B']}
+		values := []*uint32{&metric.Margin, &metric.Bound}
+		for i, s := range parts[2:] {
+			value, err := strconv.ParseUint(s, 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("invalid constraint-metric value: %v", err)
+			}
+			*values[i] = uint32(value)
+		}
+		c.Metrics = append(c.Metrics, metric)
+	}
+
+	return c, nil
+}
+
+func parseLsSrPolicyCandidatePathNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
+	// Format:
+	// gobgp global rib add -a ls srpolicy [protocol 9] identifier <identifier> local-router-id <headend> [local-asn <local-asn>] [local-bgp-ls-id <local-bgp-ls-id>] [local-bgp-router-id <local-bgp-router-id>] [local-igp-router-id <local-igp-router-id>] [local-bgp-confederation-member <confederation-member>] endpoint <endpoint> color <color> originator-asn <originator-asn> originator-address <originator-address> discriminator <discriminator> [protocol-origin <protocol-origin>] [policy-name <policy-name>] [cp-name <cp-name>] [bsid <label>] [srv6-bsid <sid>...] [specified-bsid <label|sid>...] [priority <priority>] [preference <preference>] [state-flags <flags>] [segment-list <weight>:<sid>[,<sid>...]...] [constraint-flags <DPUATSFH>] [constraint-mtid <mtid>] [constraint-algorithm <algorithm>] [constraint-exclude-any <eag>] [constraint-include-any <eag>] [constraint-include-all <eag>] [constraint-srlg <srlg>...] [constraint-bandwidth <bps>] [constraint-disjoint-group <id>[:<request-flags>[:<status-flags>]]] [constraint-bidir-group <id>[:<flags>]] [constraint-metric <type>:<flags>[:<margin>[:<bound>]]...]
+	req := 13
+	if len(args) < req {
+		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
+	}
+
+	m, err := extractReserved(args, map[string]int{
+		"protocol":                       paramSingle,
+		"identifier":                     paramSingle,
+		"local-asn":                      paramSingle,
+		"local-bgp-ls-id":                paramSingle,
+		"local-bgp-router-id":            paramSingle,
+		"local-igp-router-id":            paramSingle,
+		"local-bgp-confederation-member": paramSingle,
+		"endpoint":                       paramSingle,
+		"color":                          paramSingle,
+		"originator-asn":                 paramSingle,
+		"originator-address":             paramSingle,
+		"discriminator":                  paramSingle,
+		"protocol-origin":                paramSingle,
+		"policy-name":                    paramSingle,
+		"cp-name":                        paramSingle,
+		"bsid":                           paramSingle,
+		"local-router-id":                paramSingle,
+		"srv6-bsid":                      paramList,
+		"specified-bsid":                 paramList,
+		"priority":                       paramSingle,
+		"preference":                     paramSingle,
+		"state-flags":                    paramSingle,
+		"segment-list":                   paramList,
+		"constraint-flags":               paramSingle,
+		"constraint-mtid":                paramSingle,
+		"constraint-algorithm":           paramSingle,
+		"constraint-exclude-any":         paramSingle,
+		"constraint-include-any":         paramSingle,
+		"constraint-include-all":         paramSingle,
+		"constraint-srlg":                paramList,
+		"constraint-bandwidth":           paramSingle,
+		"constraint-disjoint-group":      paramSingle,
+		"constraint-bidir-group":         paramSingle,
+		"constraint-metric":              paramList,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, key := range []string{"identifier", "endpoint", "color", "originator-asn", "originator-address", "discriminator", "local-router-id"} {
+		if v, ok := m[key]; !ok || len(v) == 0 {
+			return nil, nil, fmt.Errorf("%s is required", key)
+		}
+	}
+
+	// NLRI header. RFC 9857 requires Protocol-ID 9 (Segment Routing).
+	if v, ok, err := lsParseUintArg(m, "protocol", 8); err != nil {
+		return nil, nil, err
+	} else if ok && v != uint64(bgp.LS_PROTOCOL_SEGMENT_ROUTING) {
+		return nil, nil, fmt.Errorf("SR Policy candidate path requires protocol 9")
+	}
+	identifier, _, err := lsParseUintArg(m, "identifier", 64)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Headend node descriptor.
+	localAsn, _, err := lsParseUintArg(m, "local-asn", 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	localBgpLsID, _, err := lsParseUintArg(m, "local-bgp-ls-id", 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	localConfMember, _, err := lsParseUintArg(m, "local-bgp-confederation-member", 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	var localBgpRouterID netip.Addr
+	if v, ok := m["local-bgp-router-id"]; ok && len(v) > 0 {
+		localBgpRouterID, err = netip.ParseAddr(v[0])
+		if err != nil || !localBgpRouterID.Is4() {
+			return nil, nil, fmt.Errorf("local-bgp-router-id must be an IPv4 address")
+		}
+	}
+	var localIgpRouterID string
+	if v, ok := m["local-igp-router-id"]; ok && len(v) > 0 {
+		localIgpRouterID, err = parseIgpRouterId(v[0])
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid local-igp-router-id: %v", err)
+		}
+	}
+	lnd := &bgp.LsNodeDescriptor{
+		Asn:                    uint32(localAsn),
+		BGPLsID:                uint32(localBgpLsID),
+		IGPRouterID:            localIgpRouterID,
+		BGPRouterID:            localBgpRouterID,
+		BGPConfederationMember: uint32(localConfMember),
+	}
+	headend, err := netip.ParseAddr(m["local-router-id"][0])
+	if err != nil || headend.Zone() != "" || headend.Is4In6() {
+		return nil, nil, fmt.Errorf("invalid local-router-id")
+	}
+	if headend.Is4() {
+		lnd.LocalRouterID = headend
+	} else {
+		lnd.LocalRouterIDv6 = headend
+	}
+	lndTLV := bgp.NewLsTLVNodeDescriptor(lnd, bgp.LS_TLV_LOCAL_NODE_DESC)
+
+	// Candidate path descriptor.
+	endpoint, err := netip.ParseAddr(m["endpoint"][0])
+	if err != nil || endpoint.Zone() != "" {
+		return nil, nil, fmt.Errorf("invalid endpoint")
+	}
+	originatorAddr, err := netip.ParseAddr(m["originator-address"][0])
+	if err != nil || originatorAddr.Zone() != "" {
+		return nil, nil, fmt.Errorf("invalid originator-address")
+	}
+	color, _, err := lsParseUintArg(m, "color", 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	originatorAsn, _, err := lsParseUintArg(m, "originator-asn", 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	discriminator, _, err := lsParseUintArg(m, "discriminator", 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	protocolOrigin := uint64(3) // Configuration (RFC 9857 Section 8.4).
+	if v, ok, err := lsParseUintArg(m, "protocol-origin", 8); err != nil {
+		return nil, nil, err
+	} else if ok {
+		protocolOrigin = v
+	}
+	if protocolOrigin >= 1 && protocolOrigin <= 3 && (localAsn == 0 || !localBgpRouterID.Is4()) {
+		return nil, nil, fmt.Errorf("headend producer requires local-asn and local-bgp-router-id")
+	}
+	cpdTLV := bgp.NewLsTLVSrPolicyCandidatePathDescriptor(&bgp.LsSrPolicyCandidatePathDescriptor{
+		ProtocolOrigin:    uint8(protocolOrigin),
+		Endpoint:          endpoint,
+		Color:             uint32(color),
+		OriginatorASN:     uint32(originatorAsn),
+		OriginatorAddress: originatorAddr,
+		Discriminator:     uint32(discriminator),
+	})
+
+	const lsNLRIHdrLen = 9 // Protocol-ID + Identifier
+	length := uint16(lsNLRIHdrLen + lndTLV.Len() + cpdTLV.Len())
+	nlri := &bgp.LsAddrPrefix{
+		Type:   bgp.LS_NLRI_TYPE_SR_POLICY_CANDIDATE_PATH,
+		Length: length,
+		NLRI: &bgp.LsSrPolicyCandidatePathNLRI{
+			LsNLRI: bgp.LsNLRI{
+				NLRIType:   bgp.LS_NLRI_TYPE_SR_POLICY_CANDIDATE_PATH,
+				Length:     length,
+				ProtocolID: bgp.LS_PROTOCOL_SEGMENT_ROUTING,
+				Identifier: identifier,
+			},
+			LocalNodeDesc:     &lndTLV,
+			CandidatePathDesc: cpdTLV,
+		},
+	}
+
+	// Attribute TLVs.
+	sp := bgp.LsAttributeSrPolicy{}
+	if v, ok := m["policy-name"]; ok && len(v) > 0 {
+		name := v[0]
+		sp.PolicyName = &name
+	}
+	if v, ok := m["cp-name"]; ok && len(v) > 0 {
+		name := v[0]
+		sp.CandidatePathName = &name
+	}
+
+	if label, ok, err := lsParseUintArg(m, "bsid", 20); err != nil {
+		return nil, nil, err
+	} else if ok {
+		sp.BindingSID = &bgp.LsSrBindingSID{Flags: bgp.LsSrBindingSIDFlags{Allocated: true}, Label: uint32(label)}
+	}
+	for _, v := range m["srv6-bsid"] {
+		sid, err := netip.ParseAddr(v)
+		if err != nil || !sid.Is6() || sid.Is4In6() || sid.Zone() != "" {
+			return nil, nil, fmt.Errorf("invalid srv6-bsid: must be an IPv6 address")
+		}
+		sp.Srv6BindingSIDs = append(sp.Srv6BindingSIDs, bgp.LsSrv6BindingSID{Flags: bgp.LsSrv6BindingSIDFlags{Allocated: true}, SID: sid})
+	}
+	if sp.BindingSID != nil && len(sp.Srv6BindingSIDs) != 0 {
+		return nil, nil, fmt.Errorf("bsid and srv6-bsid are mutually exclusive")
+	}
+	if v, ok := m["specified-bsid"]; ok && len(v) > 0 {
+		switch {
+		case len(sp.Srv6BindingSIDs) != 0:
+			if len(v) != len(sp.Srv6BindingSIDs) {
+				return nil, nil, fmt.Errorf("specified-bsid must have one value per srv6-bsid")
+			}
+			for i, value := range v {
+				sid, err := netip.ParseAddr(value)
+				if err != nil || !sid.Is6() || sid.Is4In6() || sid.Zone() != "" {
+					return nil, nil, fmt.Errorf("invalid specified-bsid: must be an IPv6 address")
+				}
+				sp.Srv6BindingSIDs[i].SpecifiedSID = sid
+			}
+		case sp.BindingSID != nil:
+			if len(v) != 1 {
+				return nil, nil, fmt.Errorf("specified-bsid requires a single MPLS label")
+			}
+			label, err := strconv.ParseUint(v[0], 10, 20)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid specified-bsid: %v", err)
+			}
+			sp.BindingSID.SpecifiedLabel = uint32(label)
+		default:
+			return nil, nil, fmt.Errorf("specified-bsid requires bsid or srv6-bsid")
+		}
+	}
+
+	priority, hasPriority, err := lsParseUintArg(m, "priority", 8)
+	if err != nil {
+		return nil, nil, err
+	}
+	preference, hasPreference, err := lsParseUintArg(m, "preference", 32)
+	if err != nil {
+		return nil, nil, err
+	}
+	stateFlags, hasStateFlags := m["state-flags"]
+	if hasPriority || hasPreference || hasStateFlags {
+		state := &bgp.LsSrCandidatePathState{Priority: uint8(priority), Preference: uint32(preference)}
+		if hasStateFlags && len(stateFlags) > 0 {
+			set, err := lsParseFlagLetters("state-flags", stateFlags[0], "SABEVODCITU")
+			if err != nil {
+				return nil, nil, err
+			}
+			state.Flags = bgp.LsSrCandidatePathStateFlags{
+				Shutdown:        set['S'],
+				Active:          set['A'],
+				Backup:          set['B'],
+				Evaluated:       set['E'],
+				ValidSIDList:    set['V'],
+				OnDemand:        set['O'],
+				Delegated:       set['D'],
+				Provisioned:     set['C'],
+				DropUponInvalid: set['I'],
+				TransitEligible: set['T'],
+				Dropping:        set['U'],
+			}
+		}
+		sp.State = state
+	}
+
+	for _, arg := range m["segment-list"] {
+		sl, err := lsParseSegmentListArg(arg)
+		if err != nil {
+			return nil, nil, err
+		}
+		sp.SegmentLists = append(sp.SegmentLists, *sl)
+	}
+
+	if sp.Constraints, err = lsParseSrPolicyConstraintsArgs(m); err != nil {
+		return nil, nil, err
+	}
+
+	var pathAttr *bgp.PathAttributeLs
+	if tlvs := bgp.NewLsAttributeTLVs(&bgp.LsAttribute{SrPolicy: sp}); len(tlvs) > 0 {
+		pathAttr = &bgp.PathAttributeLs{
+			PathAttribute: bgp.PathAttribute{
+				Type:  bgp.BGP_ATTR_TYPE_LS,
+				Flags: bgp.BGP_ATTR_FLAG_OPTIONAL,
+			},
+			TLVs: tlvs,
+		}
+	}
+
+	return nlri, pathAttr, nil
+}
+
 func lsTLVTypeSelect(s string) bgp.LsTLVType {
 	switch s {
 	case "node":
@@ -2848,9 +3400,11 @@ func parseLsArgs(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 		return parseLsPrefixV6NLRIType(args)
 	case "srv6sid":
 		return parseLsSRv6SIDNLRIType(args)
+	case "srpolicy":
+		return parseLsSrPolicyCandidatePathNLRIType(args)
 	}
 
-	return nil, nil, fmt.Errorf("invalid nlriType. expect [node, link, prefixv6, srv6sid] but %s", nlriType)
+	return nil, nil, fmt.Errorf("invalid nlriType. expect [node, link, prefixv6, srv6sid, srpolicy] but %s", nlriType)
 }
 
 func parseRtcArgs(args []string) (bgp.NLRI, error) {
