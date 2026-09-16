@@ -1605,6 +1605,14 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			Type:   table.ToComparisonApi(s.Conditions.BgpConditions.AsPathLength.Operator),
 		}
 	}
+	switch s.Conditions.BgpConditions.OriginEq {
+	case oc.BGP_ORIGIN_ATTR_TYPE_IGP:
+		cs.Origin = api.OriginType_ORIGIN_TYPE_IGP
+	case oc.BGP_ORIGIN_ATTR_TYPE_EGP:
+		cs.Origin = api.OriginType_ORIGIN_TYPE_EGP
+	case oc.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE:
+		cs.Origin = api.OriginType_ORIGIN_TYPE_INCOMPLETE
+	}
 	if s.Conditions.BgpConditions.LocalPrefEq != 0 {
 		cs.LocalPrefEq = &api.LocalPrefEq{Value: s.Conditions.BgpConditions.LocalPrefEq}
 	}

@@ -5018,3 +5018,65 @@ func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 			n.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET
 	}, 10*time.Second, 10*time.Millisecond)
 }
+
+func TestListPolicyOriginCondition(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	statements := []*api.Statement{
+		{
+			// The condition and the action carry different origins.
+			Name:       "egp-to-igp",
+			Conditions: &api.Conditions{Origin: api.OriginType_ORIGIN_TYPE_EGP},
+			Actions: &api.Actions{
+				RouteAction:  api.RouteAction_ROUTE_ACTION_ACCEPT,
+				OriginAction: &api.OriginAction{Origin: api.OriginType_ORIGIN_TYPE_IGP},
+			},
+		},
+		{
+			// The condition alone, with no origin action.
+			Name:       "incomplete",
+			Conditions: &api.Conditions{Origin: api.OriginType_ORIGIN_TYPE_INCOMPLETE},
+			Actions:    &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_REJECT},
+		},
+	}
+	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{
+		Policy: &api.Policy{Name: "p1", Statements: statements},
+	})
+	require.NoError(t, err)
+
+	want := map[string]api.OriginType{
+		"egp-to-igp": api.OriginType_ORIGIN_TYPE_EGP,
+		"incomplete": api.OriginType_ORIGIN_TYPE_INCOMPLETE,
+	}
+
+	var policies []*api.Policy
+	err = s.ListPolicy(context.Background(), &api.ListPolicyRequest{Name: "p1"}, func(p *api.Policy) {
+		policies = append(policies, p)
+	})
+	require.NoError(t, err)
+	require.Len(t, policies, 1)
+	require.Len(t, policies[0].Statements, len(want))
+	for _, st := range policies[0].Statements {
+		assert.Equal(t, want[st.Name], st.Conditions.Origin, "ListPolicy, statement %s", st.Name)
+	}
+
+	for name, origin := range want {
+		var listed []*api.Statement
+		err = s.ListStatement(context.Background(), &api.ListStatementRequest{Name: name}, func(st *api.Statement) {
+			listed = append(listed, st)
+		})
+		require.NoError(t, err)
+		require.Len(t, listed, 1)
+		assert.Equal(t, origin, listed[0].Conditions.Origin, "ListStatement, statement %s", name)
+	}
+}

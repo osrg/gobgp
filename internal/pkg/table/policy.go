@@ -4867,7 +4867,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 		}
 	}
 	if s.Conditions.BgpConditions.OriginEq.ToInt() != -1 {
-		switch s.Actions.BgpActions.SetRouteOrigin {
+		switch s.Conditions.BgpConditions.OriginEq {
 		case oc.BGP_ORIGIN_ATTR_TYPE_IGP:
 			cs.Origin = api.OriginType_ORIGIN_TYPE_IGP
 		case oc.BGP_ORIGIN_ATTR_TYPE_EGP:
