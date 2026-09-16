@@ -206,6 +206,11 @@ func (adj *AdjRib) Drop(rfList []bgp.Family) []*Path {
 	l := make([]*Path, 0, adj.Count(rfList))
 	adj.walk(rfList, func(d *destination) bool {
 		for _, p := range d.knownPathList {
+			// Rejected paths were never installed in the local RIB; do not
+			// emit withdrawals for them (avoids "No matching path for withdraw").
+			if p.IsRejected() {
+				continue
+			}
 			w := p.Clone(true)
 			w.SetDropped(true)
 			l = append(l, w)

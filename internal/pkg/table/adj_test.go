@@ -138,6 +138,32 @@ func TestStale(t *testing.T) {
 	assert.Equal(t, 1, len(adj.table[family].GetDestinations()))
 }
 
+func TestDropSkipsRejected(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.10.0/24"))
+	p1 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	p2 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri2}, false, attrs, time.Now(), false)
+	p2.SetRejected(true)
+
+	family := p1.GetFamily()
+	families := []bgp.Family{family}
+
+	adj := NewAdjRib(slog.Default(), families)
+	adj.Update([]*Path{p1, p2})
+	assert.Equal(t, 2, adj.Count(families))
+	assert.Equal(t, 1, adj.Accepted(families))
+
+	// Drop must not emit withdrawals for rejected paths that never entered the RIB.
+	dropped := adj.Drop(families)
+	assert.Equal(t, 1, len(dropped))
+	assert.False(t, dropped[0].IsRejected())
+	assert.Equal(t, 0, adj.Count(families))
+	assert.Equal(t, 0, adj.Accepted(families))
+}
+
 func TestLLGRStale(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
