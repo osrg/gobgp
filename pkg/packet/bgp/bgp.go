@@ -8454,7 +8454,8 @@ func NewLsTLVSrCapabilities(l *LsSrCapabilities) *LsTLVSrCapabilities {
 		flags = flags | 1<<6
 	}
 	ranges := []LsSrLabelRange{}
-	var length uint16
+	// Flags (1) + Reserved (1)
+	length := uint16(2)
 	for _, r := range l.Ranges {
 		ranges = append(ranges, LsSrLabelRange{
 			Range: r.End - r.Begin,
@@ -8466,7 +8467,9 @@ func NewLsTLVSrCapabilities(l *LsSrCapabilities) *LsTLVSrCapabilities {
 				SID: r.Begin,
 			},
 		})
-		length += 4
+		// Range Size (3) + the SID/Label sub-TLV, which carries a
+		// 4-octet label here.
+		length += 3 + tlvHdrLen + 4
 	}
 	return &LsTLVSrCapabilities{
 		LsTLV: LsTLV{
@@ -8613,7 +8616,8 @@ type LsSrLocalBlock struct {
 func NewLsTLVSrLocalBlock(l *LsSrLocalBlock) *LsTLVSrLocalBlock {
 	var flags uint8 //
 	ranges := []LsSrLabelRange{}
-	var length uint16
+	// Flags (1) + Reserved (1)
+	length := uint16(2)
 	for _, r := range l.Ranges {
 		ranges = append(ranges, LsSrLabelRange{
 			Range: r.End - r.Begin,
@@ -8625,7 +8629,9 @@ func NewLsTLVSrLocalBlock(l *LsSrLocalBlock) *LsTLVSrLocalBlock {
 				SID: r.Begin,
 			},
 		})
-		length += 4
+		// Range Size (3) + the SID/Label sub-TLV, which carries a
+		// 4-octet label here.
+		length += 3 + tlvHdrLen + 4
 	}
 	return &LsTLVSrLocalBlock{
 		LsTLV: LsTLV{

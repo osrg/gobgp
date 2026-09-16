@@ -4698,6 +4698,31 @@ func Test_LsTLVSerializeLength(t *testing.T) {
 	b, err = NewLsTLVOpaquePrefixAttr(&attr).Serialize()
 	assert.NoError(t, err)
 	assert.Len(t, b, tlvHdrLen+len(attr))
+
+	// Flags (1) + Reserved (1), then per range the Range Size (3) and a
+	// SID/Label sub-TLV carrying a 4-octet label.
+	rangeLen := 3 + tlvHdrLen + 4
+
+	caps := &LsSrCapabilities{
+		IPv4Supported: true,
+		Ranges:        []LsSrRange{{Begin: 100, End: 200}, {Begin: 1000, End: 1100}},
+	}
+	b, err = NewLsTLVSrCapabilities(caps).Serialize()
+	assert.NoError(t, err)
+	assert.Len(t, b, tlvHdrLen+2+2*rangeLen)
+	decodedCaps := &LsTLVSrCapabilities{}
+	assert.NoError(t, decodedCaps.DecodeFromBytes(b))
+	assert.Len(t, decodedCaps.Ranges, 2)
+
+	block := &LsSrLocalBlock{
+		Ranges: []LsSrRange{{Begin: 100, End: 200}},
+	}
+	b, err = NewLsTLVSrLocalBlock(block).Serialize()
+	assert.NoError(t, err)
+	assert.Len(t, b, tlvHdrLen+2+rangeLen)
+	decodedBlock := &LsTLVSrLocalBlock{}
+	assert.NoError(t, decodedBlock.DecodeFromBytes(b))
+	assert.Len(t, decodedBlock.Ranges, 1)
 }
 
 func Test_LsAddrPrefix(t *testing.T) {
