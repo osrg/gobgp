@@ -941,7 +941,15 @@ func NewBMPRouteMirrTLVBGPMsg(t uint16, v *bgp.BGPMessage) *BMPRouteMirrTLVBGPMs
 }
 
 func (s *BMPRouteMirrTLVBGPMsg) ParseValue(data []byte) error {
-	v, err := bgp.ParseBGPMessage(data)
+	// The mirrored message lives inside this TLV, so the TLV Length is
+	// what bounds it. Handing over the whole remainder would let the
+	// embedded BGP header's own length field decide where the message
+	// ends, and a message announcing more octets than the TLV holds
+	// would be decoded out of the TLVs that follow it.
+	if len(data) < int(s.Length) {
+		return fmt.Errorf("value length is not enough: %d bytes (%d bytes expected)", len(data), s.Length)
+	}
+	v, err := bgp.ParseBGPMessage(data[:s.Length])
 	if err != nil {
 		return err
 	}
