@@ -280,8 +280,8 @@ func TestMrtRibWithAddPath(t *testing.T) {
 }
 
 func TestMrtRibFamilyHeaderMatchesSubtype(t *testing.T) {
-	// RFC 6396 4.3.2 puts AFI and SAFI at the start of a RIB_GENERIC entry
-	// only. The four families that have their own TABLE_DUMP_V2 subtype
+	// RFC 6396 4.3.3 puts AFI and SAFI at the start of a RIB_GENERIC entry
+	// only. The four families that have their own TABLE_DUMP_V2 subtype (4.3.2)
 	// carry the prefix directly, and parseRib reads them that way, so
 	// Serialize has to agree on which of the two layouts it writes.
 	panh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
