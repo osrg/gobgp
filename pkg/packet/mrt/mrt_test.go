@@ -279,6 +279,80 @@ func TestMrtRibWithAddPath(t *testing.T) {
 	assert.Equal(t, reflect.DeepEqual(r1, r2), true)
 }
 
+func TestMrtRibFamilyHeaderMatchesSubtype(t *testing.T) {
+	// RFC 6396 4.3.3 puts AFI and SAFI at the start of a RIB_GENERIC entry
+	// only. The four families that have their own TABLE_DUMP_V2 subtype (4.3.2)
+	// carry the prefix directly, and parseRib reads them that way, so
+	// Serialize has to agree on which of the two layouts it writes.
+	panh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("129.1.1.2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh,
+	}
+
+	v4, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.168.0.0/24"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v6, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/32"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rd, err := bgp.ParseRouteDistinguisher("100:100")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vpn, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"), *bgp.NewMPLSLabelStack(100), rd)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name    string
+		subType MRTSubTypeTableDumpv2
+		family  bgp.Family
+		nlri    bgp.NLRI
+	}{
+		{"ipv4-unicast", RIB_IPV4_UNICAST, bgp.RF_IPv4_UC, v4},
+		{"ipv4-multicast", RIB_IPV4_MULTICAST, bgp.RF_IPv4_MC, v4},
+		{"ipv6-unicast", RIB_IPV6_UNICAST, bgp.RF_IPv6_UC, v6},
+		{"ipv6-multicast", RIB_IPV6_MULTICAST, bgp.RF_IPv6_MC, v6},
+		{"generic-vpnv4", RIB_GENERIC, bgp.RF_IPv4_VPN, vpn},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := NewRibEntry(1, uint32(time.Now().Unix()), 0, p, false)
+			r1 := NewRib(1, tt.family, tt.nlri, []*RibEntry{e})
+			m1, err := NewMRTMessage(time.Unix(10, 0), TABLE_DUMPv2, tt.subType, r1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b1, err := m1.Serialize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			h, err := ParseHeader(b1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m2, err := ParseBody(b1[MRT_COMMON_HEADER_LEN:], h)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r2, ok := m2.Body.(*Rib)
+			if !ok {
+				t.Fatalf("unexpected body %T", m2.Body)
+			}
+			assert.Equal(t, r1.SequenceNumber, r2.SequenceNumber)
+			assert.Equal(t, r1.Prefix.String(), r2.Prefix.String())
+			assert.Equal(t, len(r1.Entries), len(r2.Entries))
+		})
+	}
+}
+
 func TestMrtGeoPeerTable(t *testing.T) {
 	p1, _ := NewGeoPeer(netip.MustParseAddr("192.168.0.1"), 28.031157, 86.899684)
 	p2, _ := NewGeoPeer(netip.MustParseAddr("192.168.0.1"), 35.360556, 138.727778)
