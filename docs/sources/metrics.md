@@ -65,7 +65,7 @@ The metrics are all prefixed with the `bgp` Prometheus namespace.
 | bgp_peer_password_set              | Whether the GoBGP peer has been configured (1) for authentication or not (0) | `peer`                                 |
 | bgp_peer_remove_private_as         | Do we remove private ASNs from the paths sent to the peer                    | `peer`                                 |
 | bgp_peer_send_community            | BGP community with the peer                                                  | `peer`                                 |
-| bgp_peer_type                      | Type of the BGP peer, internal (0) or external (1)                           | `peer`                                 |
+| bgp_peer_type                      | Type of the BGP peer, internal (1) or external (2)                           | `peer`                                 |
 | bgp_peer_uptime                    | For how long the peer has been in its current state                          | `peer`                                 |
 | bgp_routes_accepted                | Number of routes accepted from peer                                          | `peer`, `route_family`                 |
 | bgp_routes_advertised              | Number of routes advertised to peer                                          | `peer`, `route_family`                 |
