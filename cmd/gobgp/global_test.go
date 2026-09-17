@@ -367,7 +367,7 @@ func Test_ParseFlowSpecRedirectToIP(t *testing.T) {
 	assert.False(isNew, "plain redirect must not produce the redirect-to-ip action")
 }
 
-func Test_ParseLsArgsRequiresProtocolAndIdentifier(t *testing.T) {
+func Test_ParseLsArgsRequiresKeywords(t *testing.T) {
 	// Every case gives enough arguments to pass the per-type minimum, so the
 	// error must come from the missing keyword and not from the argument count.
 	cases := []struct {
@@ -382,6 +382,7 @@ func Test_ParseLsArgsRequiresProtocolAndIdentifier(t *testing.T) {
 		{"prefixv6 protocol 2 local-asn 65000 local-bgp-ls-id 0 ip-reachability-info fc00::/64", "specify identifier"},
 		{"srv6sid identifier 1 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1 sids fd00::1", "specify protocol"},
 		{"srv6sid protocol 2 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1 sids fd00::1", "specify identifier"},
+		{"srv6sid protocol 2 identifier 1 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1", "specify sids"},
 	}
 	for _, c := range cases {
 		t.Run(c.args, func(t *testing.T) {

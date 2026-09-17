@@ -2549,7 +2549,7 @@ func parseLsSRv6SIDNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, erro
 		return nil, nil, err
 	}
 
-	for _, f := range []string{"protocol", "identifier"} {
+	for _, f := range []string{"protocol", "identifier", "sids"} {
 		if len(m[f]) == 0 {
 			return nil, nil, fmt.Errorf("specify %s", f)
 		}
