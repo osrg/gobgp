@@ -4,7 +4,8 @@ package bgp
 // defined in RFC 9857 "Advertisement of Segment Routing Policies Using BGP
 // Link-State": the NLRI with the SR Policy Candidate Path Descriptor TLV
 // (554) and the headend Local Node Descriptors TLV. The attribute TLVs of
-// RFC 9857 section 5 are not decoded yet and PathAttributeLs skips them.
+// RFC 9857 section 5 are not decoded yet. PathAttributeLs keeps them as
+// opaque TLVs and re-serializes them unchanged.
 
 import (
 	"encoding/binary"
@@ -14,35 +15,6 @@ import (
 	"net/netip"
 	"strings"
 )
-
-type lsTLVUnknown struct {
-	LsTLV
-	Value []byte
-}
-
-func (l *lsTLVUnknown) DecodeFromBytes(data []byte) error {
-	value, err := l.LsTLV.DecodeFromBytes(data)
-	if err != nil {
-		return err
-	}
-	l.Value = append([]byte(nil), value...)
-	return nil
-}
-
-func (l *lsTLVUnknown) Serialize() ([]byte, error) { return l.LsTLV.Serialize(l.Value) }
-
-func (l *lsTLVUnknown) GetLsTLV() LsTLV { return l.LsTLV }
-
-func (l *lsTLVUnknown) String() string {
-	return fmt.Sprintf("{Unknown TLV: %d Value: %x}", l.Type, l.Value)
-}
-
-func (l *lsTLVUnknown) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Type  LsTLVType `json:"type"`
-		Value []byte    `json:"value"`
-	}{l.Type, l.Value})
-}
 
 // lsAddrBytes returns addr as a fixed-size slice of n (4 or 16) bytes. An
 // invalid address yields n zero bytes.

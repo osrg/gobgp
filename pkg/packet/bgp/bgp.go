@@ -6420,6 +6420,39 @@ func (l *LsTLV) DecodeFromBytes(data []byte) ([]byte, error) {
 	return data[tlvHdrLen:l.Len()], nil
 }
 
+// lsTLVUnknown holds a TLV of a type that is not implemented. RFC 9552
+// Section 5.1 requires unknown and unsupported types to be preserved and
+// propagated within both the NLRI and the BGP-LS Attribute, so they are
+// kept as opaque values and re-serialized unchanged.
+type lsTLVUnknown struct {
+	LsTLV
+	Value []byte
+}
+
+func (l *lsTLVUnknown) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+	l.Value = append([]byte(nil), value...)
+	return nil
+}
+
+func (l *lsTLVUnknown) Serialize() ([]byte, error) { return l.LsTLV.Serialize(l.Value) }
+
+func (l *lsTLVUnknown) GetLsTLV() LsTLV { return l.LsTLV }
+
+func (l *lsTLVUnknown) String() string {
+	return fmt.Sprintf("{Unknown TLV: %d Value: %x}", l.Type, l.Value)
+}
+
+func (l *lsTLVUnknown) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Value []byte    `json:"value"`
+	}{l.Type, l.Value})
+}
+
 type LsTLVLinkID struct {
 	LsTLV
 	Local  uint32
