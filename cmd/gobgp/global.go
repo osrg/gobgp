@@ -1641,7 +1641,9 @@ func parseIgpRouterId(input string) (string, error) {
 
 func parseLsNodeNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 	// Format:
-	// <ip prefix> protocol <bgp|isis-l2> identifier <identifier> local-asn <asn> local-bgp-ls-id <bgp-ls-id> local-igp-router-id <igp-router-id>
+	// gobgp global rib add -a ls node protocol <protocol> identifier <identifier> [<optional keyword>...]
+	// Only protocol and identifier are required. See docs/sources/bgp-ls.md
+	// and the keyword map below for the optional ones.
 	req := 7
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
@@ -1801,7 +1803,9 @@ func parseLsNodeNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 
 func parseLsPrefixV6NLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 	// Format:
-	// protocol <protocol> identifier <identifier> local-asn <asn> local-bgp-ls-id <bgp-ls-id> local-igp-router-id <igp-router-id> ip-reachability-info <ipv6-prefix>
+	// gobgp global rib add -a ls prefixv6 protocol <protocol> identifier <identifier> ip-reachability-info <ipv6-prefix> [<optional keyword>...]
+	// Only protocol, identifier and ip-reachability-info are required. See
+	// docs/sources/bgp-ls.md and the keyword map below for the optional ones.
 	req := 9
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
@@ -1933,7 +1937,9 @@ func parseLsPrefixV6NLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, err
 
 func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 	// Format:
-	// <ip prefix> protocol <protocol> identifier <identifier> asn <asn> bgp-ls-id <bgp-ls-id> ospf
+	// gobgp global rib add -a ls link protocol <protocol> identifier <identifier> [<optional keyword>...]
+	// Only protocol and identifier are required. See docs/sources/bgp-ls.md
+	// and the keyword map below for the optional ones.
 	req := 7
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
@@ -2517,7 +2523,9 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 
 func parseLsSRv6SIDNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 	// Format:
-	// gobgp global rib add -a ls srv6sid protocol <protocol> identifier <identifier> local-asn <local-asn> local-bgp-ls-id <local-bgp-ls-id> local-bgp-router-id <local-bgp-router-id> [local-bgp-confederation-member <confederation-member>] sids <sids>... [multi-topology-id <multi-topology-id>...]
+	// gobgp global rib add -a ls srv6sid protocol <protocol> identifier <identifier> sids <sids>... [<optional keyword>...]
+	// Only protocol, identifier and sids are required. See
+	// docs/sources/bgp-ls.md and the keyword map below for the optional ones.
 	req := 11
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
