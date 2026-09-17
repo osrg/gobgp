@@ -368,21 +368,28 @@ func Test_ParseFlowSpecRedirectToIP(t *testing.T) {
 }
 
 func Test_ParseLsArgsRequiresProtocolAndIdentifier(t *testing.T) {
-	cases := []string{
-		"node identifier 1 local-asn 65000 local-bgp-ls-id 0",
-		"node protocol 2 local-asn 65000 local-bgp-ls-id 0",
-		"link identifier 1 local-asn 65000 local-bgp-router-id 1.1.1.1 remote-asn 65001 remote-bgp-router-id 2.2.2.2",
-		"link protocol 2 local-asn 65000 local-bgp-router-id 1.1.1.1 remote-asn 65001 remote-bgp-router-id 2.2.2.2",
-		"prefixv6 identifier 1 local-asn 65000 local-bgp-ls-id 0 ip-reachability-info fc00::/64",
-		"prefixv6 protocol 2 local-asn 65000 local-bgp-ls-id 0 ip-reachability-info fc00::/64",
-		"srv6sid identifier 1 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1 sids fd00::1",
-		"srv6sid protocol 2 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1 sids fd00::1",
+	// Every case gives enough arguments to pass the per-type minimum, so the
+	// error must come from the missing keyword and not from the argument count.
+	cases := []struct {
+		args string
+		want string
+	}{
+		{"node identifier 1 local-asn 65000 local-bgp-ls-id 0", "specify protocol"},
+		{"node protocol 2 local-asn 65000 local-bgp-ls-id 0", "specify identifier"},
+		{"link identifier 1 local-asn 65000 local-bgp-router-id 1.1.1.1 remote-asn 65001 remote-bgp-router-id 2.2.2.2", "specify protocol"},
+		{"link protocol 2 local-asn 65000 local-bgp-router-id 1.1.1.1 remote-asn 65001 remote-bgp-router-id 2.2.2.2", "specify identifier"},
+		{"prefixv6 identifier 1 local-asn 65000 local-bgp-ls-id 0 ip-reachability-info fc00::/64", "specify protocol"},
+		{"prefixv6 protocol 2 local-asn 65000 local-bgp-ls-id 0 ip-reachability-info fc00::/64", "specify identifier"},
+		{"srv6sid identifier 1 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1 sids fd00::1", "specify protocol"},
+		{"srv6sid protocol 2 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1 sids fd00::1", "specify identifier"},
 	}
 	for _, c := range cases {
-		t.Run(c, func(t *testing.T) {
+		t.Run(c.args, func(t *testing.T) {
+			// A panic here would abort the whole test binary, so catch it and
+			// fail only this subtest.
 			assert.NotPanics(t, func() {
-				_, _, err := parseLsArgs(strings.Split(c, " "))
-				assert.Error(t, err)
+				_, _, err := parseLsArgs(strings.Split(c.args, " "))
+				assert.ErrorContains(t, err, c.want)
 			})
 		})
 	}
