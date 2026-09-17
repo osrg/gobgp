@@ -4416,7 +4416,7 @@ func (s *BgpServer) ListStatement(ctx context.Context, r *api.ListStatementReque
 		s := s.policy.GetStatement(r.Name)
 		l = make([]*api.Statement, 0, len(s))
 		for _, st := range s {
-			l = append(l, toStatementApi(st))
+			l = append(l, table.ToStatementApi(st))
 		}
 		return nil
 	}, false)

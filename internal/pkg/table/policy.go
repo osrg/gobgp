@@ -4843,7 +4843,7 @@ func ToComparisonApi(c oc.AttributeComparison) api.Comparison {
 
 var _regexpMedActionType = regexp.MustCompile(`([+-]?)(\d+)`)
 
-func toStatementApi(s *oc.Statement) *api.Statement {
+func ToStatementApi(s *oc.Statement) *api.Statement {
 	cs := &api.Conditions{}
 	o, _ := NewMatchOption(s.Conditions.MatchPrefixSet.MatchSetOptions)
 	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
@@ -5098,7 +5098,7 @@ func ToPolicyApi(p *oc.PolicyDefinition) *api.Policy {
 		Statements: func() []*api.Statement {
 			l := make([]*api.Statement, 0)
 			for _, s := range p.Statements {
-				l = append(l, toStatementApi(&s))
+				l = append(l, ToStatementApi(&s))
 			}
 			return l
 		}(),

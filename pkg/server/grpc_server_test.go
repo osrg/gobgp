@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 )
 
 func mustApi2apiutilPath(path *api.Path) *apiutil.Path {
@@ -829,5 +830,110 @@ func TestGRPCListStatementCommunityActionType(t *testing.T) {
 			assert.Equal(t, typ, actions.GetExtCommunity().GetType(), "ext-community")
 			assert.Equal(t, typ, actions.GetLargeCommunity().GetType(), "large-community")
 		})
+	}
+}
+
+// ListPolicy and ListStatement must describe the same statement the same way.
+// They used to have a converter each, and the two drifted apart.
+func TestGRPCListPolicyAndListStatementAgree(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	ctx := context.Background()
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(ctx, &api.StopBgpRequest{})
+
+	sets := []*api.DefinedSet{
+		{DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX, Name: "ps1", Prefixes: []*api.Prefix{{IpPrefix: "10.0.0.0/8", MaskLengthMin: 8, MaskLengthMax: 32}}},
+		{DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR, Name: "ns1", List: []string{"10.0.0.1/32"}},
+		{DefinedType: api.DefinedType_DEFINED_TYPE_AS_PATH, Name: "as1", List: []string{"^65100"}},
+		{DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY, Name: "cs1", List: []string{"65100:10"}},
+		{DefinedType: api.DefinedType_DEFINED_TYPE_EXT_COMMUNITY, Name: "es1", List: []string{"rt:65100:10"}},
+		{DefinedType: api.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY, Name: "ls1", List: []string{"65100:10:20"}},
+	}
+	for _, ds := range sets {
+		require.NoError(t, s.AddDefinedSet(ctx, &api.AddDefinedSetRequest{DefinedSet: ds}))
+	}
+
+	statements := []*api.Statement{
+		{
+			// Every condition and every action at once.
+			Name: "full",
+			Conditions: &api.Conditions{
+				PrefixSet:         &api.MatchSet{Type: api.MatchSet_TYPE_ANY, Name: "ps1"},
+				NeighborSet:       &api.MatchSet{Type: api.MatchSet_TYPE_INVERT, Name: "ns1"},
+				AsPathLength:      &api.AsPathLength{Length: 5, Type: api.Comparison_COMPARISON_GE},
+				AsPathSet:         &api.MatchSet{Type: api.MatchSet_TYPE_ALL, Name: "as1"},
+				CommunitySet:      &api.MatchSet{Type: api.MatchSet_TYPE_ALL, Name: "cs1"},
+				ExtCommunitySet:   &api.MatchSet{Type: api.MatchSet_TYPE_ANY, Name: "es1"},
+				LargeCommunitySet: &api.MatchSet{Type: api.MatchSet_TYPE_INVERT, Name: "ls1"},
+				RpkiResult:        api.ValidationState_VALIDATION_STATE_VALID,
+				RouteType:         api.Conditions_ROUTE_TYPE_EXTERNAL,
+				NextHopInList:     []string{"10.0.0.1"},
+				AfiSafiIn:         []*api.Family{{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST}},
+				CommunityCount:    &api.CommunityCount{Count: 3, Type: api.Comparison_COMPARISON_LE},
+				Origin:            api.OriginType_ORIGIN_TYPE_EGP,
+				LocalPrefEq:       &api.LocalPrefEq{Value: 111},
+				MedEq:             &api.MedEq{Value: 222},
+			},
+			Actions: &api.Actions{
+				RouteAction:    api.RouteAction_ROUTE_ACTION_ACCEPT,
+				Community:      &api.CommunityAction{Type: api.CommunityAction_TYPE_ADD, Communities: []string{"65100:10"}},
+				Med:            &api.MedAction{Type: api.MedAction_TYPE_MOD, Value: -50},
+				AsPrepend:      &api.AsPrependAction{Asn: 65100, Repeat: 3},
+				ExtCommunity:   &api.CommunityAction{Type: api.CommunityAction_TYPE_REMOVE, Communities: []string{"rt:65100:10"}},
+				Nexthop:        &api.NexthopAction{Self: true},
+				LocalPref:      &api.LocalPrefAction{Value: 444},
+				LargeCommunity: &api.CommunityAction{Type: api.CommunityAction_TYPE_REPLACE, Communities: []string{"65100:10:20"}},
+				OriginAction:   &api.OriginAction{Origin: api.OriginType_ORIGIN_TYPE_INCOMPLETE},
+			},
+		},
+		{
+			// A replace with no communities clears them. It is an action,
+			// not the absence of one.
+			Name: "empty-replace",
+			Actions: &api.Actions{
+				RouteAction: api.RouteAction_ROUTE_ACTION_REJECT,
+				Community:   &api.CommunityAction{Type: api.CommunityAction_TYPE_REPLACE},
+			},
+		},
+	}
+	err = s.AddPolicy(ctx, &api.AddPolicyRequest{
+		Policy: &api.Policy{Name: "p1", Statements: statements},
+	})
+	require.NoError(t, err)
+
+	var policies []*api.Policy
+	err = s.ListPolicy(ctx, &api.ListPolicyRequest{Name: "p1"}, func(p *api.Policy) {
+		policies = append(policies, p)
+	})
+	require.NoError(t, err)
+	require.Len(t, policies, 1)
+	require.Len(t, policies[0].Statements, len(statements))
+
+	for _, want := range policies[0].Statements {
+		var got []*api.Statement
+		err = s.ListStatement(ctx, &api.ListStatementRequest{Name: want.Name}, func(st *api.Statement) {
+			got = append(got, st)
+		})
+		require.NoError(t, err)
+		require.Len(t, got, 1, want.Name)
+		if !proto.Equal(want, got[0]) {
+			t.Errorf("statement %s differs\nListPolicy:    %v\nListStatement: %v",
+				want.Name, want, got[0])
+		}
+	}
+
+	// The clearing action must survive, not be reported as no action at all.
+	for _, st := range policies[0].Statements {
+		if st.Name == "empty-replace" {
+			assert.Equal(t, api.CommunityAction_TYPE_REPLACE, st.GetActions().GetCommunity().GetType())
+		}
 	}
 }
