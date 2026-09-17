@@ -2657,15 +2657,21 @@ func parseLsSRv6SIDNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, erro
 		ProtocolID: bgp.LsProtocolID(protocol),
 		Identifier: identifier,
 	}
+	srv6SID := &bgp.LsSrv6SIDNLRI{
+		LsNLRI:        lsNlri,
+		LocalNodeDesc: &lndTLV,
+		Srv6SIDInfo:   ssi,
+	}
+	// Assign only a non-nil TLV. Storing a typed nil pointer in the
+	// LsTLVInterface field would leave MultiTopoID != nil and defeat the
+	// absent-TLV guards in LsSrv6SIDNLRI.
+	if mti != nil {
+		srv6SID.MultiTopoID = mti
+	}
 	nlri := &bgp.LsAddrPrefix{
 		Type:   bgp.LS_NLRI_TYPE_SRV6_SID,
 		Length: 4,
-		NLRI: &bgp.LsSrv6SIDNLRI{
-			LsNLRI:        lsNlri,
-			LocalNodeDesc: &lndTLV,
-			MultiTopoID:   mti,
-			Srv6SIDInfo:   ssi,
-		},
+		NLRI:   srv6SID,
 	}
 
 	var pathAttr *bgp.PathAttributeLs

@@ -395,3 +395,35 @@ func Test_ParseLsArgsRequiresKeywords(t *testing.T) {
 		})
 	}
 }
+
+func Test_ParseLsSrv6SIDMultiTopoID(t *testing.T) {
+	base := "srv6sid protocol 2 identifier 1 local-asn 65001 local-bgp-ls-id 0 local-bgp-router-id 192.168.1.1 sids fd00::1"
+	cases := []struct {
+		name    string
+		args    string
+		present bool
+	}{
+		{"absent", base, false},
+		{"present", base + " multi-topology-id 2", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			nlri, _, err := parseLsArgs(strings.Split(c.args, " "))
+			assert.NoError(t, err)
+
+			srv6 := nlri.(*bgp.LsAddrPrefix).NLRI.(*bgp.LsSrv6SIDNLRI)
+			// Compare the interface itself. A typed nil pointer stored in it
+			// still reads as non-nil, and assert.Nil looks through to the
+			// pointer, so it would not catch that.
+			assert.Equal(t, c.present, srv6.MultiTopoID != nil)
+
+			// The absent-TLV guards in LsSrv6SIDNLRI dereference the field
+			// once the interface is non-nil.
+			assert.NotPanics(t, func() {
+				_ = nlri.String()
+				_, err := nlri.Serialize()
+				assert.NoError(t, err)
+			})
+		})
+	}
+}
