@@ -182,6 +182,7 @@ jobs:
           sudo pip3 install scspell3k
           tools/spell-check/scspell.sh
           tools/grep_avoided_functions.sh
+          tools/grep_non_ascii.sh
 
   build:
     name: build container image
