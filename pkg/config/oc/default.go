@@ -36,6 +36,25 @@ func RegisterConfiguredFields(addr string, n any) {
 	configuredFields[addr] = n
 }
 
+// neighborConfiguredFields returns the fields that the configuration file set
+// for this neighbor. RegisterConfiguredFields stores the record under the
+// neighbor address, or under the interface name when the address is missing,
+// so look it up the same way. An unnumbered neighbor has no address here. Its
+// address is resolved from the interface later.
+func neighborConfiguredFields(c *Neighbor) (any, bool) {
+	if c.Config.NeighborAddress.IsValid() {
+		if val, ok := configuredFields[c.Config.NeighborAddress.String()]; ok {
+			return val, true
+		}
+	}
+	if c.Config.NeighborInterface != "" {
+		if val, ok := configuredFields[c.Config.NeighborInterface]; ok {
+			return val, true
+		}
+	}
+	return nil, false
+}
+
 func defaultAfiSafi(typ AfiSafiType, enable bool) AfiSafi {
 	return AfiSafi{
 		Config: AfiSafiConfig{
@@ -528,7 +547,7 @@ func setDefaultConfigValuesWithViper(v *viper.Viper, b *BgpConfigSet) error {
 func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	v := viper.New()
 
-	val, ok := configuredFields[c.Config.NeighborAddress.String()]
+	val, ok := neighborConfiguredFields(c)
 	if ok {
 		v.Set("neighbor", val)
 	} else {

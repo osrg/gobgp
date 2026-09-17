@@ -113,3 +113,97 @@ func TestOverwriteNeighborConfigWithPeerGroupTcpAo(t *testing.T) {
 		assert.Equal(t, uint8(1), n.TcpAo.Config.SendId)
 	})
 }
+
+// An unnumbered neighbor has no address in its config, so the configuration
+// file record is stored under the interface name. The neighbor must still keep
+// what the operator wrote, and inherit only the rest from the peer group.
+func TestOverwriteNeighborConfigWithPeerGroupUnnumbered(t *testing.T) {
+	const iface = "eth0"
+
+	registerConfiguredFields(t, iface, map[string]any{
+		"config": map[string]any{
+			"neighbor-interface": iface,
+			"peer-group":         "g",
+		},
+		"timers": map[string]any{
+			"config": map[string]any{
+				"hold-time": 180,
+			},
+		},
+		"transport": map[string]any{
+			"config": map[string]any{
+				"passive-mode": false,
+			},
+		},
+		"afi-safis": []any{
+			map[string]any{
+				"config": map[string]any{
+					"afi-safi-name": "l3vpn-ipv4-unicast",
+				},
+			},
+		},
+	})
+
+	pg := &PeerGroup{
+		Config: PeerGroupConfig{
+			PeerGroupName: "g",
+			Description:   "group description",
+		},
+		Timers:    Timers{Config: TimersConfig{HoldTime: 90}},
+		Transport: Transport{Config: TransportConfig{PassiveMode: true}},
+		AfiSafis:  []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_IPV4_UNICAST, true)},
+	}
+	n := &Neighbor{
+		Config: NeighborConfig{
+			NeighborInterface: iface,
+			PeerGroup:         "g",
+		},
+		Timers:    Timers{Config: TimersConfig{HoldTime: 180}},
+		Transport: Transport{Config: TransportConfig{PassiveMode: false}},
+		AfiSafis:  []AfiSafi{defaultAfiSafi(AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, true)},
+	}
+
+	require.NoError(t, OverwriteNeighborConfigWithPeerGroup(n, pg))
+
+	assert.Equal(t, float64(180), n.Timers.Config.HoldTime)
+	// A field configured to its zero value still wins over the peer group.
+	assert.False(t, n.Transport.Config.PassiveMode)
+	require.Len(t, n.AfiSafis, 1)
+	assert.Equal(t, AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, n.AfiSafis[0].Config.AfiSafiName)
+	// Nothing was said about the description, so it comes from the peer group.
+	assert.Equal(t, "group description", n.Config.Description)
+}
+
+// A neighbor that has both an address and an interface is recorded under the
+// address, because RegisterConfiguredFields prefers it.
+func TestOverwriteNeighborConfigWithPeerGroupAddressWins(t *testing.T) {
+	registerConfiguredFields(t, testNeighborAddress, map[string]any{
+		"config": map[string]any{
+			"neighbor-address":   testNeighborAddress,
+			"neighbor-interface": "eth0",
+			"peer-group":         "g",
+		},
+		"timers": map[string]any{
+			"config": map[string]any{
+				"hold-time": 180,
+			},
+		},
+	})
+
+	pg := &PeerGroup{
+		Config: PeerGroupConfig{PeerGroupName: "g"},
+		Timers: Timers{Config: TimersConfig{HoldTime: 90}},
+	}
+	n := &Neighbor{
+		Config: NeighborConfig{
+			NeighborAddress:   netip.MustParseAddr(testNeighborAddress),
+			NeighborInterface: "eth0",
+			PeerGroup:         "g",
+		},
+		Timers: Timers{Config: TimersConfig{HoldTime: 180}},
+	}
+
+	require.NoError(t, OverwriteNeighborConfigWithPeerGroup(n, pg))
+
+	assert.Equal(t, float64(180), n.Timers.Config.HoldTime)
+}
