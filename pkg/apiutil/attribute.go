@@ -688,7 +688,7 @@ func MarshalLsNodeDescriptor(d *bgp.LsNodeDescriptor) (*api.LsNodeDescriptor, er
 		OspfAreaId:             d.OspfAreaID,
 		Pseudonode:             d.PseudoNode,
 		IgpRouterId:            d.IGPRouterID,
-		BgpRouterId:            addrOrEmpty(d.BGPRouterID),
+		BgpRouterId:            AddrOrEmpty(d.BGPRouterID),
 		BgpConfederationMember: d.BGPConfederationMember,
 	}, nil
 }
@@ -2943,21 +2943,11 @@ func bytesOrDefault(b *[]byte) []byte {
 	return *b
 }
 
-// addrOrEmpty renders an optional address. An absent address must come out as
-// an empty string, not as the zero Addr's "invalid IP" text, which would be
-// rejected as a malformed address if the message were fed back in.
-func addrOrEmpty(addr netip.Addr) string {
-	if !addr.IsValid() {
-		return ""
-	}
-	return addr.String()
-}
-
 func ipOrDefault(ip *netip.Addr) string {
 	if ip == nil {
 		return ""
 	}
-	return addrOrEmpty(*ip)
+	return AddrOrEmpty(*ip)
 }
 
 func uint32OrDefault(i *uint32) uint32 {

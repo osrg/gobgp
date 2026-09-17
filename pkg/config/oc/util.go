@@ -563,7 +563,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	return &api.Peer{
 		ApplyPolicy: newApplyPolicyFromConfigStruct(&pconf.ApplyPolicy),
 		Conf: &api.PeerConf{
-			NeighborAddress:      pconf.Config.NeighborAddress.String(),
+			NeighborAddress:      apiutil.AddrOrEmpty(pconf.Config.NeighborAddress),
 			PeerAsn:              pconf.Config.PeerAs,
 			LocalAsn:             pconf.Config.LocalAs,
 			Type:                 toPeerType(pconf.Config.PeerType),
@@ -609,11 +609,11 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			LocalAsn:        s.LocalAs,
 			Description:     s.Description,
 			Type:            toPeerType(s.PeerType),
-			NeighborAddress: pconf.State.NeighborAddress.String(),
+			NeighborAddress: apiutil.AddrOrEmpty(pconf.State.NeighborAddress),
 			Queues:          &api.Queues{},
 			RemoteCap:       remoteCap,
 			LocalCap:        localCap,
-			RouterId:        s.RemoteRouterId.String(),
+			RouterId:        apiutil.AddrOrEmpty(s.RemoteRouterId),
 			Flops:           s.Flops,
 			BfdState: &api.BfdPeerState{
 				SessionState:                 bfdSessionStateToAPI(pconf.Bfd.State.SessionState),
@@ -655,7 +655,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 		},
 		RouteReflector: &api.RouteReflector{
 			RouteReflectorClient:    pconf.RouteReflector.Config.RouteReflectorClient,
-			RouteReflectorClusterId: pconf.RouteReflector.State.RouteReflectorClusterId.String(),
+			RouteReflectorClusterId: apiutil.AddrOrEmpty(pconf.RouteReflector.State.RouteReflectorClusterId),
 		},
 		RouteServer: &api.RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
@@ -675,7 +675,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 		Transport: &api.Transport{
 			RemotePort:    uint32(pconf.Transport.Config.RemotePort),
 			LocalPort:     uint32(pconf.Transport.Config.LocalPort),
-			LocalAddress:  localAddress.String(),
+			LocalAddress:  apiutil.AddrOrEmpty(localAddress),
 			PassiveMode:   pconf.Transport.Config.PassiveMode,
 			BindInterface: pconf.Transport.Config.BindInterface,
 			TcpMss:        uint32(pconf.Transport.Config.TcpMss),
@@ -832,7 +832,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		},
 		RouteReflector: &api.RouteReflector{
 			RouteReflectorClient:    pconf.RouteReflector.Config.RouteReflectorClient,
-			RouteReflectorClusterId: pconf.RouteReflector.Config.RouteReflectorClusterId.String(),
+			RouteReflectorClusterId: apiutil.AddrOrEmpty(pconf.RouteReflector.Config.RouteReflectorClusterId),
 		},
 		RouteServer: &api.RouteServer{
 			RouteServerClient: pconf.RouteServer.Config.RouteServerClient,
@@ -849,7 +849,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 		},
 		Transport: &api.Transport{
 			RemotePort:    uint32(pconf.Transport.Config.RemotePort),
-			LocalAddress:  pconf.Transport.Config.LocalAddress.String(),
+			LocalAddress:  apiutil.AddrOrEmpty(pconf.Transport.Config.LocalAddress),
 			PassiveMode:   pconf.Transport.Config.PassiveMode,
 			BindInterface: pconf.Transport.Config.BindInterface,
 			TcpMss:        uint32(pconf.Transport.Config.TcpMss),
@@ -875,12 +875,12 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 
 	l := make([]string, 0, len(c.Config.LocalAddressList))
 	for _, addr := range c.Config.LocalAddressList {
-		l = append(l, addr.String())
+		l = append(l, apiutil.AddrOrEmpty(addr))
 	}
 
 	return &api.Global{
 		Asn:              c.Config.As,
-		RouterId:         c.Config.RouterId.String(),
+		RouterId:         apiutil.AddrOrEmpty(c.Config.RouterId),
 		ListenPort:       c.Config.Port,
 		ListenAddresses:  l,
 		Families:         families,

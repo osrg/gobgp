@@ -452,3 +452,52 @@ func TestNewAPIPrefixFromConfigStructRtc(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(&api.Prefix{RtcPrefix: "0:0:0/0", MaskLengthMin: 0, MaskLengthMax: 96}, out)
 }
+
+// An address that is not configured must reach the API as an empty string. The
+// zero netip.Addr prints as "invalid IP", which is not an address any caller
+// can parse or feed back in.
+func TestNewPeerFromConfigStruct_UnsetAddresses(t *testing.T) {
+	// An unnumbered peer that has not come up: no configured neighbor
+	// address, no learned router ID and no route reflector cluster ID.
+	n := &Neighbor{}
+	n.Config.NeighborInterface = "eth0"
+
+	p := NewPeerFromConfigStruct(n)
+	require.NotNil(t, p)
+	assert.Equal(t, "", p.GetConf().GetNeighborAddress(), "conf.neighbor_address")
+	assert.Equal(t, "", p.GetState().GetNeighborAddress(), "state.neighbor_address")
+	assert.Equal(t, "", p.GetState().GetRouterId(), "state.router_id")
+	assert.Equal(t, "", p.GetRouteReflector().GetRouteReflectorClusterId(), "route_reflector_cluster_id")
+	assert.Equal(t, "", p.GetTransport().GetLocalAddress(), "transport.local_address")
+}
+
+func TestNewPeerFromConfigStruct_SetAddresses(t *testing.T) {
+	n := &Neighbor{}
+	n.Config.NeighborAddress = netip.MustParseAddr("10.0.0.1")
+	n.State.NeighborAddress = netip.MustParseAddr("10.0.0.1")
+	n.State.RemoteRouterId = netip.MustParseAddr("2.2.2.2")
+	n.RouteReflector.State.RouteReflectorClusterId = netip.MustParseAddr("1.1.1.1")
+	n.Transport.Config.LocalAddress = netip.MustParseAddr("10.0.0.2")
+
+	p := NewPeerFromConfigStruct(n)
+	require.NotNil(t, p)
+	assert.Equal(t, "10.0.0.1", p.GetConf().GetNeighborAddress(), "conf.neighbor_address")
+	assert.Equal(t, "10.0.0.1", p.GetState().GetNeighborAddress(), "state.neighbor_address")
+	assert.Equal(t, "2.2.2.2", p.GetState().GetRouterId(), "state.router_id")
+	assert.Equal(t, "1.1.1.1", p.GetRouteReflector().GetRouteReflectorClusterId(), "route_reflector_cluster_id")
+	assert.Equal(t, "10.0.0.2", p.GetTransport().GetLocalAddress(), "transport.local_address")
+}
+
+func TestNewPeerGroupFromConfigStruct_UnsetAddresses(t *testing.T) {
+	pg := NewPeerGroupFromConfigStruct(&PeerGroup{})
+	require.NotNil(t, pg)
+	assert.Equal(t, "", pg.GetRouteReflector().GetRouteReflectorClusterId(), "route_reflector_cluster_id")
+	assert.Equal(t, "", pg.GetTransport().GetLocalAddress(), "transport.local_address")
+}
+
+func TestNewGlobalFromConfigStruct_UnsetAddresses(t *testing.T) {
+	g := NewGlobalFromConfigStruct(&Global{})
+	require.NotNil(t, g)
+	assert.Equal(t, "", g.GetRouterId(), "router_id")
+	assert.Empty(t, g.GetListenAddresses(), "listen_addresses")
+}

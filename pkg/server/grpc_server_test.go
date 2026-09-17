@@ -728,3 +728,55 @@ func TestNewPrefixFromApiStructRTC(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, p.Prefix.Contains(full.Prefix.Addr()))
 }
+
+// A peer event for a session that has not come up carries no router ID. The
+// field must be an empty string, not the zero netip.Addr's "invalid IP" text.
+func TestGRPCWatchEventPeerUnsetAddresses(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gobgp-grpc-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+	})
+	socketAddr := "unix://" + dir + "/gobgp.sock"
+
+	s := NewBgpServer(GrpcListenAddress(socketAddr))
+	go s.Serve()
+	defer s.Stop()
+
+	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	conn, err := grpc.NewClient(socketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	client := api.NewGoBgpServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	stream, err := client.WatchEvent(ctx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}})
+	require.NoError(t, err)
+
+	// 192.0.2.1 is TEST-NET-1, so the session never comes up and the peer
+	// has no remote router ID.
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
+		Conf: &api.PeerConf{NeighborAddress: "192.0.2.1", PeerAsn: 65001},
+	}})
+	require.NoError(t, err)
+
+	for {
+		r, err := stream.Recv()
+		require.NoError(t, err)
+		p := r.GetPeer()
+		if p == nil || p.Peer.GetConf().GetNeighborAddress() != "192.0.2.1" {
+			continue
+		}
+		assert.Equal(t, "", p.Peer.GetState().GetRouterId(), "state.router_id")
+		assert.NotEqual(t, api.PeerState_SESSION_STATE_ESTABLISHED, p.Peer.GetState().GetSessionState())
+		return
+	}
+}
