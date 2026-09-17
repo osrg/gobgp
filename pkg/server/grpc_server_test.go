@@ -780,3 +780,54 @@ func TestGRPCWatchEventPeerUnsetAddresses(t *testing.T) {
 		return
 	}
 }
+
+// ListStatement must report the type of every set-community action as it was
+// given. The oc option and the API enum use different numbers, so a cast
+// between them is off by one.
+func TestGRPCListStatementCommunityActionType(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	types := []api.CommunityAction_Type{
+		api.CommunityAction_TYPE_ADD,
+		api.CommunityAction_TYPE_REMOVE,
+		api.CommunityAction_TYPE_REPLACE,
+	}
+	for _, typ := range types {
+		t.Run(typ.String(), func(t *testing.T) {
+			name := "st-" + typ.String()
+			err := s.AddStatement(context.Background(), &api.AddStatementRequest{
+				Statement: &api.Statement{
+					Name: name,
+					Actions: &api.Actions{
+						RouteAction:    api.RouteAction_ROUTE_ACTION_ACCEPT,
+						Community:      &api.CommunityAction{Type: typ, Communities: []string{"65100:10"}},
+						ExtCommunity:   &api.CommunityAction{Type: typ, Communities: []string{"rt:65100:10"}},
+						LargeCommunity: &api.CommunityAction{Type: typ, Communities: []string{"65100:10:20"}},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			var listed []*api.Statement
+			err = s.ListStatement(context.Background(), &api.ListStatementRequest{Name: name}, func(st *api.Statement) {
+				listed = append(listed, st)
+			})
+			require.NoError(t, err)
+			require.Len(t, listed, 1)
+			actions := listed[0].GetActions()
+			assert.Equal(t, typ, actions.GetCommunity().GetType(), "community")
+			assert.Equal(t, typ, actions.GetExtCommunity().GetType(), "ext-community")
+			assert.Equal(t, typ, actions.GetLargeCommunity().GetType(), "large-community")
+		})
+	}
+}

@@ -1579,6 +1579,22 @@ func matchSetOptionsRestrictedTypeToAPI(t oc.MatchSetOptionsRestrictedType) api.
 	return api.MatchSet_TYPE_ANY
 }
 
+// communityOptionTypeToAPI maps the option of a set-community action. The
+// oc value and the API enum do not share a numbering: oc counts add from 0,
+// the API reserves 0 for TYPE_UNSPECIFIED. They must not be cast into each
+// other.
+func communityOptionTypeToAPI(t oc.BgpSetCommunityOptionType) api.CommunityAction_Type {
+	switch t {
+	case oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
+		return api.CommunityAction_TYPE_ADD
+	case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
+		return api.CommunityAction_TYPE_REMOVE
+	case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
+		return api.CommunityAction_TYPE_REPLACE
+	}
+	return api.CommunityAction_TYPE_UNSPECIFIED
+}
+
 func toStatementApi(s *oc.Statement) *api.Statement {
 	cs := &api.Conditions{}
 	if s.Conditions.MatchPrefixSet.PrefixSet != "" {
@@ -1693,17 +1709,8 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 			if len(s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList) == 0 {
 				return nil
 			}
-			action := api.CommunityAction_TYPE_UNSPECIFIED
-			switch oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options) {
-			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_ADD:
-				action = api.CommunityAction_TYPE_ADD
-			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REMOVE:
-				action = api.CommunityAction_TYPE_REMOVE
-			case oc.BGP_SET_COMMUNITY_OPTION_TYPE_REPLACE:
-				action = api.CommunityAction_TYPE_REPLACE
-			}
 			return &api.CommunityAction{
-				Type:        action,
+				Type:        communityOptionTypeToAPI(oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetCommunity.Options)),
 				Communities: s.Actions.BgpActions.SetCommunity.SetCommunityMethod.CommunitiesList,
 			}
 		}(),
@@ -1752,7 +1759,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetExtCommunity.Options)]),
+				Type:        communityOptionTypeToAPI(oc.BgpSetCommunityOptionType(s.Actions.BgpActions.SetExtCommunity.Options)),
 				Communities: s.Actions.BgpActions.SetExtCommunity.SetExtCommunityMethod.CommunitiesList,
 			}
 		}(),
@@ -1761,7 +1768,7 @@ func toStatementApi(s *oc.Statement) *api.Statement {
 				return nil
 			}
 			return &api.CommunityAction{
-				Type:        api.CommunityAction_Type(oc.BgpSetCommunityOptionTypeToIntMap[s.Actions.BgpActions.SetLargeCommunity.Options]),
+				Type:        communityOptionTypeToAPI(s.Actions.BgpActions.SetLargeCommunity.Options),
 				Communities: s.Actions.BgpActions.SetLargeCommunity.SetLargeCommunityMethod.CommunitiesList,
 			}
 		}(),
