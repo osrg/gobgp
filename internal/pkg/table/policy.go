@@ -1074,15 +1074,15 @@ const communityMatcherNoListIdx = -1
 //	  Match:   c == m.exact
 //
 //	Fixed-AS wildcard (communityMatchFixedASWildcard)
-//	  Pattern: ^<decimal-ASN>:(\d+|[0-9]+|.*)$  — any local-admin value
+//	  Pattern: ^<decimal-ASN>:(\d+|[0-9]+|.*)$  -- any local-admin value
 //	  Match:   uint16(c>>16) == m.asn
 //
 //	Fixed-AS bitmap (communityMatchFixedASBitmap)
-//	  Pattern: ^<decimal-ASN>:<regexp>$  — ASN is literal, local-admin set is finite
+//	  Pattern: ^<decimal-ASN>:<regexp>$  -- ASN is literal, local-admin set is finite
 //	  Match:   uint16(c>>16) == m.asn && m.bitmap.isSet(uint16(c))
 //
 //	Wildcard-AS bitmap (communityMatchLocalIndependent)
-//	  Pattern: ^(\d+|[0-9]+):<finite-local-set>$  — any ASN, fixed local-admin set
+//	  Pattern: ^(\d+|[0-9]+):<finite-local-set>$  -- any ASN, fixed local-admin set
 //	  Match:   m.bitmap.isSet(uint16(c))
 //
 //	Regexp fallback (communityMatchRegexp)
@@ -1295,7 +1295,7 @@ type asBitmapEntry struct {
 type communityAnyIndex struct {
 	perAS          []asBitmapEntry   // per-AS OR-bitmaps for fixed-ASN patterns
 	asnIndependent *localAdminBitmap // OR-bitmap for wildcard-ASN patterns (e.g. \d+:100)
-	hasRegexp      bool              // true → fast path unavailable, caller must use slow scan
+	hasRegexp      bool              // true -> fast path unavailable, caller must use slow scan
 }
 
 // matchesAny reports whether any community in cs matches the index.
@@ -1549,7 +1549,7 @@ const (
 )
 
 // extCommunityMatcher is a compiled EC pattern. Follows the same promotion strategy as
-// communityMatcher: anchored decimal exact → AS-only wildcard → fixed/wildcard-AS bitmap →
+// communityMatcher: anchored decimal exact -> AS-only wildcard -> fixed/wildcard-AS bitmap ->
 // regexp fallback. Non-regexp modes only handle TwoOctetAsSpecificExtended; everything else
 // falls to regexp. The regexp mode checks the subtype field before evaluating the regexp.
 type extCommunityMatcher struct {
@@ -1631,11 +1631,11 @@ type twoOctetExactKey struct {
 }
 
 // extSubtypeAnyIndex is the precomputed fast-path index for MATCH_OPTION_ANY on one EC subtype.
-// Exact matches with LA ≤ 65535 and ASBitmap patterns share the perAS bitmap structure.
+// Exact matches with LA <= 65535 and ASBitmap patterns share the perAS bitmap structure.
 // LA > 65535 exact matches go into highLA; ASOnly patterns go into asOnly.
 type extSubtypeAnyIndex struct {
 	subtype bgp.ExtendedCommunityAttrSubType
-	perAS   []asBitmapEntry               // Exact (LA≤65535) + ASBitmap matchers
+	perAS   []asBitmapEntry               // Exact (LA<=65535) + ASBitmap matchers
 	global  *localAdminBitmap             // LocalBitmap matchers (wildcard ASN)
 	asOnly  map[uint16]struct{}           // ASOnly matchers
 	highLA  map[twoOctetExactKey]struct{} // Exact matchers with LA > 65535

@@ -67,7 +67,7 @@ func TestSelectExactAndHostIPv4UC(t *testing.T) {
 		tbl := NewTable(logger, bgp.RF_IPv4_UC)
 		addPath(tbl, "14.0.0.0/8")
 		addPath(tbl, "14.14.0.0/16")
-		// "14.14.14.14" is a bare host address — should match 14.14.0.0/16 (longest)
+		// "14.14.14.14" is a bare host address -- should match 14.14.0.0/16 (longest)
 		result, err := tbl.Select(TableSelectOption{
 			LookupPrefixes: []*apiutil.LookupPrefix{{Prefix: "14.14.14.14"}},
 		})

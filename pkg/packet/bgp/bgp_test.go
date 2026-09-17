@@ -837,7 +837,7 @@ func TestMPLSLabelStackMissingBOS(t *testing.T) {
 
 	t.Run("LabeledIPAddrPrefix_rejects_missing_BOS", func(t *testing.T) {
 		// bits=27 (3-byte label + 3-bit prefix), then label without BOS, then prefix byte.
-		// bits field: label(3B)=24 bits + prefix bits=3 → 27
+		// bits field: label(3B)=24 bits + prefix bits=3 -> 27
 		data := []byte{27, 0x00, 0x06, 0x40, 0xa0} // bits=27, label noBOS, prefix
 		n := &LabeledIPAddrPrefix{}
 		err := n.decodeFromBytes(data, 4)
@@ -847,7 +847,7 @@ func TestMPLSLabelStackMissingBOS(t *testing.T) {
 	t.Run("LabeledVPNIPAddrPrefix_rejects_bits_too_short", func(t *testing.T) {
 		// Construct a VPN NLRI where bits < 8*labelLen to trigger the
 		// "declared length too short for label stack" path.
-		// Valid label with BOS: label=100, S=1 → [0x00, 0x06, 0x41]
+		// Valid label with BOS: label=100, S=1 -> [0x00, 0x06, 0x41]
 		// bits=1 (way too small for a 3-byte label stack + 8-byte RD + prefix)
 		validLabel := []byte{0x00, 0x06, 0x41}   // label=100, BOS=1
 		data := append([]byte{1}, validLabel...) // bits=1
@@ -6086,7 +6086,7 @@ func Test_LsTLVNodeDescriptor_UnknownSubTLV(t *testing.T) {
 			wantSubTLVsLen: 2,
 		},
 		{
-			// Per RFC 7752 §3.2.1.4 sub-TLVs in a Node Descriptor must be in
+			// Per RFC 7752 Section 3.2.1.4 sub-TLVs in a Node Descriptor must be in
 			// ascending order by type and have unique types, so we use two
 			// distinct unknown types in increasing order.
 			name: "two consecutive unknown sub-TLVs",
@@ -6294,7 +6294,7 @@ func Test_LsPrefixV6NLRI_UnknownSubTLV(t *testing.T) {
 	}
 }
 
-// mtTLVBytes builds an LS Multi-Topology ID sub-TLV (RFC 7752 §3.2.1.5,
+// mtTLVBytes builds an LS Multi-Topology ID sub-TLV (RFC 7752 Section 3.2.1.5,
 // type 263) carrying the given MT-IDs. Used by the table-driven tests below
 // to compose synthetic NLRI payloads.
 func mtTLVBytes(ids ...uint16) []byte {
@@ -6412,7 +6412,7 @@ func Test_LsLinkDescriptor_StringIncludesLinkID(t *testing.T) {
 }
 
 // Test_LsLinkNLRI_MultiTopoID verifies that the Multi-Topology ID sub-TLV
-// (RFC 7752 §3.2.1.5, type 263) is parsed into LinkDesc, that
+// (RFC 7752 Section 3.2.1.5, type 263) is parsed into LinkDesc, that
 // LsLinkDescriptor.String() emits the MT-ID suffix, and that two
 // otherwise-identical link NLRIs with different MT-IDs produce different
 // destination keys (regression test for RIB collision via implicit-withdraw).

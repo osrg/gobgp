@@ -738,7 +738,7 @@ func TestDestination_Calculate_AddAndWithdrawPath(t *testing.T) {
 func TestNHT_InvalidateNewPathWithoutMED(t *testing.T) {
 	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.2.0/24"))
 
-	// Step 1: local path added via CLI — no MED, no source (nil → localSource)
+	// Step 1: local path added via CLI -- no MED, no source (nil -> localSource)
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
 	}
@@ -747,7 +747,7 @@ func TestNHT_InvalidateNewPathWithoutMED(t *testing.T) {
 
 	original := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
-	// Step 2: path is added to destination (first time — no old entry)
+	// Step 2: path is added to destination (first time -- no old entry)
 	d := &destination{nlri: nlri, localIdMap: NewBitmap(64)}
 	d.localIdMap.Flag(0)
 	update1, _ := d.Calculate(logger, original)

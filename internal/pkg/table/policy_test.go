@@ -4114,7 +4114,7 @@ func TestPrefixSetMatchVPNV6Prefix(t *testing.T) {
 }
 
 // TestPrefixSetMatchRtcPrefix exercises rtc-prefix matching across the
-// origin-as × route-target matrix at depths /0, /32, /64, /80, /96.
+// origin-as x route-target matrix at depths /0, /32, /64, /80, /96.
 func TestPrefixSetMatchRtcPrefix(t *testing.T) {
 	rtm := func(as uint32, rt string) *bgp.RouteTargetMembershipNLRI {
 		r, err := bgp.ParseRouteTarget(rt)

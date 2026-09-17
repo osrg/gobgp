@@ -210,7 +210,7 @@ func Test_RxPacketDetectionTimeFromRemote(t *testing.T) {
 	assert.Equal(3*1000*time.Millisecond, p.expiryInterval)
 
 	// RFC 5880 Section 6.8.6: a packet with Detect Mult == 0 MUST be discarded,
-	// so it must NOT collapse the detector to a bogus value — the previously
+	// so it must NOT collapse the detector to a bogus value -- the previously
 	// negotiated detection time stays in effect.
 	p.rxPacket(&bfd.BFDHeader{
 		State:             bfd.StateUp,

@@ -8,7 +8,7 @@ import (
 )
 
 // Test_TunnelEncapSubTLVSRCandidatePathName_RoundTrip verifies the
-// packet-layer Serialize → DecodeFromBytes round-trip for the SR
+// packet-layer Serialize -> DecodeFromBytes round-trip for the SR
 // Candidate Path Name sub-TLV (RFC 9012 Section 2.4.4, IANA SR
 // Policy Tunnel Encapsulation Sub-TLVs type 129).
 //

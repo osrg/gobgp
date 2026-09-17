@@ -193,7 +193,7 @@ func (p *bfdPeer) stop() {
 }
 
 // remoteUDPAddr builds the BFD peer's UDP address. The zone is preserved so a link-local peer
-// (fe80::…%iface, as used by unnumbered single-hop BFD per RFC 5881) can be reached — dialing a
+// (fe80::...%iface, as used by unnumbered single-hop BFD per RFC 5881) can be reached -- dialing a
 // link-local address without its zone fails.
 func (p *bfdPeer) remoteUDPAddr() *net.UDPAddr {
 	return &net.UDPAddr{

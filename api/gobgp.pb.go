@@ -579,7 +579,7 @@ func (BfdSessionState) EnumDescriptor() ([]byte, []int) {
 }
 
 // buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
-// RFC 5880 §4.1 explicitly defines 0 as "No Diagnostic", not an unspecified state.
+// RFC 5880 Section 4.1 explicitly defines 0 as "No Diagnostic", not an unspecified state.
 type BfdDiagnosticCode int32
 
 const (

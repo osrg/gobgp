@@ -1572,7 +1572,7 @@ func TestSendMessageloop_SingleMessage(t *testing.T) {
 }
 
 // TestSendMessageloop_CoalesceMultipleMessages verifies that multiple queued
-// fsmOutgoingMsg are all delivered — every NLRI injected into the outgoing
+// fsmOutgoingMsg are all delivered -- every NLRI injected into the outgoing
 // channel appears in the wire output. The coalescing drain is opportunistic
 // (it depends on goroutine scheduling), so this test validates correctness
 // rather than asserting a specific UPDATE count.
@@ -1698,7 +1698,7 @@ func TestSendMessageloop_KillSignal(t *testing.T) {
 	// non-path message during drain or on the next outer select iteration.
 	select {
 	case <-errCh:
-		// success — the loop exited
+		// success -- the loop exited
 	case <-time.After(2 * time.Second):
 		t.Fatal("sendMessageloop did not exit after non-path message")
 	}

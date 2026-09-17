@@ -189,7 +189,7 @@ func TestLLGRStale(t *testing.T) {
 
 func TestUpdateUnknownFamily(t *testing.T) {
 	// A path whose address family is not registered in adj.table must be
-	// silently skipped — not panic — in both Update and UpdateAdjRibOut.
+	// silently skipped -- not panic -- in both Update and UpdateAdjRibOut.
 	// This covers the treat-as-withdraw path triggered by a malformed BGP
 	// UPDATE (RFC 7606): the peer may send NLRI for a family the local side
 	// never negotiated, causing a nil table lookup.

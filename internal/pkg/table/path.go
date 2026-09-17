@@ -1134,7 +1134,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 
 	// The attributes hash deliberately excludes MP_REACH_NLRI so it can double
 	// as the UPDATE batching key (see CreateUpdateMsgFromPaths), so its content
-	// — the nexthops and the NLRI — must be compared explicitly here; every
+	// -- the nexthops and the NLRI -- must be compared explicitly here; every
 	// other attribute, including NEXT_HOP, is covered by the hash. The NLRI
 	// comparison uses serialized bytes because it must cover fields outside
 	// the route key (e.g. the TEID of a MUP type-1 session transformed route),

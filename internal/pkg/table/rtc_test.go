@@ -188,20 +188,20 @@ func TestRouteTargetMembershipHandlerSameRTAddPath(t *testing.T) {
 	rtc.SyncAfterImport(p3)
 	assert.True(t, rtc.HasRouteTarget(rt1))
 
-	// Withdraw p1 — p2 and p3 still hold rt1 interest.
+	// Withdraw p1 -- p2 and p3 still hold rt1 interest.
 	rtc.SyncAfterImport(p1.Clone(true))
 	assert.True(t, rtc.HasRouteTarget(rt1), "still has rt1 via p2 and p3")
 
-	// Withdraw p3 — p2 still holds rt1 interest.
+	// Withdraw p3 -- p2 still holds rt1 interest.
 	rtc.SyncAfterImport(p3.Clone(true))
 	assert.True(t, rtc.HasRouteTarget(rt1), "still has rt1 via p2")
 
-	// Spurious withdraw: same NLRI as p2 but unknown pathID — must be a no-op.
+	// Spurious withdraw: same NLRI as p2 but unknown pathID -- must be a no-op.
 	pSpurious := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1a, ID: 99}, true, attrs, time.Now(), false)
 	rtc.SyncAfterImport(pSpurious)
 	assert.True(t, rtc.HasRouteTarget(rt1), "spurious withdraw must not remove rt1 interest")
 
-	// Withdraw p2 — no more rt1 interest.
+	// Withdraw p2 -- no more rt1 interest.
 	rtc.SyncAfterImport(p2.Clone(true))
 	assert.False(t, rtc.HasRouteTarget(rt1))
 }

@@ -2496,7 +2496,7 @@ func TestTableVPNPathIndexPathCount(t *testing.T) {
 		return NewPath(rf, pi, bgp.PathNLRI{NLRI: nlri, ID: pathID}, false, extComm, time.Now(), false)
 	}
 
-	// Without add-path two peers advertise the same NLRI — only the best must be
+	// Without add-path two peers advertise the same NLRI -- only the best must be
 	// in vpnIdx, not both
 	t.Run("no-add-path: only best path stored per NLRI", func(t *testing.T) {
 		globalRib := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_VPN, bgp.RF_RTC_UC})

@@ -1293,7 +1293,7 @@ func TestListPathEnableMultipath_DifferentLocalPref(t *testing.T) {
 	nh2, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.0.3"))
 	require.NoError(t, err)
 
-	// Path A: LOCAL_PREF=200 — should be the sole best path.
+	// Path A: LOCAL_PREF=200 -- should be the sole best path.
 	pathA := &apiutil.Path{
 		Family:  bgp.RF_IPv4_UC,
 		Nlri:    nlri,
@@ -1308,7 +1308,7 @@ func TestListPathEnableMultipath_DifferentLocalPref(t *testing.T) {
 		},
 	}
 
-	// Path B: LOCAL_PREF=100 — not best.
+	// Path B: LOCAL_PREF=100 -- not best.
 	pathB := &apiutil.Path{
 		Family:  bgp.RF_IPv4_UC,
 		Nlri:    nlri,
@@ -1323,7 +1323,7 @@ func TestListPathEnableMultipath_DifferentLocalPref(t *testing.T) {
 		},
 	}
 
-	// Path C: LOCAL_PREF=100 — not best (equal to B, but not equal to A).
+	// Path C: LOCAL_PREF=100 -- not best (equal to B, but not equal to A).
 	pathC := &apiutil.Path{
 		Family:  bgp.RF_IPv4_UC,
 		Nlri:    nlri,
@@ -4693,7 +4693,7 @@ func TestRTCImplicitWithdrawForAcceptedPathWillWithdrawVPNPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// pathRtc1 — no AS_PATH, passes import policy on s1.
+	// pathRtc1 -- no AS_PATH, passes import policy on s1.
 	panh1, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("1.1.1.1"))
 	attrsRtc1 := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
@@ -4708,7 +4708,7 @@ func TestRTCImplicitWithdrawForAcceptedPathWillWithdrawVPNPaths(t *testing.T) {
 		return expectVpnRouteCountS2AdjIn(1)
 	}, 10*time.Second, 100*time.Millisecond, "timeout waiting for VPN path at s2 adj-in from s1")
 
-	// pathRtc2 — has AS_PATH length 1, rejected by import policy on s1.
+	// pathRtc2 -- has AS_PATH length 1, rejected by import policy on s1.
 	// This implicitly withdraws pathRtc1 for the same (AS=1, RT=100:100) NLRI.
 	attrsRtc2 := append(attrsRtc1, bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
 		bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{2}),

@@ -362,7 +362,7 @@ func (manager *TableManager) updateMaxPathCounted(pathCount int) {
 
 // GetPathsByRT returns all paths indexed under rt across all tables in rfList.
 // If rt is nil, returns nil.
-// Only tables with a VPNPathIndex (VPN, EVPN, …) contribute results.
+// Only tables with a VPNPathIndex (VPN, EVPN, ...) contribute results.
 func (manager *TableManager) GetPathsByRT(rt bgp.ExtendedCommunityInterface, rfList []bgp.Family) []*Path {
 	if rt == nil {
 		return nil

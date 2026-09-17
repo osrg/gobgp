@@ -253,7 +253,7 @@ type Table struct {
 	// this holds a map for a set of prefixes.
 	macIndex *EVPNMacNLRIs
 	// vpnIdx indexes all known paths by Route Target for O(1) RT-based lookup.
-	// Non-nil only for families that carry RT extended communities (VPNV4-6, EVPN, …).
+	// Non-nil only for families that carry RT extended communities (VPNV4-6, EVPN, ...).
 	vpnIdx *VPNPathIndex
 }
 
@@ -504,7 +504,7 @@ func (t *Table) updateVPNIdx(u *Update, newPath, oldPath *Path) {
 	}
 	if newPath.RemoteID() != 0 {
 		// ADD-PATH: each (source, path-ID) pair is a distinct entry.
-		// oldPath is the previous path with the same source×pathID returned by
+		// oldPath is the previous path with the same (source, path-ID) returned by
 		// implicitWithdraw (non-withdrawal) or explicitWithdraw (withdrawal).
 		if newPath.IsWithdraw {
 			t.vpnIdx.UnregisterPath(oldPath)

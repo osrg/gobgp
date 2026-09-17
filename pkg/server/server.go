@@ -1363,7 +1363,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 // from peer, updating the membership index and sending the minimum necessary VPN route
 // updates to the peer.
 //
-// RFC4684 §6: re-evaluate RIB-OUTs for VPN NLRIs matching the Route Target.
+// RFC4684 Section 6: re-evaluate RIB-OUTs for VPN NLRIs matching the Route Target.
 func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 	nlri, ok := path.GetNlri().(*bgp.RouteTargetMembershipNLRI)
 	if !ok {

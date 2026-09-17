@@ -376,7 +376,7 @@ func (peer *peer) allNegotiatedEORReceived() bool {
 func (peer *peer) receivedAllEOR() bool {
 	if peer.fsm.state.Load() != bgp.BGP_FSM_ESTABLISHED {
 		// Session not yet established: if GR is configured for any family,
-		// we must wait — the peer may still advertise GR capability in its OPEN.
+		// we must wait -- the peer may still advertise GR capability in its OPEN.
 		for _, a := range peer.fsm.pConf.ReadOnly().AfiSafis {
 			if a.MpGracefulRestart.Config.Enabled {
 				return false
