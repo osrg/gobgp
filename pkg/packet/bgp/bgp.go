@@ -11406,8 +11406,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 			tlv = &LsTLVSrv6EndpointBehavior{}
 
 		default:
-			tlvs = tlvs[t.Len():]
-			continue
+			// RFC 9552 Section 5.1: unknown TLV types are preserved and
+			// propagated within the BGP-LS Attribute.
+			tlv = &lsTLVUnknown{}
 		}
 
 		if err := tlv.DecodeFromBytes(tlvs); err != nil {
