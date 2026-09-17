@@ -1663,6 +1663,12 @@ func parseLsNodeNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 		return nil, nil, err
 	}
 
+	for _, f := range []string{"protocol", "identifier"} {
+		if len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
+	}
+
 	protocol, err := strconv.ParseUint(m["protocol"][0], 10, 64)
 	if err != nil {
 		return nil, nil, err
@@ -1813,6 +1819,12 @@ func parseLsPrefixV6NLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, err
 	})
 	if err != nil {
 		return nil, nil, err
+	}
+
+	for _, f := range []string{"protocol", "identifier"} {
+		if len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
 	}
 
 	protocol, err := strconv.ParseUint(m["protocol"][0], 10, 64)
@@ -1974,6 +1986,12 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 	})
 	if err != nil {
 		return nil, nil, err
+	}
+
+	for _, f := range []string{"protocol", "identifier"} {
+		if len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
 	}
 
 	protocol, err := strconv.ParseUint(m["protocol"][0], 10, 64)
@@ -2499,7 +2517,7 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 
 func parseLsSRv6SIDNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) {
 	// Format:
-	// gobgp global rib add -a ls srv6sid bgp identifier <identifier> local-asn <local-asn> local-bgp-ls-id <local-bgp-ls-id> local-bgp-router-id <local-bgp-router-id> [local-bgp-confederation-member <confederation-member>] sids <sids>... [multi-topology-id <multi-topology-id>...]
+	// gobgp global rib add -a ls srv6sid protocol <protocol> identifier <identifier> local-asn <local-asn> local-bgp-ls-id <local-bgp-ls-id> local-bgp-router-id <local-bgp-router-id> [local-bgp-confederation-member <confederation-member>] sids <sids>... [multi-topology-id <multi-topology-id>...]
 	req := 11
 	if len(args) < req {
 		return nil, nil, fmt.Errorf("%d args required at least, but got %d", req, len(args))
@@ -2529,6 +2547,12 @@ func parseLsSRv6SIDNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, erro
 	})
 	if err != nil {
 		return nil, nil, err
+	}
+
+	for _, f := range []string{"protocol", "identifier"} {
+		if len(m[f]) == 0 {
+			return nil, nil, fmt.Errorf("specify %s", f)
+		}
 	}
 
 	protocol, err := strconv.ParseUint(m["protocol"][0], 10, 64)

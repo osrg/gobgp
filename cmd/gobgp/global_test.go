@@ -366,3 +366,24 @@ func Test_ParseFlowSpecRedirectToIP(t *testing.T) {
 	_, isNew := exts[0].(*bgp.FlowSpecRedirectToIPv4Extended)
 	assert.False(isNew, "plain redirect must not produce the redirect-to-ip action")
 }
+
+func Test_ParseLsArgsRequiresProtocolAndIdentifier(t *testing.T) {
+	cases := []string{
+		"node identifier 1 local-asn 65000 local-bgp-ls-id 0",
+		"node protocol 2 local-asn 65000 local-bgp-ls-id 0",
+		"link identifier 1 local-asn 65000 local-bgp-router-id 1.1.1.1 remote-asn 65001 remote-bgp-router-id 2.2.2.2",
+		"link protocol 2 local-asn 65000 local-bgp-router-id 1.1.1.1 remote-asn 65001 remote-bgp-router-id 2.2.2.2",
+		"prefixv6 identifier 1 local-asn 65000 local-bgp-ls-id 0 ip-reachability-info fc00::/64",
+		"prefixv6 protocol 2 local-asn 65000 local-bgp-ls-id 0 ip-reachability-info fc00::/64",
+		"srv6sid identifier 1 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1 sids fd00::1",
+		"srv6sid protocol 2 local-asn 65000 local-bgp-ls-id 0 local-bgp-router-id 1.1.1.1 sids fd00::1",
+	}
+	for _, c := range cases {
+		t.Run(c, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				_, _, err := parseLsArgs(strings.Split(c, " "))
+				assert.Error(t, err)
+			})
+		})
+	}
+}
