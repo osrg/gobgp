@@ -829,6 +829,97 @@ func TestRTCMembershipSerializesTriggeredVPNUpdates(t *testing.T) {
 	}
 }
 
+func TestRTCMembershipDuplicateUpdatesAreNoop(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_RTC_UC:   bgp.BGP_ADD_PATH_NONE,
+		bgp.RF_IPv4_VPN: bgp.BGP_ADD_PATH_NONE,
+	})
+	t.Cleanup(func() {
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+
+	rd, rt, err := parseRDRT("65001:100")
+	require.NoError(t, err)
+	labels := bgp.NewMPLSLabelStack(100)
+	vpnNlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/24"), *labels, rd)
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	vpnPath := table.NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: vpnNlri}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		nh,
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+	}, time.Now(), false)
+	require.NotNil(t, vpnPath)
+	require.NotEmpty(t, s.globalRib.Update(vpnPath))
+
+	rtcPath := table.NewPath(bgp.RF_RTC_UC, p.peerInfo.Load(), bgp.PathNLRI{
+		NLRI: bgp.NewRouteTargetMembershipNLRI(65001, rt),
+	}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		nh,
+	}, time.Now(), false)
+	require.NotNil(t, rtcPath)
+
+	requireOutgoing := func(withdraw bool) {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			msg, ok := o.(*fsmOutgoingMsg)
+			require.True(t, ok)
+			require.Len(t, msg.Paths, 1)
+			require.Equal(t, withdraw, msg.Paths[0].IsWithdraw)
+			require.Equal(t, "65001:100:192.0.2.0/24", msg.Paths[0].GetPrefix())
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for RTC-triggered VPN paths")
+		}
+	}
+	requireNoOutgoing := func() {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			t.Fatalf("unexpected outbound paths after duplicate RTC update: %#v", o)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Run("duplicate withdraw is noop", func(t *testing.T) {
+		s.processRTCMembership(p, rtcPath)
+		requireOutgoing(false)
+
+		withdraw := rtcPath.Clone(true)
+		s.processRTCMembership(p, withdraw)
+		requireOutgoing(true)
+
+		s.processRTCMembership(p, withdraw)
+		requireNoOutgoing()
+	})
+
+	t.Run("duplicate announce is noop", func(t *testing.T) {
+		s.processRTCMembership(p, rtcPath)
+		requireOutgoing(false)
+
+		s.processRTCMembership(p, rtcPath)
+		requireNoOutgoing()
+	})
+}
+
 func TestPropagateUpdateUsesPrefixBuckets(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
