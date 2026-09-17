@@ -85,6 +85,7 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 				index: newIdx,
 				addr:  p.GetSource().Address,
 				id:    p.GetSource().ID,
+				as:    p.GetSource().AS,
 			}
 		}
 		return newIdx
