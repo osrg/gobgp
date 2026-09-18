@@ -2470,6 +2470,76 @@ func Test_MarshalLsLinkDescriptorLinkIDPresence(t *testing.T) {
 	assert.NotNil(t, present.LinkRemoteId)
 }
 
+func Test_MarshalLsLinkDescriptorMultiTopoID(t *testing.T) {
+	absent, err := MarshalLsLinkDescriptor(&bgp.LsLinkDescriptor{})
+	require.NoError(t, err)
+	assert.Nil(t, absent.MultiTopoId)
+
+	zero, err := MarshalLsLinkDescriptor(&bgp.LsLinkDescriptor{
+		MultiTopoIDs: map[uint16]struct{}{0: {}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, zero.MultiTopoId)
+	assert.Equal(t, uint32(0), zero.GetMultiTopoId())
+
+	present, err := MarshalLsLinkDescriptor(&bgp.LsLinkDescriptor{
+		MultiTopoIDs: map[uint16]struct{}{3: {}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, present.MultiTopoId)
+	assert.Equal(t, uint32(3), present.GetMultiTopoId())
+
+	outOfRange, err := MarshalLsLinkDescriptor(&bgp.LsLinkDescriptor{
+		MultiTopoIDs: map[uint16]struct{}{0x1000: {}},
+	})
+	require.Error(t, err)
+	assert.Nil(t, outOfRange)
+
+	multiple, err := MarshalLsLinkDescriptor(&bgp.LsLinkDescriptor{
+		MultiTopoIDs: map[uint16]struct{}{1: {}, 2: {}},
+	})
+	require.Error(t, err)
+	assert.Nil(t, multiple)
+}
+
+func Test_UnmarshalLsLinkDescriptorMultiTopoID(t *testing.T) {
+	absent, err := UnmarshalLsLinkDescriptor(&api.LsLinkDescriptor{})
+	require.NoError(t, err)
+	assert.Nil(t, absent.MultiTopoIDs)
+
+	zero := uint32(0)
+	zeroDesc, err := UnmarshalLsLinkDescriptor(&api.LsLinkDescriptor{
+		MultiTopoId: &zero,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[uint16]struct{}{0: {}}, zeroDesc.MultiTopoIDs)
+
+	id := uint32(1)
+	present, err := UnmarshalLsLinkDescriptor(&api.LsLinkDescriptor{
+		MultiTopoId: &id,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[uint16]struct{}{1: {}}, present.MultiTopoIDs)
+
+	outOfRangeID := uint32(0x1000)
+	outOfRange, err := UnmarshalLsLinkDescriptor(&api.LsLinkDescriptor{
+		MultiTopoId: &outOfRangeID,
+	})
+	require.Error(t, err)
+	assert.Nil(t, outOfRange)
+}
+
+func Test_LsLinkDescriptorMultiTopoIDRoundTrip(t *testing.T) {
+	native := &bgp.LsLinkDescriptor{MultiTopoIDs: map[uint16]struct{}{1: {}, 2: {}, 3: {}}}
+
+	marshalled, err := MarshalLsLinkDescriptor(native)
+	require.NoError(t, err)
+
+	back, err := UnmarshalLsLinkDescriptor(marshalled)
+	require.NoError(t, err)
+	assert.Equal(t, native.MultiTopoIDs, back.MultiTopoIDs)
+}
+
 // A malformed address or prefix must be reported, not silently dropped or kept
 // as the zero value: every one of these fields takes part in the NLRI key, and
 // an invalid ip_reachability used to reach NewLsPrefixTLVs, which cannot build a
