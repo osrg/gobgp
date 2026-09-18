@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -93,11 +94,12 @@ const (
 )
 
 var (
-	// Labels appended to the metrics
-	peerLabels         = []string{"peer"}
-	peerRouterIdLabels = []string{"peer", "router_id"}
-	peerStateLabels    = []string{"peer", "session_state", "admin_state"}
-	rfLabels           = []string{"peer", "route_family"}
+	// Labels appended to the metrics. peerLabels is on every peer-scoped metric;
+	// the others extend it.
+	peerLabels         = []string{"peer", "peer_group", "description"}
+	peerRouterIdLabels = slices.Concat(peerLabels, []string{"router_id"})
+	peerStateLabels    = slices.Concat(peerLabels, []string{"session_state", "admin_state"})
+	rfLabels           = slices.Concat(peerLabels, []string{"route_family"})
 
 	bgpReceivedUpdateTotalDesc = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "received", "update_total"),
@@ -311,11 +313,13 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 	err = c.server.ListPeer(context.Background(), req, func(p *api.Peer) {
 		peerState := p.GetState()
 		peerAddr := peerState.GetNeighborAddress()
+		peerPg := peerState.GetPeerGroup()
+		peerDesc := peerState.GetDescription()
 		peerTimers := p.GetTimers()
 		msg := peerState.GetMessages()
 
 		send := func(desc *prometheus.Desc, cnt uint64) {
-			out <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, float64(cnt), peerAddr)
+			out <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, float64(cnt), peerAddr, peerPg, peerDesc)
 		}
 
 		// Statistics about BGP announcements we've received from our peers
@@ -366,6 +370,8 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 			prometheus.GaugeValue,
 			float64(peerState.GetPeerAsn()),
 			peerAddr,
+			peerPg,
+			peerDesc,
 			peerState.GetRouterId(),
 		)
 
@@ -375,6 +381,8 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 			prometheus.GaugeValue,
 			float64(peerState.GetLocalAsn()),
 			peerAddr,
+			peerPg,
+			peerDesc,
 			bgpServer.Global.RouterId,
 		)
 
@@ -384,6 +392,8 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 			prometheus.GaugeValue,
 			1.0,
 			peerAddr,
+			peerPg,
+			peerDesc,
 			peerState.GetSessionState().String(),
 			peerState.GetAdminState().String(),
 		)
@@ -397,7 +407,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 				uint16(afiState.GetFamily().GetAfi()),
 				uint8(afiState.GetFamily().GetSafi()),
 			).String()
-			labelValues := []string{peerAddr, family}
+			labelValues := []string{peerAddr, peerPg, peerDesc, family}
 			out <- prometheus.MustNewConstMetric(
 				bgpRoutesReceivedDesc,
 				prometheus.GaugeValue,
