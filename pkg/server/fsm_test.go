@@ -581,7 +581,7 @@ func TestFsmPeerConfigAccess(t *testing.T) {
 // Run with: go test -race -count=1 ./pkg/server/... -run TestRace_UpdatePrefixLimitConfig
 func TestRace_UpdatePrefixLimitConfig(t *testing.T) {
 	s, _, peerAddrIP := newTestBgpServerWithPeer(t)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	var testPeer *peer
 	err := s.mgmtOperation(func() error {
@@ -647,7 +647,7 @@ func TestRace_UpdatePrefixLimitConfig(t *testing.T) {
 // Run with: go test -race -count=1 ./pkg/server/... -run TestRace_HandleUpdatePrefixLimit
 func TestRace_HandleUpdatePrefixLimit(t *testing.T) {
 	s, _, peerAddrIP := newTestBgpServerWithPeer(t)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	var testPeer *peer
 	err := s.mgmtOperation(func() error {
@@ -712,7 +712,7 @@ func TestRace_HandleUpdatePrefixLimit(t *testing.T) {
 // Run with: go test -race -count=1 ./pkg/server/... -run TestRace_HandleFSMMessageEOR
 func TestRace_HandleFSMMessageEOR(t *testing.T) {
 	s, _, peerAddrIP := newTestBgpServerWithPeer(t)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	var testPeer *peer
 	err := s.mgmtOperation(func() error {
@@ -865,7 +865,7 @@ func newTestBgpServerWithPeer(t *testing.T) (*BgpServer, string, netip.Addr) {
 // serves as a regression test to ensure the race does not reappear.
 func TestRace_SoftResetPeerAndWatch(t *testing.T) {
 	s, peerAddr, peerAddrIP := newTestBgpServerWithPeer(t)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// Get the internal peer object for direct access to internal functions
 	var testPeer *peer
@@ -1716,7 +1716,7 @@ func TestSendMessageloop_KillSignal(t *testing.T) {
 // Run with: go test -race -count=1 ./pkg/server/... -run TestRace_NewWatchEventPeerRecvOpen
 func TestRace_NewWatchEventPeerRecvOpen(t *testing.T) {
 	s, _, peerAddrIP := newTestBgpServerWithPeer(t)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	var testPeer *peer
 	err := s.mgmtOperation(func() error {

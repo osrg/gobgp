@@ -51,9 +51,7 @@ func testTcpAoKeychain(name string) *api.TcpAoKeychain {
 func TestTcpAoKeychainValidation(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
-	t.Cleanup(func() {
-		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
-	})
+	t.Cleanup(s.Stop)
 	add := func(keychain *api.TcpAoKeychain) error {
 		return s.AddTcpAoKeychain(context.Background(), &api.AddTcpAoKeychainRequest{Keychain: keychain})
 	}

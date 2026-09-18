@@ -54,7 +54,7 @@ func TestWatchPostUpdateWithLocalRoute(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// Add local path (no PeerInfo)
 	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
@@ -90,7 +90,7 @@ func TestWatchBestPathNexthopOnlyChange(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	w, err := s.watch(WatchBestPath(false))
 	require.NoError(t, err)
@@ -146,9 +146,22 @@ func TestStop(t *testing.T) {
 	assert.NoError(err)
 	err = s.StopBgp(context.Background(), &api.StopBgpRequest{})
 	assert.NoError(err)
-	// stop again to verify we not getting stuck and report an error
+	// StopBgp must stop BGP but keep the server loop alive so BGP can be started
+	// again on the same BgpServer. Full shutdown is done by Stop().
+	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
 	err = s.StopBgp(context.Background(), &api.StopBgpRequest{})
-	assert.Error(err)
+	assert.NoError(err)
+	// Stopping BGP twice is a no-op while the server loop is still running.
+	err = s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	assert.NoError(err)
+	s.Stop()
 
 	s = NewBgpServer()
 	err = s.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
@@ -162,7 +175,7 @@ func TestStop(t *testing.T) {
 			ListenPort: -1,
 		},
 	})
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	assert.NoError(err)
 	p := &api.Peer{
@@ -181,6 +194,115 @@ func TestStop(t *testing.T) {
 	assert.Error(err)
 }
 
+func TestStopBgpRestartWithPeerAndListener(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := int32(listener.Addr().(*net.TCPAddr).Port)
+	require.NoError(t, listener.Close())
+
+	s := NewBgpServer()
+	go s.Serve()
+	defer s.Stop()
+	ctx := context.Background()
+
+	for range 2 {
+		require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{
+			Global: &api.Global{
+				Asn:             1,
+				RouterId:        "1.1.1.1",
+				ListenPort:      port,
+				ListenAddresses: []string{"127.0.0.1"},
+			},
+		}))
+		require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{
+			Peer: &api.Peer{
+				Conf: &api.PeerConf{
+					NeighborAddress: "127.0.0.2",
+					PeerAsn:         2,
+				},
+				Transport: &api.Transport{PassiveMode: true},
+			},
+		}))
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		select {
+		case <-s.servingDone:
+			t.Fatal("StopBgp stopped the management dispatcher")
+		default:
+		}
+	}
+}
+
+func TestStartBgpWaitsForStop(t *testing.T) {
+	for _, fullStop := range []bool{false, true} {
+		name := "StopBgp"
+		if fullStop {
+			name = "Stop"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			s := runNewServer(t, 1, "1.1.1.1", -1)
+			defer s.Stop()
+
+			// Model an old FSM that has been cancelled but has not exited yet.
+			s.peerFSMWG.Add(1)
+			var releaseOnce sync.Once
+			releaseFSM := func() { releaseOnce.Do(s.peerFSMWG.Done) }
+			defer releaseFSM()
+
+			stopDone := make(chan error, 1)
+			go func() {
+				if fullStop {
+					s.Stop()
+					stopDone <- nil
+				} else {
+					stopDone <- s.StopBgp(ctx, &api.StopBgpRequest{})
+				}
+			}()
+
+			// Wait until stop has cleared BGP state and is draining the old FSM.
+			// This also checks that the dispatcher remains available during drain.
+			require.Eventually(t, func() bool {
+				stopped := false
+				require.NoError(t, s.mgmtOperation(func() error {
+					stopped = s.bgpConfig.Global.Config.As == 0
+					return nil
+				}, false))
+				return stopped
+			}, time.Second, time.Millisecond)
+
+			startDone := make(chan error, 1)
+			go func() {
+				startDone <- s.StartBgp(ctx, &api.StartBgpRequest{
+					Global: &api.Global{Asn: 2, RouterId: "2.2.2.2", ListenPort: -1},
+				})
+			}()
+			select {
+			case err := <-startDone:
+				t.Fatalf("StartBgp returned before the old FSM exited: %v", err)
+			case <-time.After(100 * time.Millisecond):
+			}
+
+			releaseFSM()
+			select {
+			case err := <-stopDone:
+				require.NoError(t, err)
+			case <-time.After(time.Second):
+				t.Fatal("stop did not finish after the old FSM exited")
+			}
+			select {
+			case err := <-startDone:
+				if fullStop {
+					require.ErrorContains(t, err, "server stopped")
+				} else {
+					require.NoError(t, err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("StartBgp did not return after stop finished")
+			}
+		})
+	}
+}
+
 func TestMgmtOperationReturnsAfterServerStops(t *testing.T) {
 	s := NewBgpServer()
 
@@ -193,7 +315,7 @@ func TestMgmtOperationReturnsAfterServerStops(t *testing.T) {
 	}()
 
 	<-started
-	close(s.closeCh)
+	close(s.servingDone)
 
 	select {
 	case err := <-result:
@@ -208,7 +330,7 @@ func TestWatcherStopAfterServerStops(t *testing.T) {
 	w, err := s.watch(WatchPeer())
 	require.NoError(t, err)
 
-	require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	s.Stop()
 
 	done := make(chan struct{})
 
@@ -245,7 +367,7 @@ func TestWatcherStopAfterServerStops(t *testing.T) {
 // a nil watcher, which they would otherwise dereference.
 func TestWatchAfterServerStopsReturnsError(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", -1)
-	require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	s.Stop()
 
 	w, err := s.watch(WatchPeer())
 	require.Error(t, err)
@@ -285,7 +407,7 @@ func TestAddPeerUnnumberedInterface(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	p := &api.Peer{
 		Conf: &api.PeerConf{
@@ -305,9 +427,9 @@ func TestAddPeerUnnumberedInterface(t *testing.T) {
 func TestWatchUpdateCurrentDeliversInitBeforeLiveEvents(t *testing.T) {
 	ctx := context.Background()
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	established := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
 	err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_IPV4_UNICAST})
@@ -433,7 +555,7 @@ func TestModPolicyAssign(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	err = s.AddPolicy(context.Background(), &api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p1"})})
 	assert.NoError(err)
@@ -558,7 +680,7 @@ func TestListPolicyAssignment(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	for i := 1; i < 4; i++ {
 		addr := "127.0.0." + strconv.Itoa(i)
@@ -724,7 +846,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer server1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer server1.Stop()
 
 	server2 := NewBgpServer()
 	go server2.Serve()
@@ -736,7 +858,7 @@ func TestListPathEnableFiltered(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer server2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer server2.Stop()
 
 	peer1 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -1241,7 +1363,7 @@ func TestListPathEnableMultipath(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			defer server.StopBgp(context.Background(), &api.StopBgpRequest{})
+			defer server.Stop()
 
 			_, err = server.AddPath(apiutil.AddPathRequest{
 				Paths: []*apiutil.Path{path0, path1},
@@ -1349,7 +1471,7 @@ func TestListPathEnableMultipath_DifferentLocalPref(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer server.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer server.Stop()
 
 	_, err = server.AddPath(apiutil.AddPathRequest{
 		Paths: []*apiutil.Path{pathA, pathB, pathC},
@@ -1393,7 +1515,7 @@ func TestMonitor(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// Vrf1 111:111 and vrf2 import 111:111 and 222:222
 	addVrf(test, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
@@ -1421,7 +1543,7 @@ func TestMonitor(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer t.Stop()
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -1601,7 +1723,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// wait a few seconds to avoid taking effect from other test cases.
 	time.Sleep(time.Second * 5)
@@ -1898,7 +2020,7 @@ func TestPeerGroup(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	g := &oc.PeerGroup{
 		Config: oc.PeerGroupConfig{
@@ -1945,7 +2067,7 @@ func TestPeerGroup(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer t.Stop()
 
 	m := &oc.Neighbor{
 		Config: oc.NeighborConfig{
@@ -1987,7 +2109,7 @@ func TestDynamicNeighbor(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 
 	g := &oc.PeerGroup{
 		Config: oc.PeerGroupConfig{
@@ -2017,7 +2139,7 @@ func TestDynamicNeighbor(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	m := &oc.Neighbor{
 		Config: oc.NeighborConfig{
@@ -2059,7 +2181,7 @@ func TestDynamicNeighborUnknownPeerGroup(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	err = s.addPeerGroup(&oc.PeerGroup{
 		Config: oc.PeerGroupConfig{
@@ -2138,7 +2260,7 @@ func TestDynamicNeighborBfd(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 
 	// peer group with BFD enabled; dynamic neighbors inherit this config.
 	g := &oc.PeerGroup{
@@ -2176,7 +2298,7 @@ func TestDynamicNeighborBfd(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	m := &oc.Neighbor{
 		Config: oc.NeighborConfig{
@@ -2244,7 +2366,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 
 	p1 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -2306,6 +2428,7 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 
 	// Force TCP session disconnected in order to cause Graceful Restart at s1
 	// side.
+	defer s2.Stop()
 	for _, n := range s2.neighborMap {
 		n.fsm.conn.Close()
 	}
@@ -2375,7 +2498,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 
 	p1 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -2414,7 +2537,7 @@ func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	p2 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -2734,10 +2857,8 @@ func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 		}
 	}
 
-	err = s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	assert.NoError(t, err)
-	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
-	assert.NoError(t, err)
+	s1.Stop()
+	s2.Stop()
 }
 
 func TestUnmatchedRTCWithdrawalDoesNotPropagate(t *testing.T) {
@@ -2826,11 +2947,11 @@ func TestDelVrfWithRTC(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 	err := s1.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	assert.NoError(t, err)
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 	err = s2.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	assert.NoError(t, err)
 
@@ -2936,11 +3057,11 @@ func TestSameRTCMessagesWithOneDifferrence(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 	err := s1.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	assert.NoError(t, err)
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 	err = s2.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	assert.NoError(t, err)
 
@@ -3070,11 +3191,11 @@ func TestRTCWithdrawUpdatedPath(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 	err := s1.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	assert.NoError(t, err)
 	s2 := runNewServer(t, 1, "2.2.2.2", 20179)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 	err = s2.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	assert.NoError(t, err)
 
@@ -3175,7 +3296,7 @@ func TestRTCWithdrawUpdatedPath(t *testing.T) {
 
 func TestAddDeletePath(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
 		Prefix:    "10.0.0.0",
@@ -3403,7 +3524,7 @@ func TestAddDeletePath(t *testing.T) {
 
 func TestDeleteNonExistingVrf(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 	err := s.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	assert.NoError(t, err)
 
@@ -3416,7 +3537,7 @@ func TestDeleteNonExistingVrf(t *testing.T) {
 
 func TestDeleteVrf(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 	err := s.SetLogLevel(context.Background(), &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	assert.NoError(t, err)
 
@@ -3429,7 +3550,7 @@ func TestDeleteVrf(t *testing.T) {
 
 func TestAddBogusPath(t *testing.T) {
 	s := runNewServer(t, 1, "1.1.1.1", 10179)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	nlri := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{}}}
 
@@ -3478,7 +3599,7 @@ func TestListPathWithIdentifiers(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	family := bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST)
 	nlri1 := &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
@@ -3592,11 +3713,11 @@ func TestRTCDefferalTime(test *testing.T) {
 	as := uint32(1)
 	senderPort := int32(10179)
 	sender := runNewServer(test, as, "1.1.1.1", senderPort)
-	defer sender.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer sender.Stop()
 
 	receiverPort := int32(20179)
 	receiver := runNewServer(test, as, "2.2.2.2", receiverPort)
-	defer receiver.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer receiver.Stop()
 
 	rt100 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
 	rt200 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
@@ -3812,7 +3933,7 @@ func TestWatchEvent(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	peer1 := &api.Peer{
 		Conf: &api.PeerConf{
@@ -3877,7 +3998,7 @@ func TestWatchEvent(test *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer t.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer t.Stop()
 
 	family := &api.Family{
 		Afi:  api.Family_AFI_IP,
@@ -3993,7 +4114,7 @@ func TestAddDefinedSetReplace(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// set an initial policy
 	n1 := &api.DefinedSet{
@@ -4063,7 +4184,7 @@ func TestEBGPRouteStuck(test *testing.T) {
 			},
 		})
 		require.NoError(test, err)
-		defer peer.StopBgp(context.Background(), &api.StopBgpRequest{})
+		defer peer.Stop()
 	}
 
 	wg := newPeerStateWaiter(peers[0], api.PeerState_SESSION_STATE_ESTABLISHED)
@@ -4162,7 +4283,7 @@ func TestUpdatePeer(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// add peer
 	p := &api.Peer{
@@ -4247,7 +4368,7 @@ func TestRTCDeferralTimerRaceCondition(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(ctx, &api.StopBgpRequest{})
+	defer s.Stop()
 
 	err = s.SetLogLevel(ctx, &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	require.NoError(t, err)
@@ -4454,7 +4575,7 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(ctx, &api.StopBgpRequest{})
+	defer s.Stop()
 
 	err = s.SetLogLevel(ctx, &api.SetLogLevelRequest{Level: api.SetLogLevelRequest_LEVEL_DEBUG})
 	require.NoError(t, err)
@@ -4629,7 +4750,7 @@ func TestStartBgp_RouterIdValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewBgpServer()
 			go s.Serve()
-			defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+			defer s.Stop()
 
 			err := s.StartBgp(context.Background(), &api.StartBgpRequest{
 				Global: &api.Global{
@@ -4656,9 +4777,9 @@ func TestRTCImplicitWithdrawForAcceptedPathWillWithdrawVPNPaths(t *testing.T) {
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 22179)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 	s2 := runNewServer(t, 1, "2.2.2.2", 33179)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
@@ -4749,9 +4870,9 @@ func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.
 	ctx := context.Background()
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 44179)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 	s2 := runNewServer(t, 1, "2.2.2.2", 55179)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
 	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
@@ -4855,7 +4976,7 @@ func TestPerPeerPolicyIsRouteServerOnly(t *testing.T) {
 				},
 			})
 			assert.NoError(err)
-			defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+			defer s.Stop()
 
 			err = s.AddPolicy(context.Background(),
 				&api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p1"})})
@@ -4909,7 +5030,7 @@ func TestDeletePeerDropsPolicyAssignment(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	err = s.AddPolicy(context.Background(),
 		&api.AddPolicyRequest{Policy: table.NewAPIPolicyFromTableStruct(&table.Policy{Name: "p1"})})
@@ -4980,9 +5101,7 @@ func startServerWithPassivePeer(t *testing.T, asn uint32, peerAddr string) (*Bgp
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
-	})
+	t.Cleanup(s.Stop)
 
 	neighbor := &oc.Neighbor{
 		Config: oc.NeighborConfig{
