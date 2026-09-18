@@ -218,12 +218,10 @@ def cleanup_docker_leftovers():
     if containers:
         local('docker rm -f {0}'.format(' '.join(containers)), capture=True)
 
-    networks = local(
-        'docker network ls -q -f label={0}'.format(TEST_NETWORK_LABEL),
+    local(
+        'docker network prune -f --filter label={0}'.format(TEST_NETWORK_LABEL),
         capture=True,
-    ).split()
-    if networks:
-        local('docker network rm {0}'.format(' '.join(networks)), capture=True)
+    )
 
 
 class CmdBuffer(list):
