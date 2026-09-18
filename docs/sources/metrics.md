@@ -58,39 +58,40 @@ The metrics are all prefixed with the `bgp` Prometheus namespace.
 Every metric below carries the `peer`, `peer_group` and `description` labels. The
 last column lists the labels a metric adds on top of those three.
 
-| **Metric**                         | **Description**                                                              | **Additional labels**                     |
-| ---------------------------------- | ---------------------------------------------------------------------------- |-------------------------------------------|
-| bgp_peer_state                     | State of the BGP session with peer and its administrative state              | `session_state`, `admin_state`            |
-| bgp_peer_asn                       | What is the AS number of the peer and its router ID                          | `router_id`                               |
-| bgp_peer_local_asn                 | What is the AS number presented to the peer by this router and its ID        | `router_id`                               |
-| bgp_peer_flop_count                | Number of flops with the peer                                                |                                           |
-| bgp_peer_out_queue_count           | Length of the outgoing message queue                                         |                                           |
-| bgp_peer_password_set              | Whether the GoBGP peer has been configured (1) for authentication or not (0) |                                           |
-| bgp_peer_remove_private_as         | Do we remove private ASNs from the paths sent to the peer                    |                                           |
-| bgp_peer_send_community            | BGP community with the peer                                                  |                                           |
-| bgp_peer_type                      | Type of the BGP peer, internal (1) or external (2)                           |                                           |
-| bgp_peer_uptime                    | For how long the peer has been in its current state                          |                                           |
-| bgp_routes_accepted                | Number of routes accepted from peer                                          | `route_family`                            |
-| bgp_routes_advertised              | Number of routes advertised to peer                                          | `route_family`                            |
-| bgp_routes_received                | Number of routes received from peer                                          | `route_family`                            |
-| bgp_sent_discarded_total           | Number of discarded BGP messages to peer                                     |                                           |
-| bgp_sent_keepalive_total           | Number of sent BGP KEEPALIVE messages from peer                              |                                           |
-| bgp_sent_message_total             | Number of sent BGP messages from peer                                        |                                           |
-| bgp_sent_notification_total        | Number of sent BGP NOTIFICATION messages from peer                           |                                           |
-| bgp_sent_open_total                | Number of sent BGP OPEN messages from peer                                   |                                           |
-| bgp_sent_refresh_total             | Number of sent BGP REFRESH messages from peer                                |                                           |
-| bgp_sent_update_total              | Number of sent BGP UPDATE messages from peer                                 |                                           |
-| bgp_sent_withdraw_prefix_total     | Number of sent BGP WITHDRAW-PREFIX messages from peer                        |                                           |
-| bgp_sent_withdraw_update_total     | Number of sent BGP WITHDRAW-UPDATE messages from peer                        |                                           |
-| bgp_received_discarded_total       | Number of discarded BGP messages from peer                                   |                                           |
-| bgp_received_keepalive_total       | Number of received BGP KEEPALIVE messages from peer                          |                                           |
-| bgp_received_message_total         | Number of received BGP messages from peer                                    |                                           |
-| bgp_received_notification_total    | Number of received BGP NOTIFICATION messages from peer                       |                                           |
-| bgp_received_open_total            | Number of received BGP OPEN messages from peer                               |                                           |
-| bgp_received_refresh_total         | Number of received BGP REFRESH messages from peer                            |                                           |
-| bgp_received_update_total          | Number of received BGP UPDATE messages from peer                             |                                           |
-| bgp_received_withdraw_prefix_total | Number of received BGP WITHDRAW-PREFIX messages from peer                    |                                           |
-| bgp_received_withdraw_update_total | Number of received BGP WITHDRAW-UPDATE messages from peer                    |                                           |
+| **Metric**                         | **Description**                                                                                              | **Additional labels** |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------- |
+| bgp_peer_session_state             | Session state of the peer: idle (1), connect (2), active (3), opensent (4), openconfirm (5), established (6) |                       |
+| bgp_peer_admin_state               | Administrative state of the peer: up (1), down (2), pfx_ct (3, down because the prefix limit was reached)    |                       |
+| bgp_peer_asn                       | What is the AS number of the peer and its router ID                                                          | `router_id`           |
+| bgp_peer_local_asn                 | What is the AS number presented to the peer by this router and its ID                                        | `router_id`           |
+| bgp_peer_flop_count                | Number of flops with the peer                                                                                |                       |
+| bgp_peer_out_queue_count           | Length of the outgoing message queue                                                                         |                       |
+| bgp_peer_password_set              | Whether the GoBGP peer has been configured (1) for authentication or not (0)                                 |                       |
+| bgp_peer_remove_private_as         | Do we remove private ASNs from the paths sent to the peer                                                    |                       |
+| bgp_peer_send_community            | BGP community with the peer                                                                                  |                       |
+| bgp_peer_type                      | Type of the BGP peer: unspecified (0), internal (1) or external (2)                                          |                       |
+| bgp_peer_uptime                    | For how long the peer has been in its current state                                                          |                       |
+| bgp_routes_accepted                | Number of routes accepted from peer                                                                          | `route_family`        |
+| bgp_routes_advertised              | Number of routes advertised to peer                                                                          | `route_family`        |
+| bgp_routes_received                | Number of routes received from peer                                                                          | `route_family`        |
+| bgp_sent_discarded_total           | Number of discarded BGP messages to peer                                                                     |                       |
+| bgp_sent_keepalive_total           | Number of sent BGP KEEPALIVE messages from peer                                                              |                       |
+| bgp_sent_message_total             | Number of sent BGP messages from peer                                                                        |                       |
+| bgp_sent_notification_total        | Number of sent BGP NOTIFICATION messages from peer                                                           |                       |
+| bgp_sent_open_total                | Number of sent BGP OPEN messages from peer                                                                   |                       |
+| bgp_sent_refresh_total             | Number of sent BGP REFRESH messages from peer                                                                |                       |
+| bgp_sent_update_total              | Number of sent BGP UPDATE messages from peer                                                                 |                       |
+| bgp_sent_withdraw_prefix_total     | Number of sent BGP WITHDRAW-PREFIX messages from peer                                                        |                       |
+| bgp_sent_withdraw_update_total     | Number of sent BGP WITHDRAW-UPDATE messages from peer                                                        |                       |
+| bgp_received_discarded_total       | Number of discarded BGP messages from peer                                                                   |                       |
+| bgp_received_keepalive_total       | Number of received BGP KEEPALIVE messages from peer                                                          |                       |
+| bgp_received_message_total         | Number of received BGP messages from peer                                                                    |                       |
+| bgp_received_notification_total    | Number of received BGP NOTIFICATION messages from peer                                                       |                       |
+| bgp_received_open_total            | Number of received BGP OPEN messages from peer                                                               |                       |
+| bgp_received_refresh_total         | Number of received BGP REFRESH messages from peer                                                            |                       |
+| bgp_received_update_total          | Number of received BGP UPDATE messages from peer                                                             |                       |
+| bgp_received_withdraw_prefix_total | Number of received BGP WITHDRAW-PREFIX messages from peer                                                    |                       |
+| bgp_received_withdraw_update_total | Number of received BGP WITHDRAW-UPDATE messages from peer                                                    |                       |
 
 ## Label values
 
@@ -99,8 +100,6 @@ Some labels can have specific values depending on the state of GoBGP or of the p
 - `peer`: the IP of the remote BGP peer
 - `peer_group`: the peer group the neighbor belongs to, empty if it belongs to none
 - `description`: the neighbor's configured description, empty if unset
-- `session_state`: the BGP FSM status of the peer, can be either `UNKNOWN`, `IDLE`, `CONNECT`, `IDLE`, `ACTIVE`, `OPENSENT`, `OPENCONFIRM` or `ESTABLISHED`
-- `admin_state`: administrative state of the peer, can be either `DOWN`, `UP` or `PFX_CNT` if prefix limit is reached
 - `route_family`: any address family supported by GoBGP (e.g `ipv4`, `ipv6`, `evpn`)
 
 ## Grafana dashboard

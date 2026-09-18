@@ -17,7 +17,7 @@ import (
 )
 
 func TestMetrics(test *testing.T) {
-	assert := assert.New(test)
+	assert, require := assert.New(test), require.New(test)
 	s := server.NewBgpServer()
 
 	registry := prometheus.NewRegistry()
@@ -90,6 +90,24 @@ func TestMetrics(test *testing.T) {
 	err = t.AddPeer(context.Background(), &api.AddPeerRequest{Peer: p2})
 	assert.NoError(err)
 	<-stateCh
+
+	metrics, err := registry.Gather()
+	assert.NoError(err)
+
+	adminState := getMetric(metrics, "bgp_peer_admin_state")
+	require.NotNil(adminState)
+	assert.Equal(float64(api.PeerState_ADMIN_STATE_UP),
+		adminState.Metric[0].Gauge.GetValue())
+
+	sessionState := getMetric(metrics, "bgp_peer_session_state")
+	require.NotNil(sessionState)
+	assert.Equal(float64(api.PeerState_SESSION_STATE_ESTABLISHED),
+		sessionState.Metric[0].Gauge.GetValue())
+
+	peerType := getMetric(metrics, "bgp_peer_type")
+	require.NotNil(peerType)
+	assert.Equal(float64(api.PeerType_PEER_TYPE_EXTERNAL),
+		peerType.Metric[0].Gauge.GetValue())
 
 	family := &api.Family{
 		Afi:  api.Family_AFI_IP,

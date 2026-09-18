@@ -3,7 +3,9 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -93,12 +95,22 @@ const (
 	namespace = "bgp"
 )
 
+// enumValues lists the values of an API enum, so that the help text of a
+// metric reporting one cannot drift from what is reported.
+func enumValues(names map[int32]string, prefix string) string {
+	codes := slices.Sorted(maps.Keys(names))
+	values := make([]string, 0, len(codes))
+	for _, code := range codes {
+		values = append(values, fmt.Sprintf("%s (%d)", strings.TrimPrefix(names[code], prefix), code))
+	}
+	return strings.Join(values, ", ")
+}
+
 var (
 	// Labels appended to the metrics. peerLabels is on every peer-scoped metric;
 	// the others extend it.
 	peerLabels         = []string{"peer", "peer_group", "description"}
 	peerRouterIdLabels = slices.Concat(peerLabels, []string{"router_id"})
-	peerStateLabels    = slices.Concat(peerLabels, []string{"session_state", "admin_state"})
 	rfLabels           = slices.Concat(peerLabels, []string{"route_family"})
 
 	bgpReceivedUpdateTotalDesc = prometheus.NewDesc(
@@ -225,7 +237,7 @@ var (
 	)
 	bgpPeerTypeDesc = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "peer", "type"),
-		"Type of the BGP peer, internal (1) or external (2)",
+		"Type of the BGP peer: "+enumValues(api.PeerType_name, "PEER_TYPE_"),
 		peerLabels, nil,
 	)
 	bgpPeerAsnDesc = prometheus.NewDesc(
@@ -238,10 +250,15 @@ var (
 		"What is the AS number presented to the peer by this router",
 		peerRouterIdLabels, nil,
 	)
-	bgpPeerStateDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "peer", "state"),
-		"State of the BGP session with peer and its administrative state",
-		peerStateLabels, nil,
+	bgpPeerSessionStateDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "peer", "session_state"),
+		"Session state of the BGP peer: "+enumValues(api.PeerState_SessionState_name, "SESSION_STATE_"),
+		peerLabels, nil,
+	)
+	bgpPeerAdminStateDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "peer", "admin_state"),
+		"Administrative state of the BGP peer: "+enumValues(api.PeerState_AdminState_name, "ADMIN_STATE_"),
+		peerLabels, nil,
 	)
 
 	bgpRoutesReceivedDesc = prometheus.NewDesc(
@@ -295,7 +312,8 @@ func (c *bgpCollector) Describe(out chan<- *prometheus.Desc) {
 	out <- bgpPeerTypeDesc
 	out <- bgpPeerAsnDesc
 	out <- bgpPeerLocalAsnDesc
-	out <- bgpPeerStateDesc
+	out <- bgpPeerSessionStateDesc
+	out <- bgpPeerAdminStateDesc
 
 	out <- bgpRoutesReceivedDesc
 	out <- bgpRoutesAcceptedDesc
@@ -320,6 +338,9 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 
 		send := func(desc *prometheus.Desc, cnt uint64) {
 			out <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, float64(cnt), peerAddr, peerPg, peerDesc)
+		}
+		sendGauge := func(desc *prometheus.Desc, v float64) {
+			out <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v, peerAddr, peerPg, peerDesc)
 		}
 
 		// Statistics about BGP announcements we've received from our peers
@@ -354,8 +375,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 		send(bgpPeerSendCommunityFlagDesc, uint64(peerState.GetSendCommunity()))
 		// Whether BGP Private AS is being removed (1) or not (0)
 		send(bgpPeerRemovePrivateAsFlagDesc, uint64(peerState.GetRemovePrivate()))
-		// Peer Type (1) for internal, (2) for external
-		send(bgpPeerTypeDesc, uint64(peerState.GetType()))
+		sendGauge(bgpPeerTypeDesc, float64(peerState.GetType()))
 
 		// Whether authentication password is being set (1) or not (0)
 		passwordSetFlag := 0
@@ -386,17 +406,8 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 			bgpServer.Global.RouterId,
 		)
 
-		// Session and administrative state of the peer
-		out <- prometheus.MustNewConstMetric(
-			bgpPeerStateDesc,
-			prometheus.GaugeValue,
-			1.0,
-			peerAddr,
-			peerPg,
-			peerDesc,
-			peerState.GetSessionState().String(),
-			peerState.GetAdminState().String(),
-		)
+		sendGauge(bgpPeerSessionStateDesc, float64(peerState.GetSessionState()))
+		sendGauge(bgpPeerAdminStateDesc, float64(peerState.GetAdminState()))
 
 		for _, afiSafi := range p.GetAfiSafis() {
 			if !afiSafi.GetConfig().GetEnabled() {
