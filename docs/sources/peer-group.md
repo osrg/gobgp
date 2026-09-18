@@ -7,6 +7,7 @@ With Peer Group, you can set the same configuration to multiple peers.
 
 - [Prerequisite](#prerequisite)
 - [Configuration](#configuration)
+- [Inheritance rules](#inheritance-rules)
 - [Verification](#verification)
 
 ## Prerequisite
@@ -46,6 +47,40 @@ Below is the configuration to create a neighbor which belongs this peer group.
 
 This neighbor belongs to the peer group, so the peer-as is 65001, and ipv4-unicast and ipv4-flowspec are enabled.
 Furthermore, an additional configuration is set, the hold timer is 99 secs.
+
+## Inheritance rules
+
+A neighbor takes every setting it does not have from its peer group. How
+GoBGP decides what the neighbor has depends on how the neighbor was added.
+
+### Neighbors from a configuration file
+
+A key written in the file belongs to the neighbor, even when its value is
+the zero value of its type. A neighbor that writes `passive-mode = false`
+keeps it false while the peer group says true.
+
+### Neighbors added through the API
+
+The API does not record which fields the caller meant to set, so GoBGP
+treats a field as set when it holds anything but the zero value of its
+type. A field left at `false`, `0`, `""` or an empty list is taken from
+the peer group.
+
+A neighbor added through the API therefore cannot turn a peer group
+setting off. If the peer group enables `ttl-security` and the caller asks
+for `false`, the neighbor still gets `true`. The same applies to
+`auth-password`, `graceful-restart`, `route-reflector-client`, the policy
+lists and `add-paths`. Put such a neighbor in its own peer group, or
+configure it without one.
+
+The `afi-safis` list follows the same rule. A caller that lists families
+keeps them. A caller that lists none takes the peer group's.
+
+### Settings that always come from the peer group
+
+`peer-as` and `minimum-advertisement-interval` always come from the peer
+group. This holds whichever way the neighbor was added, and even when the
+neighbor spells them out. Set them on the peer group.
 
 ## Verification
 
