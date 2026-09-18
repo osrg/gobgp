@@ -2101,6 +2101,28 @@ func TestDynamicNeighborUnknownPeerGroup(t *testing.T) {
 	assert.NoError(err)
 }
 
+// TestDynamicNeighborIsAlwaysPassive verifies that a dynamic neighbor never dials out, whatever the peer
+// group says. The peer is built only after a connection was accepted, and it is deleted when that session
+// goes down, so an outgoing connection would be to an address gobgp only knows because the remote used it.
+func TestDynamicNeighborIsAlwaysPassive(t *testing.T) {
+	for _, groupPassive := range []bool{false, true} {
+		t.Run(fmt.Sprintf("peer_group_passive_mode_%t", groupPassive), func(t *testing.T) {
+			pg := &oc.PeerGroup{
+				Config: oc.PeerGroupConfig{
+					PeerGroupName: "g",
+					PeerAs:        2,
+				},
+				Transport: oc.Transport{
+					Config: oc.TransportConfig{PassiveMode: groupPassive},
+				},
+			}
+			p := newDynamicPeer(&oc.Global{Config: oc.GlobalConfig{As: 1}}, "127.0.0.1", pg, nil, nil, logger)
+			require.NotNil(t, p)
+			assert.True(t, p.fsm.pConf.ReadOnly().Transport.Config.PassiveMode)
+		})
+	}
+}
+
 // TestDynamicNeighborBfd verifies that BFD is registered for a dynamic neighbor when the peer group has
 // BFD enabled (the accept path), and deregistered when the neighbor goes away (the stop path). Without
 // the fix, BFD never runs for dynamic peers.

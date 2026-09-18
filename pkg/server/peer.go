@@ -78,11 +78,6 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 		State: oc.NeighborState{
 			NeighborAddress: netip.MustParseAddr(neighborAddress),
 		},
-		Transport: oc.Transport{
-			Config: oc.TransportConfig{
-				PassiveMode: true,
-			},
-		},
 	}
 	if err := oc.OverwriteNeighborConfigWithPeerGroup(&conf, pg); err != nil {
 		logger.Debug("Can't overwrite neighbor config",
@@ -98,6 +93,11 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 			slog.String("Error", err.Error()))
 		return nil
 	}
+
+	// A dynamic neighbor exists only because the remote connected in, and it is
+	// deleted when that session goes down. It must never dial out, so set this
+	// after the peer group is applied. The peer group does not get a say.
+	conf.Transport.Config.PassiveMode = true
 
 	return newPeer(g, &conf, bgp.BGP_FSM_ACTIVE, loc, policy, nil, logger)
 }
