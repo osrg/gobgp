@@ -54,6 +54,17 @@ $ PYTHONPATH=./test python3 -m pytest test/scenario_test/<scenario test name>.py
 `-s` shows the output of the test while it runs. `-x` stops at the first
 failure. See `test/scenario_test/*_test*.py` for the test files.
 
+For slower environments, pass `--timeout-scale 2` to double the shared wait
+timeouts and retry counts:
+
+```shell
+$ PYTHONPATH=./test python3 -m pytest test/scenario_test/bgp_router_test.py --gobgp-image gobgp -s -x --timeout-scale 2
+```
+
+`GOBGP_TEST_TIMEOUT_SCALE` sets the default when `--timeout-scale` is omitted.
+The default is `1`; the value must be finite and at least `1`. This scales the
+shared helpers, not fixed sleeps or the overall duration of a test.
+
 Three tests use zebra from an older Quagga and need the `gobgp-oq` image:
 `bgp_zebra_nht_test.py`, `zapi_v3_test.py` and `zapi_v3_multipath_test.py`.
 Pass `--gobgp-image gobgp-oq` for them:
