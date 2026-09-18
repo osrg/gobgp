@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
@@ -3906,11 +3907,336 @@ func createNeighborSet(name string, addr string) oc.NeighborSet {
 	return ns
 }
 
+func createPeerGroupSet(name string, peerGroups ...string) oc.PeerGroupSet {
+	return oc.PeerGroupSet{
+		PeerGroupSetName: name,
+		PeerGroupList:    peerGroups,
+	}
+}
+
 func createAs4Value(s string) uint32 {
 	v := strings.Split(s, ".")
 	upper, _ := strconv.ParseUint(v[0], 10, 16)
 	lower, _ := strconv.ParseUint(v[1], 10, 16)
 	return uint32(upper<<16 | lower)
+}
+
+func TestPeerGroupSetOperation(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "empty unnamed set is nil",
+			run: func(t *testing.T) {
+				set, err := NewPeerGroupSet(oc.PeerGroupSet{})
+				require.NoError(t, err)
+				assert.Nil(t, set)
+			},
+		},
+		{
+			name: "members require a set name",
+			run: func(t *testing.T) {
+				set, err := NewPeerGroupSet(oc.PeerGroupSet{PeerGroupList: []string{"pg1"}})
+				assert.Nil(t, set)
+				assert.EqualError(t, err, "empty peer-group set name")
+			},
+		},
+		{
+			name: "append remove replace and list copy",
+			run: func(t *testing.T) {
+				set, err := NewPeerGroupSet(createPeerGroupSet("pgs", "pg1"))
+				require.NoError(t, err)
+
+				err = set.Append(&PeerGroupSet{list: []string{"pg2", "pg3"}})
+				require.NoError(t, err)
+				assert.Equal(t, []string{"pg1", "pg2", "pg3"}, set.List())
+
+				err = set.Remove(&PeerGroupSet{list: []string{"pg2"}})
+				require.NoError(t, err)
+				assert.Equal(t, []string{"pg1", "pg3"}, set.List())
+
+				err = set.Replace(&PeerGroupSet{list: []string{"pg4"}})
+				require.NoError(t, err)
+				got := set.List()
+				got[0] = "mutated"
+				assert.Equal(t, []string{"pg4"}, set.List())
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, tt.run)
+	}
+}
+
+func TestPeerGroupConditionEvaluate(t *testing.T) {
+	basePath := NewPath(
+		bgp.RF_IPv4_UC,
+		&PeerInfo{PeerGroup: "pg-source"},
+		bgp.PathNLRI{},
+		false,
+		[]bgp.PathAttributeInterface{},
+		time.Now(),
+		false,
+	)
+
+	tests := []struct {
+		name    string
+		setList []string
+		option  MatchOption
+		options *PolicyOptions
+		want    bool
+	}{
+		{
+			name:    "source peer group matches any",
+			setList: []string{"pg-source", "pg-other"},
+			option:  MATCH_OPTION_ANY,
+			want:    true,
+		},
+		{
+			name:    "source peer group misses any",
+			setList: []string{"pg-other"},
+			option:  MATCH_OPTION_ANY,
+			want:    false,
+		},
+		{
+			name:    "options peer group overrides source",
+			setList: []string{"pg-options"},
+			option:  MATCH_OPTION_ANY,
+			options: &PolicyOptions{Info: &PeerInfo{PeerGroup: "pg-options"}},
+			want:    true,
+		},
+		{
+			name:    "empty options peer group overrides source",
+			setList: []string{"pg-source"},
+			option:  MATCH_OPTION_ANY,
+			options: &PolicyOptions{Info: &PeerInfo{}},
+			want:    false,
+		},
+		{
+			name:    "invert returns false on match",
+			setList: []string{"pg-source"},
+			option:  MATCH_OPTION_INVERT,
+			want:    false,
+		},
+		{
+			name:    "invert returns true on miss",
+			setList: []string{"pg-other"},
+			option:  MATCH_OPTION_INVERT,
+			want:    true,
+		},
+		{
+			name:   "empty set matches",
+			option: MATCH_OPTION_ANY,
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			condition := &PeerGroupCondition{
+				set:    &PeerGroupSet{name: "pgs", list: tt.setList},
+				option: tt.option,
+			}
+			assert.Equal(t, tt.want, condition.Evaluate(basePath, tt.options))
+		})
+	}
+}
+
+func TestRoutingPolicyPeerGroupCondition(t *testing.T) {
+	path := NewPath(
+		bgp.RF_IPv4_UC,
+		&PeerInfo{PeerGroup: "pg1"},
+		bgp.PathNLRI{},
+		false,
+		[]bgp.PathAttributeInterface{},
+		time.Now(),
+		false,
+	)
+
+	tests := []struct {
+		name       string
+		match      oc.MatchPeerGroupSet
+		wantResult RouteType
+		wantErr    string
+	}{
+		{
+			name:       "matching peer group accepts",
+			match:      oc.MatchPeerGroupSet{PeerGroupSet: "pgs", MatchSetOptions: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY},
+			wantResult: ROUTE_TYPE_ACCEPT,
+		},
+		{
+			name:       "inverted peer group skips statement",
+			match:      oc.MatchPeerGroupSet{PeerGroupSet: "pgs", MatchSetOptions: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT},
+			wantResult: ROUTE_TYPE_NONE,
+		},
+		{
+			name:    "missing peer group set fails reload",
+			match:   oc.MatchPeerGroupSet{PeerGroupSet: "missing", MatchSetOptions: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY},
+			wantErr: "not found peer-group set missing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ds := oc.DefinedSets{
+				PeerGroupSets: []oc.PeerGroupSet{createPeerGroupSet("pgs", "pg1", "pg2")},
+			}
+			statement := oc.Statement{
+				Name: "stmt1",
+				Conditions: oc.Conditions{
+					MatchPeerGroupSet: tt.match,
+				},
+				Actions: oc.Actions{
+					RouteDisposition: oc.ROUTE_DISPOSITION_ACCEPT_ROUTE,
+				},
+			}
+			r := NewRoutingPolicy(logger)
+			err := r.reload(createRoutingPolicy(ds, createPolicyDefinition("policy1", statement)))
+			if tt.wantErr != "" {
+				assert.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			result, newPath := r.policyMap["policy1"].Apply(logger, path, nil)
+			assert.Equal(t, tt.wantResult, result)
+			assert.Equal(t, path, newPath)
+
+			sets, err := r.GetDefinedSet(DEFINED_TYPE_PEER_GROUP, "pgs")
+			require.NoError(t, err)
+			require.Len(t, sets.PeerGroupSets, 1)
+			assert.Equal(t, createPeerGroupSet("pgs", "pg1", "pg2"), sets.PeerGroupSets[0])
+
+			gotStatement := r.GetStatement("stmt1")
+			require.Len(t, gotStatement, 1)
+			assert.Equal(t, tt.match, gotStatement[0].Conditions.MatchPeerGroupSet)
+		})
+	}
+}
+
+func TestRoutingPolicyPeerGroupDefinedSetLifecycle(t *testing.T) {
+	setFromConfig := func(t *testing.T, name string, peerGroups ...string) *PeerGroupSet {
+		t.Helper()
+		set, err := NewPeerGroupSet(createPeerGroupSet(name, peerGroups...))
+		require.NoError(t, err)
+		return set
+	}
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T, r *RoutingPolicy)
+	}{
+		{
+			name: "add appends members",
+			run: func(t *testing.T, r *RoutingPolicy) {
+				require.NoError(t, r.AddDefinedSet(setFromConfig(t, "pgs", "pg1"), false))
+				require.NoError(t, r.AddDefinedSet(setFromConfig(t, "pgs", "pg2"), false))
+
+				sets, err := r.GetDefinedSet(DEFINED_TYPE_PEER_GROUP, "pgs")
+				require.NoError(t, err)
+				require.Len(t, sets.PeerGroupSets, 1)
+				assert.Equal(t, []string{"pg1", "pg2"}, sets.PeerGroupSets[0].PeerGroupList)
+			},
+		},
+		{
+			name: "replace overwrites members",
+			run: func(t *testing.T, r *RoutingPolicy) {
+				require.NoError(t, r.AddDefinedSet(setFromConfig(t, "pgs", "pg1"), false))
+				require.NoError(t, r.AddDefinedSet(setFromConfig(t, "pgs", "pg2"), true))
+
+				sets, err := r.GetDefinedSet(DEFINED_TYPE_PEER_GROUP, "pgs")
+				require.NoError(t, err)
+				require.Len(t, sets.PeerGroupSets, 1)
+				assert.Equal(t, []string{"pg2"}, sets.PeerGroupSets[0].PeerGroupList)
+			},
+		},
+		{
+			name: "delete removes members and whole set",
+			run: func(t *testing.T, r *RoutingPolicy) {
+				require.NoError(t, r.AddDefinedSet(setFromConfig(t, "pgs", "pg1", "pg2"), false))
+				require.NoError(t, r.DeleteDefinedSet(setFromConfig(t, "pgs", "pg1"), false))
+
+				sets, err := r.GetDefinedSet(DEFINED_TYPE_PEER_GROUP, "pgs")
+				require.NoError(t, err)
+				require.Len(t, sets.PeerGroupSets, 1)
+				assert.Equal(t, []string{"pg2"}, sets.PeerGroupSets[0].PeerGroupList)
+
+				require.NoError(t, r.DeleteDefinedSet(setFromConfig(t, "pgs"), true))
+				sets, err = r.GetDefinedSet(DEFINED_TYPE_PEER_GROUP, "pgs")
+				require.NoError(t, err)
+				assert.Empty(t, sets.PeerGroupSets)
+			},
+		},
+		{
+			name: "delete used set is rejected",
+			run: func(t *testing.T, r *RoutingPolicy) {
+				require.NoError(t, r.AddDefinedSet(setFromConfig(t, "pgs", "pg1"), false))
+				condition, err := NewPeerGroupCondition(oc.MatchPeerGroupSet{PeerGroupSet: "pgs"})
+				require.NoError(t, err)
+				require.NoError(t, r.AddPolicy(&Policy{
+					Name: "policy1",
+					Statements: []*Statement{
+						{
+							Name:       "stmt1",
+							Conditions: []Condition{condition},
+						},
+					},
+				}, false))
+
+				err = r.DeleteDefinedSet(setFromConfig(t, "pgs"), true)
+				assert.EqualError(t, err, "can't delete. defined-set pgs is in use")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewRoutingPolicy(logger)
+			require.NoError(t, r.Initialize())
+			tt.run(t, r)
+		})
+	}
+}
+
+func TestToStatementApiPeerGroupSet(t *testing.T) {
+	tests := []struct {
+		name string
+		in   oc.MatchPeerGroupSet
+		want api.MatchSet_Type
+	}{
+		{
+			name: "any",
+			in: oc.MatchPeerGroupSet{
+				PeerGroupSet:    "pgs",
+				MatchSetOptions: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY,
+			},
+			want: api.MatchSet_TYPE_ANY,
+		},
+		{
+			name: "invert",
+			in: oc.MatchPeerGroupSet{
+				PeerGroupSet:    "pgs",
+				MatchSetOptions: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT,
+			},
+			want: api.MatchSet_TYPE_INVERT,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ToStatementApi(&oc.Statement{
+				Name: "stmt1",
+				Conditions: oc.Conditions{
+					MatchPeerGroupSet: tt.in,
+				},
+			})
+			require.NotNil(t, got.GetConditions().GetPeerGroupSet())
+			assert.Equal(t, "pgs", got.GetConditions().GetPeerGroupSet().GetName())
+			assert.Equal(t, tt.want, got.GetConditions().GetPeerGroupSet().GetType())
+		})
+	}
 }
 
 func TestPrefixSetOperation(t *testing.T) {

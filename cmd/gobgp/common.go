@@ -61,6 +61,7 @@ const (
 	cmdAspath         = "as-path"
 	cmdCommunity      = "community"
 	cmdExtcommunity   = "ext-community"
+	cmdPeergroup      = "peer-group"
 	cmdImport         = "import"
 	cmdExport         = "export"
 	cmdMonitor        = "monitor"
