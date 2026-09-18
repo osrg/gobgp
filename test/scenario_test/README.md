@@ -94,8 +94,18 @@ request is the faster way to get the full result.
 
 ## Clean up
 
-A lot of containers, networks temporary files are created during the test.
-Let's clean up.
+Pytest removes containers and networks labeled `gobgp-test` before the session,
+after each test class (including `tearDownClass`), and at session end. Function
+style tests are cleaned after each test. Only run one scenario session at a time
+on a Docker daemon: cleanup covers all resources with that label, regardless of
+`--test-prefix`.
+
+Use `--skip-docker-cleanup` or `GOBGP_SKIP_DOCKER_CLEANUP=1` to keep resources for
+debugging. Collection with `--collect-only` and scenario-count discovery with a
+negative `--test-index` do not trigger cleanup.
+
+Temporary files are kept for inspection. To clean them and any Docker resources
+left after an interrupted run, use:
 
 ```shell
 $ docker rm -f $(sudo docker ps -a -q -f "label=gobgp-test")

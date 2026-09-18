@@ -208,6 +208,22 @@ def get_containers():
     return try_several_times(lambda: local("docker ps -a | awk 'NR > 1 {print $NF}'", capture=True)).split('\n')
 
 
+def cleanup_docker_leftovers():
+    # Scenario-owned Docker objects are labeled; clean only that label so a
+    # failed setup cannot poison the next pytest session or the next CI retry.
+    containers = local(
+        'docker ps -aq -f label={0}'.format(TEST_CONTAINER_LABEL),
+        capture=True,
+    ).split()
+    if containers:
+        local('docker rm -f {0}'.format(' '.join(containers)), capture=True)
+
+    local(
+        'docker network prune -f --filter label={0}'.format(TEST_NETWORK_LABEL),
+        capture=True,
+    )
+
+
 class CmdBuffer(list):
     def __init__(self, delim='\n'):
         super(CmdBuffer, self).__init__()
