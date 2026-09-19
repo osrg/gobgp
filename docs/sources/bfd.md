@@ -27,7 +27,14 @@ Supported behavior:
 - source UDP port selected from the RFC 5881 dynamic range `49152..65535`;
 - outgoing BFD packets sent with TTL/Hop Limit `255`;
 - BFD states `DOWN`, `INIT`, `UP`, and `ADMIN_DOWN`;
-- Poll/Final handling in control packets;
+- transmission slows to at least one second while the session is not `UP`
+  (RFC 5880 Section 6.8.3);
+- transmission paced by the peer's advertised `Required Min RX Interval`:
+  GoBGP never sends faster than the larger of its own interval and the peer's
+  (RFC 5880 Section 6.8.7);
+- Poll Sequence initiation when the transmit interval changes, and
+  termination on a received Final, plus an immediate reply to a received
+  Poll;
 - hard BGP peer reset when the BFD session expires or the remote peer signals
   `DOWN`;
 - BFD configuration through the GoBGP config file and gRPC API;
@@ -37,9 +44,12 @@ Current scope and limitations:
 
 - BFD authentication, echo mode, demand mode, and other advanced BFD features
   are out of scope for this implementation;
-- remote interval negotiation is limited: GoBGP sends the configured intervals,
-  but currently does not adjust local timers from the peer's advertised
-  `DesiredMinTxInterval` or `RequiredMinRxInterval`.
+- remote interval negotiation is limited: GoBGP always advertises its
+  configured intervals, apart from the one-second floor while the session is
+  not `UP`, and never renegotiates them at runtime beyond that floor. It
+  derives its detection time from the peer's advertised
+  `Desired Min TX Interval` (RFC 5880 6.8.4). A peer advertising a zero
+  `Required Min RX Interval` does not stop transmissions.
 
 ## Configuration
 
@@ -65,6 +75,12 @@ Intervals are configured in microseconds.
 ```
 
 With this example, GoBGP sends BFD control packets roughly every `300 ms`.
+This applies while the session is `UP` and the peer's advertised
+`Required Min RX Interval` is no larger; a peer asking for a slower rate is
+honored (RFC 5880 Section 6.8.7). While the session is not `UP`, transmission is
+paced at no faster than one second regardless of the configured interval (RFC
+5880 Section 6.8.3), so session establishment runs at the slower pace.
+
 The local detection time is:
 
 ```text
