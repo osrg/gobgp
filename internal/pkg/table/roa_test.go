@@ -175,14 +175,44 @@ func TestValidate7(t *testing.T) {
 	table := NewROATable(logger)
 	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
 
+	// The origin ASN of a route whose final segment is an AS_SET is
+	// "NONE" (RFC 6811 Section 2). No VRP matches it, so a covering VRP
+	// makes the route invalid (RFC 6907 Sections 7.1.9 to 7.1.11).
 	r := validateOne(table, "10.0.0.0/24", "{65000}")
-	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	r = validateOne(table, "10.0.0.0/24", "{65001}")
-	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
 
 	r = validateOne(table, "10.0.0.0/24", "{65000,65001}")
+	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+
+	// Without a covering VRP it stays not-found (RFC 6907 Section 7.1.8).
+	r = validateOne(table, "192.168.0.0/24", "{65000}")
 	assert.Equal(r, oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND)
+}
+
+func TestValidateASSetAfterSequence(t *testing.T) {
+	assert := assert.New(t)
+
+	table := NewROATable(logger)
+	table.Add(NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 16, 24, 65000, ""))
+
+	// A peer must not turn an invalid route into a not-found one by
+	// appending an AS_SET to its AS_PATH.
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	for _, set := range [][]uint32{{65000}, {65002}} {
+		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001}),
+			bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, set),
+		})}
+		path := NewPath(bgp.RF_IPv4_UC, &PeerInfo{LocalAS: 65500}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+		v := table.Validate(path)
+		assert.Equal(v.Status, oc.RPKI_VALIDATION_RESULT_TYPE_INVALID)
+		assert.Equal(v.Reason, RPKI_VALIDATION_REASON_TYPE_AS)
+		assert.Empty(v.Matched)
+	}
 }
 
 func TestValidate8(t *testing.T) {
