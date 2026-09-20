@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/binary"
+	"io"
+	"log/slog"
 	"net/netip"
 	"testing"
 	"time"
@@ -266,4 +268,86 @@ func TestBMPLocRIBPeerDownHeaderIdentifiesTheRouter(t *testing.T) {
 	require.Equal(t, locRIBTestAS, ph.PeerAS)
 	require.Equal(t, netip.MustParseAddr(locRIBTestRouterID), ph.PeerBGPID)
 	require.False(t, ph.PeerAddress.IsValid(), "peer address must be zero-filled")
+}
+
+func bmpTestLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// A live update carries the bytes received on the wire. They must be forwarded
+// as they are, without being decoded and encoded again.
+func TestBMPRouteMonitoringForwardsWirePayload(t *testing.T) {
+	payload := []byte{0xde, 0xad, 0xbe, 0xef}
+	msgs := bmpRouteMonitoring(&watchEventUpdate{
+		PeerAddress: netip.MustParseAddr("198.51.100.1"),
+		PeerAS:      65001,
+		PeerID:      netip.MustParseAddr("198.51.100.1"),
+		Payload:     payload,
+		Timestamp:   time.Unix(100, 0),
+		FourBytesAs: true,
+	}, newribout(), bmpTestLogger())
+
+	require.Len(t, msgs, 1)
+	body := msgs[0].Body.(*packetbmp.BMPRouteMonitoring)
+	require.Equal(t, payload, body.BGPUpdatePayload)
+	require.Equal(t, packetbmp.BMP_PEER_TYPE_GLOBAL, msgs[0].PeerHeader.PeerType)
+}
+
+// The initial dump bypasses the ribout cache. Every path is reported, and the
+// cache is left untouched.
+func TestBMPRouteMonitoringInitSkipsRibout(t *testing.T) {
+	p := makeIPv4Path(t, "10.1.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
+	r := newribout()
+
+	msgs := bmpRouteMonitoring(&watchEventUpdate{
+		PeerAddress: netip.MustParseAddr("198.51.100.1"),
+		Init:        true,
+		PathList:    []*table.Path{p},
+	}, r, bmpTestLogger())
+
+	require.Len(t, msgs, 1)
+	require.Empty(t, r)
+}
+
+// The live stream is state compressed: the same path is reported once.
+func TestBMPRouteMonitoringCompressesRepeatedPath(t *testing.T) {
+	p := makeIPv4Path(t, "10.1.1.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
+	r := newribout()
+	ev := func() *watchEventUpdate {
+		return &watchEventUpdate{
+			PeerAddress: netip.MustParseAddr("198.51.100.1"),
+			PostPolicy:  true,
+			PathList:    []*table.Path{p},
+		}
+	}
+
+	require.Len(t, bmpRouteMonitoring(ev(), r, bmpTestLogger()), 1)
+	require.Empty(t, bmpRouteMonitoring(ev(), r, bmpTestLogger()))
+}
+
+// RFC 9069 Loc-RIB Route Monitoring uses Peer Type 3 and is always marshalled
+// with Add-Path.
+func TestBMPLocRIBRouteMonitoringUsesLocalRIBPeerType(t *testing.T) {
+	p := makeIPv4Path(t, "10.1.2.0/24", "192.0.2.1", "198.51.100.1", 65001, 0)
+	info := &table.PeerInfo{
+		Address: netip.IPv4Unspecified(),
+		AS:      locRIBTestAS,
+		ID:      netip.MustParseAddr(locRIBTestRouterID),
+	}
+
+	msgs := bmpLocRIBRouteMonitoring(&watchEventBestPath{
+		PathList: []*table.Path{p},
+	}, info, bmpTestLogger())
+
+	require.Len(t, msgs, 1)
+	require.Equal(t, packetbmp.BMP_PEER_TYPE_LOCAL_RIB, msgs[0].PeerHeader.PeerType)
+
+	// The payload is a whole BGP UPDATE, and it carries the 4 octet path
+	// identifier that the plain encoding leaves out.
+	body := msgs[0].Body.(*packetbmp.BMPRouteMonitoring)
+	require.Equal(t, len(body.BGPUpdatePayload), int(binary.BigEndian.Uint16(body.BGPUpdatePayload[16:18])))
+
+	plain, err := table.CreateUpdateMsgFromPaths([]*table.Path{p})[0].Serialize()
+	require.NoError(t, err)
+	require.Equal(t, len(plain)+4, len(body.BGPUpdatePayload))
 }
