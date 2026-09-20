@@ -92,6 +92,10 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 
 	if reach != nil {
 		nexthop := reach.Nexthop
+		// RFC 2545 allows a 32 byte next hop that carries a link-local
+		// address after the global one. Keep it, it is the only usable
+		// next hop when the peer has no global address on the link.
+		linkLocalNexthop := reach.LinkLocalNexthop
 		family := bgp.NewFamily(reach.AFI, reach.SAFI)
 
 		for _, nlri := range reach.Value {
@@ -104,7 +108,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 			// of path attrs faster
 			reachAttrs := []bgp.PathAttributeInterface{}
 			if !treatAsWithdraw {
-				nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.PathNLRI{nlri}, nexthop)
+				nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.PathNLRI{nlri}, nexthop, linkLocalNexthop)
 				reachAttrs = makeAttributeList(attrs, nlriAttr)
 			}
 

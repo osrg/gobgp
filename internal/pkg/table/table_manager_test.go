@@ -2547,3 +2547,61 @@ func TestTableVPNPathIndexPathCount(t *testing.T) {
 			"vpnIdx must be empty")
 	})
 }
+
+func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
+	globalNexthop := netip.MustParseAddr("2001:db8::1")
+	linkLocalNexthop := netip.MustParseAddr("fe80::ade0")
+	unspecified := netip.MustParseAddr("::")
+
+	for _, tt := range []struct {
+		name          string
+		nexthops      []netip.Addr
+		wantNexthop   netip.Addr
+		wantLinkLocal netip.Addr
+	}{
+		{
+			name:        "global only",
+			nexthops:    []netip.Addr{globalNexthop},
+			wantNexthop: globalNexthop,
+		},
+		{
+			name:          "global and link-local",
+			nexthops:      []netip.Addr{globalNexthop, linkLocalNexthop},
+			wantNexthop:   globalNexthop,
+			wantLinkLocal: linkLocalNexthop,
+		},
+		{
+			// BIRD sends this when it has no global address on the link.
+			name:          "unspecified global and link-local",
+			nexthops:      []netip.Addr{unspecified, linkLocalNexthop},
+			wantNexthop:   unspecified,
+			wantLinkLocal: linkLocalNexthop,
+		},
+		{
+			name:        "link-local only",
+			nexthops:    []netip.Addr{linkLocalNexthop},
+			wantNexthop: linkLocalNexthop,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC})
+
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:1::/64"))
+			mpReach, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri}}, tt.nexthops...)
+			assert.NoError(t, err)
+			attrs := []bgp.PathAttributeInterface{
+				mpReach,
+				bgp.NewPathAttributeOrigin(0),
+				createAsPathAttribute([]uint32{65100}),
+			}
+
+			pList, err := tm.ProcessUpdate(peerR1(), bgp.NewBGPUpdateMessage(nil, attrs, nil))
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(pList))
+
+			nexthop, linkLocal := pList[0].mpReachNexthops()
+			assert.Equal(t, tt.wantNexthop, nexthop)
+			assert.Equal(t, tt.wantLinkLocal, linkLocal)
+		})
+	}
+}
