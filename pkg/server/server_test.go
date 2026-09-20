@@ -1973,6 +1973,98 @@ func TestPeerGroup(test *testing.T) {
 	establishedWaiter.Wait(test, 10*time.Second)
 }
 
+// The admin down handling used to zero the whole NeighborState container.
+// The config mirrors in it were never put back, so a disabled neighbor
+// reported an empty description, peer group, local AS and peer type for good.
+func TestAdminDownKeepsConfigMirrors(t *testing.T) {
+	assert := assert.New(t)
+
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	err = s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+		PeerGroup: &api.PeerGroup{
+			Conf: &api.PeerGroupConf{
+				PeerGroupName: "g",
+				PeerAsn:       2,
+			},
+		},
+	})
+	assert.NoError(err)
+
+	// Not 127.0.0.1: RegisterConfiguredFields is global, and another test
+	// leaves a record for that address which drops the description here.
+	const addr = "127.0.0.2"
+
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: addr,
+				PeerAsn:         2,
+				PeerGroup:       "g",
+				Description:     "peer one",
+			},
+			Transport: &api.Transport{
+				PassiveMode: true,
+			},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{
+					ConnectRetry:           1,
+					IdleHoldTimeAfterReset: 1,
+				},
+			},
+		},
+	})
+	assert.NoError(err)
+
+	checkMirrors := func(when string) {
+		var st *api.PeerState
+		err := s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(p *api.Peer) {
+			st = p.GetState()
+		})
+		assert.NoError(err, when)
+		if !assert.NotNil(st, when) {
+			return
+		}
+		assert.Equal("g", st.GetPeerGroup(), when)
+		assert.Equal("peer one", st.GetDescription(), when)
+		assert.Equal(uint32(1), st.GetLocalAsn(), when)
+		assert.Equal(api.PeerType_PEER_TYPE_EXTERNAL, st.GetType(), when)
+		assert.Equal(addr, st.GetNeighborAddress(), when)
+	}
+
+	checkMirrors("after add")
+
+	// Reach a state the peer leaves when it is disabled, so that the disable
+	// below is sure to drive one state change.
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
+
+	// The wipe ran while the peer was admin down, on the way to idle. The
+	// idle event is broadcast after it, so waiting for idle means the wipe
+	// has already happened.
+	idleWaiter := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+	err = s.DisablePeer(context.Background(), &api.DisablePeerRequest{Address: addr})
+	assert.NoError(err)
+	idleWaiter.Wait(t, 10*time.Second)
+
+	checkMirrors("after disable")
+
+	err = s.EnablePeer(context.Background(), &api.EnablePeerRequest{Address: addr})
+	assert.NoError(err)
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
+
+	checkMirrors("after enable")
+}
+
 func TestDynamicNeighbor(t *testing.T) {
 	assert := assert.New(t)
 	s1 := NewBgpServer()

@@ -1946,9 +1946,27 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		if peer.AdminState() == adminStateDown {
 			peer.fsm.lock.Lock()
 			conf := peer.fsm.pConf.ReadCopy()
-			conf.State = oc.NeighborState{}
-			conf.State.NeighborAddress = conf.Config.NeighborAddress
-			conf.State.PeerAs = conf.Config.PeerAs
+			// Clear the operational fields only. The rest of
+			// NeighborState mirrors NeighborConfig, and nothing puts
+			// those values back, so zeroing the whole container makes
+			// the neighbor report an empty description, peer group,
+			// local AS and peer type for good.
+			//
+			// State.PeerAs and State.PeerType are left alone. The
+			// session down path above already resets State.PeerAs when
+			// the peer AS is learned, and for a configured peer both
+			// fields hold the configured value.
+			conf.State.SupportedCapabilitiesList = nil
+			conf.State.RemoteCapabilityList = nil
+			conf.State.LocalCapabilityList = nil
+			conf.State.ReceivedOpenMessage = nil
+			conf.State.Messages = oc.Messages{}
+			conf.State.Queues = oc.Queues{}
+			conf.State.AdjTable = oc.AdjTable{}
+			conf.State.EstablishedCount = 0
+			conf.State.Flops = 0
+			conf.State.RemoteRouterId = netip.Addr{}
+			conf.State.SessionState = ""
 			conf.Timers.State = oc.TimersState{}
 			peer.fsm.pConf.Update(&conf)
 			peer.fsm.bgpMessageResetStats()
