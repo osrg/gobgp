@@ -2558,17 +2558,20 @@ func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
 		nexthops      []netip.Addr
 		wantNexthop   netip.Addr
 		wantLinkLocal netip.Addr
+		wantResolved  netip.Addr
 	}{
 		{
-			name:        "global only",
-			nexthops:    []netip.Addr{globalNexthop},
-			wantNexthop: globalNexthop,
+			name:         "global only",
+			nexthops:     []netip.Addr{globalNexthop},
+			wantNexthop:  globalNexthop,
+			wantResolved: globalNexthop,
 		},
 		{
 			name:          "global and link-local",
 			nexthops:      []netip.Addr{globalNexthop, linkLocalNexthop},
 			wantNexthop:   globalNexthop,
 			wantLinkLocal: linkLocalNexthop,
+			wantResolved:  globalNexthop,
 		},
 		{
 			// BIRD sends this when it has no global address on the link.
@@ -2576,11 +2579,13 @@ func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
 			nexthops:      []netip.Addr{unspecified, linkLocalNexthop},
 			wantNexthop:   unspecified,
 			wantLinkLocal: linkLocalNexthop,
+			wantResolved:  linkLocalNexthop,
 		},
 		{
-			name:        "link-local only",
-			nexthops:    []netip.Addr{linkLocalNexthop},
-			wantNexthop: linkLocalNexthop,
+			name:         "link-local only",
+			nexthops:     []netip.Addr{linkLocalNexthop},
+			wantNexthop:  linkLocalNexthop,
+			wantResolved: linkLocalNexthop,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2602,6 +2607,7 @@ func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
 			nexthop, linkLocal := pList[0].mpReachNexthops()
 			assert.Equal(t, tt.wantNexthop, nexthop)
 			assert.Equal(t, tt.wantLinkLocal, linkLocal)
+			assert.Equal(t, tt.wantResolved, pList[0].GetNexthop())
 		})
 	}
 }

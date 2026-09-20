@@ -535,7 +535,16 @@ func (path *Path) GetNexthop() netip.Addr {
 	}
 	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
 	if attr != nil {
-		return attr.(*bgp.PathAttributeMpReachNLRI).Nexthop
+		mp := attr.(*bgp.PathAttributeMpReachNLRI)
+		// A peer with no global address on the link sends an
+		// unspecified global address together with the link-local one.
+		// The link-local address is the only next hop we can use then.
+		// The attribute is left as it is so that the received form is
+		// kept for the peers that share the link.
+		if mp.Nexthop.IsUnspecified() && mp.LinkLocalNexthop.IsLinkLocalUnicast() {
+			return mp.LinkLocalNexthop
+		}
+		return mp.Nexthop
 	}
 	return netip.Addr{}
 }

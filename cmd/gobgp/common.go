@@ -484,6 +484,13 @@ func getNextHopFromPathAttributes(attrs []bgp.PathAttributeInterface) netip.Addr
 		case *bgp.PathAttributeNextHop:
 			return a.Value
 		case *bgp.PathAttributeMpReachNLRI:
+			// A peer with no global address on the link sends an
+			// unspecified global address together with the
+			// link-local one. Show the address the route is
+			// reachable through, like table.Path.GetNexthop does.
+			if a.Nexthop.IsUnspecified() && a.LinkLocalNexthop.IsLinkLocalUnicast() {
+				return a.LinkLocalNexthop
+			}
 			return a.Nexthop
 		}
 	}
