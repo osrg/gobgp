@@ -1668,7 +1668,7 @@ func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path
 	for _, path := range l {
 		dsts = append(dsts, rib.Update(path)...)
 	}
-	news, olds, _, _, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
+	news, olds, _, _, _ := dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts, rib.UseMultiplePathsEnabled())
 	if len(news) != 1 {
 		panic("can't handle multiple paths")
 	}
@@ -1680,7 +1680,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	as := uint32(65000)
 	p1As := uint32(65001)
 	p2As := uint32(65002)
-	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 	p1 := newPeerandInfo(t, as, p1As, "192.168.0.1", rib)
 	p2 := newPeerandInfo(t, as, p2As, "192.168.0.2", rib)
 
@@ -1692,7 +1692,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	path2 := table.NewPath(bgp.RF_IPv4_UC, p2.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa2, time.Now(), false)
 	rib.Update(path2)
 	d := rib.Update(path1)
-	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false)
+	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false, rib.UseMultiplePathsEnabled())
 	assert.Equal(t, new, path1)
 	filterpath(p1, new, old)
 	filterpath(p2, new, old)
@@ -1721,7 +1721,7 @@ func TestFilterpathWitheBGP(t *testing.T) {
 func TestFilterpathWithiBGP(t *testing.T) {
 	as := uint32(65000)
 
-	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 	p1 := newPeerandInfo(t, as, as, "192.168.0.1", rib)
 	// p2, pi2 := newPeerandInfo(as, as, "192.168.0.2", rib)
 	p2 := newPeerandInfo(t, as, as, "192.168.0.2", rib)
@@ -1789,7 +1789,7 @@ func TestInboundClusterLoopCheck(t *testing.T) {
 	}
 
 	t.Run("rejected before Adj-RIB-In accounting", func(t *testing.T) {
-		rib := table.NewTableManager(logger, []bgp.Family{family})
+		rib := table.NewTableManager(logger, []bgp.Family{family}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 		peer := newIBGPPeer(t, "192.0.2.1", rib)
 
 		paths, _, isLimit := peer.handleUpdate(newUpdate(t), localClusterIDs)
@@ -1804,7 +1804,7 @@ func TestInboundClusterLoopCheck(t *testing.T) {
 	})
 
 	t.Run("route server client bypasses cluster check", func(t *testing.T) {
-		rib := table.NewTableManager(logger, []bgp.Family{family})
+		rib := table.NewTableManager(logger, []bgp.Family{family}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 		peer := newIBGPPeer(t, "192.0.2.2", rib)
 		peer.fsm.lock.Lock()
 		conf := peer.fsm.pConf.ReadCopy()
@@ -1822,9 +1822,9 @@ func TestInboundClusterLoopCheck(t *testing.T) {
 }
 
 func TestFilterpathWithRejectPolicy(t *testing.T) {
-	rib1 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	rib1 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 	p1 := newPeerandInfo(t, 1, 2, "192.168.0.1", rib1)
-	rib2 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	rib2 := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 	p2 := newPeerandInfo(t, 1, 3, "192.168.0.2", rib2)
 
 	comSet1 := oc.CommunitySet{

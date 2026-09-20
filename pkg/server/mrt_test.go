@@ -39,7 +39,7 @@ func newMrtTestServer(t *testing.T) *BgpServer {
 	s := &BgpServer{
 		shared:      newSharedData(),
 		neighborMap: make(map[netip.Addr]*peer),
-		globalRib:   table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}),
+		globalRib:   table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{}),
 		logger:      logger,
 	}
 	s.bgpConfig.Global.Config.RouterId = netip.MustParseAddr("10.0.0.1")

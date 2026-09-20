@@ -768,7 +768,7 @@ func (s *BgpServer) setPathVrfIdMap(paths []*table.Path, m map[uint32]bool) {
 // Note: the destination would be the same for all the paths passed here
 // The wather (only zapi) needs a unique list of vrf IDs
 func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.Path, multipathUpdate []*table.Path, multipathWithdraw []*table.Path) {
-	if table.SelectionOptions.DisableBestPathSelection {
+	if s.globalRib.DisableBestPathSelection() {
 		// Note: If best path selection disabled, no best path to notify.
 		return
 	}
@@ -776,14 +776,14 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 	clonedM := make([][]*table.Path, len(multipath))
 	for i, pathList := range multipath {
 		clonedM[i] = clonePathList(pathList)
-		if table.UseMultiplePaths.Enabled {
+		if s.globalRib.UseMultiplePathsEnabled() {
 			s.setPathVrfIdMap(clonedM[i], m)
 		}
 	}
 	clonedB := clonePathList(best)
 	clonedU := clonePathList(multipathUpdate)
 	clonedW := clonePathList(multipathWithdraw)
-	if !table.UseMultiplePaths.Enabled {
+	if !s.globalRib.UseMultiplePathsEnabled() {
 		s.setPathVrfIdMap(clonedB, m)
 	}
 	w := &watchEventBestPath{
@@ -1446,7 +1446,7 @@ func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, rt bgp.Extende
 	fn(nil, s.globalRib.GetBestPathList(peer.TableID(), 0, fs))
 }
 
-func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*table.Path, [][]*table.Path, []*table.Path, []*table.Path) {
+func dstsToPaths(id string, as uint32, dsts []*table.Update, useMultiplePaths bool) ([]*table.Path, []*table.Path, [][]*table.Path, []*table.Path, []*table.Path) {
 	bestList := make([]*table.Path, 0, len(dsts))
 	oldList := make([]*table.Path, 0, len(dsts))
 	mpathList := make([][]*table.Path, 0, len(dsts))
@@ -1454,13 +1454,13 @@ func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*
 	multipathWithdraw := make([]*table.Path, 0, len(dsts))
 
 	for _, dst := range dsts {
-		best, old, mpath := dst.GetChanges(id, as, false)
+		best, old, mpath := dst.GetChanges(id, as, false, useMultiplePaths)
 		bestList = append(bestList, best)
 		oldList = append(oldList, old)
 		if mpath != nil {
 			mpathList = append(mpathList, mpath)
 		}
-		if id == table.GLOBAL_RIB_NAME && table.UseMultiplePaths.Enabled {
+		if id == table.GLOBAL_RIB_NAME && useMultiplePaths {
 			u, w := dst.GetMultiBestPathDiff(id)
 			multipathUpdate = append(multipathUpdate, u...)
 			multipathWithdraw = append(multipathWithdraw, w...)
@@ -1470,14 +1470,15 @@ func dstsToPaths(id string, as uint32, dsts []*table.Update) ([]*table.Path, []*
 }
 
 func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *peer, newPath *table.Path, dsts []*table.Update, needOld bool) {
-	if table.SelectionOptions.DisableBestPathSelection {
+	if rib.DisableBestPathSelection() {
 		return
 	}
+	useMultiplePaths := rib.UseMultiplePathsEnabled()
 	var gBestList, gOldList []*table.Path
 	var mpathList [][]*table.Path
 	var multipathUpdate, multipathWithdraw []*table.Path
 	if source == nil || !source.isRouteServerClient() {
-		gBestList, gOldList, mpathList, multipathUpdate, multipathWithdraw = dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts)
+		gBestList, gOldList, mpathList, multipathUpdate, multipathWithdraw = dstsToPaths(table.GLOBAL_RIB_NAME, 0, dsts, useMultiplePaths)
 		s.notifyBestWatcher(gBestList, mpathList, multipathUpdate, multipathWithdraw)
 	}
 	family := newPath.GetFamily()
@@ -1605,7 +1606,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 						}
 						return
 					}
-					bestList, oldList, _, _, _ = dstsToPaths(targetPeer.TableID(), targetPeer.AS(), dsts)
+					bestList, oldList, _, _, _ = dstsToPaths(targetPeer.TableID(), targetPeer.AS(), dsts, useMultiplePaths)
 				} else {
 					bestList = gBestList
 					oldList = gOldList
@@ -2722,16 +2723,13 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		}
 
 		rfs, _ := oc.AfiSafis(c.AfiSafis).ToRfList()
-		s.globalRib = table.NewTableManager(s.logger, rfs)
-		s.rsRib = table.NewTableManager(s.logger, rfs)
+		s.globalRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
+		s.rsRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
 
 		if err := s.policy.Initialize(); err != nil {
 			return err
 		}
 		s.bgpConfig.Global = *c
-		// update route selection options
-		table.SelectionOptions = c.RouteSelectionOptions.Config
-		table.UseMultiplePaths = c.UseMultiplePaths.Config
 		if s.bfdServer != nil {
 			s.bfdServer.listenInterface = g.BindToDevice
 			if err := s.bfdServer.Start(ctx, oc.BfdConfig{Port: BfdServerPort}); err != nil {
@@ -3203,13 +3201,13 @@ func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.NLRI,
 				if validation := getValidation(v, path); validation != nil {
 					p.Validation = newValidationFromTableStruct(validation)
 				}
-				if !table.SelectionOptions.DisableBestPathSelection {
+				if !s.globalRib.DisableBestPathSelection() {
 					if i == 0 {
 						switch r.TableType {
 						case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
 							p.Best = true
 						}
-					} else if s.bgpConfig.Global.UseMultiplePaths.Config.Enabled && path.Compare(knownPathList[0]) == 0 {
+					} else if s.globalRib.UseMultiplePathsEnabled() && path.Compare(knownPathList[0]) == 0 {
 						p.Best = true
 					}
 				}

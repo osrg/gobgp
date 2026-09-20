@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/dgryski/go-farm"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -155,20 +156,53 @@ type TableManager struct {
 	rfList         []bgp.Family
 	maxPathCounted atomic.Uint64
 	logger         *slog.Logger
+	// selectionOptions and useMultiplePaths are set once at construction
+	// and never modified, so they can be read without holding mu.
+	selectionOptions oc.RouteSelectionOptionsConfig
+	useMultiplePaths oc.UseMultiplePathsConfig
 }
 
-func NewTableManager(logger *slog.Logger, rfList []bgp.Family) *TableManager {
+func NewTableManager(logger *slog.Logger, rfList []bgp.Family, selectionOptions oc.RouteSelectionOptionsConfig, useMultiplePaths oc.UseMultiplePathsConfig) *TableManager {
 	t := &TableManager{
-		mu:     sync.RWMutex{},
-		tables: make(map[bgp.Family]*Table),
-		vrfs:   make(map[string]*Vrf),
-		rfList: rfList,
-		logger: logger,
+		mu:               sync.RWMutex{},
+		tables:           make(map[bgp.Family]*Table),
+		vrfs:             make(map[string]*Vrf),
+		rfList:           rfList,
+		logger:           logger,
+		selectionOptions: selectionOptions,
+		useMultiplePaths: useMultiplePaths,
 	}
 	for _, rf := range rfList {
 		t.tables[rf] = NewTable(logger, rf)
 	}
 	return t
+}
+
+// The accessors below report the options this table manager was built with.
+// The values are set once in NewTableManager and never modified, so no lock
+// is needed. A nil manager returns the zero value. BgpServer creates its RIBs
+// in StartBgp, and some APIs can be called before that.
+
+func (manager *TableManager) SelectionOptions() oc.RouteSelectionOptionsConfig {
+	if manager == nil {
+		return oc.RouteSelectionOptionsConfig{}
+	}
+	return manager.selectionOptions
+}
+
+func (manager *TableManager) MultiplePathsOptions() oc.UseMultiplePathsConfig {
+	if manager == nil {
+		return oc.UseMultiplePathsConfig{}
+	}
+	return manager.useMultiplePaths
+}
+
+func (manager *TableManager) DisableBestPathSelection() bool {
+	return manager.SelectionOptions().DisableBestPathSelection
+}
+
+func (manager *TableManager) UseMultiplePathsEnabled() bool {
+	return manager.MultiplePathsOptions().Enabled
 }
 
 // GetRFlist returns the list of routing families supported by the table manager.
@@ -258,12 +292,12 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 		return updates
 	}
 
-	if update := table.update(newPath); update != nil {
+	if update := table.update(newPath, manager.selectionOptions); update != nil {
 		updates = append(updates, update)
 	}
 	if family == bgp.RF_EVPN {
 		for _, p := range manager.handleMacMobility(newPath) {
-			if update := table.update(p); update != nil {
+			if update := table.update(p, manager.selectionOptions); update != nil {
 				updates = append(updates, update)
 			}
 		}
@@ -384,7 +418,7 @@ func (manager *TableManager) GetPathsByRT(rt bgp.ExtendedCommunityInterface, rfL
 }
 
 func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.Family) []*Path {
-	if SelectionOptions.DisableBestPathSelection {
+	if manager.selectionOptions.DisableBestPathSelection {
 		// Note: If best path selection disabled, there is no best path.
 		return nil
 	}
@@ -401,7 +435,7 @@ func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.
 }
 
 func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.Family) [][]*Path {
-	if !UseMultiplePaths.Enabled || SelectionOptions.DisableBestPathSelection {
+	if !manager.useMultiplePaths.Enabled || manager.selectionOptions.DisableBestPathSelection {
 		// Note: If multi path not enabled or best path selection disabled,
 		// there is no best multi path.
 		return nil

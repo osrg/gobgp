@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +34,7 @@ import (
 func TestTableManager_UpdateRace(t *testing.T) {
 	logger := slog.Default()
 	rfList := []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_EVPN}
-	manager := NewTableManager(logger, rfList)
+	manager := NewTableManager(logger, rfList, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 
 	numGoroutines := 50
 	numPathsPerGoroutine := 100
@@ -268,7 +269,7 @@ func TestTableManager_UpdateRace(t *testing.T) {
 func TestTableManager_UpdateAndReadRace(t *testing.T) {
 	logger := slog.Default()
 	rfList := []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}
-	manager := NewTableManager(logger, rfList)
+	manager := NewTableManager(logger, rfList, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 
 	peerInfo := &PeerInfo{
 		AS:      65000,
@@ -358,7 +359,7 @@ func TestTableManager_UpdateAndReadRace(t *testing.T) {
 func TestTableManager_ConcurrentVrfAndUpdate(t *testing.T) {
 	logger := slog.Default()
 	rfList := []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv4_VPN, bgp.RF_RTC_UC}
-	manager := NewTableManager(logger, rfList)
+	manager := NewTableManager(logger, rfList, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 
 	peerInfo := &PeerInfo{
 		AS:      65000,

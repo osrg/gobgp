@@ -94,7 +94,7 @@ func createTestTable(family bgp.Family, count int) *Table {
 
 	for _, cidr := range cidrs {
 		path := createTestPath(cidr, family)
-		table.update(path)
+		table.update(path, oc.RouteSelectionOptionsConfig{})
 	}
 
 	return table
@@ -359,7 +359,7 @@ func BenchmarkTableInsert(b *testing.B) {
 			for range b.N {
 				table := NewTable(logger, sc.family)
 				for _, path := range paths {
-					table.update(path)
+					table.update(path, oc.RouteSelectionOptionsConfig{})
 				}
 				globalResult = table
 			}

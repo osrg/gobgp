@@ -30,6 +30,7 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -459,7 +460,7 @@ func (t *Table) deleteDest(shard *destinationShard, dest *destination) {
 	}
 }
 
-func (t *Table) update(newPath *Path) *Update {
+func (t *Table) update(newPath *Path, selectionOptions oc.RouteSelectionOptionsConfig) *Update {
 	t.validatePath(newPath)
 
 	nlri := newPath.GetNlri()
@@ -470,7 +471,7 @@ func (t *Table) update(newPath *Path) *Update {
 	defer shard.mu.Unlock()
 
 	dst := t.getOrCreateDest(shard, nlri, 64)
-	u, oldPath := dst.Calculate(t.logger, newPath)
+	u, oldPath := dst.Calculate(t.logger, newPath, selectionOptions)
 
 	if len(dst.knownPathList) == 0 {
 		t.deleteDest(shard, dst)
