@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"net"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -834,4 +835,38 @@ func TestUpdatePathAttrsLinkLocalNexthop(t *testing.T) {
 			assert.Equal(t, tt.wantLinkLocal, linkLocalNexthop)
 		})
 	}
+}
+
+// AdjRib.StaleAll marks a clone stale, and MarkStale writes through
+// Path.root(). The watcher goroutines read the same field with IsStale() on
+// their own clone of that root, and no lock covers both sides. Check that the
+// two do not race.
+func TestMarkStaleIsRaceFree(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	root := NewPath(bgp.RF_IPv4_UC, &PeerInfo{}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+
+	// What clonePathList() hands to a watcher.
+	watched := root.Clone(false)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for range 1000 {
+			// What AdjRib.StaleAll() does.
+			n := root.Clone(false)
+			n.MarkStale(true)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range 1000 {
+			// What toPathApiUtil() does in the watcher goroutine.
+			_ = watched.IsStale()
+		}
+	}()
+	wg.Wait()
+
+	assert.True(t, watched.IsStale())
 }

@@ -89,14 +89,18 @@ func NewBitmap(size int) *Bitmap {
 }
 
 type originInfo struct {
-	nlri               bgp.NLRI
-	nlriString         string
-	source             *PeerInfo
-	timestamp          int64
+	nlri       bgp.NLRI
+	nlriString string
+	source     *PeerInfo
+	timestamp  int64
+	// stale is the only field written after the path has been handed to
+	// another goroutine. AdjRib.StaleAll writes it through Path.root() while
+	// the watcher goroutines read it with IsStale(), and no lock covers both
+	// sides, so it has to be atomic.
+	stale              atomic.Bool
 	noImplicitWithdraw bool
 	isFromExternal     bool
 	eor                bool
-	stale              bool
 }
 
 type RpkiValidationReasonType string
@@ -481,11 +485,11 @@ func (path *Path) GetSource() *PeerInfo {
 }
 
 func (path *Path) MarkStale(s bool) {
-	path.OriginInfo().stale = s
+	path.OriginInfo().stale.Store(s)
 }
 
 func (path *Path) IsStale() bool {
-	return path.OriginInfo().stale
+	return path.OriginInfo().stale.Load()
 }
 
 func (path *Path) IsRejected() bool {
