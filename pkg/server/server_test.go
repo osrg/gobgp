@@ -2065,6 +2065,121 @@ func TestAdminDownKeepsConfigMirrors(t *testing.T) {
 	checkMirrors("after enable")
 }
 
+// PeerInfo is rebuilt every time the session reaches established, and it
+// takes remove-private-as from State.RemovePrivateAs. Admin down used to
+// clear that field, so a peer that was disabled and enabled again stopped
+// removing private AS numbers and leaked them to its eBGP peer.
+func TestRemovePrivateAsSurvivesAdminDown(t *testing.T) {
+	assert := assert.New(t)
+
+	const privateAs = 64512
+
+	s1 := NewBgpServer()
+	go s1.Serve()
+	err := s1.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 100, RouterId: "1.1.1.1", ListenPort: 10179},
+	})
+	assert.NoError(err)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	s2 := NewBgpServer()
+	go s2.Serve()
+	err = s2.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 200, RouterId: "2.2.2.2", ListenPort: -1},
+	})
+	assert.NoError(err)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	err = s1.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "127.0.0.1",
+			PeerAsn:         200,
+			RemovePrivate:   api.RemovePrivate_REMOVE_PRIVATE_ALL,
+		},
+		Transport: &api.Transport{PassiveMode: true},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{ConnectRetry: 1, IdleHoldTimeAfterReset: 1},
+		},
+	}})
+	assert.NoError(err)
+
+	err = s2.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
+		Conf:      &api.PeerConf{NeighborAddress: "127.0.0.1", PeerAsn: 100},
+		Transport: &api.Transport{RemotePort: 10179},
+		Timers: &api.Timers{
+			Config: &api.TimersConfig{ConnectRetry: 1, IdleHoldTimeAfterReset: 1},
+		},
+	}})
+	assert.NoError(err)
+
+	waitPeerState(t, s1, api.PeerState_SESSION_STATE_ESTABLISHED, 20*time.Second)
+
+	// announce a path whose AS path holds a private AS number.
+	announce := func(prefix string) {
+		_, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{
+			mustApi2apiutilPath(&api.Path{
+				Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
+				Nlri: &api.NLRI{Nlri: &api.NLRI_Prefix{Prefix: &api.IPAddressPrefix{
+					Prefix: prefix, PrefixLen: 24,
+				}}},
+				Pattrs: []*api.Attribute{
+					{Attr: &api.Attribute_Origin{Origin: &api.OriginAttribute{Origin: 0}}},
+					{Attr: &api.Attribute_NextHop{NextHop: &api.NextHopAttribute{NextHop: "10.0.0.1"}}},
+					{Attr: &api.Attribute_AsPath{AsPath: &api.AsPathAttribute{
+						Segments: []*api.AsSegment{{Type: 2, Numbers: []uint32{privateAs}}},
+					}}},
+				},
+			}),
+		}})
+		assert.NoError(err)
+	}
+
+	// asPath waits for s2 to hold prefix and returns the AS path it got.
+	asPath := func(prefix string) []uint32 {
+		var got []uint32
+		assert.Eventually(func() bool {
+			got = nil
+			//nolint:errcheck // the callback records what it finds
+			s2.ListPath(apiutil.ListPathRequest{
+				TableType: api.TableType_TABLE_TYPE_GLOBAL,
+				Family:    bgp.RF_IPv4_UC,
+			}, func(nlri bgp.NLRI, paths []*apiutil.Path) {
+				if nlri.String() != prefix {
+					return
+				}
+				for _, p := range paths {
+					for _, a := range p.Attrs {
+						if ap, ok := a.(*bgp.PathAttributeAsPath); ok {
+							for _, v := range ap.Value {
+								got = append(got, v.GetAS()...)
+							}
+						}
+					}
+				}
+			})
+			return got != nil
+		}, 10*time.Second, 100*time.Millisecond, "s2 never received %s", prefix)
+		return got
+	}
+
+	announce("10.1.0.0")
+	assert.Equal([]uint32{100}, asPath("10.1.0.0/24"), "before disable")
+
+	idleWaiter := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_IDLE)
+	err = s1.DisablePeer(context.Background(), &api.DisablePeerRequest{Address: "127.0.0.1"})
+	assert.NoError(err)
+	idleWaiter.Wait(t, 20*time.Second)
+
+	err = s1.EnablePeer(context.Background(), &api.EnablePeerRequest{Address: "127.0.0.1"})
+	assert.NoError(err)
+	waitPeerState(t, s1, api.PeerState_SESSION_STATE_ESTABLISHED, 30*time.Second)
+
+	// a second prefix, so that the check cannot pass on what the first
+	// session advertised.
+	announce("10.2.0.0")
+	assert.Equal([]uint32{100}, asPath("10.2.0.0/24"), "after enable")
+}
+
 func TestDynamicNeighbor(t *testing.T) {
 	assert := assert.New(t)
 	s1 := NewBgpServer()
