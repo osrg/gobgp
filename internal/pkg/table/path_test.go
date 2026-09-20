@@ -672,3 +672,166 @@ func TestPathAttrsHashConsistency(t *testing.T) {
 	assert.Equal(t, eager.GetHash(), lazy.GetHash())
 	assert.True(t, eager.Equal(lazy))
 }
+
+func linkLocalNexthopPath(t *testing.T, source *PeerInfo, nexthops ...netip.Addr) *Path {
+	t.Helper()
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:1::/64"))
+	pathnlri := bgp.PathNLRI{NLRI: nlri}
+	mpreach, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{pathnlri}, nexthops...)
+	assert.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+		bgp.NewPathAttributeAsPath(nil),
+		bgp.NewPathAttributeLocalPref(DEFAULT_LOCAL_PREF),
+		mpreach,
+	}
+	return NewPath(bgp.RF_IPv6_UC, source, pathnlri, false, attrs, time.Now(), false)
+}
+
+func TestUpdatePathAttrsLinkLocalNexthop(t *testing.T) {
+	global := &oc.Global{Config: oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("10.0.0.1")}}
+
+	unspecified := netip.MustParseAddr("::")
+	globalNexthop := netip.MustParseAddr("2001:db8::1")
+	linkLocal := netip.MustParseAddr("fe80::ade0")
+
+	// The peer the path was learned from, reachable over eth0.
+	onLink := &PeerInfo{
+		AS:      65000,
+		LocalAS: 65000,
+		ID:      netip.MustParseAddr("10.0.0.2"),
+		Address: netip.MustParseAddr("fe80::ade0%eth0"),
+	}
+	// A peer on the same link as onLink.
+	sameLink := &PeerInfo{
+		AS:           65000,
+		LocalAS:      65000,
+		PeerType:     oc.PEER_TYPE_INTERNAL,
+		Address:      netip.MustParseAddr("fe80::ade2%eth0"),
+		LocalAddress: netip.MustParseAddr("fe80::ade1%eth0"),
+	}
+	// A peer on another link.
+	otherLink := &PeerInfo{
+		AS:           65000,
+		LocalAS:      65000,
+		PeerType:     oc.PEER_TYPE_INTERNAL,
+		Address:      netip.MustParseAddr("fe80::beef%eth1"),
+		LocalAddress: netip.MustParseAddr("fe80::cafe%eth1"),
+	}
+	// A peer reachable over a global address, so gobgp does not know its link.
+	globalPeer := &PeerInfo{
+		AS:           65000,
+		LocalAS:      65000,
+		PeerType:     oc.PEER_TYPE_INTERNAL,
+		Address:      netip.MustParseAddr("2001:db8::2"),
+		LocalAddress: netip.MustParseAddr("2001:db8::3"),
+	}
+
+	for _, tt := range []struct {
+		name          string
+		source        *PeerInfo
+		info          *PeerInfo
+		nexthops      []netip.Addr
+		wantNexthop   netip.Addr
+		wantLinkLocal netip.Addr
+	}{
+		{
+			name:          "unspecified global kept on the same link",
+			source:        onLink,
+			info:          sameLink,
+			nexthops:      []netip.Addr{unspecified, linkLocal},
+			wantNexthop:   unspecified,
+			wantLinkLocal: linkLocal,
+		},
+		{
+			name:        "unspecified global replaced on another link",
+			source:      onLink,
+			info:        otherLink,
+			nexthops:    []netip.Addr{unspecified, linkLocal},
+			wantNexthop: netip.MustParseAddr("fe80::cafe"),
+		},
+		{
+			name:        "unspecified global replaced for a peer on an unknown link",
+			source:      onLink,
+			info:        globalPeer,
+			nexthops:    []netip.Addr{unspecified, linkLocal},
+			wantNexthop: netip.MustParseAddr("2001:db8::3"),
+		},
+		{
+			name:          "link-local in the global part kept on the same link",
+			source:        onLink,
+			info:          sameLink,
+			nexthops:      []netip.Addr{linkLocal, linkLocal},
+			wantNexthop:   linkLocal,
+			wantLinkLocal: linkLocal,
+		},
+		{
+			name:        "link-local in the global part replaced on another link",
+			source:      onLink,
+			info:        otherLink,
+			nexthops:    []netip.Addr{linkLocal, linkLocal},
+			wantNexthop: netip.MustParseAddr("fe80::cafe"),
+		},
+		{
+			name:        "link-local alone replaced on another link",
+			source:      onLink,
+			info:        otherLink,
+			nexthops:    []netip.Addr{linkLocal},
+			wantNexthop: netip.MustParseAddr("fe80::cafe"),
+		},
+		{
+			name:        "link-local alone kept on the same link",
+			source:      onLink,
+			info:        sameLink,
+			nexthops:    []netip.Addr{linkLocal},
+			wantNexthop: linkLocal,
+		},
+		{
+			name:        "link-local alone set by the operator is kept",
+			source:      nil,
+			info:        otherLink,
+			nexthops:    []netip.Addr{linkLocal},
+			wantNexthop: linkLocal,
+		},
+		{
+			name:          "global and link-local kept on the same link",
+			source:        onLink,
+			info:          sameLink,
+			nexthops:      []netip.Addr{globalNexthop, linkLocal},
+			wantNexthop:   globalNexthop,
+			wantLinkLocal: linkLocal,
+		},
+		{
+			name:        "link-local dropped on another link",
+			source:      onLink,
+			info:        otherLink,
+			nexthops:    []netip.Addr{globalNexthop, linkLocal},
+			wantNexthop: globalNexthop,
+		},
+		{
+			name:          "link-local set by the operator is kept",
+			source:        nil,
+			info:          otherLink,
+			nexthops:      []netip.Addr{globalNexthop, linkLocal},
+			wantNexthop:   globalNexthop,
+			wantLinkLocal: linkLocal,
+		},
+		{
+			name:        "unspecified global of a local path is replaced",
+			source:      nil,
+			info:        otherLink,
+			nexthops:    []netip.Addr{unspecified, linkLocal},
+			wantNexthop: netip.MustParseAddr("fe80::cafe"),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := linkLocalNexthopPath(t, tt.source, tt.nexthops...)
+			updated := UpdatePathAttrs(logger, global, tt.info, path)
+
+			nexthop, linkLocalNexthop := updated.mpReachNexthops()
+			assert.Equal(t, tt.wantNexthop, nexthop)
+			assert.Equal(t, tt.wantLinkLocal, linkLocalNexthop)
+		})
+	}
+}

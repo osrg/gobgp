@@ -232,6 +232,68 @@ func cloneAsPath(asAttr *bgp.PathAttributeAsPath) *bgp.PathAttributeAsPath {
 	return bgp.NewPathAttributeAsPath(newASparams)
 }
 
+// learnedOnSameLink reports whether the path was learned over the same
+// interface as the session described by info.
+//
+// gobgp knows the interface of a session only when the peer address is a
+// link-local address, which carries a zone. Both sessions must have one and
+// they must be equal.
+func (path *Path) learnedOnSameLink(info *PeerInfo) bool {
+	zone := path.GetSource().Address.Zone()
+	return zone != "" && zone == info.Address.Zone()
+}
+
+// updateLinkLocalNexthop drops the link-local part of the next hop when the
+// peer we advertise to is not on the link the next hop belongs to.
+//
+// RFC 2545 3. Constructing the Next Hop field
+//
+//	The link-local address shall be included in the Next Hop field if and
+//	only if the BGP speaker shares a common subnet with the entity
+//	identified by the global IPv6 address carried in the Network Address
+//	of Next Hop field and the peer the route is being advertised to.
+//
+//	In all other cases a BGP speaker shall advertise to its peer in the
+//	Network Address field only the global IPv6 address of the next hop
+//	(the value of the Length of Network Address of Next Hop field shall
+//	be set to 16).
+//
+// gobgp can only tell that two sessions share a link when both use a
+// link-local peer address on the same interface. Every other case takes the
+// second rule and sends the global address alone.
+//
+// A peer with no global address on the link puts an unspecified or a
+// link-local address in the global part of the next hop, so there is no global
+// address to fall back to. Such a next hop is only usable on the link it came
+// from, so we make ourselves the next hop instead. BIRD (bgp_use_next_hop) and
+// FRR (bpacket_reformat_for_peer) do the same, and both treat an unspecified
+// and a link-local global address alike.
+func updateLinkLocalNexthop(info *PeerInfo, path *Path) {
+	globalNexthop, linkLocalNexthop := path.mpReachNexthops()
+	// An IPv4 next hop has no link-local form in an MP_REACH_NLRI
+	// attribute, so leave it alone. 169.254.0.0/16 is not handled here.
+	onLink := globalNexthop.Is6() && !globalNexthop.Is4In6() &&
+		(globalNexthop.IsUnspecified() || globalNexthop.IsLinkLocalUnicast())
+	if !onLink && !linkLocalNexthop.IsLinkLocalUnicast() {
+		return
+	}
+	if path.learnedOnSameLink(info) {
+		return
+	}
+	if path.IsLocal() && !globalNexthop.IsUnspecified() {
+		// The next hop was set by the operator, keep it as it is. An
+		// unspecified one is still replaced, because the peer cannot
+		// use it and because that is what the switch below does for
+		// every other family.
+		return
+	}
+	if onLink {
+		// The zone is stripped because a BGP next hop cannot carry one.
+		globalNexthop = info.LocalAddress.WithZone("")
+	}
+	path.SetNexthop(globalNexthop)
+}
+
 func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, original *Path) *Path {
 	if info.RouteServerClient {
 		return original
@@ -253,6 +315,8 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 			}
 		}
 	}
+
+	updateLinkLocalNexthop(info, path)
 
 	localAddress := info.LocalAddress
 	nexthop := path.GetNexthop()
