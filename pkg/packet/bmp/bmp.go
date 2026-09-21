@@ -951,6 +951,13 @@ func NewBMPRouteMirrTLVBGPMsg(t uint16, v *bgp.BGPMessage) *BMPRouteMirrTLVBGPMs
 }
 
 func (s *BMPRouteMirrTLVBGPMsg) ParseValue(data []byte) error {
+	return s.parseValue(data)
+}
+
+// parseValue is ParseValue with the options of the monitored session. The
+// BMPRouteMirrTLVInterface has no place for them, so BMPRouteMirroring calls
+// this one instead.
+func (s *BMPRouteMirrTLVBGPMsg) parseValue(data []byte, options ...*bgp.MarshallingOption) error {
 	// The mirrored message lives inside this TLV, so the TLV Length is
 	// what bounds it. Handing over the whole remainder would let the
 	// embedded BGP header's own length field decide where the message
@@ -959,7 +966,7 @@ func (s *BMPRouteMirrTLVBGPMsg) ParseValue(data []byte) error {
 	if len(data) < int(s.Length) {
 		return fmt.Errorf("value length is not enough: %d bytes (%d bytes expected)", len(data), s.Length)
 	}
-	v, err := bgp.ParseBGPMessage(data[:s.Length])
+	v, err := bgp.ParseBGPMessage(data[:s.Length], options...)
 	if err != nil {
 		return err
 	}
@@ -1077,7 +1084,15 @@ func (body *BMPRouteMirroring) ParseBody(msg *BMPMessage, data []byte, options .
 		default:
 			tlv = &BMPRouteMirrTLVUnknown{BMPRouteMirrTLV: tl}
 		}
-		if err := tlv.ParseValue(data); err != nil {
+		// The mirrored message is a PDU of the monitored session, so it
+		// has to be decoded the way that session encoded it.
+		var err error
+		if t, ok := tlv.(*BMPRouteMirrTLVBGPMsg); ok {
+			err = t.parseValue(data, options...)
+		} else {
+			err = tlv.ParseValue(data)
+		}
+		if err != nil {
 			return err
 		}
 		body.Info = append(body.Info, tlv)

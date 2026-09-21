@@ -341,3 +341,43 @@ func Test_RouteMirroringBGPMsgTLVPayloadIsUsedAsIs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, want, buf[4:])
 }
+
+func Test_RouteMirroringIsParsedWithTheSessionOptions(t *testing.T) {
+	// The mirrored message is a PDU of the monitored session. An UPDATE
+	// from a peer that negotiated ADD-PATH carries a 4 octet path
+	// identifier in front of every NLRI, so it can only be decoded with
+	// that session's options. BMPRouteMirroring.ParseBody took the options
+	// and threw them away, and the NLRIs were then read 4 octets out of
+	// step. That produced a list of prefixes that were never advertised,
+	// and it reported no error.
+	options := []*bgp.MarshallingOption{{
+		AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
+	}}
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.0.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	wire, err := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0), nh,
+	}, []bgp.PathNLRI{{NLRI: nlri, ID: 7}}).Serialize(options...)
+	require.NoError(t, err)
+
+	ph := NewBMPPeerHeader(BMP_PEER_TYPE_GLOBAL, 0, 0,
+		netip.MustParseAddr("198.51.100.1"), 65001,
+		netip.MustParseAddr("198.51.100.1"), 100)
+	tlv := NewBMPRouteMirrTLVBGPMsg(BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG, nil)
+	tlv.Payload = wire
+	buf, err := NewBMPRouteMirroring(*ph, []BMPRouteMirrTLVInterface{tlv}).Serialize()
+	require.NoError(t, err)
+
+	m, err := ParseBMPMessageWithOptions(buf, func(BMPPeerHeader) []*bgp.MarshallingOption {
+		return options
+	})
+	require.NoError(t, err)
+
+	got := m.Body.(*BMPRouteMirroring).Info[0].(*BMPRouteMirrTLVBGPMsg)
+	update := got.Value.Body.(*bgp.BGPUpdate)
+	require.Len(t, update.NLRI, 1)
+	require.Equal(t, uint32(7), update.NLRI[0].ID)
+	require.Equal(t, "10.3.0.0/24", update.NLRI[0].NLRI.String())
+}
