@@ -299,6 +299,76 @@ func TestTableKey(t *testing.T) {
 	assert.Equal(t, len(tb.GetDestinations()), 2)
 }
 
+func TestTableEVPNMacIPAdvertisementRouteKey(t *testing.T) {
+	// RFC 7432 7.2: for the purpose of BGP route key processing, only the
+	// Ethernet Tag ID, MAC Address Length, MAC Address, IP Address Length
+	// and IP Address fields are part of the prefix. The Ethernet Segment
+	// Identifier and the MPLS labels are route attributes.
+	rd := bgp.NewRouteDistinguisherFourOctetAS(1, 2)
+	esi := bgp.EthernetSegmentIdentifier{}
+	etag := uint32(3)
+	mac := "00:11:22:33:44:55"
+	ip := netip.MustParseAddr("11.11.11.11")
+	labels := []uint32{100}
+
+	newRoute := func(rd bgp.RouteDistinguisherInterface, esi bgp.EthernetSegmentIdentifier, etag uint32, mac string, ip netip.Addr, labels []uint32) bgp.NLRI {
+		nlri, err := bgp.NewEVPNMacIPAdvertisementRoute(rd, esi, etag, mac, ip, labels)
+		assert.NoError(t, err)
+		return nlri
+	}
+
+	base := newRoute(rd, esi, etag, mac, ip, labels)
+
+	otherEsi, err := bgp.ParseEthernetSegmentIdentifier([]string{"lacp", "aa:bb:cc:dd:ee:ff", "100"})
+	assert.NoError(t, err)
+
+	// Routes that differ in one field of the prefix. Each one is a route of
+	// its own.
+	others := []struct {
+		name string
+		nlri bgp.NLRI
+	}{
+		{"rd", newRoute(bgp.NewRouteDistinguisherFourOctetAS(3, 4), esi, etag, mac, ip, labels)},
+		{"ethernet tag", newRoute(rd, esi, 5, mac, ip, labels)},
+		{"mac", newRoute(rd, esi, etag, "00:aa:bb:cc:dd:ee", ip, labels)},
+		{"no ip", newRoute(rd, esi, etag, mac, netip.Addr{}, labels)},
+		{"other ipv4", newRoute(rd, esi, etag, mac, netip.MustParseAddr("22.22.22.22"), labels)},
+		{"ipv6", newRoute(rd, esi, etag, mac, netip.MustParseAddr("bbbb:bbbb:bbbb:bbbb:bbbb:bbbb:bbbb:bbbb"), labels)},
+		{"ipv6 trailing zeros", newRoute(rd, esi, etag, mac, netip.MustParseAddr("bbbb:bbbb::"), labels)},
+		{"ipv6 leading zeros", newRoute(rd, esi, etag, mac, netip.MustParseAddr("::bbbb:bbbb"), labels)},
+	}
+
+	// The same route, sent with a different ESI and different labels.
+	alias := newRoute(rd, otherEsi, etag, mac, ip, []uint32{200, 300})
+
+	// AddrPrefixOnlyCompare() decides which destination a path belongs to.
+	// Callers outside the table rely on it too, so check it directly.
+	for _, tt := range others {
+		assert.NotEqual(t, 0, AddrPrefixOnlyCompare(base, tt.nlri), tt.name)
+	}
+	assert.Equal(t, 0, AddrPrefixOnlyCompare(base, alias))
+
+	// c393f43 ("evpn: fix quadratic evpn mac-mobility handling") keyed the
+	// table on RD+MAC only. Routes that differ in the Ethernet Tag ID or in
+	// the IP address were then folded into one destination, and gobgp lost
+	// type-2 routes.
+	tb := NewTable(logger, bgp.RF_EVPN)
+	tb.setDestination(newDestination(base, 0))
+	for _, tt := range others {
+		tb.setDestination(newDestination(tt.nlri, 0))
+	}
+	assert.Equal(t, 1+len(others), len(tb.GetDestinations()))
+	for _, tt := range others {
+		assert.NotNil(t, tb.GetDestination(tt.nlri), tt.name)
+	}
+
+	// The ESI and the labels must not create a second destination.
+	tb = NewTable(logger, bgp.RF_EVPN)
+	tb.setDestination(newDestination(base, 0))
+	tb.setDestination(newDestination(alias, 0))
+	assert.Equal(t, 1, len(tb.GetDestinations()))
+}
+
 func BenchmarkTableKey(b *testing.B) {
 	rd := bgp.NewRouteDistinguisherTwoOctetAS(1, 2)
 	esi, _ := bgp.ParseEthernetSegmentIdentifier([]string{"lacp", "aa:bb:cc:dd:ee:ff", "100"})
