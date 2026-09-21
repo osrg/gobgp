@@ -1038,36 +1038,20 @@ func (s *BgpServer) broadcastPeerState(peer *peer, newState, oldState bgp.FSMSta
 	s.notifyWatcher(watchEventTypePeerState, newWatchEventPeer(peer, e, newState, oldState, apiutil.PEER_EVENT_STATE))
 }
 
-// notifyMessageWatcher notifies recv message to watchers.
-// The peer is guaranteed to be in ESTABLISHED state.
-func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage, payload []byte, isSent bool) {
-	// validation should be done in the caller of this function
-	conf := peer.fsm.pConf.ReadOnly()
-	peer.fsm.lock.Lock()
-	_, y := peer.fsm.capMap[bgp.BGP_CAP_FOUR_OCTET_AS_NUMBER]
-	peer.fsm.lock.Unlock()
-	ev := &watchEventMessage{
-		Message:      msg,
-		Payload:      payload,
-		PeerAS:       conf.State.PeerAs,
-		LocalAS:      conf.Config.LocalAs,
-		PeerAddress:  conf.State.NeighborAddress,
-		LocalAddress: conf.Transport.State.LocalAddress,
-		PeerID:       conf.State.RemoteRouterId,
-		FourBytesAs:  y,
-		Timestamp:    timestamp,
-		IsSent:       isSent,
-	}
-	if !isSent {
-		s.notifyWatcher(watchEventTypeRecvMsg, ev)
-	}
-}
-
-func (s *BgpServer) notifyRecvMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage, payload []byte) {
+// notifyRecvMessageWatcher notifies a message received from peer to the
+// watchers. The peer is guaranteed to be in ESTABLISHED state.
+func (s *BgpServer) notifyRecvMessageWatcher(peer *peer, timestamp time.Time, payload []byte) {
 	if peer == nil || !s.isWatched(watchEventTypeRecvMsg) {
 		return
 	}
-	s.notifyMessageWatcher(peer, timestamp, msg, payload, false)
+	conf := peer.fsm.pConf.ReadOnly()
+	s.notifyWatcher(watchEventTypeRecvMsg, &watchEventMessage{
+		Payload:     payload,
+		PeerAS:      conf.State.PeerAs,
+		PeerAddress: conf.State.NeighborAddress,
+		PeerID:      conf.State.RemoteRouterId,
+		Timestamp:   timestamp,
+	})
 }
 
 func (s *BgpServer) getPossibleBest(peer *peer, family bgp.Family) []*table.Path {
@@ -1992,7 +1976,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 	case fsmMsgBGPMessage:
 		m := e.MsgData.(*bgp.BGPMessage)
 		if m.Header.Type == bgp.BGP_MSG_UPDATE {
-			s.notifyRecvMessageWatcher(peer, e.timestamp, m, e.payload)
+			s.notifyRecvMessageWatcher(peer, e.timestamp, e.payload)
 		}
 		notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
 		conf := peer.fsm.pConf.ReadOnly()
@@ -5135,17 +5119,15 @@ func locRIBPathsForBMP(msg *watchEventBestPath) []*table.Path {
 	return msg.PathList
 }
 
+// watchEventMessage carries a message received from a peer. Its one consumer
+// is BMP route mirroring, which forwards the octets as they arrived, so the
+// event holds the payload and the peer header fields and nothing else.
 type watchEventMessage struct {
-	Message      *bgp.BGPMessage
-	Payload      []byte
-	PeerAS       uint32
-	LocalAS      uint32
-	PeerAddress  netip.Addr
-	LocalAddress netip.Addr
-	PeerID       netip.Addr
-	FourBytesAs  bool
-	Timestamp    time.Time
-	IsSent       bool
+	Payload     []byte
+	PeerAS      uint32
+	PeerAddress netip.Addr
+	PeerID      netip.Addr
+	Timestamp   time.Time
 }
 
 type watchEventEor struct {
@@ -5256,16 +5238,12 @@ func WatchPeer() WatchOption {
 	}
 }
 
-func watchMessage(isSent bool) WatchOption {
+// watchRecvMessage subscribes to the messages received from the peers. There
+// is no counterpart for the messages gobgp sends: nothing has ever produced
+// such an event.
+func watchRecvMessage() WatchOption {
 	return func(o *watchOptions) {
-		if isSent {
-			// log.WithFields(log.Fields{
-			// 	"Topic": "Server",
-			// }).Warn("watch event for sent messages is not implemented yet")
-			// o.sentMessage = true
-		} else {
-			o.recvMessage = true
-		}
+		o.recvMessage = true
 	}
 }
 

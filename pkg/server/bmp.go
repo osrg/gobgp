@@ -196,7 +196,7 @@ func (b *bmpClient) loop() {
 				ops = append(ops, WatchBestPath(true))
 			}
 			if b.c.RouteMirroringEnabled {
-				ops = append(ops, watchMessage(false))
+				ops = append(ops, watchRecvMessage())
 			}
 			w, err := b.s.watch(ops...)
 			if err != nil {
