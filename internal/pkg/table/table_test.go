@@ -18,12 +18,14 @@ package table
 import (
 	crand "crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"net"
 	"net/netip"
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -226,9 +228,9 @@ func TestTableDestinationsCollision(t *testing.T) {
 
 	// Fake a collision by inserting a destination with different NLRI but same hash key
 	k := tableKey(pathT[0].GetNlri())
-	shard := ipv4t.destinations.getShard(pathT[0].GetNlri())
+	shard := ipv4t.destinations.getShardForInsert(pathT[0].GetNlri())
 	shard.mu.Lock()
-	shard.mp[k] = []*destination{newDestination(pathT[1].GetNlri(), 0)}
+	shard.put(k, []*destination{newDestination(pathT[1].GetNlri(), 0)})
 	shard.mu.Unlock()
 
 	for _, path := range pathT {
@@ -1020,4 +1022,66 @@ func TestContainsCIDR(t *testing.T) {
 			assert.Equal(t, tt.result, result)
 		})
 	}
+}
+
+func TestDestinationsShardsAllocatedOnFirstInsert(t *testing.T) {
+	tbl := NewTable(logger, bgp.RF_IPv4_UC)
+	assert.Nil(t, tbl.destinations.shards.Load(), "a new table must not allocate shards")
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+
+	// Every read must work on a table that has no shards yet.
+	assert.Nil(t, tbl.GetDestination(nlri))
+	assert.Nil(t, tbl.SelectDestination(nlri, DestinationSelectOption{}))
+	assert.Empty(t, tbl.GetDestinations())
+	assert.Empty(t, tbl.GetKnownPathList(GLOBAL_RIB_NAME, 0))
+	assert.Empty(t, tbl.Bests(GLOBAL_RIB_NAME, 0))
+	assert.Empty(t, tbl.MultiBests(GLOBAL_RIB_NAME))
+	assert.Equal(t, 0, tbl.Info().NumDestination)
+	sel, err := tbl.Select()
+	assert.NoError(t, err)
+	assert.Empty(t, sel.GetDestinations())
+	assert.Nil(t, tbl.destinations.shards.Load(), "a read must not allocate shards")
+
+	tbl.setDestination(newDestination(nlri, 0))
+	assert.NotNil(t, tbl.destinations.shards.Load())
+	assert.NotNil(t, tbl.GetDestination(nlri))
+	assert.Len(t, tbl.GetDestinations(), 1)
+}
+
+func TestDestinationsConcurrentFirstInsert(t *testing.T) {
+	const writers = 16
+	tbl := NewTable(logger, bgp.RF_IPv4_UC)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range writers {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("10.0.%d.0/24", i)))
+			<-start
+			tbl.setDestination(newDestination(nlri, 0))
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	// The losers of the race must insert into the shards the winner installed.
+	assert.Len(t, tbl.GetDestinations(), writers)
+}
+
+func TestAdjRibShardsAllocatedOnFirstInsert(t *testing.T) {
+	adj := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	assert.Nil(t, adj.table[bgp.RF_IPv4_UC].destinations.shards.Load())
+
+	assert.Empty(t, adj.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false))
+	assert.Equal(t, 0, adj.Count([]bgp.Family{bgp.RF_IPv4_UC}))
+	assert.Empty(t, adj.StaleAll([]bgp.Family{bgp.RF_IPv4_UC}))
+	assert.Empty(t, adj.Drop([]bgp.Family{bgp.RF_IPv4_UC}))
+	assert.Nil(t, adj.table[bgp.RF_IPv4_UC].destinations.shards.Load())
+
+	adj.Update(TableCreatePath(TableCreatePeer()))
+	assert.NotNil(t, adj.table[bgp.RF_IPv4_UC].destinations.shards.Load())
+	assert.Len(t, adj.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false), 3)
 }

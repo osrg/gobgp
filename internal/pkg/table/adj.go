@@ -51,7 +51,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 			continue
 		}
 		nlri := path.GetNlri()
-		shard := t.destinations.getShard(nlri)
+		shard := t.destinations.getShardForInsert(nlri)
 
 		// Lock shard for entire operation
 		shard.mu.Lock()
@@ -120,7 +120,7 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 			continue
 		}
 		nlri := path.GetNlri()
-		shard := t.destinations.getShard(nlri)
+		shard := t.destinations.getShardForInsert(nlri)
 
 		shard.mu.Lock()
 		d := t.getOrCreateDest(shard, nlri, 0)
@@ -147,7 +147,9 @@ func (adj *AdjRib) walkActive(families []bgp.Family, fn func(*destination) bool)
 		if !ok {
 			continue
 		}
-		for _, shard := range t.destinations.shards {
+		shards := t.destinations.loadShards()
+		for i := range shards {
+			shard := &shards[i]
 			shard.mu.Lock()
 			stop := false
 			for _, dests := range shard.mp {
