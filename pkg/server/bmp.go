@@ -83,12 +83,29 @@ func (r ribout) update(p *table.Path) bool {
 	return true
 }
 
-func bmpAddPathMarshallingOption(path *table.Path) *bgp.MarshallingOption {
-	return &bgp.MarshallingOption{
+// bmpAddPathMarshallingOption returns the options for encoding an NLRI of
+// family with its path identifier in front.
+func bmpAddPathMarshallingOption(family bgp.Family) []*bgp.MarshallingOption {
+	return []*bgp.MarshallingOption{{
 		AddPath: map[bgp.Family]bgp.BGPAddPathMode{
-			path.GetFamily(): bgp.BGP_ADD_PATH_BOTH,
+			family: bgp.BGP_ADD_PATH_BOTH,
 		},
+	}}
+}
+
+// bmpAdjRIBInMarshallingOption returns the options for encoding a path of a
+// peer's Adj-RIB-In. The receiver decodes Route Monitoring messages with the
+// capabilities of the OPEN messages the Peer Up carries, so the encoding here
+// has to follow what the session negotiated. Only the receive direction
+// matters: gobgp reports what the peer sent it.
+//
+// A nil neighbor is a path that no BGP session brought in, so no capability
+// was negotiated for it and no Peer Up was ever sent.
+func bmpAdjRIBInMarshallingOption(n *oc.Neighbor, family bgp.Family) []*bgp.MarshallingOption {
+	if n == nil || !n.IsAddPathReceiveEnabled(family) {
+		return nil
 	}
+	return bmpAddPathMarshallingOption(family)
 }
 
 // bmpRouteMonitoring builds the Route Monitoring messages for one Adj-RIB-In
@@ -125,8 +142,9 @@ func bmpRouteMonitoring(msg *watchEventUpdate, r ribout, logger *slog.Logger) []
 
 	msgs := make([]*bmp.BMPMessage, 0, len(pathList))
 	for _, path := range pathList {
-		for _, u := range table.CreateUpdateMsgFromPaths([]*table.Path{path}) {
-			payload, err := u.Serialize()
+		options := bmpAdjRIBInMarshallingOption(msg.Neighbor, path.GetFamily())
+		for _, u := range table.CreateUpdateMsgFromAdjRIBInPaths([]*table.Path{path}, options...) {
+			payload, err := u.Serialize(options...)
 			if err != nil {
 				logger.Warn("failed to serialize bmp route monitoring message",
 					slog.String("Topic", "bmp"),
@@ -150,9 +168,9 @@ func bmpLocRIBRouteMonitoring(msg *watchEventBestPath, info *table.PeerInfo, log
 		if p == nil {
 			continue
 		}
-		options := bmpAddPathMarshallingOption(p)
-		for _, u := range table.CreateUpdateMsgFromPaths([]*table.Path{p}, options) {
-			payload, err := u.Serialize(options)
+		options := bmpAddPathMarshallingOption(p.GetFamily())
+		for _, u := range table.CreateUpdateMsgFromPaths([]*table.Path{p}, options...) {
+			payload, err := u.Serialize(options...)
 			if err != nil {
 				logger.Warn("failed to serialize bmp loc-rib route monitoring message",
 					slog.String("Topic", "bmp"),

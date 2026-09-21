@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	packetbmp "github.com/osrg/gobgp/v4/pkg/packet/bmp"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,9 @@ func makeIPv4Path(t *testing.T, prefix, nexthop, src string, srcAS uint32, remot
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
 		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
-			bgp.NewAsPathParam(2, []uint16{uint16(srcAS)}),
+			// 4 byte AS_PATH, so that a serialized UPDATE built from
+			// this path can be parsed back with the default options.
+			bgp.NewAs4PathParam(2, []uint32{srcAS}),
 		}),
 		nh,
 	}
@@ -77,13 +80,13 @@ func TestBMPAddPathMarshallingOptionCarriesPathIDOnWithdraw(t *testing.T) {
 	p := makeIPv4Path(t, "10.0.2.0/24", "192.0.2.21", "198.51.100.21", 65201, 0)
 	w := p.Clone(true)
 
-	options := bmpAddPathMarshallingOption(w)
-	msg := table.CreateUpdateMsgFromPaths([]*table.Path{w}, options)[0]
+	options := bmpAddPathMarshallingOption(w.GetFamily())
+	msg := table.CreateUpdateMsgFromPaths([]*table.Path{w}, options...)[0]
 
-	payload, err := msg.Serialize(options)
+	payload, err := msg.Serialize(options...)
 	require.NoError(t, err)
 
-	decoded, err := bgp.ParseBGPMessage(payload, options)
+	decoded, err := bgp.ParseBGPMessage(payload, options...)
 	require.NoError(t, err)
 
 	// BGP header(19) + WithdrawnRoutesLen(2). For IPv4 /24 withdraw:
@@ -394,4 +397,80 @@ func TestBMPRouteMirroringIsVerbatim(t *testing.T) {
 	reencoded, err := parsed.Serialize()
 	require.NoError(t, err)
 	require.Len(t, reencoded, len(wire)-4)
+}
+
+// makeAddPathNeighbor is a peer that negotiated ADD-PATH receive for IPv4
+// unicast, as s.toConfig() reports it on a watch event.
+func makeAddPathNeighbor(receive bool) *oc.Neighbor {
+	return &oc.Neighbor{
+		AfiSafis: []oc.AfiSafi{{
+			State:    oc.AfiSafiState{Family: bgp.RF_IPv4_UC},
+			AddPaths: oc.AddPaths{State: oc.AddPathsState{Receive: receive}},
+		}},
+	}
+}
+
+// The Peer Up message carries the OPEN messages the session exchanged, so a
+// receiver decodes Route Monitoring for an ADD-PATH peer expecting a 4 octet
+// path identifier. The identifier reported is the one the peer sent
+// (RFC 7911 2), not the one gobgp assigns when it re-advertises the path.
+func TestBMPRouteMonitoringEncodesTheReceivedPathID(t *testing.T) {
+	p := makeIPv4Path(t, "10.4.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 9)
+	require.Equal(t, uint32(9), p.RemoteID())
+	require.Equal(t, uint32(0), p.LocalID())
+
+	msgs := bmpRouteMonitoring(&watchEventUpdate{
+		PeerAddress: netip.MustParseAddr("198.51.100.1"),
+		PostPolicy:  true,
+		Neighbor:    makeAddPathNeighbor(true),
+		PathList:    []*table.Path{p},
+	}, newribout(), bmpTestLogger())
+	require.Len(t, msgs, 1)
+
+	payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
+	options := []*bgp.MarshallingOption{{
+		AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
+	}}
+	decoded, err := bgp.ParseBGPMessage(payload, options...)
+	require.NoError(t, err)
+	update := decoded.Body.(*bgp.BGPUpdate)
+	require.Len(t, update.NLRI, 1)
+	require.Equal(t, uint32(9), update.NLRI[0].ID)
+	require.Equal(t, "10.4.0.0/24", update.NLRI[0].NLRI.String())
+
+	// The path in the RIB is untouched: reporting must not hand gobgp's own
+	// re-advertisement the peer's identifier.
+	require.Equal(t, uint32(0), p.LocalID())
+}
+
+// A peer that did not negotiate ADD-PATH gets the plain encoding. Its Peer Up
+// says so, and a path identifier would put the receiver out of step.
+func TestBMPRouteMonitoringOmitsPathIDWithoutAddPath(t *testing.T) {
+	p := makeIPv4Path(t, "10.4.1.0/24", "192.0.2.1", "198.51.100.1", 65001, 9)
+
+	for _, tc := range []struct {
+		name     string
+		neighbor *oc.Neighbor
+	}{
+		{"add-path not negotiated", makeAddPathNeighbor(false)},
+		// No BGP session brought this path in, so it has no Peer Up.
+		{"no neighbor", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			msgs := bmpRouteMonitoring(&watchEventUpdate{
+				PeerAddress: netip.MustParseAddr("198.51.100.1"),
+				PostPolicy:  true,
+				Neighbor:    tc.neighbor,
+				PathList:    []*table.Path{p},
+			}, newribout(), bmpTestLogger())
+			require.Len(t, msgs, 1)
+
+			payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
+			decoded, err := bgp.ParseBGPMessage(payload)
+			require.NoError(t, err)
+			update := decoded.Body.(*bgp.BGPUpdate)
+			require.Len(t, update.NLRI, 1)
+			require.Equal(t, "10.4.1.0/24", update.NLRI[0].NLRI.String())
+		})
+	}
 }

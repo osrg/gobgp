@@ -24,6 +24,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // before:
@@ -987,4 +988,62 @@ func newIPv4UpdatePath(t *testing.T, prefix string) *Path {
 		nexthop,
 	}
 	return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+}
+
+// CreateUpdateMsgFromAdjRIBInPaths reports the identifier the peer sent, and
+// leaves the one this speaker assigned alone. Two paths of the same prefix
+// stay two paths, which is the whole point of ADD-PATH.
+func TestCreateUpdateMsgFromAdjRIBInPathsUsesTheReceivedPathID(t *testing.T) {
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(2, []uint32{100}),
+		}),
+	}
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+
+	paths := make([]*Path, 0, 2)
+	for _, remoteID := range []uint32{7, 8} {
+		p := NewPath(bgp.RF_IPv4_UC, peerR1(), bgp.PathNLRI{NLRI: nlri, ID: remoteID},
+			false, append(attrs, nh), time.Now(), false)
+		// The identifier this speaker would use to re-advertise the path.
+		// It must not reach the wire here, and it is the same for both
+		// paths so that a packer keying on it would drop one of them.
+		p.localID = 1
+		paths = append(paths, p)
+	}
+
+	options := &bgp.MarshallingOption{
+		AddPath: map[bgp.Family]bgp.BGPAddPathMode{
+			bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH,
+		},
+	}
+	msgs := CreateUpdateMsgFromAdjRIBInPaths(paths, options)
+
+	got := make([]uint32, 0, 2)
+	for _, msg := range msgs {
+		for _, n := range msg.Body.(*bgp.BGPUpdate).NLRI {
+			got = append(got, n.ID)
+		}
+	}
+	require.ElementsMatch(t, []uint32{7, 8}, got)
+
+	// The paths themselves are untouched.
+	for _, p := range paths {
+		require.Equal(t, uint32(1), p.localID)
+	}
+
+	// CreateUpdateMsgFromPaths still reports this speaker's identifier, so
+	// the two paths collapse into one.
+	msgs = CreateUpdateMsgFromPaths(paths, options)
+	got = got[:0]
+	for _, msg := range msgs {
+		for _, n := range msg.Body.(*bgp.BGPUpdate).NLRI {
+			got = append(got, n.ID)
+		}
+	}
+	require.Equal(t, []uint32{1}, got)
 }
