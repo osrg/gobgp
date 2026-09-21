@@ -474,3 +474,84 @@ func TestBMPRouteMonitoringOmitsPathIDWithoutAddPath(t *testing.T) {
 		})
 	}
 }
+
+// State compression must hold ADD-PATH paths of one prefix apart. Keyed on
+// the source alone, the second path replaced the first in the cache, and a
+// withdraw of either one then dropped both.
+func TestBMPRiboutHoldsAddPathPathsApart(t *testing.T) {
+	src := "198.51.100.1"
+	p1 := makeIPv4Path(t, "10.5.0.0/24", "192.0.2.1", src, 65001, 1)
+	p2 := makeIPv4Path(t, "10.5.0.0/24", "192.0.2.2", src, 65001, 2)
+	// Paths of one peer share its PeerInfo, as ProcessMessage gives them
+	// peer.peerInfo.Load().
+	p2.SetSource(p1.GetSource())
+	r := newribout()
+
+	// Both paths are new, so both are reported.
+	require.True(t, r.update(p1))
+	require.True(t, r.update(p2))
+	require.Len(t, r[p1.GetNlri().String()], 2)
+
+	// Neither is reported twice.
+	require.False(t, r.update(p1))
+	require.False(t, r.update(p2))
+
+	// Withdrawing one leaves the other cached, so the other is still not
+	// reported again.
+	require.True(t, r.update(p1.Clone(true)))
+	require.Len(t, r[p1.GetNlri().String()], 1)
+	require.False(t, r.update(p2))
+
+	// Withdrawing the second empties the entry.
+	require.True(t, r.update(p2.Clone(true)))
+	require.Empty(t, r)
+}
+
+// A path of another peer is a separate entry, as it always was.
+func TestBMPRiboutHoldsPeersApart(t *testing.T) {
+	p1 := makeIPv4Path(t, "10.5.1.0/24", "192.0.2.1", "198.51.100.1", 65001, 0)
+	p2 := makeIPv4Path(t, "10.5.1.0/24", "192.0.2.2", "198.51.100.2", 65002, 0)
+	r := newribout()
+
+	require.True(t, r.update(p1))
+	require.True(t, r.update(p2))
+	require.Len(t, r[p1.GetNlri().String()], 2)
+
+	require.True(t, r.update(p1.Clone(true)))
+	require.Len(t, r[p1.GetNlri().String()], 1)
+	require.False(t, r.update(p2))
+}
+
+// Both fixes together: an ADD-PATH peer that advertises two paths of one
+// prefix has both reported, each with the identifier the peer gave it.
+func TestBMPRouteMonitoringReportsBothAddPathPaths(t *testing.T) {
+	p1 := makeIPv4Path(t, "10.6.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
+	p2 := makeIPv4Path(t, "10.6.0.0/24", "192.0.2.2", "198.51.100.1", 65001, 2)
+	p2.SetSource(p1.GetSource())
+
+	r := newribout()
+	neighbor := makeAddPathNeighbor(true)
+	options := []*bgp.MarshallingOption{{
+		AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
+	}}
+
+	ids := make([]uint32, 0, 2)
+	for _, p := range []*table.Path{p1, p2} {
+		msgs := bmpRouteMonitoring(&watchEventUpdate{
+			PeerAddress: netip.MustParseAddr("198.51.100.1"),
+			PostPolicy:  true,
+			Neighbor:    neighbor,
+			PathList:    []*table.Path{p},
+		}, r, bmpTestLogger())
+		require.Len(t, msgs, 1)
+
+		payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
+		decoded, err := bgp.ParseBGPMessage(payload, options...)
+		require.NoError(t, err)
+		update := decoded.Body.(*bgp.BGPUpdate)
+		require.Len(t, update.NLRI, 1)
+		require.Equal(t, "10.6.0.0/24", update.NLRI[0].NLRI.String())
+		ids = append(ids, update.NLRI[0].ID)
+	}
+	require.Equal(t, []uint32{1, 2}, ids)
+}

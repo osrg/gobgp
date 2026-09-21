@@ -38,7 +38,11 @@ func newribout() ribout {
 	return make(map[string][]*table.Path)
 }
 
-// return true if we need to send the path to the BMP server
+// update records that the path was reported to the BMP server and returns
+// whether it has to be sent. A path is identified by its source and by the
+// path identifier the source gave it, so ADD-PATH paths of one prefix are
+// held apart. Matching on the source alone let a second path of a prefix
+// replace the first, and a withdraw of either one then dropped both.
 func (r ribout) update(p *table.Path) bool {
 	key := p.GetNlri().String() // TODO expose (*Path).getPrefix()
 	l := r[key]
@@ -48,7 +52,7 @@ func (r ribout) update(p *table.Path) bool {
 		}
 		n := make([]*table.Path, 0, len(l))
 		for _, q := range l {
-			if p.GetSource() == q.GetSource() {
+			if p.EqualBySourceAndPathID(q) {
 				continue
 			}
 			n = append(n, q)
@@ -68,7 +72,7 @@ func (r ribout) update(p *table.Path) bool {
 
 	doAppend := true
 	for idx, q := range l {
-		if p.GetSource() == q.GetSource() {
+		if p.EqualBySourceAndPathID(q) {
 			// if we have sent the same path, don't send it again
 			if p.Equal(q) {
 				return false
