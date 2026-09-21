@@ -523,6 +523,10 @@ func (dest *destination) insertSort(newPath *Path, selectionOptions oc.RouteSele
 type Update struct {
 	KnownPathList    []*Path
 	OldKnownPathList []*Path
+	// Changed reports whether the path given to Table.update differs from the
+	// path it replaced. It is false when the same path is advertised again
+	// with the same attributes, which is what an inbound soft reset does.
+	Changed bool
 }
 
 // GetMultiBestPathDiff returns multipath delta as update and withdraw lists.

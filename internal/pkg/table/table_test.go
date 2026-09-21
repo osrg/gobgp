@@ -1115,3 +1115,44 @@ func TestDestinationsShardCountMustBePowerOfTwo(t *testing.T) {
 		assert.NotPanics(t, func() { newDestinations(shardCount) }, "shard count %d", shardCount)
 	}
 }
+
+// Table.update tells the caller whether the path it was given differs from the
+// path it replaced. An inbound soft reset replays the whole Adj-RIB-In, so the
+// same path arrives again with the same attributes, and the server must be able
+// to tell that apart from a real change.
+func TestTableUpdateReportsWhetherThePathChanged(t *testing.T) {
+	peer := &PeerInfo{AS: 65000, Address: netip.MustParseAddr("10.0.0.1")}
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+
+	newTestPath := func(med uint32, isWithdraw bool) *Path {
+		origin := bgp.NewPathAttributeOrigin(0)
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})})
+		nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
+		attrs := []bgp.PathAttributeInterface{origin, aspath, nexthop, bgp.NewPathAttributeMultiExitDisc(med)}
+		return NewPath(bgp.RF_IPv4_UC, peer, bgp.PathNLRI{NLRI: nlri}, isWithdraw, attrs, time.Now(), false)
+	}
+
+	tbl := NewTable(logger, bgp.RF_IPv4_UC)
+	opts := oc.RouteSelectionOptionsConfig{}
+
+	// A withdrawal for a path the table does not hold is not an update at all.
+	assert.Nil(t, tbl.update(newTestPath(0, true), opts))
+
+	u := tbl.update(newTestPath(0, false), opts)
+	assert.NotNil(t, u)
+	assert.True(t, u.Changed, "a path the table did not hold is a change")
+
+	u = tbl.update(newTestPath(0, false), opts)
+	assert.NotNil(t, u)
+	assert.False(t, u.Changed, "the same path advertised again is not a change")
+
+	u = tbl.update(newTestPath(100, false), opts)
+	assert.NotNil(t, u)
+	assert.True(t, u.Changed, "a different MED is a change")
+
+	// Path.Equal ignores IsWithdraw, so a withdrawal carrying the attributes
+	// of the path it removes must still be reported as a change.
+	u = tbl.update(newTestPath(100, true), opts)
+	assert.NotNil(t, u)
+	assert.True(t, u.Changed, "a withdrawal that removed a path is a change")
+}

@@ -561,6 +561,11 @@ func (t *Table) update(newPath *Path, selectionOptions oc.RouteSelectionOptionsC
 		return nil
 	}
 
+	// Path.Equal ignores IsWithdraw, and a withdrawal carries the attributes of
+	// the path it removes, so the two compare equal. A withdrawal that got this
+	// far did remove a path, so it is always a change.
+	u.Changed = newPath.IsWithdraw || oldPath == nil || !newPath.Equal(oldPath)
+
 	if evpnNlri, ok := nlri.(*bgp.EVPNNLRI); ok {
 		if macadv, ok := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute); ok {
 			for _, ec := range newPath.GetRouteTargets() {
