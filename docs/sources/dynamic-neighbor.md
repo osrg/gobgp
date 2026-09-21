@@ -63,6 +63,7 @@ Peer          AS  Up/Down State       |#Received  Accepted
 172.40.1.3 65001 00:00:23 Establ      |        0         0
 $ gobgp neighbor 172.40.1.3
 BGP neighbor is 172.40.1.3, remote AS 65002
+  Member of peer-group sample-group
   BGP version 4, remote router ID 172.40.1.3
   BGP state = established, up for 00:00:07
   BGP OutQ = 0, Flops = 0

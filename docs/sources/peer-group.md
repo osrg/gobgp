@@ -89,6 +89,7 @@ You can see the neighbor configuration inherits the peer group config by running
 ```shell
 $ gobgp neighbor 172.40.1.3
 BGP neighbor is 172.40.1.3, remote AS 65001
+  Member of peer-group sample-group
   BGP version 4, remote router ID 172.40.1.3
   BGP state = established, up for 00:00:05
   BGP OutQ = 0, Flops = 0

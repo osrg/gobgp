@@ -276,6 +276,10 @@ func showNeighbor(args []string) error {
 		fmt.Printf("\n")
 	}
 
+	if p.Conf.PeerGroup != "" {
+		fmt.Printf("  Member of peer-group %s\n", p.Conf.PeerGroup)
+	}
+
 	id := "unknown"
 	if p.State != nil && p.State.RouterId != "" {
 		id = p.State.RouterId
