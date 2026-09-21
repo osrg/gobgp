@@ -327,7 +327,7 @@ func (b *bmpClient) loop() {
 							AS:      msg.PeerAS,
 							ID:      msg.PeerID,
 						}
-						if err := write(bmpPeerRouteMirroring(bmp.BMP_PEER_TYPE_GLOBAL, 0, info, msg.Timestamp.Unix(), msg.Message)); err != nil {
+						if err := write(bmpPeerRouteMirroring(bmp.BMP_PEER_TYPE_GLOBAL, 0, info, msg.Timestamp.Unix(), msg.Payload)); err != nil {
 							return false
 						}
 					}
@@ -519,16 +519,13 @@ func bmpPeerStats(peerType uint8, peerDist uint64, timestamp int64, peer *api.Pe
 	)
 }
 
-func bmpPeerRouteMirroring(peerType uint8, peerDist uint64, peerInfo *table.PeerInfo, timestamp int64, msg *bgp.BGPMessage) *bmp.BMPMessage {
+func bmpPeerRouteMirroring(peerType uint8, peerDist uint64, peerInfo *table.PeerInfo, timestamp int64, payload []byte) *bmp.BMPMessage {
 	var peerFlags uint8 = 0
 	ph := bmp.NewBMPPeerHeader(peerType, peerFlags, peerDist, peerInfo.Address, peerInfo.AS, peerInfo.ID, float64(timestamp))
-	return bmp.NewBMPRouteMirroring(
-		*ph,
-		[]bmp.BMPRouteMirrTLVInterface{
-			// RFC7854: BGP Message TLV MUST occur last in the list of TLVs
-			bmp.NewBMPRouteMirrTLVBGPMsg(bmp.BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG, msg),
-		},
-	)
+	// RFC7854: BGP Message TLV MUST occur last in the list of TLVs
+	tlv := bmp.NewBMPRouteMirrTLVBGPMsg(bmp.BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG, nil)
+	tlv.Payload = payload
+	return bmp.NewBMPRouteMirroring(*ph, []bmp.BMPRouteMirrTLVInterface{tlv})
 }
 
 func (b *bmpClientManager) addServer(c *oc.BmpServerConfig) error {

@@ -316,3 +316,28 @@ func Test_RouteMirroringBGPMsgTLVHonoursItsLength(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint16(BMP_ROUTE_MIRRORING_INFO_MSG_LOST), info.Value)
 }
+
+func Test_RouteMirroringBGPMsgTLVPayloadIsUsedAsIs(t *testing.T) {
+	// RFC 7854 4.7 asks for "verbatim duplication of messages as received".
+	// A sender that kept the octets it received puts them in Payload, and
+	// they go out untouched. Re-encoding Value cannot do this: the encoder
+	// is not given the marshalling options the message was parsed with.
+	msg := bgp.NewBGPRouteRefreshMessage(1, 0, 1)
+	// Bytes that do not match Value, so the test can tell them apart.
+	payload := []byte{0x01, 0x02, 0x03}
+
+	tlv := NewBMPRouteMirrTLVBGPMsg(BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG, msg)
+	tlv.Payload = payload
+	buf, err := tlv.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, uint16(len(payload)), binary.BigEndian.Uint16(buf[2:4]))
+	require.Equal(t, payload, buf[4:])
+
+	// Without a Payload the TLV still encodes Value, as it always did.
+	tlv = NewBMPRouteMirrTLVBGPMsg(BMP_ROUTE_MIRRORING_TLV_TYPE_BGP_MSG, msg)
+	buf, err = tlv.Serialize()
+	require.NoError(t, err)
+	want, err := msg.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, want, buf[4:])
+}

@@ -1040,7 +1040,7 @@ func (s *BgpServer) broadcastPeerState(peer *peer, newState, oldState bgp.FSMSta
 
 // notifyMessageWatcher notifies recv message to watchers.
 // The peer is guaranteed to be in ESTABLISHED state.
-func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage, isSent bool) {
+func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage, payload []byte, isSent bool) {
 	// validation should be done in the caller of this function
 	conf := peer.fsm.pConf.ReadOnly()
 	peer.fsm.lock.Lock()
@@ -1048,6 +1048,7 @@ func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *b
 	peer.fsm.lock.Unlock()
 	ev := &watchEventMessage{
 		Message:      msg,
+		Payload:      payload,
 		PeerAS:       conf.State.PeerAs,
 		LocalAS:      conf.Config.LocalAs,
 		PeerAddress:  conf.State.NeighborAddress,
@@ -1062,11 +1063,11 @@ func (s *BgpServer) notifyMessageWatcher(peer *peer, timestamp time.Time, msg *b
 	}
 }
 
-func (s *BgpServer) notifyRecvMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage) {
+func (s *BgpServer) notifyRecvMessageWatcher(peer *peer, timestamp time.Time, msg *bgp.BGPMessage, payload []byte) {
 	if peer == nil || !s.isWatched(watchEventTypeRecvMsg) {
 		return
 	}
-	s.notifyMessageWatcher(peer, timestamp, msg, false)
+	s.notifyMessageWatcher(peer, timestamp, msg, payload, false)
 }
 
 func (s *BgpServer) getPossibleBest(peer *peer, family bgp.Family) []*table.Path {
@@ -1977,7 +1978,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 	case fsmMsgBGPMessage:
 		m := e.MsgData.(*bgp.BGPMessage)
 		if m.Header.Type == bgp.BGP_MSG_UPDATE {
-			s.notifyRecvMessageWatcher(peer, e.timestamp, m)
+			s.notifyRecvMessageWatcher(peer, e.timestamp, m, e.payload)
 		}
 		notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
 		conf := peer.fsm.pConf.ReadOnly()
@@ -5105,6 +5106,7 @@ func locRIBPathsForBMP(msg *watchEventBestPath) []*table.Path {
 
 type watchEventMessage struct {
 	Message      *bgp.BGPMessage
+	Payload      []byte
 	PeerAS       uint32
 	LocalAS      uint32
 	PeerAddress  netip.Addr

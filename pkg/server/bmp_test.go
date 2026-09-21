@@ -351,3 +351,47 @@ func TestBMPLocRIBRouteMonitoringUsesLocalRIBPeerType(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(plain)+4, len(body.BGPUpdatePayload))
 }
+
+// RFC 7854 4.7 asks for "verbatim duplication of messages as received". An
+// UPDATE received from an ADD-PATH peer carries a 4 octet path identifier in
+// front of every NLRI. Re-encoding the parsed message drops it, because the
+// encoder is not told which families use ADD-PATH, so the mirrored message
+// must be the bytes that arrived.
+func TestBMPRouteMirroringIsVerbatim(t *testing.T) {
+	options := []*bgp.MarshallingOption{{
+		AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
+	}}
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.0.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	update := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		nh,
+	}, []bgp.PathNLRI{{NLRI: nlri, ID: 7}})
+
+	wire, err := update.Serialize(options...)
+	require.NoError(t, err)
+
+	info := &table.PeerInfo{
+		Address: netip.MustParseAddr("198.51.100.1"),
+		AS:      65001,
+		ID:      netip.MustParseAddr("198.51.100.1"),
+	}
+	buf, err := bmpPeerRouteMirroring(packetbmp.BMP_PEER_TYPE_GLOBAL, 0, info, 100, wire).Serialize()
+	require.NoError(t, err)
+
+	// Common header(6) + per-peer header(42) + TLV header(4).
+	const tlvValueOffset = 6 + packetbmp.BMP_PEER_HEADER_SIZE + 4
+	require.Equal(t, wire, buf[tlvValueOffset:])
+
+	// What gobgp used to send: the parsed message encoded again. It is
+	// 4 octets shorter, because the encoder is not given the options, so
+	// the path identifier is gone and the receiver reads the NLRI out of
+	// step.
+	parsed, err := bgp.ParseBGPMessage(wire, options...)
+	require.NoError(t, err)
+	reencoded, err := parsed.Serialize()
+	require.NoError(t, err)
+	require.Len(t, reencoded, len(wire)-4)
+}
