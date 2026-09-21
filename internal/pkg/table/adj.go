@@ -31,7 +31,7 @@ type AdjRib struct {
 func NewAdjRib(logger *slog.Logger, rfList []bgp.Family) *AdjRib {
 	m := make(map[bgp.Family]*Table)
 	for _, f := range rfList {
-		m[f] = NewTable(logger, f)
+		m[f] = newSingleShardTable(logger, f)
 	}
 	return &AdjRib{
 		table:    m,
@@ -215,7 +215,7 @@ func (adj *AdjRib) Drop(rfList []bgp.Family) []*Path {
 		return false
 	})
 	for _, rf := range rfList {
-		adj.table[rf] = NewTable(adj.logger, rf)
+		adj.table[rf] = newSingleShardTable(adj.logger, rf)
 		adj.accepted[rf] = 0
 	}
 	return l
@@ -282,7 +282,7 @@ func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.Family) []*Path {
 func (adj *AdjRib) Select(family bgp.Family, accepted bool, option ...TableSelectOption) (*Table, error) {
 	t, ok := adj.table[family]
 	if !ok {
-		t = NewTable(adj.logger, family)
+		t = newSingleShardTable(adj.logger, family)
 	}
 	option = append(option, TableSelectOption{adj: true})
 	return t.Select(option...)

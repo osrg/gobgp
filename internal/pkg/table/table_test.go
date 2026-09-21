@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
@@ -1084,4 +1085,33 @@ func TestAdjRibShardsAllocatedOnFirstInsert(t *testing.T) {
 	adj.Update(TableCreatePath(TableCreatePeer()))
 	assert.NotNil(t, adj.table[bgp.RF_IPv4_UC].destinations.shards.Load())
 	assert.Len(t, adj.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false), 3)
+}
+
+func TestSingleShardTables(t *testing.T) {
+	// An adj-RIB and the result of Table.Select are written by one
+	// goroutine, so they take one shard.
+	adj := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	adj.Update(TableCreatePath(TableCreatePeer()))
+	assert.Len(t, *adj.table[bgp.RF_IPv4_UC].destinations.shards.Load(), singleShard)
+	assert.Len(t, adj.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false), 3)
+
+	tbl := NewTable(logger, bgp.RF_IPv4_UC)
+	for _, path := range TableCreatePath(TableCreatePeer()) {
+		tbl.update(path, oc.RouteSelectionOptionsConfig{})
+	}
+	assert.Len(t, *tbl.destinations.shards.Load(), destinationShardCount)
+
+	sel, err := tbl.Select()
+	assert.NoError(t, err)
+	assert.Len(t, sel.GetDestinations(), 3)
+	assert.Len(t, *sel.destinations.shards.Load(), singleShard)
+}
+
+func TestDestinationsShardCountMustBePowerOfTwo(t *testing.T) {
+	for _, shardCount := range []uint32{0, 3, 1000, destinationShardCount + 1} {
+		assert.Panics(t, func() { newDestinations(shardCount) }, "shard count %d", shardCount)
+	}
+	for _, shardCount := range []uint32{singleShard, 2, destinationShardCount} {
+		assert.NotPanics(t, func() { newDestinations(shardCount) }, "shard count %d", shardCount)
+	}
 }

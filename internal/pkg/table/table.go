@@ -112,7 +112,18 @@ type destinationShard struct {
 	mp map[addrPrefixKey][]*destination
 }
 
-const destinationShardCount = 2048
+// destinationShardCount is the number of shards of a table that several
+// goroutines write at the same time. Only the Loc-RIB is such a table: a
+// path is installed by the goroutine of the peer it came from. An adj-RIB
+// and the table Table.Select returns are written by one goroutine, so they
+// take singleShard.
+//
+// Both counts must be a power of two, because the shard is picked with a
+// mask.
+const (
+	destinationShardCount = 2048
+	singleShard           = 1
+)
 
 // put stores dests under key and creates mp on the first insert into this
 // shard. The caller must hold the write lock.
@@ -123,20 +134,29 @@ func (s *destinationShard) put(key addrPrefixKey, dests []*destination) {
 	s.mp[key] = dests
 }
 
-type destinationShards [destinationShardCount]destinationShard
+type destinationShards []destinationShard
 
-// Destinations holds the destinations of one table, split over
-// destinationShardCount shards to keep the lock per destination short.
+// Destinations holds the destinations of one table, split over mask+1
+// shards to keep the lock per destination short.
 //
 // The shards are allocated by the first insert. gobgp creates a table for
 // every address family of the Loc-RIB and of every peer's adj-RIB, and most
 // of them never hold a route, so an empty Destinations must stay small.
 type Destinations struct {
 	shards atomic.Pointer[destinationShards]
+	// mask is the shard count minus one. It is set at construction and
+	// never changes.
+	mask uint32
 }
 
-func NewDestinations() *Destinations {
-	return &Destinations{}
+// newDestinations panics if shardCount is not a power of two. The shard is
+// picked with a mask, so any other count would leave part of the shards
+// unreachable. It is a programming error in the caller.
+func newDestinations(shardCount uint32) *Destinations {
+	if shardCount == 0 || shardCount&(shardCount-1) != 0 {
+		panic(fmt.Sprintf("shard count %d is not a power of two", shardCount))
+	}
+	return &Destinations{mask: shardCount - 1}
 }
 
 // loadShards returns the shards, or nil if nothing has been inserted yet.
@@ -146,7 +166,7 @@ func (d *Destinations) loadShards() []destinationShard {
 	if s == nil {
 		return nil
 	}
-	return s[:]
+	return *s
 }
 
 // getShard returns the shard for a given NLRI, or nil if nothing has been
@@ -157,7 +177,7 @@ func (d *Destinations) getShard(nlri bgp.NLRI) *destinationShard {
 		return nil
 	}
 	key := tableKey(nlri)
-	return &s[uint32(key)&(destinationShardCount-1)]
+	return &(*s)[uint32(key)&d.mask]
 }
 
 // getShardForInsert returns the shard for a given NLRI and allocates the
@@ -166,13 +186,14 @@ func (d *Destinations) getShard(nlri bgp.NLRI) *destinationShard {
 func (d *Destinations) getShardForInsert(nlri bgp.NLRI) *destinationShard {
 	s := d.shards.Load()
 	if s == nil {
-		s = &destinationShards{}
+		ns := make(destinationShards, d.mask+1)
+		s = &ns
 		if !d.shards.CompareAndSwap(nil, s) {
 			s = d.shards.Load()
 		}
 	}
 	key := tableKey(nlri)
-	return &s[uint32(key)&(destinationShardCount-1)]
+	return &(*s)[uint32(key)&d.mask]
 }
 
 // iterateAllDestinations calls fn for each destination across all shards.
@@ -321,13 +342,22 @@ func isVPNFamily(rf bgp.Family) bool {
 }
 
 func NewTable(logger *slog.Logger, rf bgp.Family, dsts ...*destination) *Table {
+	return newTable(logger, rf, destinationShardCount, dsts...)
+}
+
+// newSingleShardTable creates a table that only one goroutine writes.
+func newSingleShardTable(logger *slog.Logger, rf bgp.Family) *Table {
+	return newTable(logger, rf, singleShard)
+}
+
+func newTable(logger *slog.Logger, rf bgp.Family, shardCount uint32, dsts ...*destination) *Table {
 	var vpnIdx *VPNPathIndex
 	if isVPNFamily(rf) {
 		vpnIdx = NewVPNPathIndex()
 	}
 	t := &Table{
 		Family:       rf,
-		destinations: NewDestinations(),
+		destinations: newDestinations(shardCount),
 		logger:       logger,
 		macIndex:     NewEVPNMacNLRIs(),
 		vpnIdx:       vpnIdx,
@@ -888,7 +918,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		as = o.AS
 	}
 	dOption := DestinationSelectOption{ID: id, AS: as, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
-	r := NewTable(nil, t.Family)
+	r := newSingleShardTable(nil, t.Family)
 
 	if len(prefixes) != 0 {
 		switch t.Family {
