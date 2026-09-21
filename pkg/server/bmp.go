@@ -65,7 +65,21 @@ func bmpAdjRIBInMarshallingOption(n *oc.Neighbor, family bgp.Family) []*bgp.Mars
 // A path whose UPDATE cannot be serialized is dropped. Only that path is lost.
 // The BMP session stays up, because one bad path is no reason to stop
 // reporting the rest.
+//
+// An event with no neighbor is not reported at all. The post-policy initial
+// dump groups the Loc-RIB by the source of each path, and a locally originated
+// path has none, so its group carries a zero PeerInfo and no neighbor. Route
+// Monitoring for it would use a per-peer header of all zeros that no Peer Up
+// ever announced, and the End-of-RIB of that group would pair with no Peer Up
+// either. RFC 9069 section 1 replaced RFC 7854 section 8.2 ("Locally
+// Originated Routes"): such routes belong to the Loc-RIB instance peer, which
+// bmpLocRIBRouteMonitoring reports. A post-policy Adj-RIB-In holds no locally
+// originated route anyway. Every other event carries a neighbor.
 func bmpRouteMonitoring(msg *watchEventUpdate, logger *slog.Logger) []*bmp.BMPMessage {
+	if msg.Neighbor == nil {
+		return nil
+	}
+
 	info := &table.PeerInfo{
 		Address: msg.PeerAddress,
 		AS:      msg.PeerAS,

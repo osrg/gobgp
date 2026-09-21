@@ -248,12 +248,45 @@ func TestBMPRouteMonitoringForwardsWirePayload(t *testing.T) {
 		Payload:     payload,
 		Timestamp:   time.Unix(100, 0),
 		FourBytesAs: true,
+		Neighbor:    &oc.Neighbor{},
 	}, bmpTestLogger())
 
 	require.Len(t, msgs, 1)
 	body := msgs[0].Body.(*packetbmp.BMPRouteMonitoring)
 	require.Equal(t, payload, body.BGPUpdatePayload)
 	require.Equal(t, packetbmp.BMP_PEER_TYPE_GLOBAL, msgs[0].PeerHeader.PeerType)
+}
+
+// A locally originated route has no source peer, so the post-policy initial
+// dump puts it in a group with no neighbor. RFC 9069 section 1 replaced
+// RFC 7854 section 8.2, so such a route belongs to the Loc-RIB instance peer.
+// Reporting it here would use a per-peer header of all zeros for a peer that
+// no Peer Up ever announced.
+func TestBMPRouteMonitoringSkipsTheGroupWithNoNeighbor(t *testing.T) {
+	p := makeIPv4Path(t, "10.7.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 0)
+
+	require.Empty(t, bmpRouteMonitoring(&watchEventUpdate{
+		PostPolicy: true,
+		Init:       true,
+		PathList:   []*table.Path{p},
+	}, bmpTestLogger()))
+}
+
+// The same group also sends an End-of-RIB, which carries a payload rather than
+// a path. RFC 7854 3.2 pairs an End-of-RIB with a Peer Up, so the one for a
+// group that never had a Peer Up must be dropped too.
+func TestBMPRouteMonitoringSkipsTheEndOfRibWithNoNeighbor(t *testing.T) {
+	eor := bgp.NewEndOfRib(bgp.RF_IPv4_UC)
+	payload, err := eor.Serialize()
+	require.NoError(t, err)
+
+	require.Empty(t, bmpRouteMonitoring(&watchEventUpdate{
+		Message:    eor,
+		Payload:    payload,
+		PostPolicy: true,
+		Init:       true,
+		Timestamp:  time.Unix(100, 0),
+	}, bmpTestLogger()))
 }
 
 // RFC 9069 Loc-RIB Route Monitoring uses Peer Type 3 and is always marshalled
@@ -376,31 +409,20 @@ func TestBMPRouteMonitoringEncodesTheReceivedPathID(t *testing.T) {
 func TestBMPRouteMonitoringOmitsPathIDWithoutAddPath(t *testing.T) {
 	p := makeIPv4Path(t, "10.4.1.0/24", "192.0.2.1", "198.51.100.1", 65001, 9)
 
-	for _, tc := range []struct {
-		name     string
-		neighbor *oc.Neighbor
-	}{
-		{"add-path not negotiated", makeAddPathNeighbor(false)},
-		// No BGP session brought this path in, so it has no Peer Up.
-		{"no neighbor", nil},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			msgs := bmpRouteMonitoring(&watchEventUpdate{
-				PeerAddress: netip.MustParseAddr("198.51.100.1"),
-				PostPolicy:  true,
-				Neighbor:    tc.neighbor,
-				PathList:    []*table.Path{p},
-			}, bmpTestLogger())
-			require.Len(t, msgs, 1)
+	msgs := bmpRouteMonitoring(&watchEventUpdate{
+		PeerAddress: netip.MustParseAddr("198.51.100.1"),
+		PostPolicy:  true,
+		Neighbor:    makeAddPathNeighbor(false),
+		PathList:    []*table.Path{p},
+	}, bmpTestLogger())
+	require.Len(t, msgs, 1)
 
-			payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
-			decoded, err := bgp.ParseBGPMessage(payload)
-			require.NoError(t, err)
-			update := decoded.Body.(*bgp.BGPUpdate)
-			require.Len(t, update.NLRI, 1)
-			require.Equal(t, "10.4.1.0/24", update.NLRI[0].NLRI.String())
-		})
-	}
+	payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
+	decoded, err := bgp.ParseBGPMessage(payload)
+	require.NoError(t, err)
+	update := decoded.Body.(*bgp.BGPUpdate)
+	require.Len(t, update.NLRI, 1)
+	require.Equal(t, "10.4.1.0/24", update.NLRI[0].NLRI.String())
 }
 
 // An ADD-PATH peer that advertises two paths of one prefix has both reported,

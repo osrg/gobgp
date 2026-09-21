@@ -34,6 +34,13 @@ The supported route monitoring policy types are:
 - local-rib
 - all
 
+The pre-policy and post-policy types report the Adj-RIB-In of each peer, so
+they carry only the routes received from that peer. Routes that GoBGP
+originates itself, such as the ones added through the API or the CLI, injected
+from a VRF, or redistributed by zebra, are reported by the `local-rib` type
+instead. That is the Loc-RIB Instance Peer of RFC 9069, which replaced Section
+8.2 of RFC 7854.
+
 Enable post-policy support as follows:
 
 ```toml
