@@ -32,61 +32,6 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 )
 
-type ribout map[string][]*table.Path
-
-func newribout() ribout {
-	return make(map[string][]*table.Path)
-}
-
-// update records that the path was reported to the BMP server and returns
-// whether it has to be sent. A path is identified by its source and by the
-// path identifier the source gave it, so ADD-PATH paths of one prefix are
-// held apart. Matching on the source alone let a second path of a prefix
-// replace the first, and a withdraw of either one then dropped both.
-func (r ribout) update(p *table.Path) bool {
-	key := p.GetNlri().String() // TODO expose (*Path).getPrefix()
-	l := r[key]
-	if p.IsWithdraw {
-		if len(l) == 0 {
-			return false
-		}
-		n := make([]*table.Path, 0, len(l))
-		for _, q := range l {
-			if p.EqualBySourceAndPathID(q) {
-				continue
-			}
-			n = append(n, q)
-		}
-		if len(n) == 0 {
-			delete(r, key)
-		} else {
-			r[key] = n
-		}
-		return true
-	}
-
-	if len(l) == 0 {
-		r[key] = []*table.Path{p}
-		return true
-	}
-
-	doAppend := true
-	for idx, q := range l {
-		if p.EqualBySourceAndPathID(q) {
-			// if we have sent the same path, don't send it again
-			if p.Equal(q) {
-				return false
-			}
-			l[idx] = p
-			doAppend = false
-		}
-	}
-	if doAppend {
-		r[key] = append(r[key], p)
-	}
-	return true
-}
-
 // bmpAddPathMarshallingOption returns the options for encoding an NLRI of
 // family with its path identifier in front.
 func bmpAddPathMarshallingOption(family bgp.Family) []*bgp.MarshallingOption {
@@ -120,7 +65,7 @@ func bmpAdjRIBInMarshallingOption(n *oc.Neighbor, family bgp.Family) []*bgp.Mars
 // A path whose UPDATE cannot be serialized is dropped. Only that path is lost.
 // The BMP session stays up, because one bad path is no reason to stop
 // reporting the rest.
-func bmpRouteMonitoring(msg *watchEventUpdate, r ribout, logger *slog.Logger) []*bmp.BMPMessage {
+func bmpRouteMonitoring(msg *watchEventUpdate, logger *slog.Logger) []*bmp.BMPMessage {
 	info := &table.PeerInfo{
 		Address: msg.PeerAddress,
 		AS:      msg.PeerAS,
@@ -132,20 +77,8 @@ func bmpRouteMonitoring(msg *watchEventUpdate, r ribout, logger *slog.Logger) []
 		}
 	}
 
-	pathList := msg.PathList
-	if !msg.Init {
-		// State compression: report only what the BMP server has not been
-		// told yet.
-		pathList = nil
-		for _, p := range msg.PathList {
-			if r.update(p) {
-				pathList = append(pathList, p)
-			}
-		}
-	}
-
-	msgs := make([]*bmp.BMPMessage, 0, len(pathList))
-	for _, path := range pathList {
+	msgs := make([]*bmp.BMPMessage, 0, len(msg.PathList))
+	for _, path := range msg.PathList {
 		options := bmpAdjRIBInMarshallingOption(msg.Neighbor, path.GetFamily())
 		for _, u := range table.CreateUpdateMsgFromAdjRIBInPaths([]*table.Path{path}, options...) {
 			payload, err := u.Serialize(options...)
@@ -239,8 +172,7 @@ func (b *bmpClient) loop() {
 				ops = append(ops, WatchUpdate(true, "", ""))
 				// Adj-RIB-In withdrawals generated on peer down / graceful-restart
 				// expiry are not received on the wire, so they arrive on a separate
-				// watch type. They clear the ribout cache so identical routes are
-				// reported again after the session re-establishes.
+				// watch type.
 				ops = append(ops, WatchAdjInWithdraw())
 			}
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_POST_POLICY || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
@@ -315,7 +247,7 @@ func (b *bmpClient) loop() {
 				case ev := <-w.Event():
 					switch msg := ev.(type) {
 					case *watchEventUpdate:
-						for _, m := range bmpRouteMonitoring(msg, b.ribout, b.s.logger) {
+						for _, m := range bmpRouteMonitoring(msg, b.s.logger) {
 							if err := write(m); err != nil {
 								return false
 							}
@@ -468,7 +400,6 @@ type bmpClient struct {
 	dead     chan struct{}
 	host     netip.AddrPort
 	c        *oc.BmpServerConfig
-	ribout   ribout
 	uptime   int64
 	downtime int64
 }
@@ -556,11 +487,10 @@ func (b *bmpClientManager) addServer(c *oc.BmpServerConfig) error {
 		return fmt.Errorf("bmp client %s is already configured", host)
 	}
 	b.clientMap[host] = &bmpClient{
-		s:      b.s,
-		dead:   make(chan struct{}),
-		host:   host,
-		c:      c,
-		ribout: newribout(),
+		s:    b.s,
+		dead: make(chan struct{}),
+		host: host,
+		c:    c,
 	}
 	go b.clientMap[host].loop()
 	return nil

@@ -153,46 +153,6 @@ func findAddPathCapability(open *bgp.BGPOpen) *bgp.CapAddPath {
 	return nil
 }
 
-// A withdraw generated on peer down (DropAll clones the Adj-RIB-In path with
-// IsWithdraw=true) must clear the ribout cache so that an identical path sent
-// after the session re-establishes is reported to the BMP server again.
-func TestRiboutWithdrawAllowsIdenticalResendAfterFlap(t *testing.T) {
-	r := newribout()
-	p := makeIPv4Path(t, "10.0.3.0/24", "192.0.2.31", "198.51.100.31", 65301, 0)
-
-	// First advertisement is reported.
-	require.True(t, r.update(p))
-	// Identical re-advertisement while the session is up is suppressed.
-	require.False(t, r.update(p))
-
-	// Peer goes down: DropAll yields a withdraw clone sharing the same source.
-	w := p.Clone(true)
-	require.True(t, w.IsWithdraw)
-	require.Equal(t, p.GetSource(), w.GetSource())
-	require.True(t, r.update(w))
-
-	// After the flap the identical path must be reported again.
-	require.True(t, r.update(p))
-}
-
-// A withdraw for one peer must not evict another peer's cached path for the
-// same prefix.
-func TestRiboutWithdrawKeepsOtherPeersPath(t *testing.T) {
-	r := newribout()
-	p1 := makeIPv4Path(t, "10.0.4.0/24", "192.0.2.41", "198.51.100.41", 65401, 0)
-	p2 := makeIPv4Path(t, "10.0.4.0/24", "192.0.2.42", "198.51.100.42", 65402, 0)
-
-	require.True(t, r.update(p1))
-	require.True(t, r.update(p2))
-
-	// Withdraw p1 only.
-	require.True(t, r.update(p1.Clone(true)))
-
-	// p2 is still cached (suppressed), p1 can be reported again.
-	require.False(t, r.update(p2))
-	require.True(t, r.update(p1))
-}
-
 // Loc-RIB Route Monitoring messages are always marshalled with add-path (see
 // TestBMPAddPathMarshallingOptionCarriesPathIDOnWithdraw), so the fabricated
 // OPEN must always advertise the capability. Omitting it left receivers parsing
@@ -288,44 +248,12 @@ func TestBMPRouteMonitoringForwardsWirePayload(t *testing.T) {
 		Payload:     payload,
 		Timestamp:   time.Unix(100, 0),
 		FourBytesAs: true,
-	}, newribout(), bmpTestLogger())
+	}, bmpTestLogger())
 
 	require.Len(t, msgs, 1)
 	body := msgs[0].Body.(*packetbmp.BMPRouteMonitoring)
 	require.Equal(t, payload, body.BGPUpdatePayload)
 	require.Equal(t, packetbmp.BMP_PEER_TYPE_GLOBAL, msgs[0].PeerHeader.PeerType)
-}
-
-// The initial dump bypasses the ribout cache. Every path is reported, and the
-// cache is left untouched.
-func TestBMPRouteMonitoringInitSkipsRibout(t *testing.T) {
-	p := makeIPv4Path(t, "10.1.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
-	r := newribout()
-
-	msgs := bmpRouteMonitoring(&watchEventUpdate{
-		PeerAddress: netip.MustParseAddr("198.51.100.1"),
-		Init:        true,
-		PathList:    []*table.Path{p},
-	}, r, bmpTestLogger())
-
-	require.Len(t, msgs, 1)
-	require.Empty(t, r)
-}
-
-// The live stream is state compressed: the same path is reported once.
-func TestBMPRouteMonitoringCompressesRepeatedPath(t *testing.T) {
-	p := makeIPv4Path(t, "10.1.1.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
-	r := newribout()
-	ev := func() *watchEventUpdate {
-		return &watchEventUpdate{
-			PeerAddress: netip.MustParseAddr("198.51.100.1"),
-			PostPolicy:  true,
-			PathList:    []*table.Path{p},
-		}
-	}
-
-	require.Len(t, bmpRouteMonitoring(ev(), r, bmpTestLogger()), 1)
-	require.Empty(t, bmpRouteMonitoring(ev(), r, bmpTestLogger()))
 }
 
 // RFC 9069 Loc-RIB Route Monitoring uses Peer Type 3 and is always marshalled
@@ -424,7 +352,7 @@ func TestBMPRouteMonitoringEncodesTheReceivedPathID(t *testing.T) {
 		PostPolicy:  true,
 		Neighbor:    makeAddPathNeighbor(true),
 		PathList:    []*table.Path{p},
-	}, newribout(), bmpTestLogger())
+	}, bmpTestLogger())
 	require.Len(t, msgs, 1)
 
 	payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
@@ -462,7 +390,7 @@ func TestBMPRouteMonitoringOmitsPathIDWithoutAddPath(t *testing.T) {
 				PostPolicy:  true,
 				Neighbor:    tc.neighbor,
 				PathList:    []*table.Path{p},
-			}, newribout(), bmpTestLogger())
+			}, bmpTestLogger())
 			require.Len(t, msgs, 1)
 
 			payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
@@ -475,61 +403,13 @@ func TestBMPRouteMonitoringOmitsPathIDWithoutAddPath(t *testing.T) {
 	}
 }
 
-// State compression must hold ADD-PATH paths of one prefix apart. Keyed on
-// the source alone, the second path replaced the first in the cache, and a
-// withdraw of either one then dropped both.
-func TestBMPRiboutHoldsAddPathPathsApart(t *testing.T) {
-	src := "198.51.100.1"
-	p1 := makeIPv4Path(t, "10.5.0.0/24", "192.0.2.1", src, 65001, 1)
-	p2 := makeIPv4Path(t, "10.5.0.0/24", "192.0.2.2", src, 65001, 2)
-	// Paths of one peer share its PeerInfo, as ProcessMessage gives them
-	// peer.peerInfo.Load().
-	p2.SetSource(p1.GetSource())
-	r := newribout()
-
-	// Both paths are new, so both are reported.
-	require.True(t, r.update(p1))
-	require.True(t, r.update(p2))
-	require.Len(t, r[p1.GetNlri().String()], 2)
-
-	// Neither is reported twice.
-	require.False(t, r.update(p1))
-	require.False(t, r.update(p2))
-
-	// Withdrawing one leaves the other cached, so the other is still not
-	// reported again.
-	require.True(t, r.update(p1.Clone(true)))
-	require.Len(t, r[p1.GetNlri().String()], 1)
-	require.False(t, r.update(p2))
-
-	// Withdrawing the second empties the entry.
-	require.True(t, r.update(p2.Clone(true)))
-	require.Empty(t, r)
-}
-
-// A path of another peer is a separate entry, as it always was.
-func TestBMPRiboutHoldsPeersApart(t *testing.T) {
-	p1 := makeIPv4Path(t, "10.5.1.0/24", "192.0.2.1", "198.51.100.1", 65001, 0)
-	p2 := makeIPv4Path(t, "10.5.1.0/24", "192.0.2.2", "198.51.100.2", 65002, 0)
-	r := newribout()
-
-	require.True(t, r.update(p1))
-	require.True(t, r.update(p2))
-	require.Len(t, r[p1.GetNlri().String()], 2)
-
-	require.True(t, r.update(p1.Clone(true)))
-	require.Len(t, r[p1.GetNlri().String()], 1)
-	require.False(t, r.update(p2))
-}
-
-// Both fixes together: an ADD-PATH peer that advertises two paths of one
-// prefix has both reported, each with the identifier the peer gave it.
+// An ADD-PATH peer that advertises two paths of one prefix has both reported,
+// each with the identifier the peer gave it.
 func TestBMPRouteMonitoringReportsBothAddPathPaths(t *testing.T) {
 	p1 := makeIPv4Path(t, "10.6.0.0/24", "192.0.2.1", "198.51.100.1", 65001, 1)
 	p2 := makeIPv4Path(t, "10.6.0.0/24", "192.0.2.2", "198.51.100.1", 65001, 2)
 	p2.SetSource(p1.GetSource())
 
-	r := newribout()
 	neighbor := makeAddPathNeighbor(true)
 	options := []*bgp.MarshallingOption{{
 		AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_BOTH},
@@ -542,7 +422,7 @@ func TestBMPRouteMonitoringReportsBothAddPathPaths(t *testing.T) {
 			PostPolicy:  true,
 			Neighbor:    neighbor,
 			PathList:    []*table.Path{p},
-		}, r, bmpTestLogger())
+		}, bmpTestLogger())
 		require.Len(t, msgs, 1)
 
 		payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
