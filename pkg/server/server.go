@@ -1335,8 +1335,6 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 
 			if !rs {
-				s.notifyPostPolicyUpdateWatcher(peer, []*table.Path{path})
-
 				// RFC4684 Constrained Route Distribution 6. Operation
 				//
 				// When a BGP speaker receives a BGP UPDATE that advertises or withdraws
@@ -1354,6 +1352,22 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 
 			if dsts := rib.Update(path); len(dsts) > 0 {
+				// Report the path to the post-policy watchers only when it is
+				// not the one the table already held. An inbound soft reset
+				// replays the whole Adj-RIB-In, and a subscriber that got the
+				// path once needs no second copy of it: the dump it starts from
+				// and the live stream are registered in one management
+				// operation, so nothing is lost in between and every subscriber
+				// already holds the current value.
+				//
+				// dsts[0] is the update for path. Table.update returns nil only
+				// for a withdrawal that removed nothing, and the extra updates
+				// EVPN MAC mobility appends are never generated for a
+				// withdrawal, so they cannot come first.
+				if !rs && dsts[0].Changed {
+					s.notifyPostPolicyUpdateWatcher(peer, []*table.Path{path})
+				}
+
 				s.propagateUpdateToNeighbors(rib, peer, path, dsts, true)
 			}
 		}(path)

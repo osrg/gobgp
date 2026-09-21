@@ -75,6 +75,82 @@ func TestWatchPostUpdateWithLocalRoute(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// A post-policy watcher is told about a path only when it is not the one the
+// Adj-RIB-In already held. An inbound soft reset replays the whole Adj-RIB-In
+// through propagateUpdate, and a subscriber that got the path once needs no
+// second copy of it.
+func TestPostPolicyWatchSkipsUnchangedPath(t *testing.T) {
+	ctx := context.Background()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1111,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+	})
+
+	peer := newPeerandInfo(t, 1111, 1112, "10.1.142.66", s.globalRib)
+	peer.policy = s.policy
+	peer.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	// toConfig serializes the OPEN the peer sent once the session is up.
+	open, err := bgp.NewBGPOpenMessage(1112, 90, netip.MustParseAddr("10.1.142.66"), nil)
+	require.NoError(t, err)
+	peer.fsm.recvOpen = open
+
+	w, err := s.watch(WatchPostUpdate(false, "", ""))
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.1.142.66"))
+	require.NoError(t, err)
+	newPath := func(med uint32, isWithdraw bool) *table.Path {
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nextHop,
+			bgp.NewPathAttributeMultiExitDisc(med),
+		}
+		return table.NewPath(bgp.RF_IPv4_UC, peer.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, isWithdraw, attrs, time.Now(), false)
+	}
+
+	expectEvent := func(what string) {
+		t.Helper()
+		select {
+		case <-w.Event():
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for the post-policy event of %s", what)
+		}
+	}
+	expectNoEvent := func(what string) {
+		t.Helper()
+		select {
+		case ev := <-w.Event():
+			t.Fatalf("unexpected post-policy event for %s: %#v", what, ev)
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+
+	s.propagateUpdate(peer, []*table.Path{newPath(0, false)})
+	expectEvent("the first advertisement")
+
+	s.propagateUpdate(peer, []*table.Path{newPath(0, false)})
+	expectNoEvent("the same path advertised again")
+
+	s.propagateUpdate(peer, []*table.Path{newPath(100, false)})
+	expectEvent("a different MED")
+
+	s.propagateUpdate(peer, []*table.Path{newPath(100, true)})
+	expectEvent("the withdrawal")
+
+	s.propagateUpdate(peer, []*table.Path{newPath(100, true)})
+	expectNoEvent("a withdrawal that removed nothing")
+}
+
 // TestWatchBestPathNexthopOnlyChange verifies that re-adding a local path
 // with only its nexthop changed produces a new best path event. For MP
 // families the nexthop lives in MP_REACH_NLRI, which is excluded from the
