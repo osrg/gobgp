@@ -250,6 +250,7 @@ func (b *bmpClient) loop() {
 					"global",
 					0,
 					time.Now().Unix(),
+					b.s.globalRib.GetRFlist(),
 				)); err != nil {
 					return false
 				}
@@ -330,7 +331,7 @@ func (b *bmpClient) loop() {
 	}
 }
 
-func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peerDist uint64, timestamp int64) *bmp.BMPMessage {
+func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peerDist uint64, timestamp int64, families []bgp.Family) *bmp.BMPMessage {
 	const asTrans uint16 = 23456
 
 	myAS := asTrans
@@ -351,11 +352,18 @@ func bmpLocRIBPeerUp(localAS uint32, routerID netip.Addr, tableName string, peer
 	// when global multipath happened to be enabled left the fabricated OPEN
 	// describing an encoding that was not the one on the wire, and every NLRI was
 	// then parsed 4 octets out of step.
+	//
+	// The tuple is advertised for every family the Loc-RIB holds a table for,
+	// which is every family gobgp supports. A narrower list would have to be
+	// revised whenever the first route of a family is installed, and this Peer
+	// Up is sent once, when the BMP session comes up. RFC 9069 has no way to
+	// amend the capabilities of a peer that is already up.
+	tuples := make([]*bgp.CapAddPathTuple, 0, len(families))
+	for _, f := range families {
+		tuples = append(tuples, bgp.NewCapAddPathTuple(f, bgp.BGP_ADD_PATH_BOTH))
+	}
 	opts = append(opts, bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
-		bgp.NewCapAddPath([]*bgp.CapAddPathTuple{
-			bgp.NewCapAddPathTuple(bgp.RF_IPv4_UC, bgp.BGP_ADD_PATH_BOTH),
-			bgp.NewCapAddPathTuple(bgp.RF_IPv6_UC, bgp.BGP_ADD_PATH_BOTH),
-		}),
+		bgp.NewCapAddPath(tuples),
 	}))
 
 	open, _ := bgp.NewBGPOpenMessage(myAS, 90, routerID, opts)

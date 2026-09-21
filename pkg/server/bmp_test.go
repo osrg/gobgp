@@ -114,6 +114,8 @@ func localRIBPeerUp(t *testing.T) *packetbmp.BMPMessage {
 		"global",
 		0,
 		time.Now().Unix(),
+		// What the client passes: the families the Loc-RIB holds a table for.
+		locRibFamilies(),
 	)
 }
 
@@ -157,15 +159,97 @@ func findAddPathCapability(open *bgp.BGPOpen) *bgp.CapAddPath {
 // TestBMPAddPathMarshallingOptionCarriesPathIDOnWithdraw), so the fabricated
 // OPEN must always advertise the capability. Omitting it left receivers parsing
 // the NLRIs 4 octets out of step. RFC 9069 5.2.
+//
+// Every family the Loc-RIB holds a table for is encoded that way, not only the
+// two unicast ones, so every family needs the tuple.
 func TestBMPLocRIBPeerUpAlwaysCarriesAddPathCapability(t *testing.T) {
 	open := localRIBPeerUpOpen(t)
 	addPath := findAddPathCapability(open)
 	require.NotNil(t, addPath)
-	require.Len(t, addPath.Tuples, 2)
-	require.Equal(t, bgp.RF_IPv4_UC, addPath.Tuples[0].Family)
-	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[0].Mode)
-	require.Equal(t, bgp.RF_IPv6_UC, addPath.Tuples[1].Family)
-	require.Equal(t, bgp.BGP_ADD_PATH_BOTH, addPath.Tuples[1].Mode)
+
+	advertised := make(map[bgp.Family]bgp.BGPAddPathMode, len(addPath.Tuples))
+	for _, tuple := range addPath.Tuples {
+		advertised[tuple.Family] = tuple.Mode
+	}
+	for _, f := range locRibFamilies() {
+		require.Equal(t, bgp.BGP_ADD_PATH_BOTH, advertised[f], "family %s", f)
+	}
+	require.Len(t, advertised, len(locRibFamilies()))
+
+	// One tuple per family is 4 octets, and the Optional Parameters Length of
+	// an OPEN is a single octet. Serializing past 255 wraps that octet without
+	// an error, and the receiver then reads a malformed OPEN, so the Peer Up
+	// has to survive a round trip.
+	buf, err := localRIBPeerUp(t).Serialize()
+	require.NoError(t, err)
+	msg, err := packetbmp.ParseBMPMessage(buf)
+	require.NoError(t, err)
+	reparsed := msg.Body.(*packetbmp.BMPPeerUpNotification).SentOpenMsg.Body.(*bgp.BGPOpen)
+	require.Equal(t, len(addPath.Tuples), len(findAddPathCapability(reparsed).Tuples))
+}
+
+// The capability list is what a receiver decodes Route Monitoring with, so it
+// has to cover the encoding of a family that is not unicast as well.
+func TestBMPLocRIBRouteMonitoringDecodesWithTheAdvertisedCapability(t *testing.T) {
+	rd, err := bgp.ParseRouteDistinguisher("65002:100")
+	require.NoError(t, err)
+	nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.8.0.0/24"), *bgp.NewMPLSLabelStack(100), rd)
+	require.NoError(t, err)
+	nexthop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65002})}),
+		nexthop,
+	}
+	p := table.NewPath(
+		bgp.RF_IPv4_VPN,
+		&table.PeerInfo{AS: 65002, ID: netip.MustParseAddr("198.51.100.1"), Address: netip.MustParseAddr("198.51.100.1")},
+		bgp.PathNLRI{NLRI: nlri, ID: 7},
+		false,
+		attrs,
+		time.Unix(100, 0),
+		false,
+	)
+
+	msgs := bmpLocRIBRouteMonitoring(&watchEventBestPath{}, &table.PeerInfo{}, bmpTestLogger())
+	require.Empty(t, msgs, "no paths, no messages")
+
+	msgs = bmpLocRIBRouteMonitoring(&watchEventBestPath{PathList: []*table.Path{p}}, &table.PeerInfo{}, bmpTestLogger())
+	require.Len(t, msgs, 1)
+	payload := msgs[0].Body.(*packetbmp.BMPRouteMonitoring).BGPUpdatePayload
+
+	// Decode with exactly what the fabricated OPEN advertises.
+	addPath := findAddPathCapability(localRIBPeerUpOpen(t))
+	require.NotNil(t, addPath)
+	modes := make(map[bgp.Family]bgp.BGPAddPathMode, len(addPath.Tuples))
+	for _, tuple := range addPath.Tuples {
+		modes[tuple.Family] = tuple.Mode
+	}
+	decoded, err := bgp.ParseBGPMessage(payload, &bgp.MarshallingOption{AddPath: modes})
+	require.NoError(t, err)
+
+	reach := findMPReachNLRI(decoded.Body.(*bgp.BGPUpdate))
+	require.NotNil(t, reach)
+	require.Len(t, reach.Value, 1)
+	require.Equal(t, nlri.String(), reach.Value[0].NLRI.String())
+	// The Loc-RIB reports the identifier gobgp gave the path.
+	require.Equal(t, p.LocalID(), reach.Value[0].ID)
+
+	// A receiver that was not told about ADD-PATH for this family reads the
+	// path identifier as the head of the NLRI and cannot parse it at all. That
+	// is what the fabricated OPEN has to prevent.
+	_, err = bgp.ParseBGPMessage(payload)
+	require.Error(t, err)
+}
+
+func findMPReachNLRI(update *bgp.BGPUpdate) *bgp.PathAttributeMpReachNLRI {
+	for _, attr := range update.PathAttributes {
+		if reach, ok := attr.(*bgp.PathAttributeMpReachNLRI); ok {
+			return reach
+		}
+	}
+	return nil
 }
 
 // RFC 9069 5.2: "Capabilities MUST include the 4-octet ASN and all necessary
@@ -187,7 +271,7 @@ func TestBMPLocRIBPeerUpAlwaysCarriesFourOctetASCapability(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := bmpLocRIBPeerUp(tt.localAS, netip.MustParseAddr(locRIBTestRouterID), "global", 0, time.Now().Unix())
+			msg := bmpLocRIBPeerUp(tt.localAS, netip.MustParseAddr(locRIBTestRouterID), "global", 0, time.Now().Unix(), locRibFamilies())
 			open := msg.Body.(*packetbmp.BMPPeerUpNotification).SentOpenMsg.Body.(*bgp.BGPOpen)
 
 			require.Equal(t, tt.wantMyAS, open.MyAS)
