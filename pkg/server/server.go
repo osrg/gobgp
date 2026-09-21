@@ -2692,6 +2692,23 @@ func (s *BgpServer) updatePath(vrfId string, pathList []*table.Path) error {
 	return err
 }
 
+// locRibFamilies lists every address family gobgp can handle, in AFI/SAFI
+// order. The Loc-RIB holds a table for each of them.
+//
+// global.afi-safis used to select this set, which made a family left out of
+// it a silent hole. The session came up and the peer got the capability, but
+// TableManager.Update drops a path whose family has no table. A table that
+// never receives a route costs a few hundred bytes, so there is no reason to
+// restrict the set.
+func locRibFamilies() []bgp.Family {
+	l := make([]bgp.Family, 0, len(bgp.AddressFamilyNameMap))
+	for f := range bgp.AddressFamilyNameMap {
+		l = append(l, f)
+	}
+	slices.Sort(l)
+	return l
+}
+
 func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error {
 	if r == nil || r.Global == nil {
 		return fmt.Errorf("nil request")
@@ -2723,7 +2740,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 			s.acceptCh = acceptCh
 		}
 
-		rfs, _ := oc.AfiSafis(c.AfiSafis).ToRfList()
+		rfs := locRibFamilies()
 		s.globalRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
 		s.rsRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
 

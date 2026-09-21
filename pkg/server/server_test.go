@@ -5391,3 +5391,53 @@ func TestListPolicyOriginCondition(t *testing.T) {
 		assert.Equal(t, origin, listed[0].Conditions.Origin, "ListStatement, statement %s", name)
 	}
 }
+
+// global.afi-safis no longer selects the Loc-RIB tables. A family left out of
+// it used to have no table, and TableManager.Update drops a path whose family
+// has no table, so the route went nowhere without an error.
+func TestGlobalAfiSafisDoesNotRestrictLocRib(t *testing.T) {
+	assert := assert.New(t)
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+			// IPv4 unicast only.
+			Families: []uint32{uint32(oc.AfiSafiTypeToIntMap[oc.AFI_SAFI_TYPE_IPV4_UNICAST])},
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	for _, family := range locRibFamilies() {
+		_, ok := s.globalRib.GetTable(family)
+		assert.True(ok, "no global Loc-RIB table for %s", family)
+		_, ok = s.rsRib.GetTable(family)
+		assert.True(ok, "no route server Loc-RIB table for %s", family)
+	}
+
+	// A path of a family outside global.afi-safis reaches the Loc-RIB.
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64"))
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("2001:db8::1"))
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nexthop}
+	path, _ := apiutil.NewPath(bgp.RF_IPv6_UC, nlri, false, attrs, time.Now())
+	_, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path)}})
+	assert.NoError(err)
+
+	count := 0
+	err = s.ListPath(apiutil.ListPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Family:    bgp.RF_IPv6_UC,
+	}, func(prefix bgp.NLRI, paths []*apiutil.Path) {
+		count += len(paths)
+	})
+	assert.NoError(err)
+	assert.Equal(1, count)
+
+	// DeleteVrf walks the RTC table unconditionally. It used to be nil when
+	// rtc was left out of global.afi-safis.
+	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
+	assert.NoError(s.DeleteVrf(context.Background(), &api.DeleteVrfRequest{Name: "vrf1"}))
+}
