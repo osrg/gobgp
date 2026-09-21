@@ -71,6 +71,16 @@ Please treat your pull request as "frozen" once it has been created. Adding new 
 
 During the review process, you may discover that changes you didn’t originally anticipate are required. For example, modifying code X in response to review comments may reveal the need to adjust code B as well. Even in such cases, if the change to code B can be considered a separate logical change, it is expected that you do not add a new commit to the existing pull request. Instead, you should create a new pull request for the code B change and get it merged first.
 
+## Using AI tools
+
+You may use AI tools such as large language models. These rules follow the Linux kernel guidelines for tool-generated content (`Documentation/process/generated-content.rst`).
+
+- Say that you used one. Add an `Assisted-by: Claude Opus 5 <noreply@anthropic.com>` trailer to the commit message. Do not use `Co-Authored-By`. A tool is not an author.
+- You are responsible for the result. You must understand the whole change and be able to explain it. If you cannot answer a review comment without going back to the tool, do not send the change. A pull request that its author cannot explain may be closed without a review.
+- The same applies to an issue. Do not open one only because a tool read the code and said that it looks wrong. Reproduce the problem first, and send a fix if you can write one.
+
+Trivial help, such as completion or formatting, needs no disclosure.
+
 ## Testing
 
 Before sending pull request, please make sure that your changes have passed both unit and integration tests. Check out [the tests](https://github.com/osrg/gobgp/blob/master/.github/workflows/ci.yml) triggered by a pull request. If you need to debug the integration tests, it's a good idea to run them [locally](https://github.com/osrg/gobgp/blob/master/test/scenario_test/README.md).
