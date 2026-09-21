@@ -293,6 +293,10 @@ func showNeighbor(args []string) error {
 	}
 	fmt.Printf("  BGP OutQ = %d, Flops = %d\n", p.State.Queues.Output, p.State.Flops)
 	fmt.Printf("  Local address is %s, local ASN: %s\n", p.Transport.LocalAddress, getLocalASN(p))
+	if tcpAo := p.GetTcpAo(); tcpAo != nil {
+		fmt.Printf("  TCP-AO keychain is %s, send ID: %d\n", tcpAo.GetKeychain(), tcpAo.GetSendId())
+	}
+	fmt.Print(formatTcpAoPeerState(p.State.GetTcpAoState()))
 	fmt.Printf("  Hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.State.NegotiatedHoldTime), int(p.Timers.State.KeepaliveInterval))
 	fmt.Printf("  Configured hold time is %d, keepalive interval is %d seconds\n", int(p.Timers.Config.HoldTime), int(p.Timers.Config.KeepaliveInterval))
 
@@ -1302,7 +1306,9 @@ func modNeighbor(cmdType string, args []string) error {
 		params["replace-peer-as"] = paramFlag
 		params["ebgp-multihop-ttl"] = paramSingle
 		params["peer-group"] = paramSingle
-		usage += " [ local-as <VALUE> | family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl> | peer-group <peer-group-name>]"
+		params["tcp-ao-keychain"] = paramSingle
+		params["tcp-ao-send-id"] = paramSingle
+		usage += " [ local-as <VALUE> | family <address-families-list> | vrf <vrf-name> | route-reflector-client [<cluster-id>] | route-server-client | allow-own-as <num> | remove-private-as (all|replace) | replace-peer-as | ebgp-multihop-ttl <ttl> | peer-group <peer-group-name> | tcp-ao-keychain <name> | tcp-ao-send-id <0..255>]"
 	}
 
 	m, err := extractReserved(args, params)
@@ -1425,6 +1431,24 @@ func modNeighbor(cmdType string, args []string) error {
 		}
 		if len(m["peer-group"]) == 1 {
 			peer.Conf.PeerGroup = m["peer-group"][0]
+		}
+		if len(m["tcp-ao-send-id"]) == 1 && len(m["tcp-ao-keychain"]) == 0 && (peer.TcpAo == nil || peer.TcpAo.GetKeychain() == "") {
+			return fmt.Errorf("tcp-ao-send-id requires tcp-ao-keychain")
+		}
+		if len(m["tcp-ao-keychain"]) == 1 || len(m["tcp-ao-send-id"]) == 1 {
+			if peer.TcpAo == nil {
+				peer.TcpAo = &api.TcpAoPeerConfig{}
+			}
+			if len(m["tcp-ao-keychain"]) == 1 {
+				peer.TcpAo.Keychain = m["tcp-ao-keychain"][0]
+			}
+			if len(m["tcp-ao-send-id"]) == 1 {
+				sendID, err := parseTcpAoID(m["tcp-ao-send-id"][0])
+				if err != nil {
+					return err
+				}
+				peer.TcpAo.SendId = sendID
+			}
 		}
 		return nil
 	}
