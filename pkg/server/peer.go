@@ -36,24 +36,14 @@ const (
 
 type peerGroup struct {
 	Conf             *oc.PeerGroup
-	members          map[string]oc.Neighbor
 	dynamicNeighbors map[string]*oc.DynamicNeighbor
 }
 
 func newPeerGroup(c *oc.PeerGroup) *peerGroup {
 	return &peerGroup{
 		Conf:             c,
-		members:          make(map[string]oc.Neighbor),
 		dynamicNeighbors: make(map[string]*oc.DynamicNeighbor),
 	}
-}
-
-func (pg *peerGroup) AddMember(c oc.Neighbor) {
-	pg.members[c.State.NeighborAddress.String()] = c
-}
-
-func (pg *peerGroup) DeleteMember(c oc.Neighbor) {
-	delete(pg.members, c.State.NeighborAddress.String())
 }
 
 func (pg *peerGroup) AddDynamicNeighbor(c *oc.DynamicNeighbor) {

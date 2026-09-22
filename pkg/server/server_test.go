@@ -5517,3 +5517,284 @@ func TestGlobalAfiSafisDoesNotRestrictLocRib(t *testing.T) {
 	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
 	assert.NoError(s.DeleteVrf(context.Background(), &api.DeleteVrfRequest{Name: "vrf1"}))
 }
+
+// A peer group update used to do nothing for the peers already in the group.
+// peerGroup.members held the merged neighbor configuration, so
+// SetDefaultNeighborConfigValues returned early and the group values were
+// never applied again.
+func TestUpdatePeerGroupAppliesToMembers(t *testing.T) {
+	assert := assert.New(t)
+
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	// Not 127.0.0.1: RegisterConfiguredFields is global and another test
+	// leaves a record for that address.
+	const inherits = "127.0.0.2"
+	const pins = "127.0.0.3"
+
+	err = s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+		PeerGroup: &api.PeerGroup{
+			Conf: &api.PeerGroupConf{PeerGroupName: "g", PeerAsn: 2},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{HoldTime: 90, KeepaliveInterval: 30},
+			},
+		},
+	})
+	assert.NoError(err)
+
+	addPeer := func(addr string, holdTime uint64) {
+		t.Helper()
+		timers := &api.TimersConfig{ConnectRetry: 1, IdleHoldTimeAfterReset: 1}
+		if holdTime != 0 {
+			timers.HoldTime = holdTime
+		}
+		err := s.AddPeer(context.Background(), &api.AddPeerRequest{
+			Peer: &api.Peer{
+				Conf:      &api.PeerConf{NeighborAddress: addr, PeerGroup: "g"},
+				Transport: &api.Transport{PassiveMode: true},
+				Timers:    &api.Timers{Config: timers},
+			},
+		})
+		assert.NoError(err)
+	}
+	addPeer(inherits, 0)
+	addPeer(pins, 180)
+
+	holdTimes := func(when string) map[string]uint64 {
+		t.Helper()
+		got := map[string]uint64{}
+		err := s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(p *api.Peer) {
+			got[p.GetConf().GetNeighborAddress()] = p.GetTimers().GetConfig().GetHoldTime()
+		})
+		assert.NoError(err, when)
+		return got
+	}
+
+	assert.Equal(map[string]uint64{inherits: 90, pins: 180}, holdTimes("after add"))
+
+	_, err = s.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+		PeerGroup: &api.PeerGroup{
+			Conf: &api.PeerGroupConf{PeerGroupName: "g", PeerAsn: 2},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{HoldTime: 30, KeepaliveInterval: 10},
+			},
+		},
+	})
+	assert.NoError(err)
+
+	// The member that left hold-time out follows the group. The member that
+	// set its own keeps it.
+	assert.Equal(map[string]uint64{inherits: 30, pins: 180}, holdTimes("after group update"))
+}
+
+// The member record is what the caller passed, so a peer group update must
+// not put back what UpdatePeer replaced.
+func TestUpdatePeerGroupKeepsPeerUpdates(t *testing.T) {
+	assert := assert.New(t)
+
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	const addr = "127.0.0.2"
+
+	err = s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+		PeerGroup: &api.PeerGroup{
+			Conf:   &api.PeerGroupConf{PeerGroupName: "g", PeerAsn: 2},
+			Timers: &api.Timers{Config: &api.TimersConfig{HoldTime: 90}},
+		},
+	})
+	assert.NoError(err)
+
+	peer := func(holdTime uint64) *api.Peer {
+		timers := &api.TimersConfig{ConnectRetry: 1, IdleHoldTimeAfterReset: 1}
+		timers.HoldTime = holdTime
+		return &api.Peer{
+			Conf:      &api.PeerConf{NeighborAddress: addr, PeerGroup: "g"},
+			Transport: &api.Transport{PassiveMode: true},
+			Timers:    &api.Timers{Config: timers},
+		}
+	}
+
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer(0)})
+	assert.NoError(err)
+
+	holdTime := func(when string) uint64 {
+		t.Helper()
+		var got uint64
+		err := s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(p *api.Peer) {
+			got = p.GetTimers().GetConfig().GetHoldTime()
+		})
+		assert.NoError(err, when)
+		return got
+	}
+
+	assert.Equal(uint64(90), holdTime("after add"))
+
+	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: peer(45)})
+	assert.NoError(err)
+	assert.Equal(uint64(45), holdTime("after peer update"))
+
+	_, err = s.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+		PeerGroup: &api.PeerGroup{
+			Conf:   &api.PeerGroupConf{PeerGroupName: "g", PeerAsn: 2},
+			Timers: &api.Timers{Config: &api.TimersConfig{HoldTime: 60}},
+		},
+	})
+	assert.NoError(err)
+
+	assert.Equal(uint64(45), holdTime("after group update"))
+}
+
+// A peer group configuration that no member can take must change nothing.
+func TestUpdatePeerGroupRejectedLeavesMembersAlone(t *testing.T) {
+	assert := assert.New(t)
+
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	const addr = "127.0.0.2"
+
+	err = s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+		PeerGroup: &api.PeerGroup{
+			Conf:   &api.PeerGroupConf{PeerGroupName: "g", PeerAsn: 2},
+			Timers: &api.Timers{Config: &api.TimersConfig{HoldTime: 90}},
+		},
+	})
+	assert.NoError(err)
+
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: &api.Peer{
+			Conf:      &api.PeerConf{NeighborAddress: addr, PeerGroup: "g"},
+			Transport: &api.Transport{PassiveMode: true},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{ConnectRetry: 1, IdleHoldTimeAfterReset: 1},
+			},
+		},
+	})
+	assert.NoError(err)
+
+	// ebgp-multihop and ttl-security are mutually exclusive, so the merge
+	// fails for the member.
+	_, err = s.UpdatePeerGroup(context.Background(), &api.UpdatePeerGroupRequest{
+		PeerGroup: &api.PeerGroup{
+			Conf:         &api.PeerGroupConf{PeerGroupName: "g", PeerAsn: 2},
+			Timers:       &api.Timers{Config: &api.TimersConfig{HoldTime: 30}},
+			EbgpMultihop: &api.EbgpMultihop{Enabled: true, MultihopTtl: 5},
+			TtlSecurity:  &api.TtlSecurity{Enabled: true, TtlMin: 254},
+		},
+	})
+	assert.Error(err)
+
+	var holdTime uint64
+	err = s.ListPeer(context.Background(), &api.ListPeerRequest{}, func(p *api.Peer) {
+		holdTime = p.GetTimers().GetConfig().GetHoldTime()
+	})
+	assert.NoError(err)
+	assert.Equal(uint64(90), holdTime)
+
+	var groupHoldTime uint64
+	err = s.ListPeerGroup(context.Background(), &api.ListPeerGroupRequest{}, func(pg *api.PeerGroup) {
+		groupHoldTime = pg.GetTimers().GetConfig().GetHoldTime()
+	})
+	assert.NoError(err)
+	assert.Equal(uint64(90), groupHoldTime)
+}
+
+// A dynamic neighbor is built from the peer group every time it connects, and
+// newDynamicPeer forces settings of its own on top. A group update must not
+// walk over it.
+func TestUpdatePeerGroupSkipsDynamicNeighbor(t *testing.T) {
+	assert := assert.New(t)
+
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	assert.NoError(err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	const static = "127.0.0.2"
+	const dynamic = "127.0.0.9"
+
+	err = s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
+		PeerGroup: &api.PeerGroup{
+			Conf:   &api.PeerGroupConf{PeerGroupName: "g", PeerAsn: 2},
+			Timers: &api.Timers{Config: &api.TimersConfig{HoldTime: 90}},
+		},
+	})
+	assert.NoError(err)
+
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: &api.Peer{
+			Conf:      &api.PeerConf{NeighborAddress: static, PeerGroup: "g"},
+			Transport: &api.Transport{PassiveMode: true},
+			Timers: &api.Timers{
+				Config: &api.TimersConfig{ConnectRetry: 1, IdleHoldTimeAfterReset: 1},
+			},
+		},
+	})
+	assert.NoError(err)
+
+	// The real dynamic peer is created when a remote connects. Put one in
+	// place by hand, and take it out again before StopBgp: it has no FSM
+	// handler running, so the server cannot stop it.
+	err = s.mgmtOperation(func() error {
+		pg := s.peerGroupMap["g"]
+		p := newDynamicPeer(&s.bgpConfig.Global, dynamic, pg.Conf, s.globalRib, s.policy, s.logger)
+		if p == nil {
+			return fmt.Errorf("failed to create the dynamic peer")
+		}
+		s.neighborMap[netip.MustParseAddr(dynamic)] = p
+		return nil
+	}, true)
+	assert.NoError(err)
+	defer func() {
+		_ = s.mgmtOperation(func() error {
+			delete(s.neighborMap, netip.MustParseAddr(dynamic))
+			return nil
+		}, true)
+	}()
+
+	var members []string
+	err = s.mgmtOperation(func() error {
+		for _, m := range s.peerGroupMembers("g") {
+			members = append(members, m.Config.NeighborAddress.String())
+		}
+		return nil
+	}, true)
+	assert.NoError(err)
+	assert.Equal([]string{static}, members)
+}

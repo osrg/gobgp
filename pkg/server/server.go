@@ -3663,9 +3663,6 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 	}
 	s.neighborMap[ipAddr] = peer
 	s.rebuildLocalClusterIDs()
-	if name := c.Config.PeerGroup; name != "" {
-		s.peerGroupMap[name].AddMember(*c)
-	}
 	if s.bfdServer != nil {
 		if err := s.bfdServer.AddPeer(context.Background(), ipAddr, c.Bfd.Config, c.Transport.Config.BindInterface); err != nil {
 			s.logger.Warn("failed to add BFD peer",
@@ -3906,11 +3903,6 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 			}
 		}
 	}
-	if configured.Config.PeerGroup != "" {
-		if group, ok := s.peerGroupMap[configured.Config.PeerGroup]; ok {
-			group.DeleteMember(*configured)
-		}
-	}
 	n.fsm.logger.Info("Delete a peer configuration")
 
 	if sendNotification {
@@ -4000,16 +3992,56 @@ func (s *BgpServer) updatePeerGroup(pg *oc.PeerGroup) (needsSoftResetIn bool, er
 	if pg.TcpAo.Config.Keychain != "" && len(group.dynamicNeighbors) != 0 {
 		return false, status.Error(codes.Unimplemented, "TCP-AO dynamic neighbors are not supported")
 	}
+
+	members := s.peerGroupMembers(name)
+
+	// Merge every member against the new group configuration before anything
+	// is changed. A member that cannot be merged must not leave the group and
+	// the other members updated.
+	for i := range members {
+		c := cloneNeighborConfig(&members[i])
+		if err := oc.SetDefaultNeighborConfigValues(&c, pg, &s.bgpConfig.Global); err != nil {
+			return false, fmt.Errorf("peer-group %s: %w", name, err)
+		}
+	}
+
 	group.Conf = pg
 
-	for _, n := range group.members {
-		u, err := s.updateNeighbor(&n)
+	for i := range members {
+		u, err := s.updateNeighbor(&members[i])
 		if err != nil {
 			return needsSoftResetIn, err
 		}
 		needsSoftResetIn = needsSoftResetIn || u
 	}
 	return needsSoftResetIn, nil
+}
+
+// peerGroupMembers returns the configuration of every peer that belongs to the
+// peer group, as the operator gave it, sorted by neighbor address. The peer
+// group values are not in it, so merging it against the group configuration
+// again gives the peer its share of a group update.
+//
+// A dynamic neighbor is left out. It is built from the peer group every time
+// it connects, and newDynamicPeer forces settings of its own on top.
+func (s *BgpServer) peerGroupMembers(name string) []oc.Neighbor {
+	addrs := make([]netip.Addr, 0, len(s.neighborMap))
+	for addr, peer := range s.neighborMap {
+		if peer.isDynamicNeighbor() {
+			continue
+		}
+		if peer.fsm.pConf.ReadOnly().Config.PeerGroup != name {
+			continue
+		}
+		addrs = append(addrs, addr)
+	}
+	slices.SortFunc(addrs, func(a, b netip.Addr) int { return a.Compare(b) })
+
+	members := make([]oc.Neighbor, 0, len(addrs))
+	for _, addr := range addrs {
+		members = append(members, cloneNeighborConfig(&s.neighborMap[addr].configuredConf))
+	}
+	return members
 }
 
 func (s *BgpServer) UpdatePeerGroup(ctx context.Context, r *api.UpdatePeerGroupRequest) (rsp *api.UpdatePeerGroupResponse, err error) {
