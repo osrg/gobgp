@@ -125,20 +125,37 @@ func SetBindToDevSockopt(sc syscall.RawConn, device string) error {
 	return setSockOptString(sc, syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, device)
 }
 
+// rawConnFromNetConn returns the syscall.RawConn for conn.
+// Non-OS sockets (for example gVisor gonet) do not implement syscall.Conn;
+// in that case it returns (nil, nil) so callers can skip setsockopt.
+func rawConnFromNetConn(conn net.Conn) (syscall.RawConn, error) {
+	sysConn, ok := conn.(syscall.Conn)
+	if !ok {
+		return nil, nil
+	}
+	return sysConn.SyscallConn()
+}
+
 func SetTCPTTLSockopt(conn net.Conn, ttl int) error {
 	family := extractFamilyFromConn(conn)
-	sc, err := conn.(syscall.Conn).SyscallConn()
+	sc, err := rawConnFromNetConn(conn)
 	if err != nil {
 		return err
+	}
+	if sc == nil {
+		return nil
 	}
 	return setSockOptIpTtl(sc, family, ttl)
 }
 
 func SetTCPMinTTLSockopt(conn net.Conn, ttl int) error {
 	family := extractFamilyFromConn(conn)
-	sc, err := conn.(syscall.Conn).SyscallConn()
+	sc, err := rawConnFromNetConn(conn)
 	if err != nil {
 		return err
+	}
+	if sc == nil {
+		return nil
 	}
 	level := syscall.IPPROTO_IP
 	name := syscall.IP_MINTTL
@@ -151,27 +168,36 @@ func SetTCPMinTTLSockopt(conn net.Conn, ttl int) error {
 
 func SetTCPMSSSockopt(conn net.Conn, mss uint16) error {
 	family := extractFamilyFromConn(conn)
-	sc, err := conn.(syscall.Conn).SyscallConn()
+	sc, err := rawConnFromNetConn(conn)
 	if err != nil {
 		return err
+	}
+	if sc == nil {
+		return nil
 	}
 	return setSockOptTcpMss(sc, family, mss)
 }
 
 func SetIPTOSSockopt(conn net.Conn, tos uint8) error {
 	family := extractFamilyFromConn(conn)
-	sc, err := conn.(syscall.Conn).SyscallConn()
+	sc, err := rawConnFromNetConn(conn)
 	if err != nil {
 		return err
+	}
+	if sc == nil {
+		return nil
 	}
 	return setSockOptIpTos(sc, family, tos)
 }
 
 func SetUDPTTLSockopt(conn net.Conn, ttl int) error {
 	family := extractFamilyFromConn(conn)
-	sc, err := conn.(syscall.Conn).SyscallConn()
+	sc, err := rawConnFromNetConn(conn)
 	if err != nil {
 		return err
+	}
+	if sc == nil {
+		return nil
 	}
 	return setSockOptIpTtl(sc, family, ttl)
 }

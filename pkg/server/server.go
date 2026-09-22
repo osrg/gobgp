@@ -75,11 +75,12 @@ type nopTimingHook struct{}
 func (n nopTimingHook) Observe(op FSMOperation, tOp, tWait time.Duration) {}
 
 type options struct {
-	grpcAddress string
-	grpcOption  []grpc.ServerOption
-	logger      *slog.Logger
-	logLevelVar *slog.LevelVar
-	timingHook  FSMTimingHook
+	grpcAddress       string
+	grpcOption        []grpc.ServerOption
+	logger            *slog.Logger
+	logLevelVar       *slog.LevelVar
+	timingHook        FSMTimingHook
+	externalListeners []net.Listener
 }
 
 type ServerOption func(*options)
@@ -109,6 +110,16 @@ func TimingHookOption(hook FSMTimingHook) ServerOption {
 	}
 }
 
+// ExternalListenerOption registers pre-created listeners. Connections
+// accepted on them are passed to the BGP FSM the same way as connections
+// from GoBGP's internal TCP listener. Use this when the process cannot
+// bind a host socket (for example a gVisor netstack listener).
+func ExternalListenerOption(listeners ...net.Listener) ServerOption {
+	return func(o *options) {
+		o.externalListeners = append(o.externalListeners, listeners...)
+	}
+}
+
 const propagateBucketCount = 2048
 
 type sharedData struct {
@@ -133,32 +144,34 @@ func (d *sharedData) propagateBucket(path *table.Path) *sync.Mutex {
 }
 
 type BgpServer struct {
-	shared        *sharedData
-	apiServer     *server
-	bgpConfig     oc.Bgp
-	acceptCh      chan net.Conn
-	mgmtCh        chan *mgmtOp
-	closeCh       chan struct{}
-	policy        *table.RoutingPolicy
-	listeners     []*netutils.TCPListener
-	neighborMap   map[netip.Addr]*peer
-	rrClusterIDs  map[netip.Addr]struct{}
-	peerGroupMap  map[string]*peerGroup
-	globalRib     *table.TableManager
-	rsRib         *table.TableManager
-	roaManager    *roaManager
-	watcherMap    map[watchEventType][]*watcher
-	watcherMu     sync.RWMutex
-	zclient       *zebraClient
-	bmpManager    *bmpClientManager
-	mrtManager    *mrtManager
-	roaTable      *table.ROATable
-	uuidMap       map[string]uuid.UUID
-	bfdServer     *bfdServer
-	keychainStore *tcpAoKeychainStore
-	logger        *slog.Logger
-	logLevelVar   *slog.LevelVar
-	timingHook    FSMTimingHook
+	shared                *sharedData
+	apiServer             *server
+	bgpConfig             oc.Bgp
+	acceptCh              chan net.Conn
+	mgmtCh                chan *mgmtOp
+	closeCh               chan struct{}
+	policy                *table.RoutingPolicy
+	listeners             []*netutils.TCPListener
+	externalListeners     []net.Listener
+	externalAcceptStarted map[net.Listener]struct{}
+	neighborMap           map[netip.Addr]*peer
+	rrClusterIDs          map[netip.Addr]struct{}
+	peerGroupMap          map[string]*peerGroup
+	globalRib             *table.TableManager
+	rsRib                 *table.TableManager
+	roaManager            *roaManager
+	watcherMap            map[watchEventType][]*watcher
+	watcherMu             sync.RWMutex
+	zclient               *zebraClient
+	bmpManager            *bmpClientManager
+	mrtManager            *mrtManager
+	roaTable              *table.ROATable
+	uuidMap               map[string]uuid.UUID
+	bfdServer             *bfdServer
+	keychainStore         *tcpAoKeychainStore
+	logger                *slog.Logger
+	logLevelVar           *slog.LevelVar
+	timingHook            FSMTimingHook
 	// manage lifecycle of the server
 	isServing     atomic.Bool
 	shutdownWG    *sync.WaitGroup
@@ -183,21 +196,23 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	shared := newSharedData()
 
 	s := &BgpServer{
-		shared:       shared,
-		neighborMap:  make(map[netip.Addr]*peer),
-		rrClusterIDs: make(map[netip.Addr]struct{}),
-		peerGroupMap: make(map[string]*peerGroup),
-		policy:       table.NewRoutingPolicy(logger),
-		mgmtCh:       make(chan *mgmtOp),
-		closeCh:      make(chan struct{}),
-		watcherMap:   make(map[watchEventType][]*watcher),
-		uuidMap:      make(map[string]uuid.UUID),
-		roaManager:   newROAManager(roaTable, logger),
-		roaTable:     roaTable,
-		logger:       logger,
-		logLevelVar:  lvl,
-		timingHook:   opts.timingHook,
-		shutdownWG:   &sync.WaitGroup{},
+		shared:                shared,
+		neighborMap:           make(map[netip.Addr]*peer),
+		rrClusterIDs:          make(map[netip.Addr]struct{}),
+		peerGroupMap:          make(map[string]*peerGroup),
+		policy:                table.NewRoutingPolicy(logger),
+		mgmtCh:                make(chan *mgmtOp),
+		closeCh:               make(chan struct{}),
+		watcherMap:            make(map[watchEventType][]*watcher),
+		uuidMap:               make(map[string]uuid.UUID),
+		roaManager:            newROAManager(roaTable, logger),
+		roaTable:              roaTable,
+		logger:                logger,
+		logLevelVar:           lvl,
+		timingHook:            opts.timingHook,
+		shutdownWG:            &sync.WaitGroup{},
+		externalListeners:     append([]net.Listener{}, opts.externalListeners...),
+		externalAcceptStarted: make(map[net.Listener]struct{}),
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
@@ -243,6 +258,125 @@ func (s *BgpServer) listListeners(addr string) []*net.TCPListener {
 		}
 	}
 	return list
+}
+
+func (s *BgpServer) withExternalListeners(fn func() error) error {
+	if s.isServing.Load() {
+		return s.mgmtOperation(fn, false)
+	}
+	return fn()
+}
+
+// AddExternalListener adds an already-created listener. If BGP has started,
+// the server immediately accepts connections from it.
+func (s *BgpServer) AddExternalListener(listener net.Listener) error {
+	if listener == nil {
+		return fmt.Errorf("listener cannot be nil")
+	}
+	return s.withExternalListeners(func() error {
+		s.externalListeners = append(s.externalListeners, listener)
+		s.logger.Info("added external listener",
+			slog.String("Topic", "ExternalListener"),
+			slog.String("Addr", listener.Addr().String()),
+		)
+		s.startExternalListener(listener)
+		return nil
+	})
+}
+
+// RemoveExternalListener unregisters a listener previously added with
+// AddExternalListener or ExternalListenerOption. The caller still owns the
+// listener and must Close it to unblock Accept.
+func (s *BgpServer) RemoveExternalListener(listener net.Listener) error {
+	if listener == nil {
+		return fmt.Errorf("listener cannot be nil")
+	}
+	return s.withExternalListeners(func() error {
+		for i, l := range s.externalListeners {
+			if l == listener {
+				s.externalListeners = append(s.externalListeners[:i], s.externalListeners[i+1:]...)
+				delete(s.externalAcceptStarted, listener)
+				s.logger.Info("removed external listener",
+					slog.String("Topic", "ExternalListener"),
+					slog.String("Addr", listener.Addr().String()),
+				)
+				return nil
+			}
+		}
+		return fmt.Errorf("external listener not found")
+	})
+}
+
+func (s *BgpServer) acceptExternalConnections(listener net.Listener) {
+	s.logger.Info("starting to accept connections from external listener",
+		slog.String("Topic", "ExternalListener"),
+		slog.String("Addr", listener.Addr().String()),
+	)
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			select {
+			case <-s.runningCtx.Done():
+				return
+			default:
+			}
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+			s.logger.Warn("failed to accept connection from external listener",
+				slog.String("Topic", "ExternalListener"),
+				slog.String("Addr", listener.Addr().String()),
+				slog.Any("Error", err),
+			)
+			return
+		}
+
+		s.logger.Debug("accepted connection from external listener",
+			slog.String("Topic", "ExternalListener"),
+			slog.String("ListenAddr", listener.Addr().String()),
+			slog.String("RemoteAddr", conn.RemoteAddr().String()),
+		)
+
+		acceptCh := s.acceptCh
+		if acceptCh == nil {
+			conn.Close()
+			select {
+			case <-s.runningCtx.Done():
+				return
+			default:
+				continue
+			}
+		}
+
+		select {
+		case acceptCh <- conn:
+		case <-s.runningCtx.Done():
+			conn.Close()
+			return
+		}
+	}
+}
+
+func (s *BgpServer) startExternalListener(listener net.Listener) {
+	if listener == nil || s.acceptCh == nil {
+		return
+	}
+	if _, started := s.externalAcceptStarted[listener]; started {
+		return
+	}
+	s.externalAcceptStarted[listener] = struct{}{}
+	s.logger.Info("starting external listener",
+		slog.String("Topic", "ExternalListener"),
+		slog.String("Addr", listener.Addr().String()),
+	)
+	go s.acceptExternalConnections(listener)
+}
+
+func (s *BgpServer) startExternalListeners() {
+	for _, listener := range s.externalListeners {
+		s.startExternalListener(listener)
+	}
 }
 
 func (s *BgpServer) active() error {
@@ -426,6 +560,8 @@ func (s *BgpServer) Serve() {
 		s.shutdownWG.Done()
 		s.isServing.Store(false)
 	}()
+
+	s.startExternalListeners()
 
 	for {
 		tStart := time.Now()
@@ -2264,6 +2400,16 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 		for _, l := range s.listeners {
 			l.Close()
 		}
+		for _, l := range s.externalListeners {
+			if err := l.Close(); err != nil {
+				s.logger.Warn("failed to close external listener",
+					slog.String("Topic", "ExternalListener"),
+					slog.String("Addr", l.Addr().String()),
+					slog.Any("Error", err),
+				)
+			}
+		}
+		s.externalAcceptStarted = make(map[net.Listener]struct{})
 		s.keychainStore.clearAllKeychains()
 		s.bgpConfig.Global = oc.Global{}
 		return nil
@@ -2711,7 +2857,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 			return err
 		}
 
-		if c.Config.Port > 0 {
+		if c.Config.Port > 0 && len(s.externalListeners) == 0 {
 			acceptCh := make(chan net.Conn, 32)
 			for _, addr := range c.Config.LocalAddressList {
 				l, err := netutils.NewTCPListener(s.logger, addr.String(), uint32(c.Config.Port), g.BindToDevice, acceptCh)
@@ -2721,7 +2867,27 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 				s.listeners = append(s.listeners, l)
 			}
 			s.acceptCh = acceptCh
+			s.logger.Info("created internal TCP listeners",
+				slog.String("Topic", "BGPServer"),
+				slog.Int("Port", int(c.Config.Port)),
+			)
+		} else if c.Config.Port > 0 {
+			s.acceptCh = make(chan net.Conn, 32)
+			s.logger.Info("using external listeners, skipping internal TCP listener creation",
+				slog.String("Topic", "BGPServer"),
+				slog.Int("ExternalCount", len(s.externalListeners)),
+				slog.Int("ConfiguredPort", int(c.Config.Port)),
+			)
+		} else {
+			// ListenPort <= 0 disables internal TCP listeners. Always allocate
+			// acceptCh so AddExternalListener can attach listeners after StartBgp.
+			s.acceptCh = make(chan net.Conn, 32)
+			s.logger.Info("no internal port configured; ready for external listeners",
+				slog.String("Topic", "BGPServer"),
+				slog.Int("ExternalCount", len(s.externalListeners)),
+			)
 		}
+		s.startExternalListeners()
 
 		rfs, _ := oc.AfiSafis(c.AfiSafis).ToRfList()
 		s.globalRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
