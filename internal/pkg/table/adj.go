@@ -40,7 +40,20 @@ func NewAdjRib(logger *slog.Logger, rfList []bgp.Family) *AdjRib {
 	}
 }
 
-func (adj *AdjRib) Update(pathList []*Path) {
+// Update applies pathList to the Adj-RIB-In.
+//
+// It returns a withdrawal for every cached path that went from accepted to
+// rejected. The caller must feed those to the RIB. A rejected path is not a
+// candidate for route selection, so the path the same peer had installed for
+// that NLRI has to go, exactly as BGP replaces a route when the same NLRI is
+// re-advertised.
+//
+// The withdrawal is marked dropped so that the table releases the local path
+// ID, and the replacement entry is stripped of that ID. The two go together:
+// a rejected path is never advertised, so nothing may keep holding the ID,
+// and the path gets a fresh one if it is admitted again.
+func (adj *AdjRib) Update(pathList []*Path) []*Path {
+	var withdrawals []*Path
 	for _, path := range pathList {
 		if path == nil || path.IsEOR() {
 			continue
@@ -86,6 +99,10 @@ func (adj *AdjRib) Update(pathList []*Path) {
 					adj.accepted[rf]++
 				} else if !old.IsRejected() && path.IsRejected() {
 					adj.accepted[rf]--
+					w := old.Clone(true)
+					w.SetDropped(true)
+					withdrawals = append(withdrawals, w)
+					path.localID = 0
 				}
 				if old.Equal(path) {
 					path.setTimestamp(old.GetTimestamp())
@@ -101,6 +118,7 @@ func (adj *AdjRib) Update(pathList []*Path) {
 
 		shard.mu.Unlock()
 	}
+	return withdrawals
 }
 
 /*

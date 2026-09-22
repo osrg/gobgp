@@ -1868,7 +1868,7 @@ func TestInboundClusterLoopCheck(t *testing.T) {
 		rib := table.NewTableManager(logger, []bgp.Family{family}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
 		peer := newIBGPPeer(t, "192.0.2.1", rib)
 
-		paths, _, isLimit := peer.handleUpdate(newUpdate(t), localClusterIDs)
+		paths, _, _, isLimit := peer.handleUpdate(newUpdate(t), localClusterIDs)
 
 		require.False(t, isLimit)
 		require.Empty(t, paths)
@@ -1888,7 +1888,7 @@ func TestInboundClusterLoopCheck(t *testing.T) {
 		peer.fsm.pConf.Update(&conf)
 		peer.fsm.lock.Unlock()
 
-		paths, _, isLimit := peer.handleUpdate(newUpdate(t), localClusterIDs)
+		paths, _, _, isLimit := peer.handleUpdate(newUpdate(t), localClusterIDs)
 
 		require.False(t, isLimit)
 		require.Len(t, paths, 1)

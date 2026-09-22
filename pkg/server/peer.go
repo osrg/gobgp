@@ -664,7 +664,11 @@ func (peer *peer) updatePrefixLimitConfig(conf *oc.Neighbor, c []oc.AfiSafi) (bo
 	return reachLimit, nil
 }
 
-func (peer *peer) handleUpdate(e *fsmMsg, localClusterIDs map[netip.Addr]struct{}) ([]*table.Path, []bgp.Family, bool) {
+// handleUpdate turns an UPDATE into paths to propagate. The second return
+// value holds withdrawals for paths the Adj-RIB-In had accepted before and now
+// rejects, which the caller must propagate as well. They are kept apart from
+// the first one because the peer did not send them.
+func (peer *peer) handleUpdate(e *fsmMsg, localClusterIDs map[netip.Addr]struct{}) ([]*table.Path, []*table.Path, []bgp.Family, bool) {
 	m := e.MsgData.(*bgp.BGPMessage)
 	update := m.Body.(*bgp.BGPUpdate)
 
@@ -746,18 +750,18 @@ func (peer *peer) handleUpdate(e *fsmMsg, localClusterIDs map[netip.Addr]struct{
 			}
 			paths = append(paths, path)
 		}
-		peer.adjRibIn.Update(pathList)
+		withdrawals := peer.adjRibIn.Update(pathList)
 		peer.fsm.lock.Lock()
 		for _, af := range conf.AfiSafis {
 			if isLimit := peer.isPrefixLimit(af.State.Family, &af.PrefixLimit.Config); isLimit {
 				peer.fsm.lock.Unlock()
-				return nil, nil, true
+				return nil, nil, nil, true
 			}
 		}
 		peer.fsm.lock.Unlock()
-		return paths, eor, false
+		return paths, withdrawals, eor, false
 	}
-	return nil, nil, false
+	return nil, nil, nil, false
 }
 
 func (peer *peer) startFSM(wg *sync.WaitGroup, callback fsmCallback) {

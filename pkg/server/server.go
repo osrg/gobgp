@@ -1988,15 +1988,20 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		case bgp.BGP_MSG_ROUTE_REFRESH:
 			s.handleRouteRefresh(peer, e)
 		case bgp.BGP_MSG_UPDATE:
-			pathList, eor, isLimit := peer.handleUpdate(e, s.rrClusterIDs)
+			pathList, withdrawals, eor, isLimit := peer.handleUpdate(e, s.rrClusterIDs)
 			if isLimit {
 				_ = s.setAdminState(peer.ID(), "", adminStatePfxCt)
 				return
 			}
 			if m.Header.Type == bgp.BGP_MSG_UPDATE {
+				// The withdrawals are ours, not the peer's, so they are left
+				// out of the pre-policy Adj-RIB-In.
 				s.notifyPrePolicyUpdateWatcher(peer, pathList, m, e.timestamp, e.payload)
 			}
 
+			if len(withdrawals) > 0 {
+				pathList = append(withdrawals, pathList...)
+			}
 			if len(pathList) > 0 {
 				s.propagateUpdate(peer, pathList)
 			}

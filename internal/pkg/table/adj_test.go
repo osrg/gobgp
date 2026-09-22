@@ -73,6 +73,56 @@ func TestAddPath(t *testing.T) {
 	assert.Equal(t, 0, len(adj.table[family].GetDestinations()))
 }
 
+func TestUpdateReportsAcceptedToRejected(t *testing.T) {
+	pi := &PeerInfo{Address: netip.MustParseAddr("192.0.2.1"), AS: 65001}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	family := bgp.RF_IPv4_UC
+	families := []bgp.Family{family}
+
+	newPath := func(rejected bool) *Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+		require.NoError(t, err)
+		p := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri, ID: 7}, false, attrs, time.Now(), false)
+		p.SetRejected(rejected)
+		return p
+	}
+
+	adj := NewAdjRib(logger, families)
+
+	accepted := newPath(false)
+	require.Empty(t, adj.Update([]*Path{accepted}), "a first advertisement withdraws nothing")
+	require.Equal(t, 1, adj.Accepted(families))
+
+	// The table assigns a local path ID once the path is installed.
+	accepted.localID = 5
+
+	rejected := newPath(true)
+	withdrawals := adj.Update([]*Path{rejected})
+	require.Len(t, withdrawals, 1, "accepted to rejected must withdraw the installed path")
+	w := withdrawals[0]
+	assert.True(t, w.IsWithdraw)
+	assert.True(t, w.IsDropped(), "the table must release the local path ID")
+	assert.Equal(t, uint32(5), w.LocalID(), "the withdrawal carries the ID that was advertised")
+	assert.Equal(t, uint32(7), w.RemoteID())
+	assert.True(t, w.EqualBySourceAndPathID(accepted))
+	assert.Zero(t, rejected.LocalID(), "a rejected cache entry must not hold a local path ID")
+	assert.Equal(t, 0, adj.Accepted(families))
+	assert.Equal(t, 1, adj.Count(families))
+
+	// Staying rejected is not a transition, so there is nothing left to remove.
+	require.Empty(t, adj.Update([]*Path{newPath(true)}))
+	assert.Equal(t, 0, adj.Accepted(families))
+
+	// Coming back is handled by the implicit withdraw in the table.
+	back := newPath(false)
+	require.Empty(t, adj.Update([]*Path{back}))
+	assert.Equal(t, 1, adj.Accepted(families))
+
+	// A real withdrawal is returned to the caller by handleUpdate already.
+	require.Empty(t, adj.Update([]*Path{back.Clone(true)}))
+	assert.Equal(t, 0, adj.Count(families))
+}
+
 func TestAddPathAdjOut(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
