@@ -100,11 +100,7 @@ func Test_RxPacket(t *testing.T) {
 
 	assert.Equal(p.stats.rxPacket.Load(), uint64(0))
 
-	// Rx drops the packet when the loop goroutine has not drained the
-	// one-deep channel yet, so keep offering it.
-	for !p.Rx(&bfd.BFDHeader{MyDiscriminator: 111, DetectTimeMultiplier: 5}) {
-		time.Sleep(time.Millisecond)
-	}
+	rxOffer(t, p, &bfd.BFDHeader{MyDiscriminator: 111, DetectTimeMultiplier: 5})
 
 	time.Sleep(2 * time.Second)
 	p.Stop()
@@ -1009,21 +1005,33 @@ func pacingHeader(p *bfdPeer, state bfd.StateType, remoteMinRx uint32) *bfd.BFDH
 	}
 }
 
-// rxWait feeds one packet through Rx, the production entry point, retrying while
-// the capacity-1 channel is full, and returns once the loop goroutine has
-// started processing it (the rxPacket counter moves before the state machine
-// runs, so callers that need a resulting state change wait for that state
-// explicitly). The pacing tests need the session Up, and while it is not Up the
-// Section 6.8.3 floor (1s) hides the fast configured intervals they measure with.
-// Feeding through Rx also keeps rxPacket on the loop goroutine: tx() reads
-// remoteMinRxInterval and writes lastTx there, so a direct rxPacket call from the
-// test goroutine would race those fields for real.
+// rxOffer hands one packet to the loop goroutine and blocks until it is taken.
+// Rx is not usable here: it is a non-blocking send on a one-deep channel, so it
+// drops the packet and returns false while the loop goroutine still holds the
+// previous one. Retrying Rx in a loop would never give up once the peer is
+// stopped, because Rx returns false for that too.
+//
+// Going through the channel still leaves the handling on the loop goroutine:
+// tx() reads remoteMinRxInterval and writes lastTx there, so calling rxPacket
+// from the test goroutine would race those fields for real.
+func rxOffer(t *testing.T, p *bfdPeer, h *bfd.BFDHeader) {
+	t.Helper()
+	select {
+	case p.eventRxPacket <- h:
+	case <-time.After(2 * time.Second):
+		t.Fatal("bfd peer did not take the packet")
+	}
+}
+
+// rxWait feeds one packet in and returns once the loop goroutine has started
+// processing it. The rxPacket counter moves before the state machine runs, so
+// callers that need a resulting state change wait for that state explicitly.
+// The pacing tests need the session Up, and while it is not Up the Section
+// 6.8.3 floor (1s) hides the fast configured intervals they measure with.
 func rxWait(t *testing.T, p *bfdPeer, h *bfd.BFDHeader) {
 	t.Helper()
 	before := p.stats.rxPacket.Load()
-	for !p.Rx(h) {
-		time.Sleep(time.Millisecond)
-	}
+	rxOffer(t, p, h)
 	err := eventually(2*time.Second, func() error {
 		if p.stats.rxPacket.Load() > before {
 			return nil
@@ -1150,9 +1158,7 @@ func Test_RxPacketTxPacingReducedIntervalSendsPromptly(t *testing.T) {
 	// has already elapsed since the last transmission, so Section 6.8.3 requires
 	// sending the next packet as soon as practicable.
 	sent := time.Now()
-	for !p.Rx(pacingHeader(p, bfd.StateUp, 300000)) {
-		time.Sleep(time.Millisecond)
-	}
+	rxOffer(t, p, pacingHeader(p, bfd.StateUp, 300000))
 
 	// An overdue branch that leaves the timer alone fires only at the previously
 	// armed deadline, at least ~250ms after sent, and fails this 150ms window.
