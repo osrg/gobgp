@@ -108,8 +108,16 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 type pathIDSet map[uint32]struct{}
 
 type peer struct {
-	tableId           string
-	fsm               *fsm
+	tableId string
+	fsm     *fsm
+	// configuredConf is the neighbor configuration as the caller passed it,
+	// before SetDefaultNeighborConfigValues merged the peer group, the global
+	// configuration and the derived values into it. updatePeerGroup merges
+	// this copy again when the peer group changes, so that the group can
+	// replace the values the neighbor did not set itself. A dynamic neighbor
+	// does not have one: it is built from the peer group every time it
+	// connects. Only the management goroutine reads and writes it.
+	configuredConf    oc.Neighbor
 	adjRibIn          *table.AdjRib
 	policy            *table.RoutingPolicy
 	localRib          *table.TableManager
@@ -129,6 +137,15 @@ type peer struct {
 	rtmHandler *table.RouteTargetMembershipHandler
 	// Route refresh in progress, during an established session or route refresh, this need to be atomic to avoid out of order updates
 	routeRefreshInProgress sync.RWMutex
+}
+
+// cloneNeighborConfig copies a neighbor configuration deeply enough to be
+// kept across a merge. SetDefaultNeighborConfigValues writes into the
+// AfiSafis elements in place, so the slice must not stay shared.
+func cloneNeighborConfig(c *oc.Neighbor) oc.Neighbor {
+	conf := *c
+	conf.AfiSafis = slices.Clone(c.AfiSafis)
+	return conf
 }
 
 func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.TableManager, policy *table.RoutingPolicy, tcpAo *tcpAoKeyBinding, logger *slog.Logger) *peer {

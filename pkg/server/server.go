@@ -3594,6 +3594,12 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		pgConf = pg.Conf
 	}
 
+	// Keep what the caller passed. The merge below fills in the peer group
+	// values, the global configuration and the derived State fields, and
+	// after that there is no way to tell them apart. updatePeerGroup needs
+	// the unmerged copy to merge it again when the group changes.
+	configuredConf := cloneNeighborConfig(c)
+
 	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
 		return err
 	}
@@ -3651,6 +3657,7 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		rib = s.rsRib
 	}
 	peer := newPeer(&s.bgpConfig.Global, c, bgp.BGP_FSM_IDLE, rib, s.policy, tcpAoKeyBinding, s.logger)
+	peer.configuredConf = configuredConf
 	if err := s.setPeerPolicy(peer, c.ApplyPolicy); err != nil {
 		return fmt.Errorf("failed to set peer policy for %s: %v", addr, err)
 	}
@@ -4022,6 +4029,10 @@ func (s *BgpServer) UpdatePeerGroup(ctx context.Context, r *api.UpdatePeerGroupR
 }
 
 func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err error) {
+	// UpdatePeer replaces the whole neighbor configuration, so this is the
+	// new record of what the operator asked for. See addNeighbor.
+	configuredConf := cloneNeighborConfig(c)
+
 	var pgConf *oc.PeerGroup
 	if c.Config.PeerGroup != "" {
 		if pg, ok := s.peerGroupMap[c.Config.PeerGroup]; ok {
@@ -4106,8 +4117,14 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 			peer.fsm.pConf.Update(original)
 
 			peer.fsm.logger.Error("failed to add neighbor", slog.String("Err", err.Error()))
+			return needsSoftResetIn, err
 		}
-		return needsSoftResetIn, err
+		// addNeighbor recorded c, which is already merged here. Put back what
+		// the caller passed.
+		if added, ok := s.neighborMap[netip.MustParseAddr(addr)]; ok {
+			added.configuredConf = configuredConf
+		}
+		return needsSoftResetIn, nil
 	}
 
 	if !original.Timers.Config.Equal(&c.Timers.Config) {
@@ -4139,6 +4156,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if err == nil {
 		peer.fsm.pConf.Update(&conf)
 		peer.fsm.lock.Unlock()
+		peer.configuredConf = configuredConf
 		s.rebuildLocalClusterIDs()
 		if bfdConfigChanged {
 			err = s.updateBfdPeer(
