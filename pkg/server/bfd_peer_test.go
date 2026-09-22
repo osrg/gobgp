@@ -100,7 +100,11 @@ func Test_RxPacket(t *testing.T) {
 
 	assert.Equal(p.stats.rxPacket.Load(), uint64(0))
 
-	p.Rx(&bfd.BFDHeader{MyDiscriminator: 111, DetectTimeMultiplier: 5})
+	// Rx drops the packet when the loop goroutine has not drained the
+	// one-deep channel yet, so keep offering it.
+	for !p.Rx(&bfd.BFDHeader{MyDiscriminator: 111, DetectTimeMultiplier: 5}) {
+		time.Sleep(time.Millisecond)
+	}
 
 	time.Sleep(2 * time.Second)
 	p.Stop()
@@ -742,13 +746,13 @@ func Test_PollReplyNeverSetsPollAndFinalTogether(t *testing.T) {
 	_, _, err = conn.ReadFrom(buf)
 	assert.NoError(err)
 
-	assert.True(p.Rx(&bfd.BFDHeader{
+	rxWait(t, p, &bfd.BFDHeader{
 		State:                bfd.StateDown,
 		Poll:                 true,
 		MyDiscriminator:      111,
 		YourDiscriminator:    p.myDiscriminator,
 		DetectTimeMultiplier: 5,
-	}))
+	})
 
 	deadline := time.Now().Add(8 * time.Second)
 	for {
@@ -809,21 +813,21 @@ func Test_TxPacketPollBitAndFastRestoreOnUp(t *testing.T) {
 	// still 5; that value only goes out on the wire, and this test does not check it.
 
 	// Down -> Init.
-	assert.True(p.Rx(&bfd.BFDHeader{
+	rxWait(t, p, &bfd.BFDHeader{
 		State:                bfd.StateDown,
 		MyDiscriminator:      111,
 		YourDiscriminator:    p.myDiscriminator,
 		DetectTimeMultiplier: 20,
-	}))
+	})
 
 	// Init -> Up: restores the configured 200ms interval and starts a Poll Sequence
 	// (no Final is ever injected in this test, so the sequence stays in flight).
-	assert.True(p.Rx(&bfd.BFDHeader{
+	rxWait(t, p, &bfd.BFDHeader{
 		State:                bfd.StateInit,
 		MyDiscriminator:      111,
 		YourDiscriminator:    p.myDiscriminator,
 		DetectTimeMultiplier: 20,
-	}))
+	})
 
 	// Collect the first three Up packets, skipping any pre-Up packets still in flight.
 	var arrivals []time.Time
