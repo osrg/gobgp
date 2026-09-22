@@ -70,7 +70,7 @@ last column lists the labels a metric adds on top of those three.
 | bgp_peer_remove_private_as         | Do we remove private ASNs from the paths sent to the peer                                                    |                       |
 | bgp_peer_send_community            | BGP community with the peer                                                                                  |                       |
 | bgp_peer_type                      | Type of the BGP peer: unspecified (0), internal (1) or external (2)                                          |                       |
-| bgp_peer_uptime                    | For how long the peer has been in its current state                                                          |                       |
+| bgp_peer_uptime                    | Unix time at which the BGP session with the peer last came up                                                |                       |
 | bgp_routes_accepted                | Number of routes accepted from peer                                                                          | `route_family`        |
 | bgp_routes_advertised              | Number of routes advertised to peer                                                                          | `route_family`        |
 | bgp_routes_received                | Number of routes received from peer                                                                          | `route_family`        |
