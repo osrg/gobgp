@@ -304,9 +304,54 @@ func TestOverwriteNeighborConfigWithPeerGroupFromAPI(t *testing.T) {
 		assert.Equal(t, AFI_SAFI_TYPE_IPV4_UNICAST, n.AfiSafis[0].Config.AfiSafiName)
 	})
 
-	// peer-as is listed in forcedOverwrittenConfig, so the peer group wins over
-	// whatever the caller passed.
-	t.Run("forced_fields_still_come_from_the_group", func(t *testing.T) {
+	// peer-as and minimum-advertisement-interval used to be copied from the
+	// peer group unconditionally. They follow the same rule as every other
+	// field now.
+	t.Run("peer_as_and_min_adv_interval_kept", func(t *testing.T) {
+		clearConfiguredFields(t)
+
+		pg := &PeerGroup{
+			Config: PeerGroupConfig{PeerGroupName: "g", PeerAs: 65001},
+			Timers: Timers{Config: TimersConfig{MinimumAdvertisementInterval: 10}},
+		}
+		n := &Neighbor{
+			Config: NeighborConfig{
+				NeighborAddress: netip.MustParseAddr(testNeighborAddress),
+				PeerGroup:       "g",
+				PeerAs:          65002,
+			},
+			Timers: Timers{Config: TimersConfig{MinimumAdvertisementInterval: 5}},
+		}
+
+		require.NoError(t, OverwriteNeighborConfigWithPeerGroup(n, pg))
+
+		assert.Equal(t, uint32(65002), n.Config.PeerAs)
+		assert.Equal(t, float64(5), n.Timers.Config.MinimumAdvertisementInterval)
+	})
+
+	// A peer group that does not set peer-as must not wipe what the caller
+	// asked for. peer-as 0 turns off the AS check in the received OPEN, so
+	// wiping it silently accepted any AS number.
+	t.Run("peer_as_survives_a_group_that_does_not_set_it", func(t *testing.T) {
+		clearConfiguredFields(t)
+
+		pg := &PeerGroup{Config: PeerGroupConfig{PeerGroupName: "g"}}
+		n := &Neighbor{
+			Config: NeighborConfig{
+				NeighborAddress: netip.MustParseAddr(testNeighborAddress),
+				PeerGroup:       "g",
+				PeerAs:          65002,
+			},
+			Timers: Timers{Config: TimersConfig{MinimumAdvertisementInterval: 5}},
+		}
+
+		require.NoError(t, OverwriteNeighborConfigWithPeerGroup(n, pg))
+
+		assert.Equal(t, uint32(65002), n.Config.PeerAs)
+		assert.Equal(t, float64(5), n.Timers.Config.MinimumAdvertisementInterval)
+	})
+
+	t.Run("peer_as_inherited_when_the_caller_left_it_empty", func(t *testing.T) {
 		clearConfiguredFields(t)
 
 		pg := &PeerGroup{Config: PeerGroupConfig{PeerGroupName: "g", PeerAs: 65001}}
@@ -314,7 +359,6 @@ func TestOverwriteNeighborConfigWithPeerGroupFromAPI(t *testing.T) {
 			Config: NeighborConfig{
 				NeighborAddress: netip.MustParseAddr(testNeighborAddress),
 				PeerGroup:       "g",
-				PeerAs:          65002,
 			},
 		}
 
@@ -356,4 +400,30 @@ func TestOverwriteNeighborConfigWithPeerGroupKeepsConfiguredZeroValues(t *testin
 	assert.Equal(t, "", n.Config.Description)
 	assert.False(t, n.Config.RouteFlapDamping)
 	assert.Equal(t, "group password", n.Config.AuthPassword)
+}
+
+// peer-as 0 means "accept any AS number in the received OPEN". A neighbor
+// that writes it keeps it, even under a peer group that sets peer-as. Only a
+// configuration file can ask for this, because the API cannot tell a zero
+// the caller meant from one it left out.
+func TestOverwriteNeighborConfigWithPeerGroupKeepsConfiguredZeroPeerAs(t *testing.T) {
+	registerConfiguredFields(t, testNeighborAddress, map[string]any{
+		"config": map[string]any{
+			"neighbor-address": testNeighborAddress,
+			"peer-group":       "g",
+			"peer-as":          0,
+		},
+	})
+
+	pg := &PeerGroup{Config: PeerGroupConfig{PeerGroupName: "g", PeerAs: 65001}}
+	n := &Neighbor{
+		Config: NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(testNeighborAddress),
+			PeerGroup:       "g",
+		},
+	}
+
+	require.NoError(t, OverwriteNeighborConfigWithPeerGroup(n, pg))
+
+	assert.Equal(t, uint32(0), n.Config.PeerAs)
 }

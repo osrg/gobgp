@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
-	"slices"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -21,11 +20,6 @@ const (
 	DEFAULT_IDLE_HOLDTIME_AFTER_RESET = 30
 	DEFAULT_CONNECT_RETRY             = 120
 )
-
-var forcedOverwrittenConfig = []string{
-	"neighbor.config.peer-as",
-	"neighbor.timers.config.minimum-advertisement-interval",
-}
 
 var configuredFields map[string]any
 
@@ -601,14 +595,12 @@ func overwriteConfig(c, pg any, tagPrefix string, v *viper.Viper, configured boo
 		if !nField.IsValid() {
 			continue
 		}
-		if !slices.Contains(forcedOverwrittenConfig, tag) {
-			if configured {
-				if v.IsSet(tag) {
-					continue
-				}
-			} else if !nField.IsZero() {
+		if configured {
+			if v.IsSet(tag) {
 				continue
 			}
+		} else if !nField.IsZero() {
+			continue
 		}
 		nField.Set(pgValue.FieldByName(field))
 	}

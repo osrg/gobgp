@@ -76,11 +76,21 @@ configure it without one.
 The `afi-safis` list follows the same rule. A caller that lists families
 keeps them. A caller that lists none takes the peer group's.
 
-### Settings that always come from the peer group
+### peer-as
 
-`peer-as` and `minimum-advertisement-interval` always come from the peer
-group. This holds whichever way the neighbor was added, and even when the
-neighbor spells them out. Set them on the peer group.
+`peer-as` follows the same rule as every other setting. A neighbor that sets
+it keeps its own value, and a neighbor that leaves it out takes the peer
+group's.
+
+A neighbor with no `peer-as` at all, from the group or from itself, accepts
+any AS number in the received OPEN message. Write `peer-as` on the peer
+group, on the neighbor, or on both.
+
+GoBGP used to copy `peer-as` and `minimum-advertisement-interval` from the
+peer group even when the neighbor spelled them out, and even when the peer
+group did not set them at all. A neighbor under a peer group without a
+`peer-as` lost its own value and started accepting any AS number. Both
+settings now behave like the rest.
 
 ## Verification
 
