@@ -187,21 +187,33 @@ func UpdatePathAttrs4ByteAs(logger *slog.Logger, msg *bgp.BGPUpdate) {
 
 	newParams := make([]bgp.AsPathParamInterface, 0, len(asAttr.Value))
 	for _, param := range asParams {
-		if keepNum-param.ASLen() >= 0 {
-			newParams = append(newParams, param)
-			keepNum -= param.ASLen()
-		} else {
-			// only SEQ param reaches here
-			newParams = append(newParams, bgp.NewAs4PathParam(param.GetType(), param.GetAS()[:keepNum]))
-			keepNum = 0
-		}
-
 		if keepNum <= 0 {
 			break
+		}
+		// keepNum counts confederation segments too, so consume them the
+		// same way here.
+		n := param.ASLen()
+		switch param.GetType() {
+		case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SET:
+			n = 1
+		case bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ:
+			n = len(param.GetAS())
+		}
+		if n <= keepNum {
+			newParams = append(newParams, param)
+			keepNum -= n
+		} else {
+			// only a sequence reaches here
+			newParams = append(newParams, bgp.NewAs4PathParam(param.GetType(), param.GetAS()[:keepNum]))
+			keepNum = 0
 		}
 	}
 
 	for _, param := range as4Params {
+		if len(newParams) == 0 {
+			newParams = append(newParams, param)
+			continue
+		}
 		lastParam := newParams[len(newParams)-1]
 		lastParamAS := lastParam.GetAS()
 		paramType := param.GetType()
