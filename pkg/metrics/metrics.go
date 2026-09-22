@@ -217,7 +217,7 @@ var (
 	)
 	bgpPeerUptimeDesc = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "peer", "uptime"),
-		"For how long the peer has been in its current state",
+		"Unix time at which the BGP session with the peer last came up",
 		peerLabels, nil,
 	)
 	bgpPeerSendCommunityFlagDesc = prometheus.NewDesc(
@@ -336,7 +336,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 		peerTimers := p.GetTimers()
 		msg := peerState.GetMessages()
 
-		send := func(desc *prometheus.Desc, cnt uint64) {
+		sendCounter := func(desc *prometheus.Desc, cnt uint64) {
 			out <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, float64(cnt), peerAddr, peerPg, peerDesc)
 		}
 		sendGauge := func(desc *prometheus.Desc, v float64) {
@@ -344,37 +344,37 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 		}
 
 		// Statistics about BGP announcements we've received from our peers
-		send(bgpReceivedUpdateTotalDesc, msg.Received.Update)
-		send(bgpReceivedNotificationTotalDesc, msg.Received.Notification)
-		send(bgpReceivedOpenTotalDesc, msg.Received.Open)
-		send(bgpReceivedRefreshTotalDesc, msg.Received.Refresh)
-		send(bgpReceivedKeepaliveTotalDesc, msg.Received.Keepalive)
-		send(bgpReceivedWithdrawUpdateTotalDesc, msg.Received.WithdrawUpdate)
-		send(bgpReceivedWithdrawPrefixTotalDesc, msg.Received.WithdrawPrefix)
-		send(bgpReceivedDiscardedTotalDesc, msg.Received.Discarded)
-		send(bgpReceivedMessageTotalDesc, msg.Received.Total)
+		sendCounter(bgpReceivedUpdateTotalDesc, msg.Received.Update)
+		sendCounter(bgpReceivedNotificationTotalDesc, msg.Received.Notification)
+		sendCounter(bgpReceivedOpenTotalDesc, msg.Received.Open)
+		sendCounter(bgpReceivedRefreshTotalDesc, msg.Received.Refresh)
+		sendCounter(bgpReceivedKeepaliveTotalDesc, msg.Received.Keepalive)
+		sendCounter(bgpReceivedWithdrawUpdateTotalDesc, msg.Received.WithdrawUpdate)
+		sendCounter(bgpReceivedWithdrawPrefixTotalDesc, msg.Received.WithdrawPrefix)
+		sendCounter(bgpReceivedDiscardedTotalDesc, msg.Received.Discarded)
+		sendCounter(bgpReceivedMessageTotalDesc, msg.Received.Total)
 
 		// Statistics about BGP announcements we've sent to our peers
-		send(bgpSentUpdateTotalDesc, msg.Sent.Update)
-		send(bgpSentNotificationTotalDesc, msg.Sent.Notification)
-		send(bgpSentOpenTotalDesc, msg.Sent.Open)
-		send(bgpSentRefreshTotalDesc, msg.Sent.Refresh)
-		send(bgpSentKeepaliveTotalDesc, msg.Sent.Keepalive)
-		send(bgpSentWithdrawUpdateTotalDesc, msg.Sent.WithdrawUpdate)
-		send(bgpSentWithdrawPrefixTotalDesc, msg.Sent.WithdrawPrefix)
-		send(bgpSentDiscardedTotalDesc, msg.Sent.Discarded)
-		send(bgpSentMessageTotalDesc, msg.Sent.Total)
+		sendCounter(bgpSentUpdateTotalDesc, msg.Sent.Update)
+		sendCounter(bgpSentNotificationTotalDesc, msg.Sent.Notification)
+		sendCounter(bgpSentOpenTotalDesc, msg.Sent.Open)
+		sendCounter(bgpSentRefreshTotalDesc, msg.Sent.Refresh)
+		sendCounter(bgpSentKeepaliveTotalDesc, msg.Sent.Keepalive)
+		sendCounter(bgpSentWithdrawUpdateTotalDesc, msg.Sent.WithdrawUpdate)
+		sendCounter(bgpSentWithdrawPrefixTotalDesc, msg.Sent.WithdrawPrefix)
+		sendCounter(bgpSentDiscardedTotalDesc, msg.Sent.Discarded)
+		sendCounter(bgpSentMessageTotalDesc, msg.Sent.Total)
 
 		// The outbound queue message size
-		send(bgpPeerOutQueueDesc, uint64(peerState.GetOutQ()))
+		sendGauge(bgpPeerOutQueueDesc, float64(peerState.GetOutQ()))
 		// The number of neighbor flops
-		send(bgpPeerFlopsDesc, uint64(peerState.GetFlops()))
-		// Uptime in seconds of the session
-		send(bgpPeerUptimeDesc, uint64(peerTimers.GetState().GetUptime().GetSeconds()))
+		sendCounter(bgpPeerFlopsDesc, uint64(peerState.GetFlops()))
+		// Unix time at which the session came up
+		sendGauge(bgpPeerUptimeDesc, float64(peerTimers.GetState().GetUptime().GetSeconds()))
 		// Whether BGP community is being sent
-		send(bgpPeerSendCommunityFlagDesc, uint64(peerState.GetSendCommunity()))
+		sendGauge(bgpPeerSendCommunityFlagDesc, float64(peerState.GetSendCommunity()))
 		// Whether BGP Private AS is being removed (1) or not (0)
-		send(bgpPeerRemovePrivateAsFlagDesc, uint64(peerState.GetRemovePrivate()))
+		sendGauge(bgpPeerRemovePrivateAsFlagDesc, float64(peerState.GetRemovePrivate()))
 		sendGauge(bgpPeerTypeDesc, float64(peerState.GetType()))
 
 		// Whether authentication password is being set (1) or not (0)
@@ -382,7 +382,7 @@ func (c *bgpCollector) Collect(out chan<- prometheus.Metric) {
 		if peerState.GetAuthPassword() != "" {
 			passwordSetFlag = 1
 		}
-		send(bgpPeerPasswordSetFlagDesc, uint64(passwordSetFlag))
+		sendGauge(bgpPeerPasswordSetFlagDesc, float64(passwordSetFlag))
 
 		// Remote peer router ID and ASN
 		out <- prometheus.MustNewConstMetric(
