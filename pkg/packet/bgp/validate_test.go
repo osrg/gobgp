@@ -477,3 +477,49 @@ func FuzzParseLargeCommunity(f *testing.F) {
 		ParseLargeCommunity(data)
 	})
 }
+
+// rfc7607 2. An OPEN message that carries AS 0 must be rejected with
+// "Bad Peer AS". AS 0 used to pass the check for a neighbor configured
+// without a peer AS, which accepts any AS number.
+func Test_Validate_OpenMsg_zero_as(t *testing.T) {
+	assert := assert.New(t)
+	routerId := netip.MustParseAddr("192.168.1.2")
+	myId := netip.MustParseAddr("192.168.1.1")
+
+	as4Cap := func(asnum uint32) []OptionParameterInterface {
+		return []OptionParameterInterface{
+			NewOptionParameterCapability([]ParameterCapabilityInterface{
+				NewCapFourOctetASNumber(asnum),
+			}),
+		}
+	}
+
+	// The two-octet My Autonomous System field is zero.
+	m, err := NewBGPOpenMessage(0, 90, routerId, nil)
+	require.NoError(t, err)
+	as, err := ValidateOpenMsg(m.Body.(*BGPOpen), 0, 65001, myId)
+	assert.Equal(uint32(0), as)
+	require.Error(t, err)
+	assert.Equal(uint8(BGP_ERROR_SUB_BAD_PEER_AS), err.(*MessageError).SubTypeCode)
+
+	// The four-octet AS capability is zero.
+	m, err = NewBGPOpenMessage(AS_TRANS, 90, routerId, as4Cap(0))
+	require.NoError(t, err)
+	as, err = ValidateOpenMsg(m.Body.(*BGPOpen), 0, 65001, myId)
+	assert.Equal(uint32(0), as)
+	require.Error(t, err)
+	assert.Equal(uint8(BGP_ERROR_SUB_BAD_PEER_AS), err.(*MessageError).SubTypeCode)
+
+	// A neighbor configured without a peer AS still takes any other one.
+	m, err = NewBGPOpenMessage(65002, 90, routerId, nil)
+	require.NoError(t, err)
+	as, err = ValidateOpenMsg(m.Body.(*BGPOpen), 0, 65001, myId)
+	assert.NoError(err)
+	assert.Equal(uint32(65002), as)
+
+	m, err = NewBGPOpenMessage(AS_TRANS, 90, routerId, as4Cap(65536))
+	require.NoError(t, err)
+	as, err = ValidateOpenMsg(m.Body.(*BGPOpen), 65536, 65001, myId)
+	assert.NoError(err)
+	assert.Equal(uint32(65536), as)
+}
