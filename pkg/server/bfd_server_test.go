@@ -14,6 +14,7 @@ import (
 
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -320,6 +321,18 @@ func Test_DynamicNeighborBfdLocalAddress(t *testing.T) {
 				s.passConnToPeer(conn)
 				return nil
 			}, true))
+			s.bfdServer.peersMutex.RLock()
+			initial := s.bfdServer.peers[peerAddress]
+			s.bfdServer.peersMutex.RUnlock()
+			require.Nil(t, initial, "BFD with an inferred source waits for TCP Established")
+			open, err := bgp.NewBGPOpenMessage(2, 90, netip.MustParseAddr("2.2.2.2"), nil)
+			require.NoError(t, err)
+			for _, msg := range []*bgp.BGPMessage{open, bgp.NewBGPKeepAliveMessage()} {
+				wire, err := msg.Serialize()
+				require.NoError(t, err)
+				_, err = client.Write(wire)
+				require.NoError(t, err)
+			}
 			require.NoError(t, eventually(time.Second, func() error {
 				s.bfdServer.peersMutex.RLock()
 				defer s.bfdServer.peersMutex.RUnlock()
@@ -645,6 +658,8 @@ func Test_BgpAddDeletePeerWithDisabledBfd(t *testing.T) {
 		Config: oc.PeerGroupConfig{
 			PeerGroupName: "group_on",
 		},
+		// Explicit sources can start BFD before TCP establishes.
+		Transport: oc.Transport{Config: oc.TransportConfig{LocalAddress: netip.MustParseAddr("127.0.0.1")}},
 		Bfd: oc.Bfd{
 			Config: oc.BfdConfig{
 				Enabled:                  true,
@@ -748,7 +763,8 @@ func Test_BgpUpdatePeerBfdConfig(t *testing.T) {
 			NeighborAddress: "127.0.0.3",
 			PeerAsn:         1,
 		},
-		Bfd: &api.BfdPeerConfig{Enabled: false},
+		Transport: &api.Transport{LocalAddress: "127.0.0.1"},
+		Bfd:       &api.BfdPeerConfig{Enabled: false},
 	}
 
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: peer})
