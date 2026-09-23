@@ -671,6 +671,90 @@ func (peer *peer) updatePrefixLimitConfig(conf *oc.Neighbor, c []oc.AfiSafi) (bo
 	return reachLimit, nil
 }
 
+// loopCheckGlobals holds what the ingress loop checks need from outside the
+// peer. The confederation values and the router ID live in gConf behind
+// fsm.lock, and the cluster IDs come from the server, so read them once per
+// UPDATE rather than once per path.
+type loopCheckGlobals struct {
+	confedEnabled bool
+	confedID      uint32
+	routerID      netip.Addr
+	clusterIDs    map[netip.Addr]struct{}
+}
+
+func (peer *peer) loopCheckGlobals(clusterIDs map[netip.Addr]struct{}) loopCheckGlobals {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	return loopCheckGlobals{
+		confedEnabled: peer.fsm.gConf.Confederation.Config.Enabled,
+		confedID:      peer.fsm.gConf.Confederation.Config.Identifier,
+		routerID:      peer.fsm.gConf.Config.RouterId,
+		clusterIDs:    clusterIDs,
+	}
+}
+
+// detectsLoop reports whether the path came back through us: our own AS in the
+// AS_PATH, our own BGP identifier as the ORIGINATOR_ID, or one of our cluster
+// IDs in the CLUSTER_LIST.
+//
+// The three checks sit here rather than in the caller's loop because the
+// CLUSTER_LIST one walks a list of its own. Leaving the path from inside that
+// inner loop took a labelled continue, and the next check added to the caller
+// would have had to remember the label.
+func (peer *peer) detectsLoop(path *table.Path, g loopCheckGlobals) bool {
+	// A withdrawal carries no attributes, so none of the checks below can fire.
+	if path.IsWithdraw {
+		return false
+	}
+
+	conf := peer.fsm.pConf.ReadOnly()
+
+	// RFC4271 9.1.2 Phase 2: Route Selection
+	//
+	// If the AS_PATH attribute of a BGP route contains an AS loop, the BGP
+	// route should be excluded from the Phase 2 decision function.
+	//
+	// RFC 5065 Section 4: a Confederation ID counts as our own AS.
+	if aspath := path.GetAsPath(); aspath != nil {
+		localAS := conf.Config.LocalAs
+		allowOwnAS := int(conf.AsPathOptions.Config.AllowOwnAs)
+		if hasOwnASLoop(localAS, allowOwnAS, aspath, g.confedID, g.confedEnabled) {
+			return true
+		}
+	}
+
+	if conf.State.PeerType != oc.PEER_TYPE_INTERNAL {
+		return false
+	}
+
+	// RFC4456 8. Avoiding Routing Information Loops
+	// A router that recognizes the ORIGINATOR_ID attribute SHOULD
+	// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
+	if path.GetOriginatorID() == g.routerID {
+		peer.fsm.logger.Debug("Originator ID is mine, ignore",
+			slog.String("OriginatorID", path.GetOriginatorID().String()),
+			slog.String("Data", path.String()))
+		return true
+	}
+
+	if conf.RouteServer.Config.RouteServerClient {
+		return false
+	}
+
+	// RFC4456 8. Avoiding Routing Information Loops
+	// If the local CLUSTER_ID is found in the CLUSTER_LIST, the advertisement received SHOULD be ignored.
+	for _, clusterID := range path.GetClusterList() {
+		if _, found := g.clusterIDs[clusterID]; found {
+			peer.fsm.logger.Debug("cluster list path attribute has a local cluster id, ignore",
+				slog.String("ClusterID", clusterID.String()),
+				slog.String("Data", path.String()))
+			return true
+		}
+	}
+
+	return false
+}
+
 // handleUpdate turns an UPDATE into paths to propagate. The second return
 // value holds withdrawals for paths the Adj-RIB-In had accepted before and now
 // rejects, which the caller must propagate as well. They are kept apart from
@@ -696,12 +780,7 @@ func (peer *peer) handleUpdate(e *fsmMsg, localClusterIDs map[netip.Addr]struct{
 		paths := make([]*table.Path, 0, len(pathList))
 		eor := []bgp.Family{}
 		conf := peer.fsm.pConf.ReadOnly()
-		isIBGPPeer := peer.isIBGPPeer()
-		isRouteServerClient := peer.isRouteServerClient()
-		peer.fsm.lock.Lock()
-		routerId := peer.fsm.gConf.Config.RouterId
-		peer.fsm.lock.Unlock()
-	pathLoop:
+		loopGlobals := peer.loopCheckGlobals(localClusterIDs)
 		for _, path := range pathList {
 			if path.IsEOR() {
 				family := path.GetFamily()
@@ -709,51 +788,9 @@ func (peer *peer) handleUpdate(e *fsmMsg, localClusterIDs map[netip.Addr]struct{
 				eor = append(eor, family)
 				continue
 			}
-			// RFC4271 9.1.2 Phase 2: Route Selection
-			//
-			// If the AS_PATH attribute of a BGP route contains an AS loop, the BGP
-			// route should be excluded from the Phase 2 decision function.
-			if aspath := path.GetAsPath(); aspath != nil {
-				localAS := conf.Config.LocalAs
-				allowOwnAS := int(conf.AsPathOptions.Config.AllowOwnAs)
-
-				// RFC 5065 Section 4: Get Confederation ID for AS loop detection
-				// Copy primitive values while holding the lock to avoid data race
-				peer.fsm.lock.Lock()
-				confedEnabled := peer.fsm.gConf.Confederation.Config.Enabled
-				confedID := peer.fsm.gConf.Confederation.Config.Identifier
-				peer.fsm.lock.Unlock()
-
-				if hasOwnASLoop(localAS, allowOwnAS, aspath, confedID, confedEnabled) {
-					path.SetRejected(true)
-					continue
-				}
-			}
-			if isIBGPPeer {
-				// RFC4456 8. Avoiding Routing Information Loops
-				// A router that recognizes the ORIGINATOR_ID attribute SHOULD
-				// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
-				if path.GetOriginatorID() == routerId {
-					peer.fsm.logger.Debug("Originator ID is mine, ignore",
-						slog.String("OriginatorID", path.GetOriginatorID().String()),
-						slog.String("Data", path.String()))
-
-					path.SetRejected(true)
-					continue
-				}
-				if !isRouteServerClient {
-					// RFC4456 8. Avoiding Routing Information Loops
-					// If the local CLUSTER_ID is found in the CLUSTER_LIST, the advertisement received SHOULD be ignored.
-					for _, clusterID := range path.GetClusterList() {
-						if _, found := localClusterIDs[clusterID]; found {
-							peer.fsm.logger.Debug("cluster list path attribute has a local cluster id, ignore",
-								slog.String("ClusterID", clusterID.String()),
-								slog.String("Data", path.String()))
-							path.SetRejected(true)
-							continue pathLoop
-						}
-					}
-				}
+			if peer.detectsLoop(path, loopGlobals) {
+				path.SetRejected(true)
+				continue
 			}
 			paths = append(paths, path)
 		}
