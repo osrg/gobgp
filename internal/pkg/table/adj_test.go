@@ -159,7 +159,8 @@ func TestDropSkipsRejected(t *testing.T) {
 	// Drop must not emit withdrawals for rejected paths that never entered the RIB.
 	dropped := adj.Drop(families)
 	assert.Equal(t, 1, len(dropped))
-	assert.False(t, dropped[0].IsRejected())
+	// Clone() does not copy the rejected flag, so check which prefix survived.
+	assert.Equal(t, "20.20.10.0/24", dropped[0].GetNlri().String())
 	assert.Equal(t, 0, adj.Count(families))
 	assert.Equal(t, 0, adj.Accepted(families))
 }
