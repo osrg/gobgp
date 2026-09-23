@@ -183,7 +183,10 @@ func TestStale(t *testing.T) {
 	adj.Update([]*Path{p1, p3})
 
 	droppedPathList := adj.DropStale(families)
-	assert.Equal(t, 2, len(droppedPathList))
+	// The rejected path is removed from the Adj-RIB-In, but no withdrawal is
+	// returned for it. The count below shows that it is gone.
+	assert.Equal(t, 1, len(droppedPathList))
+	assert.Equal(t, "20.20.10.0/24", droppedPathList[0].GetNlri().String())
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 1)
 	assert.Equal(t, 1, len(adj.table[family].GetDestinations()))
 }
@@ -246,7 +249,14 @@ func TestLLGRStale(t *testing.T) {
 	assert.Equal(t, adj.Accepted([]bgp.Family{family}), 2)
 
 	pathList := adj.MarkLLGRStaleOrDrop(families)
-	assert.Equal(t, 3, len(pathList)) // Does not return aslooped path that is retained in adjrib
+	// An aslooped path is not returned, whether it is retained in the adjrib
+	// with LLGR_STALE or removed for NO_LLGR.
+	assert.Equal(t, 2, len(pathList))
+	prefixes := make([]string, 0, len(pathList))
+	for _, p := range pathList {
+		prefixes = append(prefixes, p.GetNlri().String())
+	}
+	assert.ElementsMatch(t, []string{"20.20.10.0/24", "20.20.40.0/24"}, prefixes)
 	assert.Equal(t, adj.Count([]bgp.Family{family}), 2)
 	assert.Equal(t, adj.Accepted([]bgp.Family{family}), 1)
 	assert.Equal(t, 2, len(adj.table[family].GetDestinations()))

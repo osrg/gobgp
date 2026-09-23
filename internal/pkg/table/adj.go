@@ -244,19 +244,32 @@ func (adj *AdjRib) Drop(rfList []bgp.Family) []*Path {
 	return l
 }
 
+// DropStale removes the stale paths from the Adj-RIB-In and returns the
+// withdrawals that the caller must propagate.
+//
+// The two are not the same list. A rejected path was never installed in the
+// RIB, so no withdrawal is owed for it, but its Adj-RIB-In entry still has to
+// go. The removal is done by feeding the withdrawals back to Update, so the
+// list passed there covers every stale path, and the returned list leaves the
+// rejected paths out.
 func (adj *AdjRib) DropStale(rfList []bgp.Family) []*Path {
-	pathList := make([]*Path, 0, adj.Count(rfList))
+	size := adj.Count(rfList)
+	updates := make([]*Path, 0, size)
+	pathList := make([]*Path, 0, size)
 	adj.walk(rfList, func(d *destination) bool {
 		for _, p := range d.knownPathList {
 			if p.IsStale() {
 				w := p.Clone(true)
 				w.SetDropped(true)
-				pathList = append(pathList, w)
+				updates = append(updates, w)
+				if !p.IsRejected() {
+					pathList = append(pathList, w)
+				}
 			}
 		}
 		return false
 	})
-	adj.Update(pathList)
+	adj.Update(updates)
 	return pathList
 }
 
@@ -277,14 +290,27 @@ func (adj *AdjRib) StaleAll(rfList []bgp.Family) []*Path {
 	return pathList
 }
 
+// MarkLLGRStaleOrDrop attaches LLGR_STALE to the paths in the Adj-RIB-In and
+// removes the ones that carry NO_LLGR. It returns the paths that the caller
+// must propagate.
+//
+// As in DropStale, the list that goes to Update and the returned list are not
+// the same. A rejected path removed for NO_LLGR was never installed in the
+// RIB, so it is removed from the Adj-RIB-In without a withdrawal for the
+// caller.
 func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.Family) []*Path {
-	pathList := make([]*Path, 0, adj.Count(rfList))
+	size := adj.Count(rfList)
+	updates := make([]*Path, 0, size)
+	pathList := make([]*Path, 0, size)
 	adj.walkActive(rfList, func(d *destination) bool {
 		for i, p := range d.knownPathList {
 			if p.HasNoLLGR() {
 				n := p.Clone(true)
 				n.SetDropped(true)
-				pathList = append(pathList, n)
+				updates = append(updates, n)
+				if !p.IsRejected() {
+					pathList = append(pathList, n)
+				}
 			} else {
 				n := p.Clone(false)
 				n.SetRejected(p.IsRejected())
@@ -292,13 +318,14 @@ func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.Family) []*Path {
 				if p.IsRejected() {
 					d.knownPathList[i] = n
 				} else {
+					updates = append(updates, n)
 					pathList = append(pathList, n)
 				}
 			}
 		}
 		return false
 	})
-	adj.Update(pathList)
+	adj.Update(updates)
 	return pathList
 }
 
