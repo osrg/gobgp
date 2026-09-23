@@ -32,7 +32,6 @@ Below is the configuration to create a peer group.
 ```
 
 The configurations in this peer group will be inherited to the neighbors which is the member of this peer group.
-In addition, you can add additional configurations to each member.
 
 Below is the configuration to create a neighbor which belongs this peer group.
 
@@ -50,8 +49,10 @@ Furthermore, an additional configuration is set, the hold timer is 99 secs.
 
 ## Inheritance rules
 
-A neighbor takes every setting it does not have from its peer group. How
-GoBGP decides what the neighbor has depends on how the neighbor was added.
+A neighbor takes every setting it does not have from its peer group. A
+setting written on both belongs to the neighbor: the peer group fills in
+what the neighbor left out, it does not override. How GoBGP decides what
+the neighbor has depends on how the neighbor was added.
 
 ### Neighbors from a configuration file
 
@@ -78,9 +79,7 @@ keeps them. A caller that lists none takes the peer group's.
 
 ### peer-as
 
-`peer-as` follows the same rule as every other setting. A neighbor that sets
-it keeps its own value, and a neighbor that leaves it out takes the peer
-group's.
+`peer-as` follows the same rule as every other setting.
 
 A neighbor with no `peer-as` at all, from the group or from itself, accepts
 any AS number in the received OPEN message. Write `peer-as` on the peer
