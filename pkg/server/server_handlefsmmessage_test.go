@@ -973,7 +973,7 @@ func TestPropagateUpdateSerializesConcurrentLiveDeltas(t *testing.T) {
 	require.Equal(t, pathCount, sentPathCount)
 }
 
-// TestHandleFSMMessage_LLGREndChsRace tests concurrent append and reset of llgrEndChs slice
+// TestHandleFSMMessage_LLGREndChsRace tests concurrent registration and reset of LLGR cancellation channels
 func TestHandleFSMMessage_LLGREndChsRace(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
@@ -1040,10 +1040,10 @@ func TestHandleFSMMessage_LLGREndChsRace(t *testing.T) {
 		require.NotNil(t, peers[i])
 	}
 
-	// Test concurrent append and reset of llgrEndChs
+	// Test concurrent registration and reset of llgrEndChs
 	var wg sync.WaitGroup
 
-	// Goroutines that append to llgrEndChs (simulating LLGR timer start)
+	// Goroutines that register llgrEndChs (simulating LLGR timer start)
 	for i := range numPeers / 2 {
 		wg.Add(1)
 		go func(peerIdx int) {
@@ -1060,7 +1060,7 @@ func TestHandleFSMMessage_LLGREndChsRace(t *testing.T) {
 				p.fsm.pConf.Update(&conf)
 				p.fsm.lock.Unlock()
 
-				// Trigger LLGR path which appends to llgrEndChs
+				// Trigger LLGR path which registers llgrEndChs
 				msg := &fsmMsg{
 					MsgType:     fsmMsgStateChange,
 					MsgData:     bgp.BGP_FSM_IDLE,

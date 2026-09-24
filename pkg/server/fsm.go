@@ -737,6 +737,16 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 		}
 		conf.Timers.State.KeepaliveInterval = keepalive
 
+		conf.GracefulRestart.State.Enabled = false
+		conf.GracefulRestart.State.NotificationEnabled = false
+		conf.GracefulRestart.State.LongLivedEnabled = false
+		for i := range conf.AfiSafis {
+			a := &conf.AfiSafis[i]
+			a.MpGracefulRestart.State.Received = false
+			a.MpGracefulRestart.State.EndOfRibReceived = false
+			a.LongLivedGracefulRestart.State.Enabled = false
+			a.LongLivedGracefulRestart.State.Received = false
+		}
 		gr, ok := fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
 		if conf.GracefulRestart.Config.Enabled && ok {
 			state := &conf.GracefulRestart.State
@@ -764,18 +774,6 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 				// just ignore
 			}
 
-			// RFC 4724 3
-			// The most significant bit is defined as the Restart State (R)
-			// bit, ...(snip)... When set (value 1), this bit
-			// indicates that the BGP speaker has restarted, and its peer MUST
-			// NOT wait for the End-of-RIB marker from the speaker before
-			// advertising routing information to the speaker.
-			if conf.GracefulRestart.State.LocalRestarting && cap.Flags&0x08 != 0 {
-				fsm.logger.Debug("peer has restarted, skipping wait for EOR", slog.String("State", fsm.state.String()))
-				for i := range conf.AfiSafis {
-					conf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
-				}
-			}
 			if conf.GracefulRestart.Config.NotificationEnabled && cap.Flags&0x04 > 0 {
 				conf.GracefulRestart.State.NotificationEnabled = true
 			}
