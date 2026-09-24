@@ -2621,10 +2621,19 @@ func (c *RpkiValidationCondition) Type() ConditionType {
 }
 
 func (c *RpkiValidationCondition) Evaluate(path *Path, options *PolicyOptions) bool {
-	if options != nil && options.Validate != nil {
-		return c.result == options.Validate(path).Status
+	if options == nil || options.Validate == nil {
+		return false
 	}
-	return false
+	// Validate returns nil when the path was not validated at all. The ROA
+	// table only holds IPv4 and IPv6 unicast, so a path in any other family
+	// is never validated. That state is RPKI_VALIDATION_RESULT_TYPE_NONE,
+	// which NewRpkiValidationCondition refuses, so the condition can only ask
+	// for valid, invalid or not-found and none of them matches.
+	v := options.Validate(path)
+	if v == nil {
+		return false
+	}
+	return c.result == v.Status
 }
 
 func (c *RpkiValidationCondition) Set() DefinedSet {

@@ -18,6 +18,7 @@ package table
 import (
 	"fmt"
 	"math"
+	"net"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -4460,4 +4461,120 @@ func BenchmarkPrefixConditionEvaluate(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestRpkiValidationConditionEvaluate(t *testing.T) {
+	v4Path := func(t *testing.T) *Path {
+		t.Helper()
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.168.0.0/24"))
+		require.NoError(t, err)
+		return NewPath(bgp.RF_IPv4_UC, &PeerInfo{LocalAS: 65500}, bgp.PathNLRI{NLRI: nlri},
+			false, []bgp.PathAttributeInterface{strToASParam("100")}, time.Now(), false)
+	}
+	// The ROA table only holds IPv4 and IPv6 unicast, so Validate returns nil
+	// for a path in any other family.
+	vpnv4Path := func(t *testing.T) *Path {
+		t.Helper()
+		rd, err := bgp.ParseRouteDistinguisher("100:100")
+		require.NoError(t, err)
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.168.0.0/24"),
+			*bgp.NewMPLSLabelStack(100), rd)
+		require.NoError(t, err)
+		return NewPath(bgp.RF_IPv4_VPN, &PeerInfo{LocalAS: 65500}, bgp.PathNLRI{NLRI: nlri},
+			false, []bgp.PathAttributeInterface{strToASParam("100")}, time.Now(), false)
+	}
+
+	rt := NewROATable(logger)
+	rt.Add(NewROA(bgp.AFI_IP, net.ParseIP("192.168.0.0").To4(), 24, 24, 100, ""))
+
+	tests := []struct {
+		name    string
+		result  oc.RpkiValidationResultType
+		path    func(*testing.T) *Path
+		options func() *PolicyOptions
+		want    bool
+	}{
+		{
+			name:    "no options",
+			result:  oc.RPKI_VALIDATION_RESULT_TYPE_VALID,
+			path:    v4Path,
+			options: func() *PolicyOptions { return nil },
+		},
+		{
+			name:    "no validate function",
+			result:  oc.RPKI_VALIDATION_RESULT_TYPE_VALID,
+			path:    v4Path,
+			options: func() *PolicyOptions { return &PolicyOptions{} },
+		},
+		{
+			name:    "ipv4 unicast valid",
+			result:  oc.RPKI_VALIDATION_RESULT_TYPE_VALID,
+			path:    v4Path,
+			options: func() *PolicyOptions { return &PolicyOptions{Validate: rt.Validate} },
+			want:    true,
+		},
+		{
+			name:    "ipv4 unicast invalid does not match a valid path",
+			result:  oc.RPKI_VALIDATION_RESULT_TYPE_INVALID,
+			path:    v4Path,
+			options: func() *PolicyOptions { return &PolicyOptions{Validate: rt.Validate} },
+		},
+		{
+			name:    "unvalidated family with valid",
+			result:  oc.RPKI_VALIDATION_RESULT_TYPE_VALID,
+			path:    vpnv4Path,
+			options: func() *PolicyOptions { return &PolicyOptions{Validate: rt.Validate} },
+		},
+		{
+			name:    "unvalidated family with invalid",
+			result:  oc.RPKI_VALIDATION_RESULT_TYPE_INVALID,
+			path:    vpnv4Path,
+			options: func() *PolicyOptions { return &PolicyOptions{Validate: rt.Validate} },
+		},
+		{
+			name:    "unvalidated family with not-found",
+			result:  oc.RPKI_VALIDATION_RESULT_TYPE_NOT_FOUND,
+			path:    vpnv4Path,
+			options: func() *PolicyOptions { return &PolicyOptions{Validate: rt.Validate} },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := NewRpkiValidationCondition(tt.result)
+			require.NoError(t, err)
+			require.NotNil(t, c)
+			assert.Equal(t, tt.want, c.Evaluate(tt.path(t), tt.options()))
+		})
+	}
+}
+
+// A statement that only has an rpki condition used to panic on a path in a
+// family the ROA table does not hold.
+func TestApplyPolicyRpkiConditionUnvalidatedFamily(t *testing.T) {
+	statement := oc.Statement{
+		Name: "stmt1",
+		Conditions: oc.Conditions{
+			BgpConditions: oc.BgpConditions{
+				RpkiValidationResult: oc.RPKI_VALIDATION_RESULT_TYPE_INVALID,
+			},
+		},
+		Actions: oc.Actions{RouteDisposition: oc.ROUTE_DISPOSITION_REJECT_ROUTE},
+	}
+	r := NewRoutingPolicy(logger)
+	require.NoError(t, r.reload(createRoutingPolicy(oc.DefinedSets{},
+		createPolicyDefinition("policy1", statement))))
+	require.NoError(t, r.AddPolicyAssignment(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT,
+		[]*oc.PolicyDefinition{{Name: "policy1"}}, ROUTE_TYPE_ACCEPT))
+
+	rd, err := bgp.ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.168.0.0/24"),
+		*bgp.NewMPLSLabelStack(100), rd)
+	require.NoError(t, err)
+	path := NewPath(bgp.RF_IPv4_VPN, &PeerInfo{LocalAS: 65500}, bgp.PathNLRI{NLRI: nlri},
+		false, []bgp.PathAttributeInterface{strToASParam("100")}, time.Now(), false)
+
+	options := &PolicyOptions{Validate: NewROATable(logger).Validate}
+	assert.Equal(t, path, r.ApplyPolicy(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT, path, options))
 }
