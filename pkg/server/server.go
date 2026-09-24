@@ -4084,7 +4084,6 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	// new record of what the operator asked for. See addNeighbor.
 	configuredConf := cloneNeighborConfig(c)
 
-	needsSoftResetOut := false
 	var pgConf *oc.PeerGroup
 	if c.Config.PeerGroup != "" {
 		if pg, ok := s.peerGroupMap[c.Config.PeerGroup]; ok {
@@ -4125,9 +4124,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	if !original.AsPathOptions.Config.Equal(&c.AsPathOptions.Config) {
 		peer.fsm.logger.Info("Update aspath options")
 
-		needsSoftResetIn = needsSoftResetIn || original.AsPathOptions.Config.AllowOwnAs != c.AsPathOptions.Config.AllowOwnAs
-		needsSoftResetOut = original.AsPathOptions.Config.ReplacePeerAs != c.AsPathOptions.Config.ReplacePeerAs ||
-			original.AsPathOptions.Config.AllowAsPathLoopLocal != c.AsPathOptions.Config.AllowAsPathLoopLocal
+		needsSoftResetIn = true
 		conf.AsPathOptions = c.AsPathOptions
 	}
 
@@ -4225,9 +4222,6 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 			if err == nil {
 				err = s.setAdminState(addr, "", adminStatePfxCt)
 			}
-		}
-		if err == nil && needsSoftResetOut {
-			err = s.softResetOut(addr, bgp.Family(0), false)
 		}
 	} else {
 		// rollback to original ApplyPolicy

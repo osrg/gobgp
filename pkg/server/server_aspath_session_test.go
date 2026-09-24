@@ -115,7 +115,7 @@ func TestASPathOptionsKeepEstablishedSession(t *testing.T) {
 			}
 			update := func(allow uint32, replace, loopLocal bool) {
 				t.Helper()
-				oldAllow := getPeer(receiver).Conf.AllowOwnAsn
+				oldOptions := getPeer(receiver).Conf
 				var needsIn bool
 				if groupUpdate {
 					group.Conf.AllowOwnAsn, group.Conf.ReplacePeerAsn, group.Conf.AllowAspathLoopLocal = allow, replace, loopLocal
@@ -128,14 +128,21 @@ func TestASPathOptionsKeepEstablishedSession(t *testing.T) {
 					require.NoError(t, err)
 					needsIn = rsp.NeedsSoftResetIn
 				}
-				assert.Equal(t, oldAllow != allow, needsIn)
+				optionsChanged := oldOptions.AllowOwnAsn != allow || oldOptions.ReplacePeerAsn != replace || oldOptions.AllowAspathLoopLocal != loopLocal
+				assert.Equal(t, optionsChanged, needsIn)
 				got := getPeer(receiver)
 				assert.Equal(t, allow, got.Conf.AllowOwnAsn)
 				assert.Equal(t, replace, got.Conf.ReplacePeerAsn)
 				assert.Equal(t, loopLocal, got.Conf.AllowAspathLoopLocal)
-				if needsIn {
+				checkSession()
+				if needsIn && oldOptions.AllowOwnAsn != allow {
 					require.NoError(t, receiver.ResetPeer(ctx, &api.ResetPeerRequest{
 						Address: "127.0.0.1", Soft: true, Direction: api.ResetPeerRequest_DIRECTION_IN,
+					}))
+				}
+				if needsIn && (oldOptions.ReplacePeerAsn != replace || oldOptions.AllowAspathLoopLocal != loopLocal) {
+					require.NoError(t, receiver.ResetPeer(ctx, &api.ResetPeerRequest{
+						Address: "127.0.0.1", Soft: true, Direction: api.ResetPeerRequest_DIRECTION_OUT,
 					}))
 				}
 				checkSession()

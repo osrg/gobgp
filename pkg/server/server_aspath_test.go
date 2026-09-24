@@ -275,13 +275,17 @@ func TestUpdatePeerASPathOptions(t *testing.T) {
 		{},
 		{},
 	} {
-		previousAllow := p.Conf.AllowOwnAsn
+		previousOptions := oc.AsPathOptionsConfig{
+			AllowOwnAs:           uint8(p.Conf.AllowOwnAsn),
+			ReplacePeerAs:        p.Conf.ReplacePeerAsn,
+			AllowAsPathLoopLocal: p.Conf.AllowAspathLoopLocal,
+		}
 		p.Conf.AllowOwnAsn = uint32(options.AllowOwnAs)
 		p.Conf.ReplacePeerAsn = options.ReplacePeerAs
 		p.Conf.AllowAspathLoopLocal = options.AllowAsPathLoopLocal
 		rsp, err := s.UpdatePeer(ctx, &api.UpdatePeerRequest{Peer: p})
 		require.NoError(t, err)
-		assert.Equal(t, previousAllow != uint32(options.AllowOwnAs), rsp.NeedsSoftResetIn)
+		assert.Equal(t, previousOptions != options, rsp.NeedsSoftResetIn)
 		require.NoError(t, s.ListPeer(ctx, &api.ListPeerRequest{Address: p.Conf.NeighborAddress}, func(got *api.Peer) {
 			assert.Equal(t, p.Conf.AllowOwnAsn, got.Conf.AllowOwnAsn)
 			assert.Equal(t, p.Conf.ReplacePeerAsn, got.Conf.ReplacePeerAsn)
@@ -452,7 +456,7 @@ func TestUpdatePeerGroupPreservesCurrentASPathOverride(t *testing.T) {
 		group.Conf.ReplacePeerAsn = replace
 		response, err := s.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{PeerGroup: group})
 		require.NoError(t, err)
-		assert.False(t, response.NeedsSoftResetIn)
+		assert.True(t, response.NeedsSoftResetIn)
 		require.NoError(t, s.ListPeer(ctx, &api.ListPeerRequest{Address: addr}, func(got *api.Peer) {
 			assert.Equal(t, uint32(2), got.Conf.AllowOwnAsn)
 			assert.Equal(t, replace, got.Conf.ReplacePeerAsn)
