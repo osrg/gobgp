@@ -1099,23 +1099,22 @@ func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Fami
 				}
 				dl = append(dl, u)
 			}
-			paths, rejected := s.sendSecondaryRoutes(peer, nil, dl)
+			paths, rejected := s.secondaryRoutes(peer, nil, dl)
 			pathList = append(pathList, paths...)
 			filtered = append(filtered, rejected...)
 		}
-		fn(pathList, filtered)
-		return
-	}
-
-	for _, family := range peer.toGlobalFamilies(rfList) {
-		for _, path := range s.getPossibleBest(peer, family) {
-			if p := s.filterpath(peer, path, nil); p != nil {
-				pathList = append(pathList, p)
-			} else {
-				filtered = append(filtered, filteredPathForPeer(peer, path))
+	} else {
+		for _, family := range peer.toGlobalFamilies(rfList) {
+			for _, path := range s.getPossibleBest(peer, family) {
+				if p := s.filterpath(peer, path, nil); p != nil {
+					pathList = append(pathList, p)
+				} else {
+					filtered = append(filtered, filteredPathForPeer(peer, path))
+				}
 			}
 		}
 	}
+	// RFC 4724 section 4: send EOR after the initial update, even if it is empty.
 	if addEOR {
 		isGREnabled := peer.isGracefulRestartEnabled()
 		for _, family := range rfList {
@@ -1162,11 +1161,7 @@ func needToAdvertise(peer *peer) bool {
 	return true
 }
 
-func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []*table.Update) (paths, filtered []*table.Path) {
-	if !needToAdvertise(peer) {
-		return nil, nil
-	}
-
+func (s *BgpServer) secondaryRoutes(peer *peer, newPath *table.Path, dsts []*table.Update) (paths, filtered []*table.Path) {
 	f := func(path, old *table.Path) *table.Path {
 		path, options, stop := s.prePolicyFilterpath(peer, path, old)
 		if stop {
@@ -1607,7 +1602,10 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			} else {
 				if targetPeer.isRouteServerClient() {
 					if targetPeer.isSecondaryRouteEnabled() {
-						if paths, _ := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
+						if !needToAdvertise(targetPeer) {
+							return
+						}
+						if paths, _ := s.secondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
 							targetPeer.updateRoutes(paths...)
 							sendfsmOutgoingMsg(targetPeer, paths)
 						}
@@ -1655,6 +1653,90 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	}
 	peer.stopFSM()
 	s.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, oldState, e)
+}
+
+func (s *BgpServer) rtcDeferralCallback(p *peer) func() {
+	conf := p.fsm.pConf.ReadOnly()
+	address, session := conf.State.NeighborAddress, p.peerInfo.Load()
+	return func() {
+		_ = s.mgmtOperation(func() error {
+			conf := p.fsm.pConf.ReadOnly()
+			if s.neighborMap[address] != p || p.peerInfo.Load() != session || conf.GracefulRestart.State.LocalRestarting ||
+				conf.State.SessionState != oc.SESSION_STATE_ESTABLISHED || !p.getRtcEORWait() {
+				return nil
+			}
+			return s.softResetOut(address.String(), bgp.Family(0), true)
+		}, false)
+	}
+}
+
+// RFC 4724 section 4.2 and RFC 9494 section 4.2 require dropping retained
+// stale routes if the relevant capability, family, or forwarding bit is lost.
+func (s *BgpServer) reconcilePeerRestart(p *peer) {
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadOnly()
+	if !conf.GracefulRestart.State.PeerRestarting {
+		p.fsm.lock.Unlock()
+		return
+	}
+	grPreserved := make(map[bgp.Family]bool)
+	llgrPreserved := make(map[bgp.Family]bool)
+	gr := p.fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
+	if conf.GracefulRestart.Config.Enabled && len(gr) > 0 {
+		for _, t := range gr[len(gr)-1].(*bgp.CapGracefulRestart).Tuples {
+			grPreserved[bgp.NewFamily(t.AFI, t.SAFI)] = t.Flags&0x80 != 0
+		}
+		llgr := p.fsm.capMap[bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART]
+		if conf.GracefulRestart.Config.LongLivedEnabled && len(llgr) > 0 {
+			for _, t := range llgr[len(llgr)-1].(*bgp.CapLongLivedGracefulRestart).Tuples {
+				llgrPreserved[bgp.NewFamily(t.AFI, t.SAFI)] = t.Flags&0x80 != 0
+			}
+		}
+	}
+	negotiated := p.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
+	var drop []bgp.Family
+	for _, a := range conf.AfiSafis {
+		family := a.State.Family
+		preserved := grPreserved[family]
+		if a.LongLivedGracefulRestart.State.Running {
+			preserved = llgrPreserved[family]
+		}
+		if _, ok := negotiated[family]; !ok || !preserved {
+			drop = append(drop, family)
+		}
+	}
+	p.fsm.lock.Unlock()
+	s.finishPeerRestartFamilies(p, drop)
+}
+
+// RFC 4724 section 4.2 and RFC 9494 section 4.2: EOR removes remaining
+// stale routes and ends the LLGR timer for that address family.
+func (s *BgpServer) finishPeerRestartFamilies(p *peer, families []bgp.Family) {
+	paths := p.adjRibIn.DropStale(families)
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	pending := false
+	for i := range conf.AfiSafis {
+		a := &conf.AfiSafis[i]
+		if slices.Contains(families, a.State.Family) {
+			a.MpGracefulRestart.State.Running = false
+			a.LongLivedGracefulRestart.State.Running = false
+			if ch := p.llgrEndChs[a.State.Family]; ch != nil {
+				close(ch)
+				delete(p.llgrEndChs, a.State.Family)
+			}
+		}
+		pending = pending || a.MpGracefulRestart.State.Running || a.LongLivedGracefulRestart.State.Running
+	}
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	if !pending {
+		p.stopPeerRestarting()
+	}
+	if len(paths) > 0 {
+		p.fsm.logger.Debug("withdraw stale routes", slog.Any("Families", families), slog.Int("Numbers", len(paths)))
+		s.propagateUpdate(p, paths)
+	}
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
@@ -1712,9 +1794,10 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			conf = peer.fsm.pConf.ReadCopy()
 			for i, af := range conf.AfiSafis {
 				if slices.Contains(gracefulFamilies, af.State.Family) {
-					conf.AfiSafis[i].MpGracefulRestart.State.Running = true
+					conf.AfiSafis[i].MpGracefulRestart.State.Running = !af.LongLivedGracefulRestart.State.Running
 				}
 				conf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
+				conf.AfiSafis[i].MpGracefulRestart.State.Received = false
 			}
 			peer.fsm.pConf.Update(&conf)
 			peer.prefixLimitWarned = make(map[bgp.Family]bool)
@@ -1725,6 +1808,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.state.Store(nextState)
 			s.resetAdvertisedRoutes(peer)
 			s.dropAdjRIBIn(peer, dropFamilies)
+			s.finishPeerRestartFamilies(peer, dropFamilies)
 
 			if conf.Config.PeerAs == 0 {
 				peer.fsm.lock.Lock()
@@ -1741,15 +1825,16 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		} else if nextStateIdle {
 			conf := peer.fsm.pConf.ReadOnly()
 			longLivedEnabled := conf.GracefulRestart.State.LongLivedEnabled
-			longLivedRunning := peer.longLivedRunning.Load()
-			// We must not restart LLGR timer until we have syncronized with
-			// the peer. Routes also need to be marked wit LLGR comm just once.
-			// https://datatracker.ietf.org/doc/html/rfc9494#session_resetsnever
-			if longLivedEnabled && !longLivedRunning {
-				peer.longLivedRunning.Store(true)
-				llgr, no_llgr := peer.llgrFamilies()
-
-				s.dropAdjRIBIn(peer, no_llgr)
+			if longLivedEnabled {
+				llgr, noLLGR := peer.llgrFamilies()
+				llgr = slices.DeleteFunc(llgr, func(f bgp.Family) bool {
+					if conf.GetAfiSafi(f).LongLivedGracefulRestart.State.PeerRestartTimerExpired {
+						noLLGR = append(noLLGR, f)
+						return true
+					}
+					return false
+				})
+				s.dropAdjRIBIn(peer, noLLGR)
 
 				// attach LLGR_STALE community to paths in peer's adj-rib-in
 				// paths with NO_LLGR are deleted
@@ -1762,23 +1847,50 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				s.propagateUpdate(peer, pathList)
 
 				for _, f := range llgr {
+					// RFC 9494 section 4.2: do not restart a running LLST before
+					// synchronization of its address family.
+					if peer.fsm.pConf.ReadOnly().GetAfiSafi(f).LongLivedGracefulRestart.State.Running {
+						continue
+					}
 					endCh := make(chan struct{})
 					peer.fsm.lock.Lock()
-					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
+					if peer.llgrEndChs == nil {
+						peer.llgrEndChs = make(map[bgp.Family]chan struct{})
+					}
+					if previous := peer.llgrEndChs[f]; previous != nil {
+						close(previous)
+					}
+					peer.llgrEndChs[f] = endCh
 					peer.fsm.lock.Unlock()
+					peer.llgrRestartTimerStarted(f)
+					t := peer.llgrRestartTime(f)
 					go func(family bgp.Family, endCh chan struct{}) {
-						peer.llgrRestartTimerStarted(family)
-						t := peer.llgrRestartTime(family)
 						timer := time.NewTimer(time.Second * time.Duration(t))
+						defer timer.Stop()
 
 						peer.fsm.logger.Info("LLGR restart timer started", slog.String("Family", family.String()), slog.Any("Duration", t))
 
 						select {
 						case <-timer.C:
 							err := s.mgmtOperation(func() error {
+								peer.fsm.lock.Lock()
+								currentTimer := peer.llgrEndChs[family] == endCh
+								peer.fsm.lock.Unlock()
+								if !currentTimer {
+									return nil
+								}
+								conf := peer.fsm.pConf.ReadOnly()
+								afi := conf.GetAfiSafi(family)
+								if s.neighborMap[conf.State.NeighborAddress] != peer || afi == nil || !afi.LongLivedGracefulRestart.State.Running {
+									return nil
+								}
 								peer.fsm.logger.Info("LLGR restart timer expired", slog.String("Family", family.String()), slog.Any("Duration", t))
 
-								s.dropAdjRIBIn(peer, []bgp.Family{family})
+								if peer.State() == bgp.BGP_FSM_ESTABLISHED {
+									s.propagateUpdate(peer, peer.adjRibIn.DropStale([]bgp.Family{family}))
+								} else {
+									s.dropAdjRIBIn(peer, []bgp.Family{family})
+								}
 
 								// when all llgr restart timer expired, stop PeerRestarting
 								if peer.llgrRestartTimerExpired(family) {
@@ -1800,7 +1912,8 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						}
 					}(f, endCh)
 				}
-			} else if !longLivedEnabled {
+				s.finishPeerRestartFamilies(peer, noLLGR)
+			} else {
 				// RFC 4724 4.2
 				// If the session does not get re-established within the "Restart Time"
 				// that the peer advertised previously, the Receiving Speaker MUST
@@ -1867,6 +1980,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					}, false)
 				}
 			}
+			s.reconcilePeerRestart(peer)
+			conf = peer.fsm.pConf.ReadOnly()
+
 			notLocalRestarting := !conf.GracefulRestart.State.LocalRestarting
 			if notLocalRestarting {
 				// When graceful-restart cap (which means intention
@@ -1889,7 +2005,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						}
 					})
 					t := c.RouteTargetMembership.Config.DeferralTime
-					time.AfterFunc(time.Second*time.Duration(t), deferralExpiredFunc(bgp.Family(0), time.Second*time.Duration(t)))
+					time.AfterFunc(time.Second*time.Duration(t), s.rtcDeferralCallback(peer))
 				} else {
 					s.getBestFromLocalCallback(peer, peer.negotiatedRFList(), true, true, func(paths []*table.Path, filtered []*table.Path) {
 						if len(paths) > 0 {
@@ -1914,7 +2030,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 							// this callback, so fsm.state.Store() has not been
 							// called yet. Apply the post-ESTABLISHED EOR check
 							// directly instead of going through receivedAllEOR().
-							if !p.allNegotiatedEORReceived() {
+							if !p.localRestartEORWaitComplete() {
 								return false
 							}
 							continue
@@ -2041,6 +2157,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					for i, a := range peerAfiSafis {
 						if a.State.Family == f {
 							conf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = true
+							conf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTimerExpired = false
 						}
 					}
 					peer.fsm.pConf.Update(&conf)
@@ -2094,14 +2211,8 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				conf := peer.fsm.pConf.ReadOnly()
 				peerRestarting := conf.GracefulRestart.State.PeerRestarting
 				if peerRestarting {
-					if peer.receivedAllEOR() {
-						peer.stopPeerRestarting()
-						pathList := peer.adjRibIn.DropStale(peer.configuredRFlist())
+					s.finishPeerRestartFamilies(peer, eor)
 
-						peer.fsm.logger.Debug("withdraw stale routes", slog.Int("Numbers", len(pathList)))
-
-						s.propagateUpdate(peer, pathList)
-					}
 					// we don't delay non-route-target NLRIs when peer is restarting
 					peer.setRtcEORWait(false)
 				}

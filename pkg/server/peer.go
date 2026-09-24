@@ -121,8 +121,7 @@ type peer struct {
 	sentPaths sync.Map
 	// map[table.PathLocalKey]struct{}
 	sendMaxPathFiltered sync.Map
-	llgrEndChs          []chan struct{} // protected by fsm.lock
-	longLivedRunning    atomic.Bool
+	llgrEndChs          map[bgp.Family]chan struct{} // protected by fsm.lock
 	// Route Target Membership handler after import policy (for constrained VPN distribution).
 	rtmHandler *table.RouteTargetMembershipHandler
 	// Route refresh in progress, during an established session or route refresh, this need to be atomic to avoid out of order updates
@@ -363,12 +362,21 @@ func (peer *peer) setRtcEORWait(waiting bool) {
 	peer.fsm.logger.Debug("Set rtcEORWait", slog.Bool("Data", waiting))
 }
 
-// allNegotiatedEORReceived reports whether EOR has been received for all
-// negotiated GR address families. This applies the post-ESTABLISHED check
-// based on State (negotiated capabilities), not Config.
-func (peer *peer) allNegotiatedEORReceived() bool {
-	for _, a := range peer.fsm.pConf.ReadOnly().AfiSafis {
-		if s := a.MpGracefulRestart.State; s.Enabled && s.Received && !s.EndOfRibReceived {
+// RFC 4724 sections 3 and 4.1 exclude peers without GR capability or with R=1
+// from the EOR wait.
+// GR tuples describe retained forwarding state; even an empty tuple list
+// promises EOR for the negotiated address families.
+func (peer *peer) localRestartEORWaitComplete() bool {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	caps := peer.fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
+	if len(caps) == 0 || caps[len(caps)-1].(*bgp.CapGracefulRestart).Flags&0x08 != 0 {
+		return true
+	}
+	conf := peer.fsm.pConf.ReadOnly()
+	families := peer.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
+	for _, a := range conf.AfiSafis {
+		if _, negotiated := families[a.State.Family]; negotiated && !a.MpGracefulRestart.State.EndOfRibReceived {
 			return false
 		}
 	}
@@ -391,7 +399,7 @@ func (peer *peer) receivedAllEOR() bool {
 		}
 		return true
 	}
-	return peer.allNegotiatedEORReceived()
+	return peer.localRestartEORWaitComplete()
 }
 
 func (peer *peer) configuredRFlist() []bgp.Family {
@@ -455,7 +463,9 @@ func (peer *peer) forwardingPreservedFamilies() ([]bgp.Family, []bgp.Family) {
 	conf := peer.fsm.pConf.ReadOnly()
 	list := []bgp.Family{}
 	for _, a := range conf.AfiSafis {
-		if s := a.MpGracefulRestart.State; s.Enabled && s.Received {
+		// RFC 9494 section 4.2: after LLST expiry, a reset before EOR
+		// removes even refreshed routes instead of starting another retention period.
+		if s := a.MpGracefulRestart.State; s.Enabled && s.Received && !a.LongLivedGracefulRestart.State.PeerRestartTimerExpired {
 			list = append(list, a.State.Family)
 		}
 	}
@@ -511,14 +521,21 @@ func (peer *peer) llgrRestartTimerExpired(family bgp.Family) bool {
 	peer.fsm.lock.Lock()
 	defer peer.fsm.lock.Unlock()
 
+	if ch := peer.llgrEndChs[family]; ch != nil {
+		close(ch)
+		delete(peer.llgrEndChs, family)
+	}
+
 	all := true
 	conf := peer.fsm.pConf.ReadCopy()
-	for i, a := range conf.AfiSafis {
+	for i := range conf.AfiSafis {
+		a := &conf.AfiSafis[i]
 		if a.State.Family == family {
-			conf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTimerExpired = true
+			a.LongLivedGracefulRestart.State.PeerRestartTimerExpired = true
+			a.LongLivedGracefulRestart.State.Running = false
+			a.MpGracefulRestart.State.Running = false
 		}
-		s := a.LongLivedGracefulRestart.State
-		if s.Received && !s.PeerRestartTimerExpired {
+		if a.LongLivedGracefulRestart.State.Running || a.MpGracefulRestart.State.Running {
 			all = false
 		}
 	}
@@ -543,10 +560,8 @@ func (peer *peer) stopPeerRestarting() {
 	for _, ch := range peer.llgrEndChs {
 		close(ch)
 	}
-	peer.llgrEndChs = make([]chan struct{}, 0)
+	clear(peer.llgrEndChs)
 	peer.fsm.lock.Unlock()
-
-	peer.longLivedRunning.Store(false)
 }
 
 // Returns true if the peer is interested in this path according to BGP RTC
