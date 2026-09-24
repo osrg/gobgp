@@ -1823,7 +1823,15 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 		}
 
-		drainChannel(peer.fsm.outgoingCh.Out())
+		// Drop the messages that the last session did not send. The
+		// nonblocking drainChannel cannot be used here. It returns before
+		// the InfiniteChannel worker moves the next item to the output.
+		// No other goroutine reads or writes the queue at this point: the
+		// send loop of the last session has exited, and the peer is not
+		// established, so nothing new is queued. So Len() is exact.
+		for peer.fsm.outgoingCh.Len() > 0 {
+			<-peer.fsm.outgoingCh.Out()
+		}
 		// Drop any queued notification. Either it raced with the end of the
 		// session it was meant for, or it was generated while no session was
 		// up, e.g. by BFD detecting a failure while the peer was down. Only

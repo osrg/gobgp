@@ -27,6 +27,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -1308,6 +1309,78 @@ func TestHandleFSMMessage_StateChange_IdleToActive(t *testing.T) {
 	// Verify state change was processed (state changed from initial)
 	conf := *p.fsm.pConf.ReadOnly()
 	assert.NotEqual(t, int(initialState), conf.State.SessionState.ToInt())
+}
+
+// TestHandleFSMMessage_PeerDownDropsQueuedOutgoing tests that the messages
+// the last session did not send are dropped, so that the next session does
+// not send them.
+func TestHandleFSMMessage_PeerDownDropsQueuedOutgoing(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	peerAddr := "2.2.2.2"
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: &api.Peer{
+			Conf: &api.PeerConf{
+				NeighborAddress: peerAddr,
+				PeerAsn:         65002,
+				AdminDown:       true,
+			},
+			AfiSafis: []*api.AfiSafi{
+				{
+					Config: &api.AfiSafiConfig{
+						Family: &api.Family{
+							Afi:  api.Family_AFI_IP,
+							Safi: api.Family_SAFI_UNICAST,
+						},
+						Enabled: true,
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var p *peer
+	err = s.mgmtOperation(func() error {
+		p = s.neighborMap[netip.MustParseAddr(peerAddr)]
+		return nil
+	}, true)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	// Pretend that the session was established and that it went down
+	// with messages still queued. handleFSMMessage takes the old state
+	// from pConf. Do not set fsm.state, or the FSM loop of the peer
+	// enters the established state without a connection.
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.State.SessionState = oc.SESSION_STATE_ESTABLISHED
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	for range 100 {
+		p.fsm.outgoingCh.In() <- &fsmOutgoingMsg{}
+	}
+
+	msg := &fsmMsg{
+		MsgType:     fsmMsgStateChange,
+		MsgData:     bgp.BGP_FSM_IDLE,
+		StateReason: newfsmStateReason(fsmHoldTimerExpired, nil, nil),
+		timestamp:   time.Now(),
+	}
+	s.handleFSMMessage(p, msg)
+
+	assert.Equal(t, 0, p.fsm.outgoingCh.Len())
 }
 
 // TestHandleFSMMessage_ConcurrentAccess tests concurrent access to handleFSMMessage
