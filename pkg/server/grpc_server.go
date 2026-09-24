@@ -1411,6 +1411,7 @@ func newConfigPrefixFromAPIStruct(a *api.Prefix) (*oc.Prefix, error) {
 func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*oc.DefinedSets, error) {
 	ps := make([]oc.PrefixSet, 0)
 	ns := make([]oc.NeighborSet, 0)
+	pgs := make([]oc.PeerGroupSet, 0)
 	as := make([]oc.AsPathSet, 0)
 	cs := make([]oc.CommunitySet, 0)
 	es := make([]oc.ExtCommunitySet, 0)
@@ -1439,6 +1440,11 @@ func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*oc.DefinedSets, er
 				NeighborSetName:  ds.Name,
 				NeighborInfoList: ds.List,
 			})
+		case api.DefinedType_DEFINED_TYPE_PEER_GROUP:
+			pgs = append(pgs, oc.PeerGroupSet{
+				PeerGroupSetName: ds.Name,
+				PeerGroupList:    ds.List,
+			})
 		case api.DefinedType_DEFINED_TYPE_AS_PATH:
 			as = append(as, oc.AsPathSet{
 				AsPathSetName: ds.Name,
@@ -1465,8 +1471,9 @@ func newConfigDefinedSetsFromApiStruct(a []*api.DefinedSet) (*oc.DefinedSets, er
 	}
 
 	return &oc.DefinedSets{
-		PrefixSets:   ps,
-		NeighborSets: ns,
+		PrefixSets:    ps,
+		NeighborSets:  ns,
+		PeerGroupSets: pgs,
 		BgpDefinedSets: oc.BgpDefinedSets{
 			AsPathSets:         as,
 			CommunitySets:      cs,
@@ -1501,6 +1508,11 @@ func newDefinedSetFromApiStruct(a *api.DefinedSet) (table.DefinedSet, error) {
 			list = append(list, *addr)
 		}
 		return table.NewNeighborSetFromApiStruct(a.Name, list)
+	case api.DefinedType_DEFINED_TYPE_PEER_GROUP:
+		return table.NewPeerGroupSet(oc.PeerGroupSet{
+			PeerGroupSetName: a.Name,
+			PeerGroupList:    a.List,
+		})
 	case api.DefinedType_DEFINED_TYPE_AS_PATH:
 		return table.NewAsPathSet(oc.AsPathSet{
 			AsPathSetName: a.Name,
@@ -1622,6 +1634,21 @@ func newNeighborConditionFromApiStruct(a *api.MatchSet) (*table.NeighborConditio
 		MatchSetOptions: typ,
 	}
 	return table.NewNeighborCondition(c)
+}
+
+func newPeerGroupConditionFromApiStruct(a *api.MatchSet) (*table.PeerGroupCondition, error) {
+	if a == nil {
+		return nil, nil
+	}
+	typ, err := toConfigMatchSetOptionRestricted(a.Type)
+	if err != nil {
+		return nil, err
+	}
+	c := oc.MatchPeerGroupSet{
+		PeerGroupSet:    a.Name,
+		MatchSetOptions: typ,
+	}
+	return table.NewPeerGroupCondition(c)
 }
 
 func newCommunityCountConditionFromApiStruct(a *api.CommunityCount) (*table.CommunityCountCondition, error) {
@@ -1946,6 +1973,9 @@ func newStatementFromApiStruct(a *api.Statement) (*table.Statement, error) {
 			},
 			func() (table.Condition, error) {
 				return newNeighborConditionFromApiStruct(a.Conditions.NeighborSet)
+			},
+			func() (table.Condition, error) {
+				return newPeerGroupConditionFromApiStruct(a.Conditions.PeerGroupSet)
 			},
 			func() (table.Condition, error) {
 				return newCommunityCountConditionFromApiStruct(a.Conditions.CommunityCount)
