@@ -348,7 +348,12 @@ func (peer *peer) resetAdvertisedRoutes() {
 }
 
 func (peer *peer) isDynamicNeighbor() bool {
-	conf := peer.fsm.pConf.ReadOnly()
+	return isDynamicNeighborConf(peer.fsm.pConf.ReadOnly())
+}
+
+// isDynamicNeighborConf is the identity check behind isDynamicNeighbor. A
+// dynamic neighbor has no configured address or interface of its own.
+func isDynamicNeighborConf(conf *oc.Neighbor) bool {
 	return !conf.Config.NeighborAddress.IsValid() && conf.Config.NeighborInterface == ""
 }
 

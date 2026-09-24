@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -106,6 +107,8 @@ type bfdPeer struct {
 	shutdownOnce  sync.Once
 	shutdownWait  sync.WaitGroup
 	stopped       atomic.Bool
+	resetCtx      context.Context
+	cancelReset   context.CancelFunc
 
 	stats bfdPeerStats
 }
@@ -172,6 +175,7 @@ func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, confi
 	p.eventExpiry = time.NewTicker(p.expiryInterval)
 	p.eventExpiry.Stop()
 
+	p.resetCtx, p.cancelReset = context.WithCancel(context.Background())
 	p.shutdownWait.Add(1)
 	go p.loop()
 	return p
@@ -195,6 +199,9 @@ func (p *bfdPeer) Rx(packet *bfd.BFDHeader) bool {
 func (p *bfdPeer) Stop() {
 	p.shutdownOnce.Do(func() {
 		p.stopped.Store(true)
+		// A reset may be waiting for the BGP lock held by our lifecycle caller.
+		// Cancel it before waiting for the BFD loop, including its queued operation.
+		p.cancelReset()
 		close(p.eventShutdown)
 		p.shutdownWait.Wait()
 	})
@@ -593,11 +600,12 @@ func (p *bfdPeer) remoteDown() {
 }
 
 func (p *bfdPeer) resetPeer() {
-	if err := p.peerState.ResetPeer(context.Background(), &api.ResetPeerRequest{
+	if err := p.peerState.ResetPeer(p.resetCtx, &api.ResetPeerRequest{
 		Address:       p.peerAddress.String(),
 		Communication: "BFD is down",
 		Soft:          false,
-	}); err != nil {
+	}); err != nil && !errors.Is(err, context.Canceled) {
+		// Cancellation is the retiring session withdrawing its own reset.
 		p.logger.Warn("ResetPeer failed",
 			slog.String("Topic", "bfd"),
 			slog.String("Peer", p.peerAddress.String()),
