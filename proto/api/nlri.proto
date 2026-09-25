@@ -269,6 +269,9 @@ message LsLinkDescriptor {
   string neighbor_addr_ipv4 = 4;
   string interface_addr_ipv6 = 5;
   string neighbor_addr_ipv6 = 6;
+  // Repeated to preserve multiple MT-ID TLVs in a received NLRI,
+  // even though a Link Descriptor normally carries only one MT-ID.
+  repeated uint32 multi_topo_id = 7;
 }
 
 enum LsOspfRouteType {
