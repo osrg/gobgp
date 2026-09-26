@@ -3499,12 +3499,27 @@ func (n *EncapNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) 
 		eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
 		return NewMessageError(eCode, eSubCode, nil, "prefix misses length field")
 	}
+	var addrlen int
 	switch data[0] {
-	case net.IPv4len * 8, net.IPv6len * 8:
+	case net.IPv4len * 8:
+		addrlen = net.IPv4len
+	case net.IPv6len * 8:
+		addrlen = net.IPv6len
 	default:
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "nlri length isn't valid")
 	}
-	addr, _ := netip.AddrFromSlice(data[1:])
+	// The length octet fixes the endpoint size, so slice to it instead of
+	// taking the rest of the buffer. In an MP_REACH/MP_UNREACH carrying more
+	// than one Encap NLRI, the trailing bytes belong to the sibling NLRIs;
+	// AddrFromSlice(data[1:]) would read them as one over-long address and
+	// return an invalid Endpoint, mis-framing the rest of the list.
+	if len(data) < 1+addrlen {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "prefix bytes are short")
+	}
+	addr, ok := netip.AddrFromSlice(data[1 : 1+addrlen])
+	if !ok {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, nil, "nlri prefix is invalid")
+	}
 	n.Endpoint = addr
 	return nil
 }
