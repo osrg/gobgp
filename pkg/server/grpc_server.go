@@ -359,6 +359,13 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 }
 
 func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time)) error {
+	for _, filter := range r.GetTable().GetFilters() {
+		if addr := filter.GetPeerAddress(); addr != "" {
+			if _, err := netip.ParseAddr(addr); err != nil {
+				return status.Errorf(codes.InvalidArgument, "invalid peer address %q in watch filter: %v", addr, err)
+			}
+		}
+	}
 	opts := make([]WatchOption, 0)
 	if r.GetPeer() != nil {
 		opts = append(opts, WatchPeer())

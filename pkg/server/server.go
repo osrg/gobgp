@@ -2183,6 +2183,10 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	addr, err := netip.ParseAddr(r.Address)
+	if err != nil {
+		return fmt.Errorf("invalid bmp server address %q: %w", r.Address, err)
+	}
 	return s.mgmtOperation(func() error {
 		_, ok := api.AddBmpRequest_MonitoringPolicy_name[int32(r.Policy)]
 		if !ok {
@@ -2207,7 +2211,7 @@ func (s *BgpServer) AddBmp(ctx context.Context, r *api.AddBmpRequest) error {
 			slog.String("Policy", r.Policy.String()))
 
 		return s.bmpManager.addServer(&oc.BmpServerConfig{
-			Address:               netip.MustParseAddr(r.Address),
+			Address:               addr,
 			Port:                  port,
 			SysName:               sysname,
 			SysDescr:              sysDescr,
@@ -2221,9 +2225,13 @@ func (s *BgpServer) DeleteBmp(ctx context.Context, r *api.DeleteBmpRequest) erro
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	addr, err := netip.ParseAddr(r.Address)
+	if err != nil {
+		return fmt.Errorf("invalid bmp server address %q: %w", r.Address, err)
+	}
 	return s.mgmtOperation(func() error {
 		return s.bmpManager.deleteServer(&oc.BmpServerConfig{
-			Address: netip.MustParseAddr(r.Address),
+			Address: addr,
 			Port:    r.Port,
 		})
 	}, true)
@@ -2740,6 +2748,11 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		}
 		if !routerAddr.Is4() {
 			return fmt.Errorf("router-id must be an IPv4 address: %s", g.RouterId)
+		}
+		for _, addr := range g.ListenAddresses {
+			if _, err := netip.ParseAddr(addr); err != nil {
+				return fmt.Errorf("invalid listen address %q: %w", addr, err)
+			}
 		}
 
 		c := newGlobalFromAPIStruct(g)
@@ -3891,17 +3904,17 @@ func (s *BgpServer) deletePeerGroup(name string) error {
 }
 
 func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNotification bool) error {
-	addr, err := c.ExtractNeighborAddress()
+	var addr string
+	var err error
+	// An unnumbered neighbor has no address in the request, so resolve it
+	// from the interface before asking for the address.
+	if intf := c.Config.NeighborInterface; intf != "" {
+		addr, err = oc.GetIPv6LinkLocalNeighborAddress(intf)
+	} else {
+		addr, err = c.ExtractNeighborAddress()
+	}
 	if err != nil {
 		return err
-	}
-
-	if intf := c.Config.NeighborInterface; intf != "" {
-		var err error
-		addr, err = oc.GetIPv6LinkLocalNeighborAddress(intf)
-		if err != nil {
-			return err
-		}
 	}
 	ipAddr, err := netip.ParseAddr(addr)
 	if err != nil {
@@ -3961,9 +3974,19 @@ func (s *BgpServer) DeletePeer(ctx context.Context, r *api.DeletePeerRequest) er
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	var addr netip.Addr
+	if r.Address != "" {
+		var err error
+		addr, err = netip.ParseAddr(r.Address)
+		if err != nil {
+			return fmt.Errorf("invalid neighbor address %q: %w", r.Address, err)
+		}
+	} else if r.Interface == "" {
+		return fmt.Errorf("neighbor address or interface is required")
+	}
 	return s.mgmtOperation(func() error {
 		c := &oc.Neighbor{Config: oc.NeighborConfig{
-			NeighborAddress:   netip.MustParseAddr(r.Address),
+			NeighborAddress:   addr,
 			NeighborInterface: r.Interface,
 		}}
 		return s.deleteNeighbor(c, bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_PEER_DECONFIGURED, true)
@@ -4868,6 +4891,11 @@ func (s *BgpServer) AddRpki(ctx context.Context, r *api.AddRpkiRequest) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
 	}
+	// ListRpki reports the server address as a netip.Addr, so a host name
+	// accepted here would make every later ListRpki panic.
+	if _, err := netip.ParseAddr(r.Address); err != nil {
+		return fmt.Errorf("invalid rpki server address %q: %w", r.Address, err)
+	}
 	return s.mgmtOperation(func() error {
 		return s.roaManager.AddServer(net.JoinHostPort(r.Address, strconv.Itoa(int(r.Port))), r.Lifetime)
 	}, false)
@@ -5249,6 +5277,9 @@ func WatchBestPath(current bool) WatchOption {
 }
 
 func WatchUpdate(current bool, peerAddress string, peerGroup string) WatchOption {
+	// Parse the address once here and not for every event. The filters run
+	// on the Serve goroutine, and an invalid address never matches a peer.
+	addr, _ := netip.ParseAddr(peerAddress)
 	return func(o *watchOptions) {
 		o.preUpdate = true
 		if current {
@@ -5260,7 +5291,7 @@ func WatchUpdate(current bool, peerAddress string, peerGroup string) WatchOption
 				if !ok || ev == nil {
 					return false
 				}
-				if len(peerAddress) > 0 && ev.Neighbor.State.NeighborAddress == netip.MustParseAddr(peerAddress) {
+				if len(peerAddress) > 0 && ev.Neighbor.State.NeighborAddress == addr {
 					return true
 				}
 				if len(peerGroup) > 0 && ev.Neighbor.State.PeerGroup == peerGroup {
@@ -5284,6 +5315,9 @@ func WatchAdjInWithdraw() WatchOption {
 }
 
 func WatchPostUpdate(current bool, peerAddress string, peerGroup string) WatchOption {
+	// Parse the address once here and not for every event. The filters run
+	// on the Serve goroutine, and an invalid address never matches a peer.
+	addr, _ := netip.ParseAddr(peerAddress)
 	return func(o *watchOptions) {
 		o.postUpdate = true
 		if current {
@@ -5295,7 +5329,7 @@ func WatchPostUpdate(current bool, peerAddress string, peerGroup string) WatchOp
 				if !ok || ev == nil {
 					return false
 				}
-				if len(peerAddress) > 0 && ev.Neighbor != nil && ev.Neighbor.State.NeighborAddress == netip.MustParseAddr(peerAddress) {
+				if len(peerAddress) > 0 && ev.Neighbor != nil && ev.Neighbor.State.NeighborAddress == addr {
 					return true
 				}
 				if len(peerGroup) > 0 && ev.Neighbor != nil && ev.Neighbor.State.PeerGroup == peerGroup {
