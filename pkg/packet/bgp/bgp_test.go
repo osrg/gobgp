@@ -760,6 +760,33 @@ func Test_RFC5512(t *testing.T) {
 	assert.Equal("2001::1", n4.String())
 }
 
+func Test_EncapNLRIEndpointClampedToLength(t *testing.T) {
+	assert := assert.New(t)
+
+	// Two Encap NLRIs packed in one MP_REACH, which RFC 5512 allows. Each
+	// carries a 32-bit (IPv4) endpoint, so the first must decode as 10.0.0.1
+	// and the second as 10.0.0.2 rather than the first absorbing the rest.
+	n1, _ := NewEncapNLRI(netip.MustParseAddr("10.0.0.1"))
+	n2, _ := NewEncapNLRI(netip.MustParseAddr("10.0.0.2"))
+	mp, err := NewPathAttributeMpReachNLRI(RF_IPv4_ENCAP, []PathNLRI{{NLRI: n1}, {NLRI: n2}}, netip.MustParseAddr("192.0.2.1"))
+	assert.NoError(err)
+	buf, err := mp.Serialize()
+	assert.NoError(err)
+
+	p := &PathAttributeMpReachNLRI{}
+	assert.NoError(p.DecodeFromBytes(buf))
+	assert.Len(p.Value, 2)
+	assert.Equal("10.0.0.1", p.Value[0].NLRI.String())
+	assert.Equal("10.0.0.2", p.Value[1].NLRI.String())
+
+	// A 32-bit length octet followed by the 4-byte endpoint plus trailing
+	// sibling bytes decodes to just the endpoint, ignoring the trailing bytes.
+	trailing := []byte{net.IPv4len * 8, 10, 0, 0, 1, 0xde, 0xad, 0xbe, 0xef}
+	nl, err := NLRIFromSlice(RF_IPv4_ENCAP, trailing)
+	assert.NoError(err)
+	assert.Equal("10.0.0.1", nl.String())
+}
+
 func Test_ASLen(t *testing.T) {
 	assert := assert.New(t)
 
