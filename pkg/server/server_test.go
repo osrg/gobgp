@@ -5798,3 +5798,94 @@ func TestUpdatePeerGroupSkipsDynamicNeighbor(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal([]string{static}, members)
 }
+
+func TestInvalidAddressInAPIRequest(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	ctx := context.Background()
+	tests := []struct {
+		name string
+		call func() error
+	}{
+		{"AddBmp", func() error {
+			return s.AddBmp(ctx, &api.AddBmpRequest{Address: "bmp.example", Port: 11019})
+		}},
+		{"DeleteBmp", func() error {
+			return s.DeleteBmp(ctx, &api.DeleteBmpRequest{Address: "bmp.example", Port: 11019})
+		}},
+		{"DeletePeer with a host name", func() error {
+			return s.DeletePeer(ctx, &api.DeletePeerRequest{Address: "peer.example"})
+		}},
+		{"DeletePeer with an unknown interface", func() error {
+			return s.DeletePeer(ctx, &api.DeletePeerRequest{Interface: "no-such-if0"})
+		}},
+		{"DeletePeer with neither an address nor an interface", func() error {
+			return s.DeletePeer(ctx, &api.DeletePeerRequest{})
+		}},
+		{"AddRpki", func() error {
+			return s.AddRpki(ctx, &api.AddRpkiRequest{Address: "rpki.example", Port: 323})
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			done := make(chan error, 1)
+			go func() { done <- tt.call() }()
+			select {
+			case err := <-done:
+				require.Error(t, err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("the request did not return")
+			}
+		})
+	}
+
+	// The server must still work, and ListRpki must not see a host name.
+	_, err = s.GetBgp(ctx, &api.GetBgpRequest{})
+	require.NoError(t, err)
+	err = s.ListRpki(ctx, &api.ListRpkiRequest{}, func(*api.Rpki) {})
+	require.NoError(t, err)
+}
+
+func TestStartBgpInvalidListenAddress(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	defer s.Stop()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:             1,
+			RouterId:        "1.1.1.1",
+			ListenPort:      -1,
+			ListenAddresses: []string{"listen.example"},
+		},
+	})
+	require.ErrorContains(t, err, "invalid listen address")
+}
+
+func TestWatchUpdateInvalidPeerAddress(t *testing.T) {
+	ev := &watchEventUpdate{Neighbor: &oc.Neighbor{
+		State: oc.NeighborState{NeighborAddress: netip.MustParseAddr("10.0.0.1")},
+	}}
+
+	o := &watchOptions{}
+	WatchUpdate(false, "peer.example", "")(o)
+	WatchPostUpdate(false, "peer.example", "")(o)
+	require.False(t, o.preUpdateFilter(ev))
+	require.False(t, o.postUpdateFilter(ev))
+
+	o = &watchOptions{}
+	WatchUpdate(false, "10.0.0.1", "")(o)
+	WatchPostUpdate(false, "10.0.0.1", "")(o)
+	require.True(t, o.preUpdateFilter(ev))
+	require.True(t, o.postUpdateFilter(ev))
+}

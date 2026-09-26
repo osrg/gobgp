@@ -18,7 +18,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -936,4 +938,55 @@ func TestGRPCListPolicyAndListStatementAgree(t *testing.T) {
 			assert.Equal(t, api.CommunityAction_TYPE_REPLACE, st.GetActions().GetCommunity().GetType())
 		}
 	}
+}
+
+func TestGRPCWatchEventInvalidPeerAddress(t *testing.T) {
+	socketName, err := os.MkdirTemp("", "gobgp-grpc-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(socketName)
+	})
+	socketAddr := "unix://" + socketName + "/gobgp.sock"
+
+	s := NewBgpServer(GrpcListenAddress(socketAddr))
+	go s.Serve()
+	defer s.Stop()
+
+	err = s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	conn, err := grpc.NewClient(socketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+	client := api.NewGoBgpServiceClient(conn)
+
+	for _, typ := range []api.WatchEventRequest_Table_Filter_Type{
+		api.WatchEventRequest_Table_Filter_TYPE_ADJIN,
+		api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY,
+	} {
+		t.Run(typ.String(), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			stream, err := client.WatchEvent(ctx, &api.WatchEventRequest{
+				Table: &api.WatchEventRequest_Table{
+					Filters: []*api.WatchEventRequest_Table_Filter{
+						{Type: typ, PeerAddress: "peer.example"},
+					},
+				},
+			})
+			require.NoError(t, err)
+			_, err = stream.Recv()
+			require.Equal(t, codes.InvalidArgument, status.Code(err), "err = %v", err)
+		})
+	}
+
+	// The server must still work.
+	_, err = client.GetBgp(context.Background(), &api.GetBgpRequest{})
+	require.NoError(t, err)
 }
