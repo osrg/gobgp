@@ -25,9 +25,9 @@ Supported behavior:
 - peer-group BFD configuration inherited by neighbors;
 - default destination UDP port `3784`;
 - source UDP port selected from the RFC 5881 dynamic range `49152..65535`;
-- source IP selected from the neighbor transport `local-address` for explicit
-  neighbors, or by the kernel when unset or unspecified; dynamic neighbors use
-  the local address of the accepted BGP connection;
+- source IP taken from the neighbor transport `local-address` when it is set;
+  otherwise, for static and dynamic neighbors alike, from the local address of
+  the established BGP TCP connection;
 - outgoing BFD packets sent with TTL/Hop Limit `255`;
 - BFD states `DOWN`, `INIT`, `UP`, and `ADMIN_DOWN`;
 - transmission slows to at least one second while the session is not `UP`
@@ -168,6 +168,15 @@ When BFD is enabled for a neighbor, GoBGP creates a BFD peer for the neighbor
 address. If the BFD session expires, or if the remote side signals `DOWN`,
 GoBGP performs a hard reset of the corresponding BGP peer with the communication
 string `BFD is down`.
+
+The BFD source address follows the neighbor transport `local-address` when it
+is set, and that BFD peer is created as soon as the neighbor is configured.
+When `local-address` is unset or unspecified, GoBGP waits until the BGP session
+is `ESTABLISHED` and uses the local address of that TCP connection, so the BFD
+source always matches the BGP source. The BFD peer is kept unchanged across a
+BGP reconnect and is replaced only when the new connection has a different
+local address. Dynamic neighbors follow the same rule, but their BFD peer is
+removed when the session goes down, together with the neighbor itself.
 
 Changing BFD configuration through `UpdatePeer` is applied at runtime:
 
