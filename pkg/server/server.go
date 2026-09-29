@@ -3596,9 +3596,7 @@ func (s *BgpServer) ListPeer(ctx context.Context, r *api.ListPeerRequest, fn fun
 							received = uint64(peer.adjRibIn.Count(flist))
 							accepted = uint64(peer.adjRibIn.Accepted(flist))
 							if getAdvertised {
-								s.getBestFromLocalCallback(peer, flist, false, false, func(paths []*table.Path, filtered []*table.Path) {
-									advertised = uint64(len(paths))
-								})
+								advertised = uint64(peer.advertisedRoutes(flist))
 							}
 						}
 						p.AfiSafis[i].State = &api.AfiSafiState{
