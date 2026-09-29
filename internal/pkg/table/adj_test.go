@@ -381,3 +381,61 @@ func TestWithdrawUnknownPath(t *testing.T) {
 	dests := adj.table[family].GetDestinations()
 	assert.Equal(t, 0, len(dests))
 }
+
+func TestAdjRibCountMatchesWalk(t *testing.T) {
+	pi := &PeerInfo{Address: netip.MustParseAddr("192.0.2.1"), AS: 65001}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	family := bgp.RF_IPv4_UC
+	rf := []bgp.Family{family}
+	adj := NewAdjRib(logger, rf)
+
+	newPath := func(prefix string, remoteID uint32, withdraw, rejected bool) *Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		require.NoError(t, err)
+		p := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri}, withdraw, attrs, time.Now(), false)
+		p.remoteID = remoteID
+		p.SetRejected(rejected)
+		return p
+	}
+	check := func(step string, want int) {
+		t.Helper()
+		assert.Equal(t, want, adj.Count(rf), "%s: Count", step)
+		assert.Equal(t, adj.walkCount(rf), adj.Count(rf), "%s: Count vs walk", step)
+	}
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, false, false), newPath("10.0.0.0/24", 2, false, false), newPath("10.0.1.0/24", 1, false, true)})
+	check("add", 3)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, false, false)})
+	check("replace same remoteID", 3)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 2, false, true)})
+	check("accepted to rejected", 3)
+
+	adj.Update([]*Path{newPath("10.0.1.0/24", 1, false, false)})
+	check("rejected to accepted", 3)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, true, false)})
+	check("withdraw", 2)
+
+	adj.Update([]*Path{newPath("10.9.9.0/24", 1, true, false)})
+	check("withdraw unknown", 2)
+
+	adj.StaleAll(rf)
+	check("stale all", 2)
+
+	adj.DropStale(rf)
+	check("drop stale", 0)
+
+	adj.Update([]*Path{newPath("10.0.2.0/24", 1, false, false)})
+	adj.UpdateAdjRibOut([]*Path{newPath("10.0.3.0/24", 1, false, false)})
+	check("adj-out append", 2)
+
+	adj.Drop(rf)
+	check("drop", 0)
+}
+
+func TestAdjRibCountUnknownFamily(t *testing.T) {
+	adj := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	assert.Equal(t, 0, adj.Count([]bgp.Family{bgp.RF_IPv6_UC}))
+}

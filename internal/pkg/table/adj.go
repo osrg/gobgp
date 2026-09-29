@@ -25,6 +25,7 @@ import (
 
 type AdjRib struct {
 	accepted map[bgp.Family]int
+	total    map[bgp.Family]int
 	table    map[bgp.Family]*Table
 	logger   *slog.Logger
 }
@@ -37,6 +38,7 @@ func NewAdjRib(logger *slog.Logger, rfList []bgp.Family) *AdjRib {
 	return &AdjRib{
 		table:    m,
 		accepted: make(map[bgp.Family]int),
+		total:    make(map[bgp.Family]int),
 		logger:   logger,
 	}
 }
@@ -102,6 +104,7 @@ func (adj *AdjRib) Update(pathList []*Path) []*Path {
 		if path.IsWithdraw {
 			if idx != -1 {
 				d.knownPathList = append(d.knownPathList[:idx], d.knownPathList[idx+1:]...)
+				adj.total[rf]--
 				if !old.IsRejected() {
 					adj.accepted[rf]--
 				}
@@ -127,6 +130,7 @@ func (adj *AdjRib) Update(pathList []*Path) []*Path {
 				d.knownPathList[idx] = path
 			} else {
 				d.knownPathList = append(d.knownPathList, path)
+				adj.total[rf]++
 				if !path.IsRejected() {
 					adj.accepted[rf]++
 				}
@@ -150,7 +154,8 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 		if path == nil || path.IsEOR() {
 			continue
 		}
-		t := adj.table[path.GetFamily()]
+		rf := path.GetFamily()
+		t := adj.table[rf]
 		if t == nil {
 			continue
 		}
@@ -160,6 +165,7 @@ func (adj *AdjRib) UpdateAdjRibOut(pathList []*Path) {
 		shard.mu.Lock()
 		d := t.getOrCreateDest(shard, nlri, 0)
 		d.knownPathList = append(d.knownPathList, path)
+		adj.total[rf]++
 		shard.mu.Unlock()
 	}
 }
@@ -222,10 +228,9 @@ func (adj *AdjRib) PathList(rfList []bgp.Family, accepted bool) []*Path {
 
 func (adj *AdjRib) Count(rfList []bgp.Family) int {
 	count := 0
-	adj.walk(rfList, func(d *destination) bool {
-		count += len(d.knownPathList)
-		return false
-	})
+	for _, rf := range rfList {
+		count += adj.total[rf]
+	}
 	return count
 }
 
@@ -257,6 +262,7 @@ func (adj *AdjRib) Drop(rfList []bgp.Family) []*Path {
 	for _, rf := range rfList {
 		adj.table[rf] = newSingleShardTable(adj.logger, rf)
 		adj.accepted[rf] = 0
+		adj.total[rf] = 0
 	}
 	return l
 }
