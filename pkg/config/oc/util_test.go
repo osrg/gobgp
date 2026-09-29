@@ -17,6 +17,7 @@ package oc
 
 import (
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/osrg/gobgp/v4/api"
@@ -58,6 +59,92 @@ func TestReadTcpAoMasterKey(t *testing.T) {
 			assert.Equal(t, tt.expect, key)
 		})
 	}
+}
+
+func TestNewAPIDefinedSetsFromConfigStructPeerGroupSet(t *testing.T) {
+	tests := []struct {
+		name string
+		in   DefinedSets
+		want []*api.DefinedSet
+	}{
+		{
+			name: "single peer group set",
+			in: DefinedSets{
+				PeerGroupSets: []PeerGroupSet{
+					{
+						PeerGroupSetName: "pgs",
+						PeerGroupList:    []string{"pg1", "pg2"},
+					},
+				},
+			},
+			want: []*api.DefinedSet{
+				{
+					DefinedType: api.DefinedType_DEFINED_TYPE_PEER_GROUP,
+					Name:        "pgs",
+					List:        []string{"pg1", "pg2"},
+				},
+			},
+		},
+		{
+			name: "empty member list",
+			in: DefinedSets{
+				PeerGroupSets: []PeerGroupSet{
+					{
+						PeerGroupSetName: "empty",
+					},
+				},
+			},
+			want: []*api.DefinedSet{
+				{
+					DefinedType: api.DefinedType_DEFINED_TYPE_PEER_GROUP,
+					Name:        "empty",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewAPIDefinedSetsFromConfigStruct(&tt.in)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReadConfigPeerGroupPolicy(t *testing.T) {
+	config := `
+defined-sets:
+  peer-group-sets:
+    - peer-group-set-name: pgs
+      peer-group-list:
+        - pg1
+        - pg2
+policy-definitions:
+  - name: peer-policy
+    statements:
+      - name: peer-stmt
+        conditions:
+          match-peer-group-set:
+            peer-group-set: pgs
+            match-set-options: invert
+        actions:
+          route-disposition: reject-route
+`
+	got, err := ReadConfig(strings.NewReader(config), "yaml")
+	require.NoError(t, err)
+
+	require.Len(t, got.DefinedSets.PeerGroupSets, 1)
+	assert.Equal(t, "pgs", got.DefinedSets.PeerGroupSets[0].PeerGroupSetName)
+	assert.Equal(t, []string{"pg1", "pg2"}, got.DefinedSets.PeerGroupSets[0].PeerGroupList)
+
+	require.Len(t, got.PolicyDefinitions, 1)
+	require.Len(t, got.PolicyDefinitions[0].Statements, 1)
+	assert.Equal(t, MatchPeerGroupSet{
+		PeerGroupSet:    "pgs",
+		MatchSetOptions: MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT,
+	}, got.PolicyDefinitions[0].Statements[0].Conditions.MatchPeerGroupSet)
+	assert.Equal(t, ROUTE_DISPOSITION_REJECT_ROUTE, got.PolicyDefinitions[0].Statements[0].Actions.RouteDisposition)
 }
 
 func TestIsAfiSafiChanged(t *testing.T) {

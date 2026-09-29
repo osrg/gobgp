@@ -673,6 +673,163 @@ func TestNewCommunityCountConditionFromApiStruct(t *testing.T) {
 	}
 }
 
+func TestPeerGroupDefinedSetFromApiStruct(t *testing.T) {
+	tests := []struct {
+		name string
+		in   *api.DefinedSet
+		want oc.PeerGroupSet
+	}{
+		{
+			name: "single peer group",
+			in: &api.DefinedSet{
+				DefinedType: api.DefinedType_DEFINED_TYPE_PEER_GROUP,
+				Name:        "pgs",
+				List:        []string{"pg1"},
+			},
+			want: oc.PeerGroupSet{
+				PeerGroupSetName: "pgs",
+				PeerGroupList:    []string{"pg1"},
+			},
+		},
+		{
+			name: "multiple peer groups",
+			in: &api.DefinedSet{
+				DefinedType: api.DefinedType_DEFINED_TYPE_PEER_GROUP,
+				Name:        "pgs",
+				List:        []string{"pg1", "pg2"},
+			},
+			want: oc.PeerGroupSet{
+				PeerGroupSetName: "pgs",
+				PeerGroupList:    []string{"pg1", "pg2"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			definedSet, err := newDefinedSetFromApiStruct(tt.in)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assert.Equal(t, table.DEFINED_TYPE_PEER_GROUP, definedSet.Type())
+			assert.Equal(t, tt.want.PeerGroupSetName, definedSet.Name())
+			assert.Equal(t, tt.want.PeerGroupList, definedSet.List())
+
+			configSets, err := newConfigDefinedSetsFromApiStruct([]*api.DefinedSet{tt.in})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assert.Equal(t, []oc.PeerGroupSet{tt.want}, configSets.PeerGroupSets)
+		})
+	}
+}
+
+func TestNewPeerGroupConditionFromApiStruct(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      *api.MatchSet
+		wantNil bool
+		wantOpt table.MatchOption
+		wantErr bool
+	}{
+		{
+			name:    "nil condition",
+			wantNil: true,
+		},
+		{
+			name: "any",
+			in: &api.MatchSet{
+				Type: api.MatchSet_TYPE_ANY,
+				Name: "pgs",
+			},
+			wantOpt: table.MATCH_OPTION_ANY,
+		},
+		{
+			name: "invert",
+			in: &api.MatchSet{
+				Type: api.MatchSet_TYPE_INVERT,
+				Name: "pgs",
+			},
+			wantOpt: table.MATCH_OPTION_INVERT,
+		},
+		{
+			name: "all is rejected",
+			in: &api.MatchSet{
+				Type: api.MatchSet_TYPE_ALL,
+				Name: "pgs",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			condition, err := newPeerGroupConditionFromApiStruct(tt.in)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, condition)
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				assert.Nil(t, condition)
+				return
+			}
+			assert.Equal(t, "pgs", condition.Name())
+			assert.Equal(t, tt.wantOpt, condition.Option())
+		})
+	}
+}
+
+func TestPeerGroupStatementApiConversion(t *testing.T) {
+	tests := []struct {
+		name  string
+		typ   api.MatchSet_Type
+		ocOpt oc.MatchSetOptionsRestrictedType
+	}{
+		{name: "any", typ: api.MatchSet_TYPE_ANY, ocOpt: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY},
+		{name: "invert", typ: api.MatchSet_TYPE_INVERT, ocOpt: oc.MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statement, err := newStatementFromApiStruct(&api.Statement{
+				Name: "stmt1",
+				Conditions: &api.Conditions{
+					PeerGroupSet: &api.MatchSet{
+						Type: tt.typ,
+						Name: "pgs",
+					},
+				},
+				Actions: &api.Actions{
+					RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+				},
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if assert.Len(t, statement.Conditions, 1) {
+				assert.Equal(t, table.CONDITION_PEER_GROUP, statement.Conditions[0].Type())
+				assert.Equal(t, "pgs", statement.Conditions[0].Name())
+			}
+
+			got := table.ToStatementApi(&oc.Statement{
+				Name: "stmt1",
+				Conditions: oc.Conditions{
+					MatchPeerGroupSet: oc.MatchPeerGroupSet{
+						PeerGroupSet:    "pgs",
+						MatchSetOptions: tt.ocOpt,
+					},
+				},
+			})
+			assert.Equal(t, "pgs", got.GetConditions().GetPeerGroupSet().GetName())
+			assert.Equal(t, tt.typ, got.GetConditions().GetPeerGroupSet().GetType())
+		})
+	}
+}
+
 func TestNewConfigPrefixFromAPIStruct(t *testing.T) {
 	c, err := newConfigPrefixFromAPIStruct(&api.Prefix{IpPrefix: "10.1.2.3/24", MaskLengthMin: 24, MaskLengthMax: 24})
 	assert.NoError(t, err)

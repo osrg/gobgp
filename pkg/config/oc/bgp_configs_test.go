@@ -61,6 +61,75 @@ func TestEqual(t *testing.T) {
 	assert.False(ps1.Equal(&ps2))
 }
 
+func TestPeerGroupPolicyEqual(t *testing.T) {
+	tests := []struct {
+		name string
+		got  func() bool
+		want bool
+	}{
+		{
+			name: "peer group set equal",
+			got: func() bool {
+				lhs := PeerGroupSet{PeerGroupSetName: "pgs", PeerGroupList: []string{"pg1", "pg2"}}
+				rhs := PeerGroupSet{PeerGroupSetName: "pgs", PeerGroupList: []string{"pg1", "pg2"}}
+				return lhs.Equal(&rhs)
+			},
+			want: true,
+		},
+		{
+			name: "peer group set list differs",
+			got: func() bool {
+				lhs := PeerGroupSet{PeerGroupSetName: "pgs", PeerGroupList: []string{"pg1"}}
+				rhs := PeerGroupSet{PeerGroupSetName: "pgs", PeerGroupList: []string{"pg2"}}
+				return lhs.Equal(&rhs)
+			},
+			want: false,
+		},
+		{
+			name: "conditions include peer group set",
+			got: func() bool {
+				lhs := Conditions{MatchPeerGroupSet: MatchPeerGroupSet{PeerGroupSet: "pgs", MatchSetOptions: MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY}}
+				rhs := Conditions{MatchPeerGroupSet: MatchPeerGroupSet{PeerGroupSet: "pgs", MatchSetOptions: MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY}}
+				return lhs.Equal(&rhs)
+			},
+			want: true,
+		},
+		{
+			name: "conditions peer group set differs",
+			got: func() bool {
+				lhs := Conditions{MatchPeerGroupSet: MatchPeerGroupSet{PeerGroupSet: "pgs", MatchSetOptions: MATCH_SET_OPTIONS_RESTRICTED_TYPE_ANY}}
+				rhs := Conditions{MatchPeerGroupSet: MatchPeerGroupSet{PeerGroupSet: "pgs", MatchSetOptions: MATCH_SET_OPTIONS_RESTRICTED_TYPE_INVERT}}
+				return lhs.Equal(&rhs)
+			},
+			want: false,
+		},
+		{
+			name: "defined sets include peer group sets",
+			got: func() bool {
+				lhs := DefinedSets{PeerGroupSets: []PeerGroupSet{{PeerGroupSetName: "pgs", PeerGroupList: []string{"pg1"}}}}
+				rhs := DefinedSets{PeerGroupSets: []PeerGroupSet{{PeerGroupSetName: "pgs", PeerGroupList: []string{"pg1"}}}}
+				return lhs.Equal(&rhs)
+			},
+			want: true,
+		},
+		{
+			name: "defined sets peer group set differs",
+			got: func() bool {
+				lhs := DefinedSets{PeerGroupSets: []PeerGroupSet{{PeerGroupSetName: "pgs", PeerGroupList: []string{"pg1"}}}}
+				rhs := DefinedSets{PeerGroupSets: []PeerGroupSet{{PeerGroupSetName: "pgs", PeerGroupList: []string{"pg2"}}}}
+				return lhs.Equal(&rhs)
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.got())
+		})
+	}
+}
+
 func extractTomlFromMarkdown(fileMd string) (string, error) {
 	fMd, err := os.Open(fileMd)
 	if err != nil {

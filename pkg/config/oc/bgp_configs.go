@@ -5784,6 +5784,34 @@ func (lhs *Actions) Equal(rhs *Actions) bool {
 	return true
 }
 
+// struct for container gobgp:match-peer-group-set.
+// Match a referenced peer-group set according to the logic
+// defined in the match-set-options-leaf.
+type MatchPeerGroupSet struct {
+	// original -> gobgp:peer-group-set
+	// References a defined peer-group set.
+	PeerGroupSet string `mapstructure:"peer-group-set" json:"peer-group-set,omitempty"`
+	// original -> rpol:match-set-options
+	// Optional parameter that governs the behaviour of the
+	// match operation.  This leaf only supports matching on ANY
+	// member of the set or inverting the match.  Matching on ALL is
+	// not supported).
+	MatchSetOptions MatchSetOptionsRestrictedType `mapstructure:"match-set-options" json:"match-set-options,omitempty"`
+}
+
+func (lhs *MatchPeerGroupSet) Equal(rhs *MatchPeerGroupSet) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.PeerGroupSet != rhs.PeerGroupSet {
+		return false
+	}
+	if lhs.MatchSetOptions != rhs.MatchSetOptions {
+		return false
+	}
+	return true
+}
+
 // struct for container gobgp:match-large-community-set.
 type MatchLargeCommunitySet struct {
 	// original -> gobgp:large-community-set
@@ -6184,6 +6212,10 @@ type Conditions struct {
 	// BGP-specific defined sets or comparing BGP-specific
 	// attributes.
 	BgpConditions BgpConditions `mapstructure:"bgp-conditions" json:"bgp-conditions,omitempty"`
+	// original -> gobgp:match-peer-group-set
+	// Match a referenced peer-group set according to the logic
+	// defined in the match-set-options-leaf.
+	MatchPeerGroupSet MatchPeerGroupSet `mapstructure:"match-peer-group-set" json:"match-peer-group-set,omitempty"`
 }
 
 func (lhs *Conditions) Equal(rhs *Conditions) bool {
@@ -6209,6 +6241,9 @@ func (lhs *Conditions) Equal(rhs *Conditions) bool {
 		return false
 	}
 	if !lhs.BgpConditions.Equal(&(rhs.BgpConditions)) {
+		return false
+	}
+	if !lhs.MatchPeerGroupSet.Equal(&(rhs.MatchPeerGroupSet)) {
 		return false
 	}
 	return true
@@ -6276,6 +6311,36 @@ func (lhs *PolicyDefinition) Equal(rhs *PolicyDefinition) bool {
 	}
 	for i, r := range rhs.Statements {
 		if !r.Equal(&lhs.Statements[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// struct for container gobgp:peer-group-set.
+// List of the defined peer-group sets.
+type PeerGroupSet struct {
+	// original -> gobgp:peer-group-set-name
+	// name / label of the peer-group set -- this is used to
+	// reference the set in match conditions.
+	PeerGroupSetName string `mapstructure:"peer-group-set-name" json:"peer-group-set-name,omitempty"`
+	// original -> gobgp:peer-group
+	// peer-group names.
+	PeerGroupList []string `mapstructure:"peer-group-list" json:"peer-group-list,omitempty"`
+}
+
+func (lhs *PeerGroupSet) Equal(rhs *PeerGroupSet) bool {
+	if lhs == nil || rhs == nil {
+		return false
+	}
+	if lhs.PeerGroupSetName != rhs.PeerGroupSetName {
+		return false
+	}
+	if len(lhs.PeerGroupList) != len(rhs.PeerGroupList) {
+		return false
+	}
+	for idx, l := range lhs.PeerGroupList {
+		if l != rhs.PeerGroupList[idx] {
 			return false
 		}
 	}
@@ -6625,6 +6690,9 @@ type DefinedSets struct {
 	// original -> bgp-pol:bgp-defined-sets
 	// BGP-related set definitions for policy match conditions.
 	BgpDefinedSets BgpDefinedSets `mapstructure:"bgp-defined-sets" json:"bgp-defined-sets,omitempty"`
+	// original -> gobgp:peer-group-sets
+	// Enclosing container for defined peer-group sets for matching.
+	PeerGroupSets []PeerGroupSet `mapstructure:"peer-group-sets" json:"peer-group-sets,omitempty"`
 }
 
 func (lhs *DefinedSets) Equal(rhs *DefinedSets) bool {
@@ -6657,6 +6725,14 @@ func (lhs *DefinedSets) Equal(rhs *DefinedSets) bool {
 	}
 	if !lhs.BgpDefinedSets.Equal(&(rhs.BgpDefinedSets)) {
 		return false
+	}
+	if len(lhs.PeerGroupSets) != len(rhs.PeerGroupSets) {
+		return false
+	}
+	for i, r := range rhs.PeerGroupSets {
+		if !r.Equal(&lhs.PeerGroupSets[i]) {
+			return false
+		}
 	}
 	return true
 }

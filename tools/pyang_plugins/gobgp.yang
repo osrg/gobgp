@@ -1075,6 +1075,32 @@ module gobgp {
     }
   }
 
+  augment "/rpol:routing-policy/rpol:defined-sets" {
+    container peer-group-sets {
+      description
+        "Enclosing container for defined peer-group sets for matching.";
+
+      list peer-group-set {
+        key "peer-group-set-name";
+        description
+          "List of the defined peer-group sets.";
+
+        leaf peer-group-set-name {
+          type string;
+          description
+            "name / label of the peer-group set -- this is used to
+            reference the set in match conditions.";
+        }
+
+        leaf-list peer-group {
+          type string;
+          description
+            "peer-group names.";
+        }
+      }
+    }
+  }
+
   augment "/rpol:routing-policy/rpol:defined-sets/" +
     "bgp-pol:bgp-defined-sets/bgp-pol:community-sets/bgp-pol:community-set" {
     description "alternative for the existing community-member";
@@ -1131,6 +1157,24 @@ module gobgp {
     "rpol:conditions/bgp-pol:bgp-conditions" {
     description "additional rpki condition";
     uses gobgp-rpki-validation-result;
+  }
+
+  augment "/rpol:routing-policy/rpol:policy-definitions/" +
+    "rpol:policy-definition/rpol:statements/rpol:statement/" +
+    "rpol:conditions" {
+    container match-peer-group-set {
+      description
+        "Match a referenced peer-group set according to the logic
+        defined in the match-set-options-leaf.";
+
+      leaf peer-group-set {
+        type string;
+        description
+          "References a defined peer-group set.";
+      }
+
+      uses rpol:match-set-options-restricted-group;
+    }
   }
 
   deviation "/rpol:routing-policy/rpol:policy-definitions/" +
