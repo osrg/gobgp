@@ -1463,7 +1463,7 @@ func TestBMPStatsUpdate(t *testing.T) {
 // makePath creates a table.Path with the given IPv4 prefix, nexthop, and
 // community.  All three attributes influence whether paths can be packed into
 // the same UPDATE by CreateUpdateMsgFromPaths.
-func makePath(t *testing.T, prefix string, nexthop string, community uint32) *table.Path {
+func makePath(t testing.TB, prefix string, nexthop string, community uint32) *table.Path {
 	t.Helper()
 	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
 	if err != nil {
