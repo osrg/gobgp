@@ -1946,7 +1946,11 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 					useRevisedError := h.fsm.isTreatAsWithdraw
 
 					var validationErr error
-					if handling == bgp.ERROR_HANDLING_NONE {
+					// A discarded attribute leaves the rest of the message in
+					// use, so the semantic checks still have to run on what is
+					// left. Treat-as-withdraw drops every attribute, and a
+					// session reset never gets here.
+					if handling == bgp.ERROR_HANDLING_NONE || handling == bgp.ERROR_HANDLING_ATTRIBUTE_DISCARD {
 						ok, ve := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)
 						if !ok {
 							validationErr = ve
