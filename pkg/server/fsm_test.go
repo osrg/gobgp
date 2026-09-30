@@ -1774,3 +1774,95 @@ func TestRace_NewWatchEventPeerRecvOpen(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
+
+// TestRecvMessageloop_ValidatesUpdateAfterAttributeDiscard verifies that an
+// UPDATE whose decoder already discarded one malformed attribute still goes
+// through ValidateUpdateMsg, so the semantic checks on the remaining
+// attributes are not skipped.
+func TestRecvMessageloop_ValidatesUpdateAfterAttributeDiscard(t *testing.T) {
+	// UPDATE for 192.168.1.0/24 carrying an ATOMIC_AGGREGATE with a one
+	// byte value. RFC 7606 Section 7.6 discards that attribute, which is
+	// enough for the decoder to report ERROR_HANDLING_ATTRIBUTE_DISCARD.
+	// The tail is filled in by the subtests.
+	head := []byte{
+		0x00, 0x00, // withdrawn routes length: 0
+		0x00, 0x00, // total path attribute length: set below
+		0x40, 0x01, 0x01, 0x00, // ORIGIN: IGP
+		0x40, 0x02, 0x06, 0x02, 0x01, 0x00, 0x00, 0xfd, 0xe9, // AS_PATH: 65001
+		0x40, 0x03, 0x04, 0x0a, 0x00, 0x00, 0x01, // NEXT_HOP: 10.0.0.1
+		0x40, 0x06, 0x01, 0x00, // ATOMIC_AGGREGATE with a value: discarded
+	}
+	nlri := []byte{0x18, 0xc0, 0xa8, 0x01} // 192.168.1.0/24
+
+	build := func(extra []byte) []byte {
+		body := append(append(append([]byte{}, head...), extra...), nlri...)
+		attrLen := len(body) - 4 - len(nlri)
+		body[2] = byte(attrLen >> 8)
+		body[3] = byte(attrLen)
+		msg := make([]byte, 16, bgp.BGP_HEADER_LENGTH+len(body)) // marker
+		for i := range msg {
+			msg[i] = 0xff
+		}
+		msg = append(msg, byte((bgp.BGP_HEADER_LENGTH+len(body))>>8), byte(bgp.BGP_HEADER_LENGTH+len(body)), bgp.BGP_MSG_UPDATE)
+		return append(msg, body...)
+	}
+
+	run := func(t *testing.T, raw []byte) (*fsmMsg, *bgp.BGPMessage) {
+		t.Helper()
+		m := NewMockConnection()
+		p, h := makePeerAndHandler(m)
+		t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+		h.fsm.isTreatAsWithdraw = true
+		h.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+
+		received := make(chan *fsmMsg, 1)
+		h.callback = func(msg *fsmMsg) { received <- msg }
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+		go h.recvMessageloop(ctx, m.Conn, make(chan struct{}, 2), make(chan fsmStateReason, 3), wg)
+		go m.remote.Write(raw)
+
+		select {
+		case fmsg := <-received:
+			return fmsg, nil
+		case n := <-h.fsm.notification:
+			return nil, n
+		case <-time.After(5 * time.Second):
+			t.Fatal("neither a callback nor a notification within 5s")
+			return nil, nil
+		}
+	}
+
+	t.Run("InvalidOrigin", func(t *testing.T) {
+		assert := assert.New(t)
+
+		raw := build(nil)
+		raw[bgp.BGP_HEADER_LENGTH+7] = 0x09 // ORIGIN value out of range
+
+		fmsg, n := run(t, raw)
+		assert.Nil(n)
+		if assert.NotNil(fmsg) {
+			assert.Equal(bgp.ERROR_HANDLING_TREAT_AS_WITHDRAW, fmsg.handling)
+		}
+	})
+
+	t.Run("UnrecognizedWellKnownAttribute", func(t *testing.T) {
+		assert := assert.New(t)
+
+		// type 200 with only the transitive flag set is a well-known
+		// attribute this implementation does not recognize.
+		raw := build([]byte{0x40, 0xc8, 0x01, 0x00})
+
+		fmsg, n := run(t, raw)
+		assert.Nil(fmsg)
+		if assert.NotNil(n) {
+			body := n.Body.(*bgp.BGPNotification)
+			assert.Equal(uint8(bgp.BGP_ERROR_UPDATE_MESSAGE_ERROR), body.ErrorCode)
+			assert.Equal(uint8(bgp.BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE), body.ErrorSubcode)
+		}
+	})
+}
