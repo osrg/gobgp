@@ -119,6 +119,8 @@ type peer struct {
 	// getRoutesCount, hasPathAlreadyBeenSent) MUST be called under the
 	// bucket lock for that prefix (sharedData.propagateBucket).
 	sentPaths sync.Map
+	// map[bgp.Family]*atomic.Int64, number of paths in sentPaths per family
+	advertisedCount sync.Map
 	// map[table.PathLocalKey]struct{}
 	sendMaxPathFiltered sync.Map
 	llgrEndChs          []chan struct{} // protected by fsm.lock
@@ -262,6 +264,26 @@ func (peer *peer) getRoutesCount(family bgp.Family, dstPrefix string) uint8 {
 	return 0
 }
 
+func (peer *peer) advertisedCounter(family bgp.Family) *atomic.Int64 {
+	if c, ok := peer.advertisedCount.Load(family); ok {
+		return c.(*atomic.Int64)
+	}
+	c, _ := peer.advertisedCount.LoadOrStore(family, new(atomic.Int64))
+	return c.(*atomic.Int64)
+}
+
+// advertisedRoutes returns the number of paths currently advertised for the families.
+func (peer *peer) advertisedRoutes(families []bgp.Family) int {
+	n := 0
+	for _, f := range families {
+		if c, ok := peer.advertisedCount.Load(f); ok {
+			n += int(c.(*atomic.Int64).Load())
+		}
+	}
+	// a reset racing with updateRoutes can leave a transient negative value
+	return max(n, 0)
+}
+
 func (peer *peer) advertisedPathID(path *table.Path) uint32 {
 	if peer.isAddPathSendEnabled(path.GetFamily()) {
 		return path.LocalID()
@@ -283,7 +305,10 @@ func (peer *peer) updateRoutes(paths ...*table.Path) {
 		identifiersValue, destExists := peer.sentPaths.Load(destLocalKey)
 		if path.IsWithdraw && destExists {
 			identifiers := identifiersValue.(pathIDSet)
-			delete(identifiers, pathID)
+			if _, ok := identifiers[pathID]; ok {
+				delete(identifiers, pathID)
+				peer.advertisedCounter(path.GetFamily()).Add(-1)
+			}
 			if len(identifiers) == 0 {
 				peer.sentPaths.Delete(destLocalKey)
 			}
@@ -294,7 +319,10 @@ func (peer *peer) updateRoutes(paths ...*table.Path) {
 			} else {
 				identifiers = make(pathIDSet)
 			}
-			identifiers[pathID] = struct{}{}
+			if _, ok := identifiers[pathID]; !ok {
+				identifiers[pathID] = struct{}{}
+				peer.advertisedCounter(path.GetFamily()).Add(1)
+			}
 			if !destExists {
 				// store only the first insert, mutations are inplace
 				peer.sentPaths.Store(destLocalKey, identifiers)
@@ -344,6 +372,7 @@ func (peer *peer) hasPathAlreadyBeenSent(path *table.Path) bool {
 
 func (peer *peer) resetAdvertisedRoutes() {
 	peer.sentPaths.Clear()
+	peer.advertisedCount.Clear()
 	peer.sendMaxPathFiltered.Clear()
 }
 

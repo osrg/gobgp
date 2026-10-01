@@ -1710,7 +1710,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Equal(num, runtime.NumGoroutine())
 }
 
-func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) *peer {
+func newPeerandInfo(t testing.TB, myAs, as uint32, address string, rib *table.TableManager) *peer {
 	addr := netip.MustParseAddr(address)
 	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: addr}, State: oc.NeighborState{PeerAs: as, NeighborAddress: netip.MustParseAddr(address), RemoteRouterId: addr}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
