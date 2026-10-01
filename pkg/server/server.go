@@ -436,19 +436,20 @@ func (s *BgpServer) Serve() {
 	}()
 
 	for {
-		tStart := time.Now()
 		select {
 		case <-s.runningCtx.Done():
 			s.logger.Info("shutting down",
 				slog.String("Topic", "BgpServer"))
 			return
 		case op := <-s.mgmtCh:
+			tStart := time.Now()
 			tWait := tStart.Sub(op.timestamp)
 			s.shared.mu.Lock()
 			s.handleMGMTOp(op)
 			s.shared.mu.Unlock()
 			s.timingHook.Observe(FSMMgmtOp, time.Since(tStart), tWait)
 		case conn := <-s.acceptCh:
+			tStart := time.Now()
 			// NOTE: it would be useful to use kernel metrics such as SO_TIMESTAMPING to record time we got
 			// first SYN packet in TCP connection. For now we skip tWait for accept events, message/mgmt op
 			// delays should be enough to analyze FSM loop.
@@ -457,6 +458,7 @@ func (s *BgpServer) Serve() {
 			s.shared.mu.Unlock()
 			s.timingHook.Observe(FSMAccept, time.Since(tStart), 0)
 		case ev := <-s.roaManager.ReceiveROA():
+			tStart := time.Now()
 			tWait := tStart.Sub(ev.timestamp)
 			s.shared.mu.Lock()
 			s.roaManager.HandleROAEvent(ev)
