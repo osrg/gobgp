@@ -206,6 +206,55 @@ func TestRouteTargetMembershipHandlerSameRTAddPath(t *testing.T) {
 	assert.False(t, rtc.HasRouteTarget(rt1))
 }
 
+// A peer can put a Route Target field on the wire that serializes to
+// DefaultRT: an all-zero extended community at the full /96, and a Route
+// Target prefix short enough that every octet left after the zero-padding is
+// zero. Neither is the zero-length default NLRI, so neither may stand for
+// interest in every route.
+func TestRouteTargetMembershipHandlerZeroRouteTarget(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	rt, _ := bgp.ParseRouteTarget("65520:1000000")
+
+	for _, tt := range []struct {
+		name string
+		wire []byte
+	}{
+		{
+			name: "all-zero route target",
+			wire: []byte{96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		},
+		{
+			name: "route target prefix of one octet",
+			wire: []byte{40, 0, 0, 0, 0, 0},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			nlri, err := bgp.NLRIFromSlice(bgp.RF_RTC_UC, tt.wire)
+			assert.NoError(t, err)
+			key, err := nlri.(*bgp.RouteTargetMembershipNLRI).RouteTargetKey()
+			assert.NoError(t, err)
+			assert.Equal(t, DefaultRT, key, "the NLRI has to reach the default key for this case to test anything")
+
+			p := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri, ID: 1}, false, attrs, time.Now(), false)
+			rtc := NewRouteTargetMembershipHandler()
+			rtc.SyncAfterImport(p)
+			assert.False(t, rtc.HasDefaultRouteTarget(), "must not advertise the default route target")
+			assert.False(t, rtc.HasRouteTarget(rt))
+
+			// It must not cancel the default route target either. The
+			// default NLRI carries AS 0, so this one does too and the two
+			// land on the same (AS, pathID) key.
+			def := bgp.NewRouteTargetMembershipNLRI(0, nil)
+			pDef := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: def, ID: 1}, false, attrs, time.Now(), false)
+			rtc.SyncAfterImport(pDef)
+			assert.True(t, rtc.HasDefaultRouteTarget())
+			rtc.SyncAfterImport(p.Clone(true))
+			assert.True(t, rtc.HasDefaultRouteTarget(), "withdrawing it must leave the default route target alone")
+		})
+	}
+}
+
 func makeVPNNLRI(t *testing.T, prefix string, rdAS, rdVal uint16) bgp.PathNLRI {
 	t.Helper()
 	rd := bgp.NewRouteDistinguisherTwoOctetAS(rdAS, uint32(rdVal))

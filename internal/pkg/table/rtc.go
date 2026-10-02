@@ -28,6 +28,26 @@ func newRtmSet() *rtmSet {
 	return &rtmSet{m: make(map[uint64]map[rtmKey]struct{})}
 }
 
+// rtmBucket returns the key the membership nlri advertises belongs under.
+//
+// DefaultRT is reserved for the zero-length default NLRI, which RouteTargetKey
+// reports as a nil Route Target. A Route Target field that serializes to the
+// same value is not that NLRI: an all-zero extended community has sub-type 0
+// rather than EC_SUBTYPE_ROUTE_TARGET, and a Route Target prefix shorter than
+// 64 bits is zero-padded, so neither can be honored by a set that matches the
+// whole 8 octets. Either one is dropped rather than put in the default bucket,
+// where it would stand for interest in every route.
+func rtmBucket(nlri *bgp.RouteTargetMembershipNLRI) (uint64, bool) {
+	rtHash, err := nlri.RouteTargetKey()
+	if err != nil {
+		return 0, false
+	}
+	if rtHash == DefaultRT && nlri.RouteTarget != nil {
+		return 0, false
+	}
+	return rtHash, true
+}
+
 func (s *rtmSet) add(path *Path) {
 	if s == nil {
 		return
@@ -39,8 +59,8 @@ func (s *rtmSet) add(path *Path) {
 	if !ok {
 		return
 	}
-	rtHash, err := nlri.RouteTargetKey()
-	if err != nil {
+	rtHash, ok := rtmBucket(nlri)
+	if !ok {
 		return
 	}
 	s.mu.Lock()
@@ -64,8 +84,8 @@ func (s *rtmSet) sub(path *Path) {
 	if !ok {
 		return
 	}
-	rtHash, err := nlri.RouteTargetKey()
-	if err != nil {
+	rtHash, ok := rtmBucket(nlri)
+	if !ok {
 		return
 	}
 	s.mu.Lock()
