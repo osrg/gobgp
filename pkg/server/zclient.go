@@ -135,8 +135,8 @@ func filterOutExternalPath(paths []*table.Path) []*table.Path {
 		// Here filters out:
 		// - Nil path
 		// - External path (advertised from Zebra) in order avoid sending back
-		// - Unreachable path because invalidated by Zebra
-		if path == nil || path.IsFromExternal() || path.IsNexthopInvalid {
+		// - Unreachable non-withdraw path because invalidated by Zebra
+		if path == nil || path.IsFromExternal() || path.IsNexthopInvalid && !path.IsWithdraw {
 			continue
 		}
 		filteredPaths = append(filteredPaths, path)
