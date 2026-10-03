@@ -390,3 +390,30 @@ func TestApplyToPathList_WithdrawIgnored(t *testing.T) {
 	updated := cache.applyToPathList([]*table.Path{path})
 	assert.Empty(updated, "withdraw paths must be skipped")
 }
+
+func TestNewIPRouteBodyWithdrawsInvalidNexthopPath(t *testing.T) {
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(testNextHop)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	path.IsNexthopInvalid = true
+	z := &zebraClient{
+		client: &zebra.Client{
+			Version:  zebra.MaxZapiVer,
+			Software: zebra.NewSoftware(zebra.MaxZapiVer, "frr8.2"),
+		},
+		pathVrfMap: make(map[*table.Path]uint32),
+	}
+
+	body, isWithdraw := newIPRouteBody([]*table.Path{path}, zebra.DefaultVrf, z)
+
+	assert.NotNil(body)
+	assert.True(isWithdraw)
+	assert.Equal(netip.MustParseAddr("10.3.1.0"), body.Prefix.Prefix)
+	assert.Equal(uint8(24), body.Prefix.PrefixLen)
+}
