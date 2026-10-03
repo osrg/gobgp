@@ -579,7 +579,9 @@ func getMultiBestPath(id string, pathList []*Path) []*Path {
 	// Attempt to find the first path that is both reachable and worse than the
 	// best path. Then return a slice paths from the best to that index.
 	index := sort.Search(len(pathList), func(i int) bool {
-		return pathList[i].IsNexthopInvalid || pathList[i].Compare(best) != 0
+		return pathList[i].IsNexthopInvalid ||
+			pathList[i].IsLLGRStale() != best.IsLLGRStale() ||
+			pathList[i].Compare(best) != 0
 	})
 	return pathList[:index]
 }
@@ -1005,7 +1007,7 @@ func (d *destination) Select(option ...DestinationSelectOption) *destination {
 					if best == nil {
 						best = p
 						ps = append(ps, p)
-					} else if best.Compare(p) == 0 {
+					} else if p.IsLLGRStale() == best.IsLLGRStale() && best.Compare(p) == 0 {
 						ps = append(ps, p)
 					}
 				}
