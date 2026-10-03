@@ -144,6 +144,17 @@ func filterOutExternalPath(paths []*table.Path) []*table.Path {
 	return filteredPaths
 }
 
+func filterInvalidNexthopPath(paths []*table.Path) []*table.Path {
+	filteredPaths := make([]*table.Path, 0, len(paths))
+	for _, path := range paths {
+		if path == nil || path.IsFromExternal() || !path.IsNexthopInvalid {
+			continue
+		}
+		filteredPaths = append(filteredPaths, path)
+	}
+	return filteredPaths
+}
+
 func addLabelToNexthop(path *table.Path, z *zebraClient, msgFlags *zebra.MessageFlag, nexthop *zebra.Nexthop) {
 	rf := path.GetFamily()
 	if rf == bgp.RF_IPv4_VPN || rf == bgp.RF_IPv6_VPN {
@@ -167,7 +178,10 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 	version := z.client.Version
 	paths := filterOutExternalPath(dst)
 	if len(paths) == 0 {
-		return nil, false
+		paths = filterInvalidNexthopPath(dst)
+		if len(paths) == 0 {
+			return nil, false
+		}
 	}
 	path := paths[0]
 
@@ -238,7 +252,7 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 		},
 		Nexthops: nexthops,
 		Metric:   med,
-	}, path.IsWithdraw
+	}, path.IsWithdraw || path.IsNexthopInvalid
 }
 
 func newNexthopRegisterBody(paths []*table.Path, nexthopCache nexthopStateCache) *zebra.NexthopRegisterBody {
