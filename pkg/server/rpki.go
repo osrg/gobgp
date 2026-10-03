@@ -119,7 +119,7 @@ func (m *roaManager) Disable(address string) error {
 		add, _, _ := net.SplitHostPort(network)
 		if add == address {
 			client.reset()
-			m.table.DeleteAll(add)
+			m.table.DeleteAll(network)
 			return nil
 		}
 	}
