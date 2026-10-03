@@ -525,6 +525,33 @@ func TestDestination_Select_BestAndMultiPath(t *testing.T) {
 	assert.Len(t, selected.GetAllKnownPathList(), 2)
 }
 
+func TestDestination_Select_MultiPathExcludesLLGRStale(t *testing.T) {
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+	}
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	peer1 := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("1.1.1.1")}
+	peer2 := &PeerInfo{AS: 65002, Address: netip.MustParseAddr("2.2.2.2")}
+
+	fresh := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	stale := NewPath(bgp.RF_IPv4_UC, peer2, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	stale.SetCommunities([]uint32{uint32(bgp.COMMUNITY_LLGR_STALE)}, false)
+
+	assert.Greater(t, fresh.Compare(stale), 0)
+	assert.Less(t, stale.Compare(fresh), 0)
+
+	d := newDestination(nlri, 0)
+	d.Calculate(logger, stale, oc.RouteSelectionOptionsConfig{})
+	d.Calculate(logger, fresh, oc.RouteSelectionOptionsConfig{})
+
+	assert.Equal(t, []*Path{fresh}, d.GetMultiBestPath(GLOBAL_RIB_NAME))
+
+	selected := d.Select(DestinationSelectOption{Best: true, MultiPath: true})
+	assert.NotNil(t, selected)
+	assert.Equal(t, []*Path{fresh}, selected.GetAllKnownPathList())
+}
+
 func TestCompareByLLGRStaleCommunity(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{
 		bgp.NewPathAttributeOrigin(0),
