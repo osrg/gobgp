@@ -406,7 +406,7 @@ func (t *Table) deletePathsByVrf(vrf *Vrf) []*Path {
 			}
 			if p.IsLocal() && vrf.Rd.String() == rd.String() {
 				pathList = append(pathList, p.Clone(true))
-				return
+				continue
 			}
 		}
 	})
