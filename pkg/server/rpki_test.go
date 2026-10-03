@@ -18,8 +18,12 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
+	"log/slog"
+	"net"
 	"testing"
 
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/rtr"
 )
 
@@ -46,5 +50,31 @@ func Test_readRTRMessageAcceptsValidLength(t *testing.T) {
 	}
 	if len(data) != rtr.RTR_MIN_LEN {
 		t.Fatalf("expected %d bytes, got %d", rtr.RTR_MIN_LEN, len(data))
+	}
+}
+
+func TestROAManagerDisableDeletesROAsByServerKey(t *testing.T) {
+	rt := table.NewROATable(slog.Default())
+	serverKey := net.JoinHostPort("192.0.2.1", "323")
+	rt.Add(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 65000, serverKey))
+
+	m := &roaManager{
+		clientMap: map[string]*roaClient{
+			serverKey: {host: serverKey},
+		},
+		table:  rt,
+		logger: slog.Default(),
+	}
+
+	if records, _ := rt.Info(bgp.RF_IPv4_UC); records[serverKey] != 1 {
+		t.Fatalf("expected one ROA before disable, got %d", records[serverKey])
+	}
+
+	if err := m.Disable("192.0.2.1"); err != nil {
+		t.Fatalf("unexpected disable error: %v", err)
+	}
+
+	if records, _ := rt.Info(bgp.RF_IPv4_UC); records[serverKey] != 0 {
+		t.Fatalf("expected ROAs for %q to be deleted, got %d", serverKey, records[serverKey])
 	}
 }
