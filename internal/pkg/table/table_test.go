@@ -34,6 +34,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSelectExactAndHostIPv4UC(t *testing.T) {
@@ -602,6 +603,30 @@ func TestTableSelectVPNv4(t *testing.T) {
 			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
 		})
 	}
+}
+
+func TestDeletePathsByVrfWithdrawsAllLocalPathsInDestination(t *testing.T) {
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(100, 100)
+	nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"), *bgp.NewMPLSLabelStack(), rd)
+	assert.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	path1 := NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri, ID: 1}, false, attrs, time.Now(), false)
+	path2 := NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri, ID: 2}, false, attrs, time.Now(), false)
+
+	tbl := NewTable(logger, bgp.RF_IPv4_VPN)
+	require.NotNil(t, tbl.update(path1, oc.RouteSelectionOptionsConfig{}))
+	require.NotNil(t, tbl.update(path2, oc.RouteSelectionOptionsConfig{}))
+	require.Len(t, tbl.GetDestination(nlri).GetAllKnownPathList(), 2)
+
+	withdraws := tbl.deletePathsByVrf(&Vrf{Rd: rd})
+
+	require.Len(t, withdraws, 2)
+	parents := make([]*Path, 0, len(withdraws))
+	for _, withdraw := range withdraws {
+		assert.True(t, withdraw.IsWithdraw)
+		parents = append(parents, withdraw.parent)
+	}
+	assert.ElementsMatch(t, []*Path{path1, path2}, parents)
 }
 
 func TestTableSelectVPNv6(t *testing.T) {
