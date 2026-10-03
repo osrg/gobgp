@@ -920,6 +920,54 @@ func Test_FlowSpecNlriComponentsClampedToDeclaredLength(t *testing.T) {
 	assert.LessOrEqual(nlri.Len(), 1+(declared-1))
 }
 
+func Test_FlowSpecNlriLengthEncodingBoundary(t *testing.T) {
+	tests := []struct {
+		name          string
+		payloadLength int
+		headerLength  int
+		header        []byte
+	}{
+		{
+			name:          "one-octet",
+			payloadLength: 239,
+			headerLength:  1,
+			header:        []byte{0xef},
+		},
+		{
+			name:          "two-octet",
+			payloadLength: 240,
+			headerLength:  2,
+			header:        []byte{0xf0, 0xf0},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := make([]byte, tt.payloadLength)
+			payload[0] = 0xfe
+			for i := 1; i < len(payload); i++ {
+				payload[i] = byte(i)
+			}
+			nlri := &FlowSpecNLRI{
+				Value: []FlowSpecComponentInterface{&FlowSpecUnknown{Value: payload}},
+				rf:    RF_FS_IPv4_UC,
+			}
+
+			buf, err := nlri.Serialize()
+			require.NoError(t, err)
+			require.Len(t, buf, tt.headerLength+tt.payloadLength)
+			assert.Equal(t, tt.header, buf[:tt.headerLength])
+			assert.Equal(t, payload, buf[tt.headerLength:])
+
+			decoded, err := NLRIFromSlice(RF_FS_IPv4_UC, buf)
+			require.NoError(t, err)
+			roundTrip, err := decoded.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, buf, roundTrip)
+		})
+	}
+}
+
 func Test_NewFlowSpecComponentItemLength(t *testing.T) {
 	item := NewFlowSpecComponentItem(0, 0)
 	assert.Equal(t, 1, item.Len())
