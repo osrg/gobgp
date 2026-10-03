@@ -4681,8 +4681,11 @@ func (n *FlowSpecNLRI) decodeFromBytes(data []byte, options ...*MarshallingOptio
 		return malformedAttrListErr("not all flowspec component bytes available")
 	}
 	var length int
-	if data[0]>>4 == 0xf && len(data) > 2 {
-		length = int(binary.BigEndian.Uint16(data[:2]))
+	if data[0]>>4 == 0xf {
+		if len(data) < 2 {
+			return malformedAttrListErr("not all flowspec component bytes available")
+		}
+		length = int(binary.BigEndian.Uint16(data[:2]) & 0x0fff)
 		data = data[2:]
 	} else if len(data) > 1 {
 		length = int(data[0])
@@ -4795,16 +4798,14 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 		}
 		buf = append(buf, b...)
 	}
-	length := n.Len(options...)
-	if length > 0xfff {
+	length := len(buf)
+	if length > 0x0fff {
 		return nil, fmt.Errorf("too large: %d", length)
 	} else if length < 0xf0 {
-		length -= 1
 		buf = append([]byte{byte(length)}, buf...)
 	} else {
-		length -= 2
 		b := make([]byte, 2)
-		binary.BigEndian.PutUint16(buf, uint16(length))
+		binary.BigEndian.PutUint16(b, uint16(length)|0xf000)
 		buf = append(b, buf...)
 	}
 	return buf, nil
