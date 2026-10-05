@@ -16,7 +16,9 @@
 package zebra
 
 import (
+	"bytes"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"net/netip"
 	"syscall"
@@ -1269,4 +1271,25 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, false)
 		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, true)
 	})
+}
+
+func TestIPRouteSerializeHeaderVersions(t *testing.T) {
+	for _, version := range []float64{7.3, 7.4, 7.5} {
+		t.Run(fmt.Sprintf("FRR%.1f", version), func(t *testing.T) {
+			route := &IPRouteBody{Type: routeConnect, Safi: SafiUnicast, Prefix: Prefix{Family: syscall.AF_INET, PrefixLen: 24, Prefix: netip.MustParseAddr("192.0.2.0")}}
+			wire, err := route.serialize(6, Software{name: "frr", version: version})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// type=connected, instance=0, flags=0, message=0, SAFI=unicast.
+			want := []byte{2, 0, 0, 0, 0, 0, 0, 0, 1}
+			if version >= 7.5 {
+				want = []byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+			}
+			want = append(want, byte(syscall.AF_INET), 24, 192, 0, 2)
+			if !bytes.Equal(wire, want) {
+				t.Fatalf("got %x, want %x", wire, want)
+			}
+		})
+	}
 }
