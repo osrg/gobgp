@@ -3329,7 +3329,7 @@ func (er *EVPNIPMSIRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNIPMSIRoute) Serialize() ([]byte, error) {
-	buf := make([]byte, 20)
+	buf := make([]byte, 20) // RD(8) + ETag(4) + EC(8).
 
 	if er.RD != nil {
 		tbuf, err := er.RD.Serialize()
@@ -3345,8 +3345,11 @@ func (er *EVPNIPMSIRoute) Serialize() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return append(buf, ec...), nil
+	if len(ec) != 8 {
+		return nil, fmt.Errorf("invalid I-PMSI extended community length: %d", len(ec))
+	}
+	copy(buf[12:20], ec)
+	return buf, nil
 }
 
 func (er *EVPNIPMSIRoute) String() string {
