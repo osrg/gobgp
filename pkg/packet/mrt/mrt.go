@@ -269,9 +269,11 @@ func (p *Peer) decodeFromBytes(data []byte) ([]byte, error) {
 func (p *Peer) Serialize() ([]byte, error) {
 	var err error
 	var bbuf []byte
-	buf := make([]byte, 5)
-	buf[0] = p.Type
-	copy(buf[1:], p.BgpId.AsSlice())
+	var id [4]byte
+	copy(id[:], p.BgpId.AsSlice())
+	buf := make([]byte, 0, 5)
+	buf = append(buf, p.Type)
+	buf = append(buf, id[:]...)
 	if p.Type&1 > 0 {
 		buf = append(buf, p.IpAddress.AsSlice()...)
 	} else {
@@ -355,11 +357,13 @@ func parsePeerIndexTable(data []byte) (*PeerIndexTable, error) {
 }
 
 func (t *PeerIndexTable) Serialize() ([]byte, error) {
-	buf := make([]byte, 8+len(t.ViewName))
-	copy(buf, t.CollectorBgpId.AsSlice())
-	binary.BigEndian.PutUint16(buf[4:], uint16(len(t.ViewName)))
-	copy(buf[6:], t.ViewName)
-	binary.BigEndian.PutUint16(buf[6+len(t.ViewName):], uint16(len(t.Peers)))
+	var id [4]byte
+	copy(id[:], t.CollectorBgpId.AsSlice())
+	buf := make([]byte, 0, 8+len(t.ViewName))
+	buf = append(buf, id[:]...)
+	buf = binary.BigEndian.AppendUint16(buf, uint16(len(t.ViewName)))
+	buf = append(buf, t.ViewName...)
+	buf = binary.BigEndian.AppendUint16(buf, uint16(len(t.Peers)))
 	for _, peer := range t.Peers {
 		bbuf, err := peer.Serialize()
 		if err != nil {
@@ -556,8 +560,8 @@ func parseRib(data []byte, family bgp.Family, isAddPath bool) (*Rib, error) {
 }
 
 func (u *Rib) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint32(buf, u.SequenceNumber)
+	buf := make([]byte, 0, 4)
+	buf = binary.BigEndian.AppendUint32(buf, u.SequenceNumber)
 	switch u.Family {
 	case bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv6_UC, bgp.RF_IPv6_MC:
 		// RFC 6396 4.3.2: these four families have their own
@@ -685,14 +689,14 @@ func parseGeoPeerTable(data []byte) (*GeoPeerTable, error) {
 }
 
 func (t *GeoPeerTable) Serialize() ([]byte, error) {
-	buf := make([]byte, 14)
+	buf := make([]byte, 0, 14)
 	if !t.CollectorBgpId.Is4() {
 		return nil, fmt.Errorf("invalid CollectorBgpId: %s", t.CollectorBgpId)
 	}
-	copy(buf[:4], t.CollectorBgpId.AsSlice())
-	binary.BigEndian.PutUint32(buf[4:8], math.Float32bits(t.CollectorLatitude))
-	binary.BigEndian.PutUint32(buf[8:12], math.Float32bits(t.CollectorLongitude))
-	binary.BigEndian.PutUint16(buf[12:14], uint16(len(t.Peers)))
+	buf = append(buf, t.CollectorBgpId.AsSlice()...)
+	buf = binary.BigEndian.AppendUint32(buf, math.Float32bits(t.CollectorLatitude))
+	buf = binary.BigEndian.AppendUint32(buf, math.Float32bits(t.CollectorLongitude))
+	buf = binary.BigEndian.AppendUint16(buf, uint16(len(t.Peers)))
 	for _, peer := range t.Peers {
 		pbuf, err := peer.Serialize()
 		if err != nil {

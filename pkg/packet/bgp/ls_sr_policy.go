@@ -651,8 +651,9 @@ func (l *LsTLVSrBindingSID) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVSrBindingSID) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+	buf := make([]byte, 0, 4)
+	buf = binary.BigEndian.AppendUint16(buf, l.Flags)
+	buf = binary.BigEndian.AppendUint16(buf, 0) // Reserved.
 
 	if l.Flags&lsSrBindingSIDFlagSRv6 != 0 {
 		buf = append(buf, lsAddrBytes(l.SID, 16)...)
@@ -807,8 +808,9 @@ func (l *LsTLVSrv6BindingSID) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVSrv6BindingSID) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+	buf := make([]byte, 0, 4)
+	buf = binary.BigEndian.AppendUint16(buf, l.Flags)
+	buf = binary.BigEndian.AppendUint16(buf, 0) // Reserved.
 	buf = append(buf, lsAddrBytes(l.SID, 16)...)
 	buf = append(buf, lsAddrBytes(l.SpecifiedSID, 16)...)
 
@@ -1644,9 +1646,9 @@ func (l *LsTLVSrSegment) Serialize() ([]byte, error) {
 		}
 	}
 
-	buf := make([]byte, 4)
-	buf[0] = uint8(l.SegmentType)
-	binary.BigEndian.PutUint16(buf[2:4], l.Flags)
+	buf := make([]byte, 0, 4)
+	buf = append(buf, uint8(l.SegmentType), 0) // Type and reserved.
+	buf = binary.BigEndian.AppendUint16(buf, l.Flags)
 
 	if sidLen == 16 {
 		buf = append(buf, lsAddrBytes(l.SID, 16)...)
@@ -1899,11 +1901,12 @@ func (l *LsTLVSrSegmentList) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVSrSegmentList) Serialize() ([]byte, error) {
-	buf := make([]byte, lsSrSegmentListFixedLen)
-	binary.BigEndian.PutUint16(buf[:2], l.Flags)
-	binary.BigEndian.PutUint16(buf[4:6], l.MTID)
-	buf[6] = l.Algorithm
-	binary.BigEndian.PutUint32(buf[8:12], l.Weight)
+	buf := make([]byte, 0, lsSrSegmentListFixedLen)
+	buf = binary.BigEndian.AppendUint16(buf, l.Flags)
+	buf = binary.BigEndian.AppendUint16(buf, 0) // Reserved.
+	buf = binary.BigEndian.AppendUint16(buf, l.MTID)
+	buf = append(buf, l.Algorithm, 0) // Algorithm and reserved.
+	buf = binary.BigEndian.AppendUint32(buf, l.Weight)
 
 	sub, err := lsSerializeSubTLVs(l.SubTLVs)
 	if err != nil {
@@ -2127,10 +2130,11 @@ func (l *LsTLVSrCandidatePathConstraints) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVSrCandidatePathConstraints) Serialize() ([]byte, error) {
-	buf := make([]byte, lsSrCPConstraintsFixedLen)
-	binary.BigEndian.PutUint16(buf[:2], l.Flags)
-	binary.BigEndian.PutUint16(buf[4:6], l.MTID)
-	buf[6] = l.Algorithm
+	buf := make([]byte, 0, lsSrCPConstraintsFixedLen)
+	buf = binary.BigEndian.AppendUint16(buf, l.Flags)
+	buf = binary.BigEndian.AppendUint16(buf, 0) // Reserved.
+	buf = binary.BigEndian.AppendUint16(buf, l.MTID)
+	buf = append(buf, l.Algorithm, 0) // Algorithm and reserved.
 
 	sub, err := lsSerializeSubTLVs(l.SubTLVs)
 	if err != nil {
@@ -2680,8 +2684,9 @@ func (l *LsTLVSrBidirectionalGroupConstraint) Serialize() ([]byte, error) {
 	if len(l.Identifier) < 4 {
 		return nil, errors.New("SR Bidirectional Group Constraint requires a group identifier")
 	}
-	buf := make([]byte, 4)
-	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+	buf := make([]byte, 0, 4)
+	buf = binary.BigEndian.AppendUint16(buf, l.Flags)
+	buf = binary.BigEndian.AppendUint16(buf, 0) // Reserved.
 	buf = append(buf, l.Identifier...)
 
 	return l.LsTLV.Serialize(buf)

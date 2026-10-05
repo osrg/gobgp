@@ -65,8 +65,8 @@ func (n *VPLSNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) e
 }
 
 func (n *VPLSNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 16)
-	labelBaseBuf := make([]byte, 3)
+	buf := make([]byte, 19)
+	labelBaseBuf := buf[16:19]
 
 	binary.BigEndian.PutUint16(buf[:2], 17)
 	rdbuf, err := n.rd.Serialize()
@@ -87,7 +87,7 @@ func (n *VPLSNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
 	labelBaseBuf[0] = byte(labelBlockBase >> 16 & 0xff)
 	labelBaseBuf[1] = byte(labelBlockBase >> 8 & 0xff)
 	labelBaseBuf[2] = byte(labelBlockBase & 0xff)
-	return append(buf, labelBaseBuf...), nil
+	return buf, nil
 }
 
 func (n *VPLSNLRI) Len(options ...*MarshallingOption) int {

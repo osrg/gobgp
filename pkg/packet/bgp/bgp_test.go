@@ -911,8 +911,7 @@ func Test_FlowSpecNlriComponentsClampedToDeclaredLength(t *testing.T) {
 	// Declare one byte fewer than the component occupies, then append a byte
 	// that belongs to the next NLRI. The component must not reach past the
 	// declared length into that following byte.
-	buf := make([]byte, len(one))
-	copy(buf, one)
+	buf := append(make([]byte, 0, len(one)+1), one...)
 	buf[0] = byte(declared - 1)
 	buf = append(buf, 0xEE)
 

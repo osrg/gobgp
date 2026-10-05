@@ -3336,25 +3336,16 @@ type NexthopUpdateBody IPRouteBody
 // Ref: send_client in zebra/zebra_rnh.c of Quagga1.2&FRR3&FRR5(ZAPI3&4$5) and until FRR7.4
 // Ref: zebra_send_rnh_update zebra/zebra_rnh.c of FRR7.5&FRR8
 func (b *NexthopUpdateBody) serialize(version uint8, software Software) ([]byte, error) {
-	var buf []byte
-	offset := 0
-	// Message (4 bytes) // if (srte_color) stream_putl(s, message);
-	if version == 6 && software.name == "frr" && software.version >= 7.5 { // since frr7.5
-		buf = make([]byte, 7)
-		binary.BigEndian.PutUint32(buf, uint32(b.Message))
-		offset += 4
-	} else { // until frr7.4
-		buf = make([]byte, 3)
+	buf := make([]byte, 0, 7)
+	if version == 6 && software.name == "frr" && software.version >= 7.5 {
+		buf = binary.BigEndian.AppendUint32(buf, uint32(b.Message))
 	}
-
-	// Address Family (2 bytes)
-	binary.BigEndian.PutUint16(buf[offset:], uint16(b.Prefix.Family))
+	buf = binary.BigEndian.AppendUint16(buf, uint16(b.Prefix.Family))
 	addrByteLen, err := addressByteLength(b.Prefix.Family)
 	if err != nil {
 		return nil, err
 	}
-
-	buf[offset+2] = byte(addrByteLen * 8) // stream_putc(s, rn->p.prefixlen);
+	buf = append(buf, byte(addrByteLen*8))
 	// Prefix Length (1 byte) + Prefix (variable)
 	switch b.Prefix.Family {
 	case syscall.AF_INET:

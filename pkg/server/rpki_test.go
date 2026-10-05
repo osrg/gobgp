@@ -18,6 +18,8 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"io"
 	"testing"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/rtr"
@@ -46,5 +48,21 @@ func Test_readRTRMessageAcceptsValidLength(t *testing.T) {
 	}
 	if len(data) != rtr.RTR_MIN_LEN {
 		t.Fatalf("expected %d bytes, got %d", rtr.RTR_MIN_LEN, len(data))
+	}
+}
+
+func TestReadRTRMessageBodyAndBoundary(t *testing.T) {
+	message := []byte{1, rtr.RTR_SERIAL_NOTIFY, 0, 0, 0, 0, 0, 12, 1, 2, 3, 4}
+	stream := bytes.NewReader(append(append([]byte(nil), message...), 0xee))
+	got, err := readRTRMessage(stream)
+	if err != nil || !bytes.Equal(got, message) {
+		t.Fatalf("got %x, err %v; want %x", got, err, message)
+	}
+	if next, err := stream.ReadByte(); err != nil || next != 0xee {
+		t.Fatalf("consumed the next message: byte=%x, err=%v", next, err)
+	}
+	got, err = readRTRMessage(bytes.NewReader(message[:len(message)-1]))
+	if got != nil || !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("truncated body: got %x, err %v", got, err)
 	}
 }

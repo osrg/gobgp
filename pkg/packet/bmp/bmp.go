@@ -408,9 +408,9 @@ func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte, options
 }
 
 func (body *BMPStatisticsReport) Serialize(options ...*bgp.MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 4)
+	buf := make([]byte, 0, 4)
 	body.Count = uint32(len(body.Stats))
-	binary.BigEndian.PutUint32(buf[:4], body.Count)
+	buf = binary.BigEndian.AppendUint32(buf, body.Count)
 	for _, tlv := range body.Stats {
 		tlvBuf, err := tlv.Serialize()
 		if err != nil {
@@ -492,8 +492,8 @@ func (body *BMPPeerDownNotification) ParseBody(msg *BMPMessage, data []byte, opt
 }
 
 func (body *BMPPeerDownNotification) Serialize(options ...*bgp.MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 1)
-	buf[0] = body.Reason
+	buf := make([]byte, 0, 1)
+	buf = append(buf, body.Reason)
 	switch body.Reason {
 	case BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION, BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION:
 		if body.BGPNotification != nil {
@@ -586,15 +586,17 @@ func (body *BMPPeerUpNotification) ParseBody(msg *BMPMessage, data []byte, optio
 }
 
 func (body *BMPPeerUpNotification) Serialize(options ...*bgp.MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 20)
+	var address [16]byte
 	if body.LocalAddress.Is4() {
-		copy(buf[12:16], body.LocalAddress.AsSlice())
+		copy(address[12:16], body.LocalAddress.AsSlice())
 	} else {
-		copy(buf[:16], body.LocalAddress.AsSlice())
+		copy(address[:], body.LocalAddress.AsSlice())
 	}
 
-	binary.BigEndian.PutUint16(buf[16:18], body.LocalPort)
-	binary.BigEndian.PutUint16(buf[18:20], body.RemotePort)
+	buf := make([]byte, 0, 20)
+	buf = append(buf, address[:]...)
+	buf = binary.BigEndian.AppendUint16(buf, body.LocalPort)
+	buf = binary.BigEndian.AppendUint16(buf, body.RemotePort)
 
 	m, _ := body.SentOpenMsg.Serialize(options...)
 	buf = append(buf, m...)
@@ -647,10 +649,10 @@ func (s *BMPInfoTLVString) ParseValue(data []byte) error {
 
 func (s *BMPInfoTLVString) Serialize() ([]byte, error) {
 	s.Length = uint16(len([]byte(s.Value)))
-	buf := make([]byte, 4)
+	buf := make([]byte, 4+len(s.Value))
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
-	buf = append(buf, []byte(s.Value)...)
+	copy(buf[4:], s.Value)
 	return buf, nil
 }
 
@@ -673,10 +675,10 @@ func (s *BMPInfoTLVUnknown) ParseValue(data []byte) error {
 
 func (s *BMPInfoTLVUnknown) Serialize() ([]byte, error) {
 	s.Length = uint16(len(s.Value))
-	buf := make([]byte, 4)
+	buf := make([]byte, 4+len(s.Value))
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
-	buf = append(buf, s.Value...)
+	copy(buf[4:], s.Value)
 	return buf, nil
 }
 
@@ -790,10 +792,10 @@ func (s *BMPTermTLVString) ParseValue(data []byte) error {
 
 func (s *BMPTermTLVString) Serialize() ([]byte, error) {
 	s.Length = uint16(len([]byte(s.Value)))
-	buf := make([]byte, 4)
+	buf := make([]byte, 4+len(s.Value))
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
-	buf = append(buf, []byte(s.Value)...)
+	copy(buf[4:], s.Value)
 	return buf, nil
 }
 
@@ -845,10 +847,10 @@ func (s *BMPTermTLVUnknown) ParseValue(data []byte) error {
 
 func (s *BMPTermTLVUnknown) Serialize() ([]byte, error) {
 	s.Length = uint16(len(s.Value))
-	buf := make([]byte, 4)
+	buf := make([]byte, 4+len(s.Value))
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
-	buf = append(buf, s.Value...)
+	copy(buf[4:], s.Value)
 	return buf, nil
 }
 
@@ -986,10 +988,10 @@ func (s *BMPRouteMirrTLVBGPMsg) Serialize() ([]byte, error) {
 		}
 	}
 	s.Length = uint16(len(m))
-	buf := make([]byte, 4)
+	buf := make([]byte, 4+len(m))
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
-	buf = append(buf, m...)
+	copy(buf[4:], m)
 	return buf, nil
 }
 
@@ -1041,10 +1043,10 @@ func (s *BMPRouteMirrTLVUnknown) ParseValue(data []byte) error {
 
 func (s *BMPRouteMirrTLVUnknown) Serialize() ([]byte, error) {
 	s.Length = uint16(len(s.Value))
-	buf := make([]byte, 4)
+	buf := make([]byte, 4+len(s.Value))
 	binary.BigEndian.PutUint16(buf[:2], s.Type)
 	binary.BigEndian.PutUint16(buf[2:4], s.Length)
-	buf = append(buf, s.Value...)
+	copy(buf[4:], s.Value)
 	return buf, nil
 }
 

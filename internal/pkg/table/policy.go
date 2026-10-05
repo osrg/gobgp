@@ -3627,11 +3627,9 @@ const (
 )
 
 func (lhs *Statement) mod(op opType, rhs *Statement) error {
-	cs := make([]Condition, len(lhs.Conditions))
-	copy(cs, lhs.Conditions)
+	cs := append(make([]Condition, 0, len(lhs.Conditions)), lhs.Conditions...)
 	ra := lhs.RouteAction
-	as := make([]Action, len(lhs.ModActions))
-	copy(as, lhs.ModActions)
+	as := append(make([]Action, 0, len(lhs.ModActions)), lhs.ModActions...)
 	for _, x := range rhs.Conditions {
 		var c Condition
 		i := 0
