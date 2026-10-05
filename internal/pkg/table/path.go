@@ -1114,6 +1114,16 @@ func (path *Path) RemoveLocalPref() {
 	}
 }
 
+// RemoveReflectionAttrs removes ORIGINATOR_ID and CLUSTER_LIST, the attributes
+// RFC 4456 uses to stop loops between route reflectors inside an AS.
+func (path *Path) RemoveReflectionAttrs() {
+	for _, typ := range [...]bgp.BGPAttrType{bgp.BGP_ATTR_TYPE_ORIGINATOR_ID, bgp.BGP_ATTR_TYPE_CLUSTER_LIST} {
+		if path.getPathAttr(typ) != nil {
+			path.delPathAttr(typ)
+		}
+	}
+}
+
 func (path *Path) GetOriginatorID() netip.Addr {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID); attr != nil {
 		return attr.(*bgp.PathAttributeOriginatorId).Value
