@@ -3209,30 +3209,18 @@ func (n *RegisteredNexthop) len() int {
 // Ref: sendmsg_zebra_rnh in bgpd/bgp_nht.c of FRR3.x (ZAPI4)
 // Ref: zclient_send_rnh in lib/zclient.c of FRR5&FRR6&FRR7.x&FRR8 (ZAPI5&6)
 func (n *RegisteredNexthop) serialize(version uint8, software Software) ([]byte, error) {
-	bufInitSize := 4
+	buf := make([]byte, 0, 7)
+	buf = append(buf, n.connected)
 	if version == 6 && software.name == "frr" && software.version >= 8.2 {
-		bufInitSize = 7
+		buf = append(buf, n.resolveViaDef)
+		buf = binary.BigEndian.AppendUint16(buf, uint16(SafiUnicast))
 	}
-	buf := make([]byte, bufInitSize)
-	// Connected (1 byte)
-	buf[0] = n.connected // stream_putc(s, (connected) ? 1 : 0);
-	pos := 1
-	if version == 6 && software.name == "frr" && software.version >= 8.2 {
-		buf[1] = n.resolveViaDef
-		binary.BigEndian.PutUint16(buf[1:3], uint16(SafiUnicast)) // stream_putw(s, PREFIX_FAMILY(p));
-		pos += 3
-	}
-	// Address Family (2 bytes)
-	binary.BigEndian.PutUint16(buf[pos:pos+2], n.Family) // stream_putw(s, PREFIX_FAMILY(p));
-	// pos += 2
-	// Prefix Length (1 byte)
+	buf = binary.BigEndian.AppendUint16(buf, n.Family)
 	addrByteLen, err := addressByteLength(uint8(n.Family))
 	if err != nil {
 		return nil, err
 	}
-
-	buf[3] = byte(addrByteLen * 8) // stream_putc(s, p->prefixlen);
-	// pos += 1
+	buf = append(buf, byte(addrByteLen*8))
 	// Prefix (variable)
 	switch n.Family {
 	case uint16(syscall.AF_INET):
