@@ -169,3 +169,125 @@ func TestIngressLoopCheckWithdrawsInstalledPath(t *testing.T) {
 		})
 	}
 }
+
+// TestExternalPeerReflectionAttrsDiscarded covers RFC 7606 7.9 and 7.10: an
+// ORIGINATOR_ID or a CLUSTER_LIST received from an external peer is discarded.
+// Both exist to stop loops inside our AS, so an external peer has no say in
+// them. Left on the path, the CLUSTER_LIST holds the route back from every
+// route reflector client and the ORIGINATOR_ID is passed on to them.
+func TestExternalPeerReflectionAttrsDiscarded(t *testing.T) {
+	const (
+		localAS      = uint32(65000)
+		prefix       = "10.0.0.0/24"
+		routerID     = "192.0.2.254"
+		externalAddr = "192.0.2.1"
+		clientAddr   = "192.0.2.2"
+	)
+
+	for _, tc := range []struct {
+		name string
+		attr func(t *testing.T) bgp.PathAttributeInterface
+	}{
+		{
+			// The cluster ID defaults to the router ID, which the peer
+			// reads from our OPEN.
+			name: "cluster-list",
+			attr: func(t *testing.T) bgp.PathAttributeInterface {
+				t.Helper()
+				list, err := bgp.NewPathAttributeClusterList([]netip.Addr{netip.MustParseAddr(routerID)})
+				require.NoError(t, err)
+				return list
+			},
+		},
+		{
+			// The router ID of the client, which then ignores the route.
+			name: "originator-id",
+			attr: func(t *testing.T) bgp.PathAttributeInterface {
+				t.Helper()
+				originator, err := bgp.NewPathAttributeOriginatorId(netip.MustParseAddr(clientAddr))
+				require.NoError(t, err)
+				return originator
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := NewBgpServer()
+			go s.Serve()
+			require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{Global: &api.Global{
+				Asn: localAS, RouterId: routerID, ListenPort: -1,
+			}}))
+			t.Cleanup(s.Stop)
+
+			external := newPeerandInfo(t, localAS, 65001, externalAddr, s.globalRib)
+			client := newPeerandInfo(t, localAS, localAS, clientAddr, s.globalRib)
+			conf := client.fsm.pConf.ReadCopy()
+			conf.RouteReflector.Config.RouteReflectorClient = true
+			conf.RouteReflector.State.RouteReflectorClusterId = netip.MustParseAddr(routerID)
+			client.fsm.pConf.Update(&conf)
+			info := *client.peerInfo.Load()
+			info.RouteReflectorClient = true
+			info.RouteReflectorClusterID = netip.MustParseAddr(routerID)
+			client.peerInfo.Store(&info)
+			// Without RTC, which would hold back a route with no route target.
+			client.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+
+			peers := []*peer{external, client}
+			require.NoError(t, s.mgmtOperation(func() error {
+				for _, p := range peers {
+					p.policy = s.policy
+					p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+					s.neighborMap[netip.MustParseAddr(p.ID())] = p
+				}
+				return nil
+			}, true))
+			t.Cleanup(func() {
+				require.NoError(t, s.mgmtOperation(func() error {
+					for _, p := range peers {
+						delete(s.neighborMap, netip.MustParseAddr(p.ID()))
+					}
+					return nil
+				}, false))
+				for _, p := range peers {
+					cleanInfiniteChannel(p.fsm.outgoingCh)
+				}
+			})
+
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+			require.NoError(t, err)
+			nexthop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(externalAddr))
+			require.NoError(t, err)
+			s.handleFSMMessage(external, &fsmMsg{
+				MsgType: fsmMsgBGPMessage,
+				MsgData: bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{
+					bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+					bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+						bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001}),
+					}),
+					nexthop,
+					tc.attr(t),
+				}, []bgp.PathNLRI{{NLRI: nlri}}),
+				timestamp: time.Now(),
+			})
+
+			// The route is accepted either way.
+			require.NoError(t, s.mgmtOperation(func() error {
+				require.Len(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC}), 1)
+				return nil
+			}, true))
+
+			select {
+			case o := <-client.fsm.outgoingCh.Out():
+				paths := o.(*fsmOutgoingMsg).Paths
+				require.Len(t, paths, 1)
+				assert.False(t, paths[0].IsWithdraw)
+				assert.Equal(t, prefix, paths[0].GetPrefix())
+				// What the client gets is what we set as a reflector.
+				assert.Equal(t, netip.MustParseAddr(externalAddr), paths[0].GetOriginatorID())
+				assert.Equal(t, []netip.Addr{netip.MustParseAddr(routerID)}, paths[0].GetClusterList())
+			case <-time.After(time.Second):
+				t.Fatal("the route was not sent to the route reflector client")
+			}
+		})
+	}
+}

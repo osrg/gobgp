@@ -1308,8 +1308,13 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 
 			// Strip LOCAL_PREF from eBGP peers on ingress.
 			// RFC 4271: LOCAL_PREF is only used in iBGP.
+			//
+			// ORIGINATOR_ID and CLUSTER_LIST go with it. RFC 7606 7.9 and
+			// 7.10 discard both when an external neighbor sends them, and
+			// we would otherwise act on them when reflecting the route.
 			if peer != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
 				path.RemoveLocalPref()
+				path.RemoveReflectionAttrs()
 			}
 
 			policyOptions := &table.PolicyOptions{
