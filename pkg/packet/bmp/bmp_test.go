@@ -208,6 +208,32 @@ func Test_StatisticsReportAdjRIBOut(t *testing.T) {
 	verify(t, s0)
 }
 
+func Test_StatisticsReportUnknownPerAFISAFI(t *testing.T) {
+	// RFC 9972 types 19 and 21 are unknown to the parser, but use the
+	// existing AFI/SAFI and 64-bit gauge format. A known TLV follows them.
+	data := []byte{
+		0, 0, 0, 3,
+		0, 19, 0, 11, 0, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8,
+		0, 21, 0, 11, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3,
+		0, 0, 0, 4, 0, 0, 0, 7,
+	}
+	var report BMPStatisticsReport
+	require.NoError(t, report.ParseBody(nil, data))
+	assert.Equal(t, uint32(3), report.Count)
+	assert.Equal(t, []BMPStatsTLVInterface{
+		NewBMPStatsTLVPerAfiSafi64(19, 2, 1, 0x0102030405060708),
+		NewBMPStatsTLVPerAfiSafi64(21, 1, 1, 3),
+		NewBMPStatsTLV32(0, 7),
+	}, report.Stats)
+	encoded, err := report.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, data, encoded)
+
+	// Reject an unknown 11-byte value that ends before its declared length.
+	truncated := append([]byte{0, 0, 0, 1}, data[4:18]...)
+	require.Error(t, (&BMPStatisticsReport{}).ParseBody(nil, truncated))
+}
+
 func Test_RouteMirroring(t *testing.T) {
 	p0 := NewBMPPeerHeader(0, 0, 1000, netip.MustParseAddr("10.0.0.1"), 70000, netip.MustParseAddr("10.0.0.2"), 1)
 	s0 := NewBMPRouteMirroring(

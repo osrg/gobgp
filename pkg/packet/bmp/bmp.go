@@ -394,6 +394,8 @@ func (body *BMPStatisticsReport) ParseBody(msg *BMPMessage, data []byte, options
 				s = &BMPStatsTLV32{BMPStatsTLV: tl}
 			case 8:
 				s = &BMPStatsTLV64{BMPStatsTLV: tl}
+			case 11:
+				s = &BMPStatsTLVPerAfiSafi64{BMPStatsTLV: tl}
 			default:
 				return fmt.Errorf("value length %d is not known for unknown stat type %d", tl.Length, tl.Type)
 			}
