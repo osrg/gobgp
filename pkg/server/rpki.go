@@ -460,8 +460,8 @@ func (c *roaClient) established() (err error) {
 }
 
 func readRTRMessage(r io.Reader) ([]byte, error) {
-	header := make([]byte, rtr.RTR_MIN_LEN)
-	if _, err := io.ReadFull(r, header); err != nil {
+	var header [rtr.RTR_MIN_LEN]byte
+	if _, err := io.ReadFull(r, header[:]); err != nil {
 		return nil, err
 	}
 	totalLen := binary.BigEndian.Uint32(header[4:8])
@@ -472,10 +472,11 @@ func readRTRMessage(r io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("too large header length %v", totalLen)
 	}
 
-	body := make([]byte, totalLen-rtr.RTR_MIN_LEN)
-	if _, err := io.ReadFull(r, body); err != nil {
+	message := make([]byte, totalLen)
+	copy(message, header[:])
+	if _, err := io.ReadFull(r, message[rtr.RTR_MIN_LEN:]); err != nil {
 		return nil, err
 	}
 
-	return append(header, body...), nil
+	return message, nil
 }

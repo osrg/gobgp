@@ -746,9 +746,11 @@ func (s *SegmentTypeB) DecodeFromBytes(data []byte) error {
 }
 
 func (s *SegmentTypeB) Serialize() ([]byte, error) {
-	buf := make([]byte, 18)
-	buf[0] = s.Flags
-	copy(buf[2:], s.SID)
+	var sid [16]byte
+	copy(sid[:], s.SID)
+	buf := make([]byte, 0, 18)
+	buf = append(buf, s.Flags, 0) // Flags and reserved.
+	buf = append(buf, sid[:]...)
 	if s.SRv6EBS != nil {
 		if ebs, _ := s.SRv6EBS.Serialize(); ebs != nil {
 			buf = append(buf, ebs...)

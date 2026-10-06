@@ -267,10 +267,10 @@ func (n *MUPNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) er
 }
 
 func (n *MUPNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 4)
-	buf[0] = n.ArchitectureType
-	binary.BigEndian.PutUint16(buf[1:3], n.RouteType)
-	buf[3] = n.Length
+	buf := make([]byte, 0, 4+int(n.Length))
+	buf = append(buf, n.ArchitectureType)
+	buf = binary.BigEndian.AppendUint16(buf, n.RouteType)
+	buf = append(buf, n.Length)
 	tbuf, err := n.RouteTypeData.Serialize()
 	if err != nil {
 		return nil, err
@@ -436,7 +436,7 @@ func (r *MUPInterworkSegmentDiscoveryRoute) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		buf = make([]byte, 8)
+		buf = binary.BigEndian.AppendUint64(buf, 0) // Zero RD.
 	}
 	buf = append(buf, uint8(r.Prefix.Bits()))
 	byteLen := (r.Prefix.Bits() + 7) / 8
@@ -529,7 +529,7 @@ func (r *MUPDirectSegmentDiscoveryRoute) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		buf = make([]byte, 8)
+		buf = binary.BigEndian.AppendUint64(buf, 0) // Zero RD.
 	}
 	buf = append(buf, r.Address.AsSlice()...)
 	return buf, nil
@@ -707,7 +707,7 @@ func (r *MUPType1SessionTransformedRoute) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		buf = make([]byte, 8)
+		buf = binary.BigEndian.AppendUint64(buf, 0) // Zero RD.
 	}
 	buf = append(buf, byte(r.Prefix.Bits()))
 	byteLen := (r.Prefix.Bits() + 7) / 8
@@ -882,7 +882,7 @@ func (r *MUPType2SessionTransformedRoute) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		buf = make([]byte, 8)
+		buf = binary.BigEndian.AppendUint64(buf, 0) // Zero RD.
 	}
 	buf = append(buf, r.EndpointAddressLength)
 	buf = append(buf, r.EndpointAddress.AsSlice()...)

@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -910,8 +911,7 @@ func Test_FlowSpecNlriComponentsClampedToDeclaredLength(t *testing.T) {
 	// Declare one byte fewer than the component occupies, then append a byte
 	// that belongs to the next NLRI. The component must not reach past the
 	// declared length into that following byte.
-	buf := make([]byte, len(one))
-	copy(buf, one)
+	buf := append(make([]byte, 0, len(one)+1), one...)
 	buf[0] = byte(declared - 1)
 	buf = append(buf, 0xEE)
 
@@ -7346,4 +7346,67 @@ func TestParseBodyRouteRefreshLengthError(t *testing.T) {
 	require.ErrorAs(t, err, &me)
 	require.Equal(t, uint8(BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR), me.TypeCode)
 	require.Equal(t, uint8(BGP_ERROR_SUB_INVALID_MESSAGE_LENGTH), me.SubTypeCode)
+}
+
+type layoutTestCommunity struct {
+	ExtendedCommunityInterface
+	value []byte
+	err   error
+}
+
+func (c layoutTestCommunity) Serialize() ([]byte, error) { return c.value, c.err }
+
+func TestEVPNIPMSISerializeInvalidCommunity(t *testing.T) {
+	wantErr := errors.New("serialization failed")
+	for _, tc := range []struct {
+		name string
+		ec   layoutTestCommunity
+	}{
+		{"short", layoutTestCommunity{value: make([]byte, 7)}},
+		{"long", layoutTestCommunity{value: make([]byte, 9)}},
+		{"error", layoutTestCommunity{err: wantErr}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := (&EVPNIPMSIRoute{EC: tc.ec}).Serialize()
+			if err == nil || got != nil {
+				t.Fatalf("got %x, err %v; want no output and an error", got, err)
+			}
+			if tc.ec.err != nil && !errors.Is(err, wantErr) {
+				t.Fatalf("serialization error lost: %v", err)
+			}
+		})
+	}
+}
+
+func TestEVPNIPMSISerializeLayout(t *testing.T) {
+	route := &EVPNIPMSIRoute{
+		RD:   NewRouteDistinguisherTwoOctetAS(65000, 42),
+		ETag: 7,
+		EC:   NewTwoOctetAsSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, 65000, 123, true),
+	}
+	want := []byte{
+		0, 0, 0xfd, 0xe8, 0, 0, 0, 42, // RD
+		0, 0, 0, 7, // Ethernet tag
+		0, 2, 0xfd, 0xe8, 0, 0, 0, 123, // Extended community
+	}
+	for _, nilRD := range []bool{false, true} {
+		if nilRD {
+			route.RD = nil
+			clear(want[:8])
+		}
+		got, err := route.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, want) || len(got) != route.Len() {
+			t.Fatalf("nilRD=%v: got %x (Len=%d), want %x", nilRD, got, route.Len(), want)
+		}
+		var decoded EVPNIPMSIRoute
+		if err := decoded.DecodeFromBytes(got); err != nil {
+			t.Fatal(err)
+		}
+		if decoded.ETag != route.ETag || decoded.EC.String() != route.EC.String() {
+			t.Fatalf("round-trip changed route: %s", decoded.String())
+		}
+	}
 }

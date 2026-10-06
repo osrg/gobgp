@@ -16,7 +16,9 @@
 package zebra
 
 import (
+	"bytes"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"net/netip"
 	"syscall"
@@ -1269,4 +1271,67 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, false)
 		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, true)
 	})
+}
+
+func TestIPRouteSerializeHeaderVersions(t *testing.T) {
+	for _, version := range []float64{7.3, 7.4, 7.5} {
+		t.Run(fmt.Sprintf("FRR%.1f", version), func(t *testing.T) {
+			route := &IPRouteBody{Type: routeConnect, Safi: SafiUnicast, Prefix: Prefix{Family: syscall.AF_INET, PrefixLen: 24, Prefix: netip.MustParseAddr("192.0.2.0")}}
+			wire, err := route.serialize(6, Software{name: "frr", version: version})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// type=connected, instance=0, flags=0, message=0, SAFI=unicast.
+			want := []byte{2, 0, 0, 0, 0, 0, 0, 0, 1}
+			if version >= 7.5 {
+				want = []byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+			}
+			want = append(want, byte(syscall.AF_INET), 24, 192, 0, 2)
+			if !bytes.Equal(wire, want) {
+				t.Fatalf("got %x, want %x", wire, want)
+			}
+		})
+	}
+}
+
+func TestRegisteredNexthopSerializeLayout(t *testing.T) {
+	for _, version := range []float64{8.1, 8.2} {
+		for _, address := range []string{"192.0.2.1", "2001:db8::1"} {
+			for _, flag := range []uint8{0, 1} {
+				t.Run(fmt.Sprintf("FRR%.1f/%s/flag%d", version, address, flag), func(t *testing.T) {
+					ip := netip.MustParseAddr(address)
+					family := uint16(syscall.AF_INET)
+					if ip.Is6() {
+						family = uint16(syscall.AF_INET6)
+					}
+					n := &RegisteredNexthop{connected: flag, resolveViaDef: flag, Family: family, Prefix: ip}
+					software := Software{name: "frr", version: version}
+					wire, err := n.serialize(6, software)
+					if err != nil {
+						t.Fatal(err)
+					}
+					// FRR 8.2 inserts resolve-via-default and a two-byte SAFI.
+					want := []byte{flag}
+					if version >= 8.2 {
+						want = append(want, flag, 0, 1)
+					}
+					want = append(want, byte(family>>8), byte(family), byte(ip.BitLen()))
+					want = append(want, ip.AsSlice()...)
+					if !bytes.Equal(wire, want) {
+						t.Fatalf("got %x, want %x", wire, want)
+					}
+					var decoded RegisteredNexthop
+					if err := decoded.decodeFromBytes(wire, 6, software); err != nil {
+						t.Fatal(err)
+					}
+					if decoded.Prefix != ip || decoded.connected != flag {
+						t.Fatalf("round-trip changed nexthop: %+v", decoded)
+					}
+					if version >= 8.2 && (decoded.resolveViaDef != flag || decoded.safi != uint16(SafiUnicast)) {
+						t.Fatalf("round-trip changed FRR 8.2 fields: %+v", decoded)
+					}
+				})
+			}
+		}
+	}
 }

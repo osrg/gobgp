@@ -1342,8 +1342,8 @@ func (o *OptionParameterCapability) DecodeFromBytes(data []byte) error {
 }
 
 func (o *OptionParameterCapability) Serialize() ([]byte, error) {
-	buf := make([]byte, 2)
-	buf[0] = o.ParamType
+	buf := make([]byte, 0, 2)
+	buf = append(buf, o.ParamType, 0) // Parameter type and length, filled below.
 	for _, p := range o.Capability {
 		pbuf, err := p.Serialize()
 		if err != nil {
@@ -1448,11 +1448,14 @@ func (msg *BGPOpen) DecodeFromBytes(data []byte, options ...*MarshallingOption) 
 }
 
 func (msg *BGPOpen) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 10)
-	buf[0] = msg.Version
-	binary.BigEndian.PutUint16(buf[1:3], msg.MyAS)
-	binary.BigEndian.PutUint16(buf[3:5], msg.HoldTime)
-	copy(buf[5:9], msg.ID.AsSlice())
+	var id [4]byte
+	copy(id[:], msg.ID.AsSlice())
+	buf := make([]byte, 0, 10)
+	buf = append(buf, msg.Version)
+	buf = binary.BigEndian.AppendUint16(buf, msg.MyAS)
+	buf = binary.BigEndian.AppendUint16(buf, msg.HoldTime)
+	buf = append(buf, id[:]...)
+	buf = append(buf, 0) // Optional parameters length, filled below.
 	pbuf := make([]byte, 0)
 	for _, p := range msg.OptParams {
 		onepbuf, err := p.Serialize()
@@ -2701,7 +2704,7 @@ func (er *EVPNEthernetAutoDiscoveryRoute) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		buf = make([]byte, 8)
+		buf = binary.BigEndian.AppendUint64(buf, 0) // Zero RD.
 	}
 	tbuf, err := er.ESI.Serialize()
 	if err != nil {
@@ -2836,7 +2839,7 @@ func (er *EVPNMacIPAdvertisementRoute) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		buf = make([]byte, 8)
+		buf = binary.BigEndian.AppendUint64(buf, 0) // Zero RD.
 	}
 
 	esi, err := er.ESI.Serialize()
@@ -2976,7 +2979,7 @@ func (er *EVPNMulticastEthernetTagRoute) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		buf = make([]byte, 8)
+		buf = binary.BigEndian.AppendUint64(buf, 0) // Zero RD.
 	}
 	var tbuf [4]byte
 	binary.BigEndian.PutUint32(tbuf[:4], er.ETag)
@@ -3081,7 +3084,7 @@ func (er *EVPNEthernetSegmentRoute) Serialize() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		buf = make([]byte, 8)
+		buf = binary.BigEndian.AppendUint64(buf, 0) // Zero RD.
 	}
 	tbuf, err := er.ESI.Serialize()
 	if err != nil {
@@ -3197,25 +3200,28 @@ func (er *EVPNIPPrefixRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNIPPrefixRoute) Serialize() ([]byte, error) {
-	buf := make([]byte, 23) // RD(8) + ESI(10) + ETag(4) + IPPrefixLength(1)
+	var rd [8]byte
+	var esi [10]byte
 
 	if er.RD != nil {
 		tbuf, err := er.RD.Serialize()
 		if err != nil {
 			return nil, err
 		}
-		copy(buf[:8], tbuf)
+		copy(rd[:], tbuf)
 	}
 
 	tbuf, err := er.ESI.Serialize()
 	if err != nil {
 		return nil, err
 	}
-	copy(buf[8:18], tbuf)
+	copy(esi[:], tbuf)
 
-	binary.BigEndian.PutUint32(buf[18:22], er.ETag)
-
-	buf[22] = er.IPPrefixLength
+	buf := make([]byte, 0, 23) // RD(8) + ESI(10) + ETag(4) + prefix length(1).
+	buf = append(buf, rd[:]...)
+	buf = append(buf, esi[:]...)
+	buf = binary.BigEndian.AppendUint32(buf, er.ETag)
+	buf = append(buf, er.IPPrefixLength)
 
 	if !er.IPPrefix.IsValid() {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "IP Prefix is nil")
@@ -3329,7 +3335,7 @@ func (er *EVPNIPMSIRoute) DecodeFromBytes(data []byte) error {
 }
 
 func (er *EVPNIPMSIRoute) Serialize() ([]byte, error) {
-	buf := make([]byte, 20)
+	buf := make([]byte, 20) // RD(8) + ETag(4) + EC(8).
 
 	if er.RD != nil {
 		tbuf, err := er.RD.Serialize()
@@ -3345,8 +3351,11 @@ func (er *EVPNIPMSIRoute) Serialize() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return append(buf, ec...), nil
+	if len(ec) != 8 {
+		return nil, fmt.Errorf("invalid I-PMSI extended community length: %d", len(ec))
+	}
+	copy(buf[12:20], ec)
+	return buf, nil
 }
 
 func (er *EVPNIPMSIRoute) String() string {
@@ -5139,9 +5148,9 @@ func (l *LsNLRI) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsNLRI) Serialize(value []byte) ([]byte, error) {
-	buf := make([]byte, lsNLRIHdrLen)
-	buf[0] = uint8(l.ProtocolID)
-	binary.BigEndian.PutUint64(buf[1:], l.Identifier)
+	buf := make([]byte, 0, lsNLRIHdrLen+len(value))
+	buf = append(buf, uint8(l.ProtocolID))
+	buf = binary.BigEndian.AppendUint64(buf, l.Identifier)
 	buf = append(buf, value...)
 
 	return buf, nil
@@ -9856,10 +9865,10 @@ func (l *LsTLVSrv6EndpointBehavior) DecodeFromBytes(data []byte) error {
 }
 
 func (l *LsTLVSrv6EndpointBehavior) Serialize() ([]byte, error) {
-	buf := make([]byte, 2)
+	buf := make([]byte, 4)
 	binary.BigEndian.PutUint16(buf, l.EndpointBehavior)
-	buf = append(buf, l.Flags)
-	buf = append(buf, l.Algorithm)
+	buf[2] = l.Flags
+	buf[3] = l.Algorithm
 	return l.LsTLV.Serialize(buf)
 }
 
@@ -13448,9 +13457,9 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte, options ...*Ma
 }
 
 func (p *PathAttributeMpUnreachNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 3)
-	binary.BigEndian.PutUint16(buf, p.AFI)
-	buf[2] = p.SAFI
+	buf := make([]byte, 0, 3)
+	buf = binary.BigEndian.AppendUint16(buf, p.AFI)
+	buf = append(buf, p.SAFI)
 	addpath := IsAddPathEnabled(false, NewFamily(p.AFI, p.SAFI), options)
 
 	for _, prefix := range p.Value {
@@ -16026,7 +16035,9 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 }
 
 func (p *TunnelEncapTLV) Serialize() ([]byte, error) {
-	buf := make([]byte, 4)
+	buf := make([]byte, 0, 4)
+	buf = binary.BigEndian.AppendUint16(buf, uint16(p.Type))
+	buf = binary.BigEndian.AppendUint16(buf, 0) // Length, filled below.
 	for _, t := range p.Value {
 		tBuf, err := t.Serialize()
 		if err != nil {
@@ -16034,7 +16045,6 @@ func (p *TunnelEncapTLV) Serialize() ([]byte, error) {
 		}
 		buf = append(buf, tBuf...)
 	}
-	binary.BigEndian.PutUint16(buf, uint16(p.Type))
 	binary.BigEndian.PutUint16(buf[2:], uint16(len(buf)-4))
 	return buf, nil
 }
@@ -16224,11 +16234,12 @@ func (p *PathAttributePmsiTunnel) DecodeFromBytes(data []byte, options ...*Marsh
 }
 
 func (p *PathAttributePmsiTunnel) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 2)
+	var flags byte
 	if p.IsLeafInfoRequired {
-		buf[0] = 0x01
+		flags = 0x01
 	}
-	buf[1] = byte(p.TunnelType)
+	buf := make([]byte, 0, 2)
+	buf = append(buf, flags, byte(p.TunnelType))
 	tbuf, err := labelSerialize(p.Label)
 	if err != nil {
 		return nil, err
@@ -17090,7 +17101,8 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 }
 
 func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	wbuf := make([]byte, 2)
+	wbuf := make([]byte, 0, 2)
+	wbuf = binary.BigEndian.AppendUint16(wbuf, 0) // Withdrawn routes length.
 	v4AddPath := IsAddPathEnabled(false, RF_IPv4_UC, options)
 	for _, w := range msg.WithdrawnRoutes {
 		onewbuf, err := w.toSlice(v4AddPath)
@@ -17107,7 +17119,8 @@ func (msg *BGPUpdate) Serialize(options ...*MarshallingOption) ([]byte, error) {
 		attributes: attributes,
 	}
 	options = append(options, &o)
-	pbuf := make([]byte, 2)
+	pbuf := make([]byte, 0, 2)
+	pbuf = binary.BigEndian.AppendUint16(pbuf, 0) // Path attributes length.
 	for _, p := range msg.PathAttributes {
 		onepbuf, err := p.Serialize(options...)
 		if err != nil {
