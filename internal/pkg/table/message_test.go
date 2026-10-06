@@ -1126,3 +1126,70 @@ func TestCreateUpdateMsgFromAdjRIBInPathsUsesTheReceivedPathID(t *testing.T) {
 	}
 	require.Equal(t, []uint32{1}, got)
 }
+
+func TestNotMergeMPReachNLRIsWithDifferentLinkLocalNexthop(t *testing.T) {
+	global := netip.MustParseAddr("2001:db8::1")
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{100})}),
+	}
+
+	paths := make([]*Path, 0, 3)
+	for i, ll := range []string{"fe80::1", "fe80::1", "fe80::2"} {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("2001:db8:%x::/64", i)))
+		mpreach, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri}}, global, netip.MustParseAddr(ll))
+		require.NoError(t, err)
+		msg := bgp.NewBGPUpdateMessage(nil, append(attrs[:len(attrs):len(attrs)], mpreach), nil)
+		paths = append(paths, ProcessMessage(msg, peerR1(), time.Now(), false)...)
+	}
+
+	nlrisByLinkLocal := func(msgs []*bgp.BGPMessage) map[netip.Addr]int {
+		m := make(map[netip.Addr]int)
+		for _, msg := range msgs {
+			for _, attr := range msg.Body.(*bgp.BGPUpdate).PathAttributes {
+				if a, ok := attr.(*bgp.PathAttributeMpReachNLRI); ok {
+					assert.Equal(t, global, a.Nexthop)
+					m[a.LinkLocalNexthop] += len(a.Value)
+				}
+			}
+		}
+		return m
+	}
+
+	msgs := CreateUpdateMsgFromPaths(paths)
+	assert.Equal(t, 2, len(msgs), "different link-local nexthops must produce separate UPDATEs")
+	assert.Equal(t, map[netip.Addr]int{
+		netip.MustParseAddr("fe80::1"): 2,
+		netip.MustParseAddr("fe80::2"): 1,
+	}, nlrisByLinkLocal(msgs))
+
+	msgs = CreateUpdateMsgFromPaths(paths[2:])
+	assert.Equal(t, 1, len(msgs))
+	assert.Equal(t, map[netip.Addr]int{netip.MustParseAddr("fe80::2"): 1}, nlrisByLinkLocal(msgs))
+}
+
+func BenchmarkCreateUpdateMsgFromPathsMP(b *testing.B) {
+	for _, n := range []int{1, 100} {
+		nlris := make([]bgp.PathNLRI, 0, n)
+		for i := range n {
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("2001:db8:%x::/64", i)))
+			nlris = append(nlris, bgp.PathNLRI{NLRI: nlri})
+		}
+		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, nlris, netip.MustParseAddr("2001:db8::1"))
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001, 65002})}),
+			bgp.NewPathAttributeMultiExitDisc(100),
+			bgp.NewPathAttributeCommunities([]uint32{100, 200}),
+			mpreach,
+		}
+		paths := ProcessMessage(bgp.NewBGPUpdateMessage(nil, attrs, nil), peerR1(), time.Now(), false)
+
+		b.Run(fmt.Sprintf("paths=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				CreateUpdateMsgFromPaths(paths)
+			}
+		})
+	}
+}
