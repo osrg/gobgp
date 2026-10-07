@@ -12575,13 +12575,15 @@ func (p *PathAttributeNextHop) DecodeFromBytes(data []byte, options ...*Marshall
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "nexthop length isn't correct")
 	}
-	var ok bool
-	p.Value, ok = netip.AddrFromSlice(value)
+	nexthop, ok := netip.AddrFromSlice(value)
 	if !ok {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE)
 		return NewMessageError(eCode, eSubCode, nil, "invalid nexthop address")
 	}
+	// Same as the 16-octet next hop field of MP_REACH_NLRI: a 16-octet
+	// value holding an IPv4-mapped address is the IPv4 address it embeds.
+	p.Value = nexthop.Unmap()
 	return nil
 }
 
@@ -13191,7 +13193,13 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 		p.LinkLocalNexthop, _ = netip.AddrFromSlice(nexthopbin[BGP_ATTR_NHLEN_IPV6_GLOBAL:BGP_ATTR_NHLEN_IPV6_GLOBAL_AND_LL])
 		fallthrough
 	case BGP_ATTR_NHLEN_IPV6_GLOBAL: // 16 bytes IPv6 Global
-		p.Nexthop, _ = netip.AddrFromSlice(nexthopbin[:BGP_ATTR_NHLEN_IPV6_GLOBAL])
+		nexthop, _ := netip.AddrFromSlice(nexthopbin[:BGP_ATTR_NHLEN_IPV6_GLOBAL])
+		// An IPv4-mapped address in this field is the IPv4 address it
+		// embeds (RFC 4291 Section 2.5.5.2), and Serialize writes an IPv4
+		// next hop into the 16-octet field in exactly that form. Unmap it
+		// so the two directions agree: the address a peer learns this way
+		// has to compare equal to the same IPv4 address anywhere else.
+		p.Nexthop = nexthop.Unmap()
 	case BGP_ATTR_NHLEN_IPV4: // 4 bytes IPv4
 		p.Nexthop, _ = netip.AddrFromSlice(nexthopbin[:BGP_ATTR_NHLEN_IPV4])
 	default:
