@@ -101,9 +101,7 @@ func TestTcpAoKeychainConfigLifecycle(t *testing.T) {
 `)
 	bgpServer := server.NewBgpServer()
 	go bgpServer.Serve()
-	t.Cleanup(func() {
-		require.NoError(t, bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{}))
-	})
+	t.Cleanup(bgpServer.Stop)
 	current, err := InitialConfig(context.Background(), bgpServer, initial, false)
 	require.NoError(t, err)
 
@@ -214,9 +212,7 @@ func TestPeerGroupConfigLifecycle(t *testing.T) {
 `)
 	bgpServer := server.NewBgpServer()
 	go bgpServer.Serve()
-	t.Cleanup(func() {
-		require.NoError(t, bgpServer.StopBgp(context.Background(), &api.StopBgpRequest{}))
-	})
+	t.Cleanup(bgpServer.Stop)
 	current, err := InitialConfig(context.Background(), bgpServer, initial, false)
 	require.NoError(t, err)
 

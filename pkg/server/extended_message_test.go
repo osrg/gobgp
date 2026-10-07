@@ -59,9 +59,9 @@ func TestExtendedMessage_AdvertisedUnconditionally(t *testing.T) {
 	defer cancel()
 
 	s1 := runNewServer(t, 64512, "1.1.1.1", 10179)
-	defer s1.StopBgp(ctx, &api.StopBgpRequest{})
+	defer s1.Stop()
 	s2 := runNewServer(t, 64512, "2.2.2.2", 20179)
-	defer s2.StopBgp(ctx, &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	require.NoError(t, peerServers(t, ctx, []*BgpServer{s1, s2},
 		[]oc.AfiSafiType{oc.AFI_SAFI_TYPE_IPV4_UNICAST}))

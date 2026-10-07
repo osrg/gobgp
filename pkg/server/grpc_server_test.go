@@ -396,7 +396,7 @@ func TestGRPCWatchEvent(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer t2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer t2.Stop()
 
 	family := &api.Family{
 		Afi:  api.Family_AFI_IP,

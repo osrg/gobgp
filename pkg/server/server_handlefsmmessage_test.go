@@ -44,7 +44,7 @@ func TestHandleFSMMessage_PrefixLimitWarnedRace(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	numPeers := 20
 	peers := make([]*peer, numPeers)
@@ -170,7 +170,7 @@ func TestSoftResetOutSerializesNormalReset(t *testing.T) {
 			return nil
 		}, false)
 		require.NoError(t, err)
-		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+		s.Stop()
 	})
 
 	p.routeRefreshInProgress.RLock()
@@ -242,7 +242,7 @@ func TestSoftResetOutRefreshesExportPolicyFilteredRoutes(t *testing.T) {
 		}, false)
 		require.NoError(t, err)
 		cleanInfiniteChannel(p.fsm.outgoingCh)
-		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		s.Stop()
 	})
 
 	setExportDefault := func(action api.RouteAction) {
@@ -378,7 +378,7 @@ func TestSoftResetOutSecondaryRouteWithdrawsAdvertisedFallback(t *testing.T) {
 		}, false)
 		require.NoError(t, err)
 		cleanInfiniteChannel(target.fsm.outgoingCh)
-		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		s.Stop()
 	})
 
 	const primaryCommunity = uint32(65000)<<16 | 1
@@ -541,7 +541,7 @@ func TestSoftResetOutVRFWithdrawsExportPolicyFilteredRoutes(t *testing.T) {
 		}, false)
 		require.NoError(t, err)
 		cleanInfiniteChannel(p.fsm.outgoingCh)
-		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		s.Stop()
 	})
 
 	setExportDefault := func(action api.RouteAction) {
@@ -670,7 +670,7 @@ func TestSoftResetOutAddPathWithdrawsOnlyAdvertisedFilteredRoutes(t *testing.T) 
 		}, false)
 		require.NoError(t, err)
 		cleanInfiniteChannel(p.fsm.outgoingCh)
-		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		s.Stop()
 	})
 
 	makeSourcePath := func(source string) *table.Path {
@@ -785,7 +785,7 @@ func TestRTCMembershipSerializesTriggeredVPNUpdates(t *testing.T) {
 	})
 	t.Cleanup(func() {
 		cleanInfiniteChannel(p.fsm.outgoingCh)
-		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+		s.Stop()
 	})
 
 	_, rt, err := parseRDRT("65001:100")
@@ -842,7 +842,7 @@ func TestPropagateUpdateUsesPrefixBuckets(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	blockedPath := makePath(t, "192.0.2.0/32", "192.0.2.254", 0)
 	blockedBucket := s.shared.propagateBucket(blockedPath)
@@ -947,7 +947,7 @@ func TestPropagateUpdateSerializesConcurrentLiveDeltas(t *testing.T) {
 		}, false)
 		require.NoError(t, err)
 		cleanInfiniteChannel(target.fsm.outgoingCh)
-		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+		s.Stop()
 	})
 
 	start := make(chan struct{})
@@ -986,7 +986,7 @@ func TestHandleFSMMessage_LLGREndChsRace(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	numPeers := 20
 	peers := make([]*peer, numPeers)
@@ -1106,7 +1106,7 @@ func TestHandleFSMMessage_Parallel_StateChanges(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// Create multiple peers
 	peers := make([]*peer, numPeers)
@@ -1197,7 +1197,7 @@ func TestHandleFSMMessage_StateChange_AdminDown(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	peerAddr := "2.2.2.2"
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
@@ -1262,7 +1262,7 @@ func TestHandleFSMMessage_StateChange_IdleToActive(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	peerAddr := "2.2.2.2"
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
@@ -1396,7 +1396,7 @@ func TestHandleFSMMessage_ConcurrentAccess(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// Create three peers
 	numPeers := 80
@@ -1494,7 +1494,7 @@ func TestHandleFSMMessage_WithGracefulRestart(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	peerAddr := "2.2.2.2"
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
@@ -1570,7 +1570,7 @@ func TestHandleFSMMessage_DynamicNeighborRace(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// Add a peer group for dynamic neighbors
 	err = s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
@@ -1625,7 +1625,7 @@ func TestHandleFSMMessage_DynamicNeighborRace(t *testing.T) {
 				peers[i] = peer
 
 				// Start the peer's FSM
-				peer.fsm.start(s.shutdownWG, func(msg *fsmMsg) {
+				peer.fsm.start(s.peerFSMWG, func(msg *fsmMsg) {
 					s.handleFSMMessage(peer, msg)
 				})
 			}
@@ -1694,7 +1694,7 @@ func TestHandleFSMMessage_NeighborMapIterationRace(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	numPeers := 80
 	peers := make([]*peer, numPeers)
@@ -1821,7 +1821,7 @@ func TestHandleFSMMessage_PropagateUpdateRace(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	// Add peer group for dynamic neighbors
 	err = s.AddPeerGroup(context.Background(), &api.AddPeerGroupRequest{
@@ -1874,7 +1874,7 @@ func TestHandleFSMMessage_PropagateUpdateRace(t *testing.T) {
 					s.neighborMap[peerAddr] = peer
 					peers[i] = peer
 					dynamicPeers[i] = true
-					peer.fsm.start(s.shutdownWG, func(msg *fsmMsg) {
+					peer.fsm.start(s.peerFSMWG, func(msg *fsmMsg) {
 						s.handleFSMMessage(peer, msg)
 					})
 				}
@@ -1997,7 +1997,7 @@ func TestHandleFSMMessage_ParallelDifferentPeers(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s.Stop()
 
 	numPeers := 80
 	peers := make([]*peer, numPeers)
