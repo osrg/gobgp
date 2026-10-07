@@ -1788,18 +1788,99 @@ func Test_MpReachNLRIWithIPv6PrefixWithIPv4Peering(t *testing.T) {
 	assert.Equal(uint16(0x1e), p.Length)
 	assert.Equal(uint16(AFI_IP6), p.AFI)
 	assert.Equal(uint8(SAFI_UNICAST), p.SAFI)
-	assert.Equal(netip.MustParseAddr("::ffff:172.20.0.1"), p.Nexthop)
+	assert.Equal(netip.MustParseAddr("172.20.0.1"), p.Nexthop)
 	assert.False(p.LinkLocalNexthop.IsValid())
 	nlri, _ := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:1:1::/64"))
 	value := []PathNLRI{{NLRI: nlri}}
 	assert.Equal(value, p.Value)
-	// Set NextHop as IPv4 address (because IPv4 peering)
-	p.Nexthop = netip.MustParseAddr("172.20.0.1")
 	// Test Serialize()
 	bufout, err := p.Serialize()
 	assert.NoError(err)
 	// Test serialised value
 	assert.Equal(bufin, bufout)
+}
+
+func Test_IPv4MappedNexthopIsUnmapped(t *testing.T) {
+	assert := assert.New(t)
+
+	// IPv4 unicast with the 16-octet next hop field holding "::ffff:10.0.0.1",
+	// which is the IPv4 address 10.0.0.1 (RFC 4291 Section 2.5.5.2).
+	bufin := []byte{
+		0x80, 0x0e, 0x19, // flags(1), type(1), length(1)
+		0x00, 0x01, 0x01, 0x10, // afi(2), safi(1), nexthoplen(1)
+		0x00, 0x00, 0x00, 0x00, // nexthop(16)
+		0x00, 0x00, 0x00, 0x00, // = "::ffff:10.0.0.1"
+		0x00, 0x00, 0xff, 0xff,
+		0x0a, 0x00, 0x00, 0x01,
+		0x00,                   // reserved(1)
+		0x18, 0x0a, 0x0a, 0x00, // nlri(4) = "10.10.0.0/24"
+	}
+	p := &PathAttributeMpReachNLRI{}
+	assert.NoError(p.DecodeFromBytes(bufin))
+	assert.Equal(netip.MustParseAddr("10.0.0.1"), p.Nexthop)
+	// The next hop goes back out in the 4-octet form that the family uses.
+	bufout, err := p.Serialize()
+	assert.NoError(err)
+	assert.Equal([]byte{
+		0x80, 0x0e, 0x0d, // flags(1), type(1), length(1)
+		0x00, 0x01, 0x01, 0x04, // afi(2), safi(1), nexthoplen(1)
+		0x0a, 0x00, 0x00, 0x01, // nexthop(4) = "10.0.0.1"
+		0x00,                   // reserved(1)
+		0x18, 0x0a, 0x0a, 0x00, // nlri(4) = "10.10.0.0/24"
+	}, bufout)
+
+	// VPN-IPv4 with the route distinguisher followed by the same mapped
+	// address, which is the 24-octet VPN-IPv6 next hop length.
+	bufin = []byte{
+		0x80, 0x0e, 0x2c, // flags(1), type(1), length(1)
+		0x00, 0x01, 0x80, 0x18, // afi(2), safi(1), nexthoplen(1)
+		0x00, 0x00, 0x00, 0x00, // nexthop(24)
+		0x00, 0x00, 0x00, 0x00, // = (rd:"0:0",) "::ffff:172.20.0.1"
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0xff, 0xff,
+		0xac, 0x14, 0x00, 0x01,
+		0x00,                   // reserved(1)
+		0x70, 0x00, 0x01, 0x01, // nlri(15)
+		0x00, 0x00, 0xfd, 0xe8, // = label:16, rd:"65000:100", prefix:"10.1.1.0/24"
+		0x00, 0x00, 0x00, 0x64,
+		0x0a, 0x01, 0x01,
+	}
+	p = &PathAttributeMpReachNLRI{}
+	assert.NoError(p.DecodeFromBytes(bufin))
+	assert.Equal(netip.MustParseAddr("172.20.0.1"), p.Nexthop)
+	bufout, err = p.Serialize()
+	assert.NoError(err)
+	assert.Equal([]byte{
+		0x80, 0x0e, 0x20, // flags(1), type(1), length(1)
+		0x00, 0x01, 0x80, 0x0c, // afi(2), safi(1), nexthoplen(1)
+		0x00, 0x00, 0x00, 0x00, // nexthop(12)
+		0x00, 0x00, 0x00, 0x00, // = (rd:"0:0",) "172.20.0.1"
+		0xac, 0x14, 0x00, 0x01,
+		0x00,                   // reserved(1)
+		0x70, 0x00, 0x01, 0x01, // nlri(15)
+		0x00, 0x00, 0xfd, 0xe8, // = label:16, rd:"65000:100", prefix:"10.1.1.0/24"
+		0x00, 0x00, 0x00, 0x64,
+		0x0a, 0x01, 0x01,
+	}, bufout)
+
+	// The NEXT_HOP attribute takes a 16-octet value as well.
+	bufin = []byte{
+		0x40, 0x03, 0x10, // flags(1), type(1), length(1)
+		0x00, 0x00, 0x00, 0x00, // value(16)
+		0x00, 0x00, 0x00, 0x00, // = "::ffff:192.0.2.1"
+		0x00, 0x00, 0xff, 0xff,
+		0xc0, 0x00, 0x02, 0x01,
+	}
+	nh := &PathAttributeNextHop{}
+	assert.NoError(nh.DecodeFromBytes(bufin))
+	assert.Equal(netip.MustParseAddr("192.0.2.1"), nh.Value)
+	bufout, err = nh.Serialize()
+	assert.NoError(err)
+	assert.Equal([]byte{
+		0x40, 0x03, 0x04, // flags(1), type(1), length(1)
+		0xc0, 0x00, 0x02, 0x01, // value(4) = "192.0.2.1"
+	}, bufout)
 }
 
 func Test_MpReachNLRIWithIPv6(t *testing.T) {
