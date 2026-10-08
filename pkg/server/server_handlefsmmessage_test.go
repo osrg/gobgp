@@ -878,7 +878,10 @@ func TestRTCMembershipDuplicateUpdatesAreNoop(t *testing.T) {
 	}, time.Now(), false)
 	require.NotNil(t, rtcPath)
 
-	requireOutgoing := func(withdraw bool) {
+	// The helpers take t so that a failure inside a subtest is reported
+	// against that subtest. Capturing the outer t would call FailNow on the
+	// parent from the subtest goroutine, which testing rejects.
+	requireOutgoing := func(t *testing.T, withdraw bool) {
 		t.Helper()
 		select {
 		case o := <-p.fsm.outgoingCh.Out():
@@ -891,7 +894,7 @@ func TestRTCMembershipDuplicateUpdatesAreNoop(t *testing.T) {
 			t.Fatal("timed out waiting for RTC-triggered VPN paths")
 		}
 	}
-	requireNoOutgoing := func() {
+	requireNoOutgoing := func(t *testing.T) {
 		t.Helper()
 		select {
 		case o := <-p.fsm.outgoingCh.Out():
@@ -902,22 +905,22 @@ func TestRTCMembershipDuplicateUpdatesAreNoop(t *testing.T) {
 
 	t.Run("duplicate withdraw is noop", func(t *testing.T) {
 		s.processRTCMembership(p, rtcPath)
-		requireOutgoing(false)
+		requireOutgoing(t, false)
 
 		withdraw := rtcPath.Clone(true)
 		s.processRTCMembership(p, withdraw)
-		requireOutgoing(true)
+		requireOutgoing(t, true)
 
 		s.processRTCMembership(p, withdraw)
-		requireNoOutgoing()
+		requireNoOutgoing(t)
 	})
 
 	t.Run("duplicate announce is noop", func(t *testing.T) {
 		s.processRTCMembership(p, rtcPath)
-		requireOutgoing(false)
+		requireOutgoing(t, false)
 
 		s.processRTCMembership(p, rtcPath)
-		requireNoOutgoing()
+		requireNoOutgoing(t)
 	})
 }
 
