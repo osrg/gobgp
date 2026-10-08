@@ -598,6 +598,24 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	pType4, newPath4 := p2.Apply(logger, rtcNoMatch, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType4)
 	assert.Equal(t, newPath4, rtcNoMatch)
+
+	// ip-prefix set against EVPN type-5: reject the matching route, pass the non-matching one.
+	ds3 := oc.DefinedSets{PrefixSets: []oc.PrefixSet{createPrefixSet("ps3", "10.10.1.0/24", "24..32")}}
+	pd3 := createPolicyDefinition("pd3", createStatement("statement3", "ps3", "", false))
+	r3 := NewRoutingPolicy(logger)
+	err = r3.reload(createRoutingPolicy(ds3, pd3))
+	assert.NoError(t, err)
+	p3 := r3.policyMap["pd3"]
+
+	evpnMatch := newEVPNIPPrefixPath(t, "10.10.1.101/32")
+	pType5, newPath5 := p3.Apply(logger, evpnMatch, nil)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType5)
+	assert.Equal(t, newPath5, evpnMatch)
+
+	evpnNoMatch := newEVPNIPPrefixPath(t, "10.20.1.101/32")
+	pType6, newPath6 := p3.Apply(logger, evpnNoMatch, nil)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType6)
+	assert.Equal(t, newPath6, evpnNoMatch)
 }
 
 func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
@@ -4577,4 +4595,54 @@ func TestApplyPolicyRpkiConditionUnvalidatedFamily(t *testing.T) {
 
 	options := &PolicyOptions{Validate: NewROATable(logger).Validate}
 	assert.Equal(t, path, r.ApplyPolicy(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT, path, options))
+}
+
+func newEVPNIPPrefixPath(t *testing.T, prefix string) *Path {
+	t.Helper()
+	p := netip.MustParsePrefix(prefix)
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	n, err := bgp.NewEVPNIPPrefixRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, uint8(p.Bits()), p.Addr(), netip.IPv4Unspecified(), 100)
+	assert.NoError(t, err)
+	return NewPath(bgp.RF_EVPN, nil, bgp.PathNLRI{NLRI: n}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+}
+
+func newEVPNMacIPPath(t *testing.T, ip string) *Path {
+	t.Helper()
+	var addr netip.Addr
+	if ip != "" {
+		addr = netip.MustParseAddr(ip)
+	}
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	n, err := bgp.NewEVPNMacIPAdvertisementRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, "00:11:22:33:44:55", addr, nil)
+	assert.NoError(t, err)
+	return NewPath(bgp.RF_EVPN, nil, bgp.PathNLRI{NLRI: n}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+}
+
+func TestPrefixSetMatchEVPN(t *testing.T) {
+	ps4, err := NewPrefixSet(createPrefixSet("ps4", "10.10.10.0/24", "24..32"))
+	assert.NoError(t, err)
+	ps6, err := NewPrefixSet(createPrefixSet("ps6", "2001:123:123:1::/64", "64..128"))
+	assert.NoError(t, err)
+	v4, v6 := &PrefixCondition{set: ps4}, &PrefixCondition{set: ps6}
+
+	tests := []struct {
+		name string
+		cond *PrefixCondition
+		path *Path
+		want bool
+	}{
+		{"type 5 v4 match", v4, newEVPNIPPrefixPath(t, "10.10.10.10/32"), true},
+		{"type 5 v6 match", v6, newEVPNIPPrefixPath(t, "2001:123:123:1::10/128"), true},
+		{"type 5 v4 set, v6 route", v4, newEVPNIPPrefixPath(t, "2001:123:123:1::10/128"), false},
+		{"type 5 v6 set, v4 route", v6, newEVPNIPPrefixPath(t, "10.10.10.10/32"), false},
+		{"type 2 v4 match", v4, newEVPNMacIPPath(t, "10.10.10.10"), true},
+		{"type 2 v6 match", v6, newEVPNMacIPPath(t, "2001:123:123:1::10"), true},
+		{"type 2 v4 set, v6 route", v4, newEVPNMacIPPath(t, "2001:123:123:1::10"), false},
+		{"type 2 mac only", v4, newEVPNMacIPPath(t, ""), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.cond.Evaluate(tt.path, nil))
+		})
+	}
 }

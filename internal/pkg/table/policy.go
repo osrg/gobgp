@@ -2014,12 +2014,6 @@ func (c *PrefixCondition) Option() MatchOption {
 // If PrefixList's length is zero, return true.
 func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	pathRf := path.GetFamily()
-	pathAfi := pathRf.Afi()
-	cAfi := c.set.family.Afi()
-
-	if cAfi != pathAfi {
-		return false
-	}
 	// RTC shares AFI_IP with IPv4-UC; only match RTC sets against RTC paths.
 	if bool(c.set.family == bgp.RF_RTC_UC) != bool(pathRf == bgp.RF_RTC_UC) {
 		return false
@@ -2029,6 +2023,13 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	if !r.IsValid() {
 		return false
 	}
+
+	// An RTC key is AS+RT encoded as a 16-byte address, not an IP prefix, so
+	// it has no AFI to compare.
+	if c.set.family != bgp.RF_RTC_UC && c.set.family.Afi() != prefixAfi(r) {
+		return false
+	}
+
 	addr := r.Masked().Addr()
 	masklen := uint8(r.Bits())
 	result := false
@@ -2053,6 +2054,13 @@ func (c *PrefixCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 }
 
 func (c *PrefixCondition) Name() string { return c.set.name }
+
+func prefixAfi(p netip.Prefix) uint16 {
+	if p.Addr().Is4() {
+		return bgp.AFI_IP
+	}
+	return bgp.AFI_IP6
+}
 
 func NewPrefixCondition(c oc.MatchPrefixSet) (*PrefixCondition, error) {
 	if c.PrefixSet == "" {

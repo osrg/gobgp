@@ -1558,6 +1558,15 @@ func nlriToPrefix(nlri bgp.NLRI) netip.Prefix {
 		}
 		binary.BigEndian.PutUint64(addr[4:12], rtKey)
 		return netip.PrefixFrom(netip.AddrFrom16(addr), int(T.Length))
+	case *bgp.EVPNNLRI:
+		switch r := T.RouteTypeData.(type) {
+		case *bgp.EVPNIPPrefixRoute:
+			return netip.PrefixFrom(r.IPPrefix, int(r.IPPrefixLength))
+		case *bgp.EVPNMacIPAdvertisementRoute:
+			if r.IPAddress.IsValid() {
+				return netip.PrefixFrom(r.IPAddress, r.IPAddress.BitLen())
+			}
+		}
 	}
 	return netip.Prefix{}
 }

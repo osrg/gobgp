@@ -870,3 +870,42 @@ func TestMarkStaleIsRaceFree(t *testing.T) {
 
 	assert.True(t, watched.IsStale())
 }
+
+func TestNlriToPrefix(t *testing.T) {
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	evpn := func(prefix string, bits uint8) bgp.NLRI {
+		n, _ := bgp.NewEVPNIPPrefixRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, bits, netip.MustParseAddr(prefix), netip.IPv4Unspecified(), 100)
+		return n
+	}
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	ip, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("30.30.30.0/24"))
+	mpls, _ := bgp.NewLabeledIPAddrPrefix(netip.MustParsePrefix("30.30.30.0/24"), *labels)
+	vpn, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("30.30.30.0/24"), *labels, rd)
+	macIP, _ := bgp.NewEVPNMacIPAdvertisementRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, "00:11:22:33:44:55", netip.MustParseAddr("30.30.30.1"), nil)
+	macIPv6, _ := bgp.NewEVPNMacIPAdvertisementRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, "00:11:22:33:44:55", netip.MustParseAddr("2001:db8::1"), nil)
+	macOnly, _ := bgp.NewEVPNMacIPAdvertisementRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, "00:11:22:33:44:55", netip.Addr{}, nil)
+
+	tests := []struct {
+		name string
+		nlri bgp.NLRI
+		want netip.Prefix
+	}{
+		{"ipv4", ip, netip.MustParsePrefix("30.30.30.0/24")},
+		{"labeled", mpls, netip.MustParsePrefix("30.30.30.0/24")},
+		{"labeled vpn", vpn, netip.MustParsePrefix("30.30.30.0/24")},
+		{"evpn type 5 v4", evpn("30.30.30.0", 24), netip.MustParsePrefix("30.30.30.0/24")},
+		{"evpn type 5 v6", evpn("2806:106e:19::", 48), netip.MustParsePrefix("2806:106e:19::/48")},
+		{"evpn type 2 v4", macIP, netip.MustParsePrefix("30.30.30.1/32")},
+		{"evpn type 2 v6", macIPv6, netip.MustParsePrefix("2001:db8::1/128")},
+		{"evpn type 2 mac only", macOnly, netip.Prefix{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := nlriToPrefix(tt.nlri)
+			assert.Equal(t, tt.want.IsValid(), got.IsValid())
+			if tt.want.IsValid() {
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}
