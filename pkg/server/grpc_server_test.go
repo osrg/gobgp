@@ -607,6 +607,55 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 	}
 }
 
+// A FlowSpec route has no next hop. AddPath (apiutil2Path) and AddPathStream
+// (api2Path) must both accept it.
+func TestApi2PathFlowSpecWithoutNexthop(t *testing.T) {
+	prefix4, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	require.NoError(t, err)
+	prefix6, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/64"))
+	require.NoError(t, err)
+	rd, err := bgp.ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+
+	fs4, err := bgp.NewFlowSpecUnicast(bgp.RF_FS_IPv4_UC, []bgp.FlowSpecComponentInterface{bgp.NewFlowSpecDestinationPrefix(prefix4)})
+	require.NoError(t, err)
+	fs6, err := bgp.NewFlowSpecUnicast(bgp.RF_FS_IPv6_UC, []bgp.FlowSpecComponentInterface{bgp.NewFlowSpecDestinationPrefix6(prefix6, 0)})
+	require.NoError(t, err)
+	fs4vpn, err := bgp.NewFlowSpecVPN(bgp.RF_FS_IPv4_VPN, rd, []bgp.FlowSpecComponentInterface{bgp.NewFlowSpecDestinationPrefix(prefix4)})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		family bgp.Family
+		nlri   bgp.NLRI
+	}{
+		{"ipv4 flowspec", bgp.RF_FS_IPv4_UC, fs4},
+		{"ipv6 flowspec", bgp.RF_FS_IPv6_UC, fs6},
+		{"ipv4 flowspec vpn", bgp.RF_FS_IPv4_VPN, fs4vpn},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mpreach, err := bgp.NewPathAttributeMpReachNLRI(tt.family, []bgp.PathNLRI{{NLRI: tt.nlri}})
+			require.NoError(t, err)
+			path := &api.Path{
+				Family: apiutil.ToApiFamily(tt.family.Afi(), tt.family.Safi()),
+				Nlri:   nlri(tt.nlri),
+				Pattrs: attrs([]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), mpreach}),
+			}
+
+			p, err := api2Path(api.TableType_TABLE_TYPE_GLOBAL, path, false)
+			require.NoError(t, err, "api2Path")
+			assert.Equal(t, tt.family, p.GetFamily())
+			assert.False(t, p.GetNexthop().IsValid())
+
+			p, err = apiutil2Path(mustApi2apiutilPath(path), false)
+			require.NoError(t, err, "apiutil2Path")
+			assert.Equal(t, tt.family, p.GetFamily())
+			assert.False(t, p.GetNexthop().IsValid())
+		})
+	}
+}
+
 func TestToOcAttributeComparison(t *testing.T) {
 	tests := []struct {
 		in   api.Comparison

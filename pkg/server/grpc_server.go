@@ -549,6 +549,7 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 	// extended community or NO_ADVERTISE community, with Tunnel Encapsulation Attribute 23
 	// and tunnel type 15. If it is not the case ignore update and log an error.
 
+	isMPFlowSpec := false
 	pattrs := make([]bgp.PathAttributeInterface, 0)
 	seen := make(map[bgp.BGPAttrType]struct{})
 	for _, attr := range attrList {
@@ -566,13 +567,14 @@ func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.P
 			if len(a.Value) == 0 {
 				return nil, fmt.Errorf("invalid mp reach attribute")
 			}
+			isMPFlowSpec = a.SAFI == bgp.SAFI_FLOW_SPEC_UNICAST || a.SAFI == bgp.SAFI_FLOW_SPEC_VPN
 			nexthop = a.Nexthop
 		default:
 			pattrs = append(pattrs, attr)
 		}
 	}
 
-	if !path.IsWithdraw && !nexthop.IsValid() {
+	if !path.IsWithdraw && !nexthop.IsValid() && !isMPFlowSpec {
 		return nil, fmt.Errorf("nexthop not found")
 	}
 	rf := bgp.NewFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
