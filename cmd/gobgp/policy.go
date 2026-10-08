@@ -181,6 +181,8 @@ func showDefinedSet(v string, args []string) error {
 		typ = api.DefinedType_DEFINED_TYPE_PREFIX
 	case cmdNeighbor:
 		typ = api.DefinedType_DEFINED_TYPE_NEIGHBOR
+	case cmdPeergroup:
+		typ = api.DefinedType_DEFINED_TYPE_PEER_GROUP
 	case cmdAspath:
 		typ = api.DefinedType_DEFINED_TYPE_AS_PATH
 	case cmdCommunity:
@@ -235,6 +237,8 @@ func showDefinedSet(v string, args []string) error {
 		output = formatDefinedSet(true, "PREFIX", 0, m)
 	case cmdNeighbor:
 		output = formatDefinedSet(true, "ADDRESS", 0, m)
+	case cmdPeergroup:
+		output = formatDefinedSet(true, "PEER-GROUP", 0, m)
 	case cmdAspath:
 		output = formatDefinedSet(true, "AS-PATH", 0, m)
 	case cmdCommunity:
@@ -309,6 +313,19 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
 		Name:        name,
 		List:        list,
+	}, nil
+}
+
+func parsePeerGroupSet(args []string) (*api.DefinedSet, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("empty peer-group set name")
+	}
+	name := args[0]
+	args = args[1:]
+	return &api.DefinedSet{
+		DefinedType: api.DefinedType_DEFINED_TYPE_PEER_GROUP,
+		Name:        name,
+		List:        args,
 	}, nil
 }
 
@@ -395,6 +412,8 @@ func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
 		return parsePrefixSet(args)
 	case cmdNeighbor:
 		return parseNeighborSet(args)
+	case cmdPeergroup:
+		return parsePeerGroupSet(args)
 	case cmdAspath:
 		return parseAsPathSet(args)
 	case cmdCommunity:
@@ -411,6 +430,7 @@ func parseDefinedSet(settype string, args []string) (*api.DefinedSet, error) {
 var modPolicyUsageFormat = map[string]string{
 	cmdPrefix:         "usage: policy prefix %s <name> [<ip-prefix>|<rtc-prefix> [<mask range>]]",
 	cmdNeighbor:       "usage: policy neighbor %s <name> [<neighbor address>...]",
+	cmdPeergroup:      "usage: policy peer-group %s <name> [<peer-group name>...]",
 	cmdAspath:         "usage: policy aspath %s <name> [<regexp>...]",
 	cmdCommunity:      "usage: policy community %s <name> [<regexp>...]",
 	cmdExtcommunity:   "usage: policy extcommunity %s <name> [<regexp>...]",
@@ -459,6 +479,9 @@ func printStatement(indent int, s *api.Statement) {
 	}
 	if c.NeighborSet != nil {
 		fmt.Printf("%sNeighborSet: %s\n", ind, prettyString(c.NeighborSet))
+	}
+	if c.PeerGroupSet != nil {
+		fmt.Printf("%sPeerGroupSet: %s\n", ind, prettyString(c.PeerGroupSet))
 	}
 	if c.AsPathSet != nil {
 		fmt.Printf("%sAsPathSet: %s \n", ind, prettyString(c.AsPathSet))
@@ -671,7 +694,7 @@ func modCondition(name, op string, args []string) error {
 	}
 	usage := fmt.Sprintf("usage: gobgp policy statement %s %s condition", name, op)
 	if len(args) < 1 {
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in | local-pref-eq | med-eq }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | peer-group | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in | local-pref-eq | med-eq }", usage)
 	}
 	typ := args[0]
 	args = args[1:]
@@ -713,6 +736,25 @@ func modCondition(name, op string, args []string) error {
 			stmt.Conditions.NeighborSet.Type = api.MatchSet_TYPE_INVERT
 		default:
 			return fmt.Errorf("%s neighbor <set-name> [{ any | invert }]", usage)
+		}
+	case "peer-group":
+		stmt.Conditions.PeerGroupSet = &api.MatchSet{
+			Type: api.MatchSet_TYPE_ANY,
+		}
+		if len(args) < 1 {
+			return fmt.Errorf("%s peer-group <set-name> [{ any | invert }]", usage)
+		}
+		stmt.Conditions.PeerGroupSet.Name = args[0]
+		if len(args) == 1 {
+			break
+		}
+		switch strings.ToLower(args[1]) {
+		case "any":
+			stmt.Conditions.PeerGroupSet.Type = api.MatchSet_TYPE_ANY
+		case "invert":
+			stmt.Conditions.PeerGroupSet.Type = api.MatchSet_TYPE_INVERT
+		default:
+			return fmt.Errorf("%s peer-group <set-name> [{ any | invert }]", usage)
 		}
 	case "as-path":
 		stmt.Conditions.AsPathSet = &api.MatchSet{
@@ -875,7 +917,7 @@ func modCondition(name, op string, args []string) error {
 		}
 		stmt.Conditions.AfiSafiIn = afiSafisInList
 	default:
-		return fmt.Errorf("%s { prefix | neighbor | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in }", usage)
+		return fmt.Errorf("%s { prefix | neighbor | peer-group | as-path | community | ext-community | large-community | as-path-length | rpki | route-type | next-hop-in-list | afi-safi-in }", usage)
 	}
 
 	var err error
@@ -1076,7 +1118,7 @@ func newPolicyCmd() *cobra.Command {
 		},
 	}
 
-	for _, v := range []string{cmdPrefix, cmdNeighbor, cmdAspath, cmdCommunity, cmdExtcommunity, cmdLargecommunity} {
+	for _, v := range []string{cmdPrefix, cmdNeighbor, cmdPeergroup, cmdAspath, cmdCommunity, cmdExtcommunity, cmdLargecommunity} {
 		cmd := &cobra.Command{
 			Use: v,
 			Run: func(cmd *cobra.Command, args []string) {

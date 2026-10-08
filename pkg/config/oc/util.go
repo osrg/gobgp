@@ -964,6 +964,14 @@ func NewAPIDefinedSetsFromConfigStruct(t *DefinedSets) ([]*api.DefinedSet, error
 		})
 	}
 
+	for _, pgs := range t.PeerGroupSets {
+		definedSets = append(definedSets, &api.DefinedSet{
+			DefinedType: api.DefinedType_DEFINED_TYPE_PEER_GROUP,
+			Name:        pgs.PeerGroupSetName,
+			List:        pgs.PeerGroupList,
+		})
+	}
+
 	bs := t.BgpDefinedSets
 	for _, cs := range bs.CommunitySets {
 		definedSets = append(definedSets, &api.DefinedSet{

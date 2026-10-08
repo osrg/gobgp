@@ -54,6 +54,7 @@ const (
 	DEFINED_TYPE_EXT_COMMUNITY
 	DEFINED_TYPE_LARGE_COMMUNITY
 	DEFINED_TYPE_NEXT_HOP
+	DEFINED_TYPE_PEER_GROUP
 )
 
 type RouteType int
@@ -175,6 +176,7 @@ const (
 	CONDITION_ORIGIN
 	CONDITION_LOCAL_PREF_EQ
 	CONDITION_MED_EQ
+	CONDITION_PEER_GROUP
 )
 
 type ActionType int
@@ -735,6 +737,88 @@ func NewNeighborSet(c oc.NeighborSet) (*NeighborSet, error) {
 	return &NeighborSet{
 		name: name,
 		list: list,
+	}, nil
+}
+
+type PeerGroupSet struct {
+	name string
+	list []string
+}
+
+func (s *PeerGroupSet) Name() string {
+	return s.name
+}
+
+func (s *PeerGroupSet) Type() DefinedType {
+	return DEFINED_TYPE_PEER_GROUP
+}
+
+func (lhs *PeerGroupSet) Append(arg DefinedSet) error {
+	rhs, ok := arg.(*PeerGroupSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = append(lhs.list, rhs.list...)
+	return nil
+}
+
+func (lhs *PeerGroupSet) Remove(arg DefinedSet) error {
+	rhs, ok := arg.(*PeerGroupSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	list := make([]string, 0, len(lhs.list))
+	for _, x := range lhs.list {
+		if slices.Contains(rhs.list, x) {
+			continue
+		}
+		list = append(list, x)
+	}
+	lhs.list = list
+	return nil
+}
+
+func (lhs *PeerGroupSet) Replace(arg DefinedSet) error {
+	rhs, ok := arg.(*PeerGroupSet)
+	if !ok {
+		return fmt.Errorf("type cast failed")
+	}
+	lhs.list = rhs.list
+	return nil
+}
+
+func (s *PeerGroupSet) List() []string {
+	list := make([]string, len(s.list))
+	copy(list, s.list)
+	return list
+}
+
+func (s *PeerGroupSet) ToConfig() *oc.PeerGroupSet {
+	return &oc.PeerGroupSet{
+		PeerGroupSetName: s.name,
+		PeerGroupList:    s.List(),
+	}
+}
+
+func (s *PeerGroupSet) String() string {
+	return strings.Join(s.List(), "\n")
+}
+
+func (s *PeerGroupSet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.ToConfig())
+}
+
+func NewPeerGroupSet(c oc.PeerGroupSet) (*PeerGroupSet, error) {
+	name := c.PeerGroupSetName
+	if name == "" {
+		if len(c.PeerGroupList) == 0 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("empty peer-group set name")
+	}
+	return &PeerGroupSet{
+		name: name,
+		list: c.PeerGroupList,
 	}, nil
 }
 
@@ -2131,6 +2215,59 @@ func NewNeighborCondition(c oc.MatchNeighborSet) (*NeighborCondition, error) {
 	return &NeighborCondition{
 		set: &NeighborSet{
 			name: c.NeighborSet,
+		},
+		option: o,
+	}, nil
+}
+
+type PeerGroupCondition struct {
+	set    *PeerGroupSet
+	option MatchOption
+}
+
+func (c *PeerGroupCondition) Type() ConditionType {
+	return CONDITION_PEER_GROUP
+}
+
+func (c *PeerGroupCondition) Set() DefinedSet {
+	return c.set
+}
+
+func (c *PeerGroupCondition) Option() MatchOption {
+	return c.option
+}
+
+func (c *PeerGroupCondition) Evaluate(path *Path, options *PolicyOptions) bool {
+	if len(c.set.list) == 0 {
+		return true
+	}
+
+	peerGroup := path.GetSource().PeerGroup
+	if options != nil && options.Info != nil {
+		peerGroup = options.Info.PeerGroup
+	}
+
+	result := peerGroup != "" && slices.Contains(c.set.list, peerGroup)
+	if c.option == MATCH_OPTION_INVERT {
+		result = !result
+	}
+
+	return result
+}
+
+func (c *PeerGroupCondition) Name() string { return c.set.name }
+
+func NewPeerGroupCondition(c oc.MatchPeerGroupSet) (*PeerGroupCondition, error) {
+	if c.PeerGroupSet == "" {
+		return nil, nil
+	}
+	o, err := NewMatchOption(c.MatchSetOptions)
+	if err != nil {
+		return nil, err
+	}
+	return &PeerGroupCondition{
+		set: &PeerGroupSet{
+			name: c.PeerGroupSet,
 		},
 		option: o,
 	}, nil
@@ -3537,6 +3674,8 @@ func (s *Statement) ToConfig() *oc.Statement {
 					cond.MatchPrefixSet = oc.MatchPrefixSet{PrefixSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *NeighborCondition:
 					cond.MatchNeighborSet = oc.MatchNeighborSet{NeighborSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
+				case *PeerGroupCondition:
+					cond.MatchPeerGroupSet = oc.MatchPeerGroupSet{PeerGroupSet: v.set.Name(), MatchSetOptions: v.option.ConvertToMatchSetOptionsRestrictedType()}
 				case *CommunityCountCondition:
 					cond.BgpConditions.CommunityCount = oc.CommunityCount{Operator: oc.IntToAttributeComparisonMap[int(v.operator)], Value: v.count}
 				case *AsPathLengthCondition:
@@ -3751,6 +3890,9 @@ func NewStatement(c oc.Statement) (*Statement, error) {
 		},
 		func() (Condition, error) {
 			return NewNeighborCondition(c.Conditions.MatchNeighborSet)
+		},
+		func() (Condition, error) {
+			return NewPeerGroupCondition(c.Conditions.MatchPeerGroupSet)
 		},
 		func() (Condition, error) {
 			return NewCommunityCountCondition(c.Conditions.BgpConditions.CommunityCount)
@@ -4137,6 +4279,14 @@ func (r *RoutingPolicy) validateCondition(v Condition) (err error) {
 			c := v.(*NeighborCondition)
 			c.set = i.(*NeighborSet)
 		}
+	case CONDITION_PEER_GROUP:
+		m := r.definedSetMap[DEFINED_TYPE_PEER_GROUP]
+		if i, ok := m[v.Name()]; !ok {
+			return fmt.Errorf("not found peer-group set %s", v.Name())
+		} else {
+			c := v.(*PeerGroupCondition)
+			c.set = i.(*PeerGroupSet)
+		}
 	case CONDITION_AS_PATH:
 		m := r.definedSetMap[DEFINED_TYPE_AS_PATH]
 		if i, ok := m[v.Name()]; !ok {
@@ -4228,6 +4378,17 @@ func (r *RoutingPolicy) reload(c oc.RoutingPolicy) error {
 			return fmt.Errorf("empty neighbor set")
 		}
 		dmap[DEFINED_TYPE_NEIGHBOR][y.Name()] = y
+	}
+	dmap[DEFINED_TYPE_PEER_GROUP] = make(map[string]DefinedSet)
+	for _, x := range d.PeerGroupSets {
+		y, err := NewPeerGroupSet(x)
+		if err != nil {
+			return err
+		}
+		if y == nil {
+			return fmt.Errorf("empty peer-group set")
+		}
+		dmap[DEFINED_TYPE_PEER_GROUP][y.Name()] = y
 	}
 	//	dmap[DEFINED_TYPE_TAG] = make(map[string]DefinedSet)
 	//	for _, x := range c.DefinedSets.TagSets{
@@ -4350,8 +4511,9 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*oc.Defined
 	sort.Sort(dl)
 
 	sets := &oc.DefinedSets{
-		PrefixSets:   make([]oc.PrefixSet, 0),
-		NeighborSets: make([]oc.NeighborSet, 0),
+		PrefixSets:    make([]oc.PrefixSet, 0),
+		NeighborSets:  make([]oc.NeighborSet, 0),
+		PeerGroupSets: make([]oc.PeerGroupSet, 0),
 		BgpDefinedSets: oc.BgpDefinedSets{
 			CommunitySets:      make([]oc.CommunitySet, 0),
 			ExtCommunitySets:   make([]oc.ExtCommunitySet, 0),
@@ -4368,6 +4530,8 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*oc.Defined
 			sets.PrefixSets = append(sets.PrefixSets, *v.ToConfig())
 		case *NeighborSet:
 			sets.NeighborSets = append(sets.NeighborSets, *v.ToConfig())
+		case *PeerGroupSet:
+			sets.PeerGroupSets = append(sets.PeerGroupSets, *v.ToConfig())
 		case *CommunitySet:
 			sets.BgpDefinedSets.CommunitySets = append(sets.BgpDefinedSets.CommunitySets, *v.ToConfig())
 		case *ExtCommunitySet:
@@ -4866,6 +5030,13 @@ func ToStatementApi(s *oc.Statement) *api.Statement {
 		cs.NeighborSet = &api.MatchSet{
 			Type: o.ToApi(),
 			Name: s.Conditions.MatchNeighborSet.NeighborSet,
+		}
+	}
+	if s.Conditions.MatchPeerGroupSet.PeerGroupSet != "" {
+		o, _ := NewMatchOption(s.Conditions.MatchPeerGroupSet.MatchSetOptions)
+		cs.PeerGroupSet = &api.MatchSet{
+			Type: o.ToApi(),
+			Name: s.Conditions.MatchPeerGroupSet.PeerGroupSet,
 		}
 	}
 

@@ -1142,6 +1142,7 @@ enum DefinedType {
   DEFINED_TYPE_EXT_COMMUNITY = 6;
   DEFINED_TYPE_LARGE_COMMUNITY = 7;
   DEFINED_TYPE_NEXT_HOP = 8;
+  DEFINED_TYPE_PEER_GROUP = 9;
 }
 
 message DefinedSet {
@@ -1216,6 +1217,7 @@ message Conditions {
   OriginType origin = 13;
   LocalPrefEq local_pref_eq = 14;
   MedEq med_eq = 15;
+  MatchSet peer_group_set = 16;
 }
 
 enum RouteAction {
