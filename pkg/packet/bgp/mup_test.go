@@ -64,9 +64,21 @@ func Test_MUPExtended(t *testing.T) {
 }
 
 func Test_MUPExtendedUnknownSubType(t *testing.T) {
-	buf := []byte{byte(EC_TYPE_MUP), 0x06, 0, 100, 0, 0, 0x27, 0x10}
-	_, err := parseMUPExtended(buf)
-	assert.Error(t, err)
+	assert := assert.New(t)
+
+	raw := []byte{byte(EC_TYPE_MUP), 0x06, 0, 100, 0, 0, 0x27, 0x10}
+
+	e, err := ParseExtended(raw)
+	require.NoError(t, err)
+
+	unknown, ok := e.(*UnknownExtended)
+	require.True(t, ok, "expected *UnknownExtended")
+	assert.Equal(EC_TYPE_MUP, unknown.Type)
+	assert.Equal(raw[1:], unknown.Value)
+
+	serialized, err := unknown.Serialize()
+	require.NoError(t, err)
+	assert.Equal(raw, serialized, "round-trip must be byte-for-byte identical")
 }
 
 func Test_MUPInterworkSegmentDiscoveryRouteIPv4(t *testing.T) {
