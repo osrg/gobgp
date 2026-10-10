@@ -239,6 +239,23 @@ The `rtc-prefix` format is `<origin-as>:<route-target>[/<masklen>]`, where:
 `masklength-range` for an `rtc-prefix` entry ranges over the path NLRI Length
 field (in bits), the same `min..max` notation as `ip-prefix`.
 
+##### Address families
+
+A prefix-set is matched against a prefix taken from the NLRI of the route.
+Only the following address families have such a prefix:
+
+| Address family                                 | Prefix that is matched                                                                                   |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| ipv4-unicast, ipv6-unicast                     | the NLRI prefix                                                                                          |
+| ipv4-multicast, ipv6-multicast                 | the NLRI prefix                                                                                          |
+| ipv4-labelled-unicast, ipv6-labelled-unicast   | the NLRI prefix. The labels are not used.                                                                |
+| l3vpn-ipv4-unicast, l3vpn-ipv6-unicast         | the NLRI prefix. The route distinguisher and the labels are not used.                                    |
+| l3vpn-ipv4-multicast, l3vpn-ipv6-multicast     | the NLRI prefix. The route distinguisher and the labels are not used.                                    |
+| l2vpn-evpn                                     | IP Prefix route (type 5): the IP prefix.<br>MAC/IP Advertisement route (type 2): the IP address as a /32 or /128 host prefix. |
+| rtc                                            | the RTC NLRI. Only `rtc-prefix` entries match it.                                                        |
+
+An `ip-prefix` entry matches only prefixes of the same IP version.
+
 ##### Examples
 
 - example 1
@@ -1008,6 +1025,10 @@ applied to 10.33.0.0/16 or 10.50.0.0 route from neighbor 10.0.255.1.
 If the match-prefix-set sets match-set-options to "invert", It does not match
 to any of prefix-list, the policy will be applied. the policy will be applied
 to other than 10.33.0.0/16 or 10.50.0.0 route from neighbor 10.0.255.1
+
+"invert" applies only to routes that have a prefix of the same IP version as
+the prefix-set (see [Address families](#address-families)). Other routes do
+not match the prefix-set, with or without "invert".
 
 Let's confirm that 10.0.255.1 neighbor advertises two routes.
 
