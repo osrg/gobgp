@@ -317,7 +317,7 @@ func Test_Validate_unrecognized_well_known(t *testing.T) {
 	e := err.(*MessageError)
 	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
 	assert.Equal(uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE), e.SubTypeCode)
-	assert.Equal(ERROR_HANDLING_SESSION_RESET, e.ErrorHandling)
+	assert.Equal(ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
 	assert.Equal(unknownBytes, e.Data)
 }
 
