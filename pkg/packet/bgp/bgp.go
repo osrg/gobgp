@@ -4666,6 +4666,10 @@ type FlowSpecNLRI struct {
 	Value []FlowSpecComponentInterface
 	rf    Family
 	rd    RouteDistinguisherInterface
+	// true if the NLRI length was received in the RFC 8955
+	// extended-length 2-octet form. The form is allowed for any
+	// length, so Len() and Serialize() keep it to match the wire.
+	twoOctetLength bool
 }
 
 func (n *FlowSpecNLRI) Flat() map[string]string {
@@ -4687,6 +4691,7 @@ func (n *FlowSpecNLRI) decodeFromBytes(data []byte, options ...*MarshallingOptio
 		}
 		length = int(binary.BigEndian.Uint16(data[:2]) & 0x0fff)
 		data = data[2:]
+		n.twoOctetLength = true
 	} else if len(data) > 1 {
 		length = int(data[0])
 		data = data[1:]
@@ -4801,7 +4806,7 @@ func (n *FlowSpecNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) 
 	length := len(buf)
 	if length > 0x0fff {
 		return nil, fmt.Errorf("too large: %d", length)
-	} else if length < 0xf0 {
+	} else if length < 0xf0 && !n.twoOctetLength {
 		buf = append([]byte{byte(length)}, buf...)
 	} else {
 		b := make([]byte, 2)
@@ -4819,7 +4824,7 @@ func (n *FlowSpecNLRI) Len(options ...*MarshallingOption) int {
 	for _, v := range n.Value {
 		l += v.Len(options...)
 	}
-	if l < 0xf0 {
+	if l < 0xf0 && !n.twoOctetLength {
 		return l + 1
 	} else {
 		return l + 2

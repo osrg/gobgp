@@ -968,6 +968,59 @@ func Test_FlowSpecNlriLengthEncodingBoundary(t *testing.T) {
 	}
 }
 
+// RFC 8955 allows the 2-octet length form for a length below 240. The
+// NLRI after it must still be framed correctly, and the form must be
+// kept so that Len() matches the serialized bytes.
+func Test_FlowSpecNlriTwoOctetShortLength(t *testing.T) {
+	rd := []byte{0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x64}
+	tests := []struct {
+		name   string
+		family Family
+		first  []byte
+		second []byte
+	}{
+		{
+			name:   "ipv4",
+			family: RF_FS_IPv4_UC,
+			// protocol == tcp, then protocol == udp
+			first:  []byte{0xf0, 0x03, 0x03, 0x81, 0x06},
+			second: []byte{0x03, 0x03, 0x81, 0x11},
+		},
+		{
+			name:   "ipv4-vpn",
+			family: RF_FS_IPv4_VPN,
+			first:  append(append([]byte{0xf0, 0x0b}, rd...), 0x03, 0x81, 0x06),
+			second: append(append([]byte{0x0b}, rd...), 0x03, 0x81, 0x11),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value := binary.BigEndian.AppendUint16(nil, tt.family.Afi())
+			value = append(value, tt.family.Safi())
+			value = append(value, tt.first...)
+			value = append(value, tt.second...)
+			attr := append([]byte{0x90, byte(BGP_ATTR_TYPE_MP_UNREACH_NLRI), 0x00, byte(len(value))}, value...)
+
+			p := &PathAttributeMpUnreachNLRI{}
+			require.NoError(t, p.DecodeFromBytes(attr))
+			require.Len(t, p.Value, 2)
+
+			for i, want := range [][]byte{tt.first, tt.second} {
+				nlri := p.Value[i].NLRI
+				assert.Equal(t, len(want), nlri.Len())
+				buf, err := nlri.Serialize()
+				require.NoError(t, err)
+				assert.Equal(t, want, buf)
+			}
+
+			buf, err := p.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, attr, buf)
+		})
+	}
+}
+
 func Test_NewFlowSpecComponentItemLength(t *testing.T) {
 	item := NewFlowSpecComponentItem(0, 0)
 	assert.Equal(t, 1, item.Len())
