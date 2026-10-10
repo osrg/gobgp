@@ -157,6 +157,18 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			}
 		}
 	case *PathAttributeAsPath:
+		// rfc7607 2. An UPDATE message with AS 0 in the AS_PATH attribute
+		// MUST be considered malformed and handled by the rfc7606 procedure,
+		// which for AS_PATH is treat-as-withdraw.
+		for _, param := range p.Value {
+			if slices.Contains(param.GetAS(), 0) {
+				e := NewMessageErrorWithErrorHandling(eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, "AS_PATH contains AS 0")
+				if e.(*MessageError).Stronger(strongestError) {
+					strongestError = e
+				}
+				break
+			}
+		}
 		if isEBGP {
 			if isConfed {
 				if len(p.Value) == 0 {
@@ -177,6 +189,36 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 						}
 					}
 				}
+			}
+		}
+	case *PathAttributeAs4Path:
+		// rfc7607 2. AS 0 in the AS4_PATH attribute makes the UPDATE
+		// malformed. rfc6793 handles it as treat-as-withdraw.
+		for _, param := range p.Value {
+			if slices.Contains(param.GetAS(), 0) {
+				e := NewMessageErrorWithErrorHandling(eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, "AS4_PATH contains AS 0")
+				if e.(*MessageError).Stronger(strongestError) {
+					strongestError = e
+				}
+				break
+			}
+		}
+	case *PathAttributeAggregator:
+		// rfc7607 2. AS 0 in the AGGREGATOR attribute makes the UPDATE
+		// malformed. rfc7606 handles it as attribute-discard.
+		if p.Value.AS == 0 {
+			e := NewMessageErrorWithErrorHandling(eCode, uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, "AGGREGATOR has AS 0")
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
+		}
+	case *PathAttributeAs4Aggregator:
+		// rfc7607 2. AS 0 in the AS4_AGGREGATOR attribute makes the UPDATE
+		// malformed. rfc6793 handles it as treat-as-withdraw.
+		if p.Value.AS == 0 {
+			e := NewMessageErrorWithErrorHandling(eCode, uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, "AS4_AGGREGATOR has AS 0")
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
 			}
 		}
 	case *PathAttributeLargeCommunities:
