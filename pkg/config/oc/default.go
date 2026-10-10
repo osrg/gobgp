@@ -562,7 +562,7 @@ func OverwriteNeighborConfigWithPeerGroup(c *Neighbor, pg *PeerGroup) error {
 	overwriteConfig(&c.RouteReflector.Config, &pg.RouteReflector.Config, "neighbor.route-reflector.config", v, configured)
 	overwriteConfig(&c.AsPathOptions.Config, &pg.AsPathOptions.Config, "neighbor.as-path-options.config", v, configured)
 	overwriteConfig(&c.AddPaths.Config, &pg.AddPaths.Config, "neighbor.add-paths.config", v, configured)
-	overwriteConfig(&c.GracefulRestart.Config, &pg.GracefulRestart.Config, "neighbor.gradeful-restart.config", v, configured)
+	overwriteConfig(&c.GracefulRestart.Config, &pg.GracefulRestart.Config, "neighbor.graceful-restart.config", v, configured)
 	overwriteConfig(&c.ApplyPolicy.Config, &pg.ApplyPolicy.Config, "neighbor.apply-policy.config", v, configured)
 	overwriteConfig(&c.UseMultiplePaths.Config, &pg.UseMultiplePaths.Config, "neighbor.use-multiple-paths.config", v, configured)
 	overwriteConfig(&c.RouteServer.Config, &pg.RouteServer.Config, "neighbor.route-server.config", v, configured)
