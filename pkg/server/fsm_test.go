@@ -1858,11 +1858,9 @@ func TestRecvMessageloop_ValidatesUpdateAfterAttributeDiscard(t *testing.T) {
 		raw := build([]byte{0x40, 0xc8, 0x01, 0x00})
 
 		fmsg, n := run(t, raw)
-		assert.Nil(fmsg)
-		if assert.NotNil(n) {
-			body := n.Body.(*bgp.BGPNotification)
-			assert.Equal(uint8(bgp.BGP_ERROR_UPDATE_MESSAGE_ERROR), body.ErrorCode)
-			assert.Equal(uint8(bgp.BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE), body.ErrorSubcode)
+		assert.Nil(n)
+		if assert.NotNil(fmsg) {
+			assert.Equal(bgp.ERROR_HANDLING_TREAT_AS_WITHDRAW, fmsg.handling)
 		}
 	})
 }

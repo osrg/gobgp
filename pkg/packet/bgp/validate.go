@@ -190,10 +190,16 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 		p.Values = uniq
 
 	case *PathAttributeUnknown:
+		// RFC 7606 does not revise this case of RFC 4271 6.3. Use
+		// treat-as-withdraw as BIRD and FRR do, since RFC 7606 Section 8
+		// prefers it to a session reset.
 		if p.GetFlags()&BGP_ATTR_FLAG_OPTIONAL == 0 {
 			eMsg := fmt.Sprintf("unrecognized well-known attribute %s", p.GetType())
 			data, _ := a.Serialize()
-			return false, NewMessageError(eCode, eSubCodeUnknown, data, eMsg)
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeUnknown, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
 		}
 	}
 
