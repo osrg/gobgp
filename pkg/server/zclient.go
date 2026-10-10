@@ -135,19 +135,8 @@ func filterOutExternalPath(paths []*table.Path) []*table.Path {
 		// Here filters out:
 		// - Nil path
 		// - External path (advertised from Zebra) in order avoid sending back
-		// - Unreachable path because invalidated by Zebra
-		if path == nil || path.IsFromExternal() || path.IsNexthopInvalid {
-			continue
-		}
-		filteredPaths = append(filteredPaths, path)
-	}
-	return filteredPaths
-}
-
-func filterInvalidNexthopPath(paths []*table.Path) []*table.Path {
-	filteredPaths := make([]*table.Path, 0, len(paths))
-	for _, path := range paths {
-		if path == nil || path.IsFromExternal() || !path.IsNexthopInvalid {
+		// - Unreachable non-withdraw path because invalidated by Zebra
+		if path == nil || path.IsFromExternal() || path.IsNexthopInvalid && !path.IsWithdraw {
 			continue
 		}
 		filteredPaths = append(filteredPaths, path)
@@ -178,10 +167,7 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 	version := z.client.Version
 	paths := filterOutExternalPath(dst)
 	if len(paths) == 0 {
-		paths = filterInvalidNexthopPath(dst)
-		if len(paths) == 0 {
-			return nil, false
-		}
+		return nil, false
 	}
 	path := paths[0]
 
@@ -252,7 +238,7 @@ func newIPRouteBody(dst []*table.Path, vrfID uint32, z *zebraClient) (body *zebr
 		},
 		Nexthops: nexthops,
 		Metric:   med,
-	}, path.IsWithdraw || path.IsNexthopInvalid
+	}, path.IsWithdraw
 }
 
 func newNexthopRegisterBody(paths []*table.Path, nexthopCache nexthopStateCache) *zebra.NexthopRegisterBody {

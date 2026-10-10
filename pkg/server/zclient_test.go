@@ -402,6 +402,7 @@ func TestNewIPRouteBodyWithdrawsInvalidNexthopPath(t *testing.T) {
 	}
 	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	path.IsNexthopInvalid = true
+	path = path.Clone(true)
 	z := &zebraClient{
 		client: &zebra.Client{
 			Version:  zebra.MaxZapiVer,
