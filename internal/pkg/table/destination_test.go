@@ -538,7 +538,12 @@ func TestDestination_Select_MultiPathExcludesLLGRStale(t *testing.T) {
 	stale := NewPath(bgp.RF_IPv4_UC, peer2, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 	stale.SetCommunities([]uint32{uint32(bgp.COMMUNITY_LLGR_STALE)}, false)
 
-	d := newDestination(nlri, 0, fresh, stale)
+	assert.Greater(t, fresh.Compare(stale), 0)
+	assert.Less(t, stale.Compare(fresh), 0)
+
+	d := newDestination(nlri, 0)
+	d.Calculate(logger, stale, oc.RouteSelectionOptionsConfig{})
+	d.Calculate(logger, fresh, oc.RouteSelectionOptionsConfig{})
 
 	assert.Equal(t, []*Path{fresh}, d.GetMultiBestPath(GLOBAL_RIB_NAME))
 

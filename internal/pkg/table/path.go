@@ -1258,6 +1258,13 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 // Return 0 if they are equal
 // Return < 0 if rhs is preferred over the lhs
 func (lhs *Path) Compare(rhs *Path) int {
+	if s1, s2 := lhs.IsLLGRStale(), rhs.IsLLGRStale(); s1 != s2 {
+		if s1 {
+			return -1
+		}
+		return 1
+	}
+
 	if lhs.IsLocal() && !rhs.IsLocal() {
 		return 1
 	} else if !lhs.IsLocal() && rhs.IsLocal() {
