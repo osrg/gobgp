@@ -1948,8 +1948,12 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 					var validationErr error
 					// A discarded attribute leaves the rest of the message in
 					// use, so the semantic checks still have to run on what is
-					// left. Treat-as-withdraw drops every attribute, and a
-					// session reset never gets here.
+					// left. Treat-as-withdraw is not validated: the attribute
+					// that failed to decode is still in the message, half
+					// decoded, and its NLRI are withdrawn anyway. A repeated
+					// MP_REACH_NLRI or MP_UNREACH_NLRI, which must reset the
+					// session even then, is caught by the decoder. A session
+					// reset never gets here.
 					if handling == bgp.ERROR_HANDLING_NONE || handling == bgp.ERROR_HANDLING_ATTRIBUTE_DISCARD {
 						ok, ve := bgp.ValidateUpdateMsg(body, rfMap, h.fsm.isEBGP, h.fsm.isConfed, h.allowLoopback)
 						if !ok {
