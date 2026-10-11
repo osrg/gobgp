@@ -16,9 +16,11 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"net/netip"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -145,4 +147,95 @@ func TestMrtDumpTableLocalPathPeerIndexTable(t *testing.T) {
 	decodedPit, ok := decoded.Body.(*mrt.PeerIndexTable)
 	require.True(t, ok)
 	assert.Equal(t, pit.Peers, decodedPit.Peers)
+}
+
+// A table dump must not keep the server state lock. handleFSMMessage takes
+// that lock for reading on every BGP message, so a dump that held it would
+// stop all BGP processing for as long as the dump runs.
+func TestMrtDumpTableDoesNotHoldServerLock(t *testing.T) {
+	s := newMrtTestServer(t)
+
+	// Enough prefixes that the dump takes long enough to be measurable.
+	const prefixes = 20000
+	for i := range prefixes {
+		s.globalRib.Update(newMrtTestPath(t, nil, fmt.Sprintf("10.%d.%d.0/24", i/256, i%256), "192.168.0.1"))
+	}
+
+	var acquired atomic.Int64
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			s.shared.mu.Lock()
+			acquired.Add(1)
+			s.shared.mu.Unlock()
+		}
+	}()
+
+	m := &mrtWriter{s: s, c: &oc.MrtConfig{}}
+	before := acquired.Load()
+	msgs := m.dumpTable()
+	during := acquired.Load() - before
+
+	close(stop)
+	<-done
+
+	require.Len(t, msgs, prefixes+1)
+	// While the dump holds the lock this count stays near zero. The dump
+	// takes milliseconds and one lock round trip takes tens of nanoseconds,
+	// so a dump that does not hold the lock leaves room for far more than
+	// this.
+	assert.Greater(t, during, int64(1000),
+		"the server state lock was not available while the table was dumped")
+}
+
+// The dump reads the neighbor map through a copy. Reading the live map from
+// the writer goroutine races with the management dispatcher, which is the
+// only writer of that map.
+func TestMrtDumpTableWithConcurrentNeighborChange(t *testing.T) {
+	s := newMrtTestServer(t)
+
+	addr := netip.MustParseAddr("192.168.0.1")
+	src := &table.PeerInfo{
+		AS:      65001,
+		ID:      netip.MustParseAddr("172.16.0.1"),
+		Address: addr,
+	}
+	const prefixes = 200
+	for i := range prefixes {
+		s.globalRib.Update(newMrtTestPath(t, src, fmt.Sprintf("10.10.%d.0/24", i), "192.168.0.1"))
+	}
+	p := newPeerandInfo(t, 65000, 65001, addr.String(), s.globalRib)
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			s.shared.mu.Lock()
+			s.neighborMap[addr] = p
+			delete(s.neighborMap, addr)
+			s.shared.mu.Unlock()
+		}
+	}()
+
+	m := &mrtWriter{s: s, c: &oc.MrtConfig{}}
+	for range 20 {
+		msgs := m.dumpTable()
+		require.Len(t, msgs, prefixes+1)
+	}
+
+	close(stop)
+	<-done
 }

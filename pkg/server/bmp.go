@@ -165,6 +165,20 @@ func (b *bmpClient) Stop() {
 	close(b.dead)
 }
 
+// globalInfo copies the local AS, the router ID and the configured families.
+// A BMP client runs in its own goroutine, so it must not read bgpConfig or
+// globalRib directly: StartBgp and StopBgp write both from the management
+// dispatcher. The values are read once per session. They cannot change while
+// BGP is running, and a session that outlives StopBgp must keep reporting the
+// identity it announced in its Peer Up.
+func (b *bmpClient) globalInfo() (uint32, netip.Addr, []bgp.Family) {
+	b.s.shared.mu.RLock()
+	defer b.s.shared.mu.RUnlock()
+
+	c := b.s.bgpConfig.Global.Config
+	return c.As, c.RouterId, b.s.globalRib.GetRFlist()
+}
+
 func (b *bmpClient) loop() {
 	for {
 		conn := b.tryConnect()
@@ -209,6 +223,8 @@ func (b *bmpClient) loop() {
 			}
 			defer w.Stop()
 
+			globalAS, globalID, globalFamilies := b.globalInfo()
+
 			var tickerCh <-chan time.Time
 			if b.c.StatisticsTimeout == 0 {
 				b.s.logger.Debug("statistics reports disabled", slog.String("Topic", "bmp"))
@@ -245,12 +261,12 @@ func (b *bmpClient) loop() {
 			if b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_LOCAL_RIB || b.c.RouteMonitoringPolicy == oc.BMP_ROUTE_MONITORING_POLICY_TYPE_ALL {
 				// For now, use PD=0 and VRF/Table Name="global".
 				if err := write(bmpLocRIBPeerUp(
-					b.s.bgpConfig.Global.Config.As,
-					b.s.bgpConfig.Global.Config.RouterId,
+					globalAS,
+					globalID,
 					"global",
 					0,
 					time.Now().Unix(),
-					b.s.globalRib.GetRFlist(),
+					globalFamilies,
 				)); err != nil {
 					return false
 				}
@@ -270,8 +286,8 @@ func (b *bmpClient) loop() {
 					case *watchEventBestPath:
 						info := &table.PeerInfo{
 							Address: netip.IPv4Unspecified(),
-							AS:      b.s.bgpConfig.Global.Config.As,
-							ID:      b.s.bgpConfig.Global.Config.RouterId,
+							AS:      globalAS,
+							ID:      globalID,
 						}
 						for _, m := range bmpLocRIBRouteMonitoring(msg, info, b.s.logger) {
 							if err := write(m); err != nil {
@@ -314,7 +330,7 @@ func (b *bmpClient) loop() {
 				case <-b.dead:
 					// RFC9069 (minimal): close the announced Loc-RIB instance.
 					if sentLocRIBPeerUp {
-						_ = write(bmpLocRIBPeerDown(b.s.bgpConfig.Global.Config.As, b.s.bgpConfig.Global.Config.RouterId, "global", 0, time.Now().Unix()))
+						_ = write(bmpLocRIBPeerDown(globalAS, globalID, "global", 0, time.Now().Unix()))
 					}
 					term := bmp.NewBMPTermination([]bmp.BMPTermTLVInterface{
 						bmp.NewBMPTermTLV16(bmp.BMP_TERM_TLV_TYPE_REASON, bmp.BMP_TERM_REASON_PERMANENTLY_ADMIN),
