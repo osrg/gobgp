@@ -30,6 +30,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/zebra"
 )
@@ -364,9 +365,21 @@ type zebraClient struct {
 	dead         chan struct{}
 }
 
+// globalRibOptions returns the route selection options of the global RIB. A
+// zebra client runs in its own goroutine, so it must not read server.globalRib
+// directly: StartBgp replaces that table manager. The caller must not hold the
+// returned values across a management operation, because that would deadlock
+// with the dispatcher.
+func (z *zebraClient) globalRibOptions() (oc.RouteSelectionOptionsConfig, oc.UseMultiplePathsConfig) {
+	z.server.shared.mu.RLock()
+	defer z.server.shared.mu.RUnlock()
+
+	return z.server.globalRib.SelectionOptions(), z.server.globalRib.MultiplePathsOptions()
+}
+
 func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody) []*table.Path {
-	rib := table.NewTableManager(z.server.logger, nil,
-		z.server.globalRib.SelectionOptions(), z.server.globalRib.MultiplePathsOptions())
+	selectionOptions, multiplePathsOptions := z.globalRibOptions()
+	rib := table.NewTableManager(z.server.logger, nil, selectionOptions, multiplePathsOptions)
 
 	var rfList []bgp.Family
 	switch body.Prefix.Family {
@@ -485,7 +498,8 @@ func (z *zebraClient) loop() {
 		case ev := <-w.Event():
 			switch msg := ev.(type) {
 			case *watchEventBestPath:
-				if z.server.globalRib.UseMultiplePathsEnabled() {
+				_, multiplePathsOptions := z.globalRibOptions()
+				if multiplePathsOptions.Enabled {
 					for _, paths := range msg.MultiPathList {
 						z.updatePathByNexthopCache(paths)
 						for i := range msg.Vrf {

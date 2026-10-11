@@ -16,6 +16,7 @@
 package server
 
 import (
+	"io"
 	"log/slog"
 	"math"
 	"net/netip"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/zebra"
 )
@@ -417,4 +419,29 @@ func TestNewIPRouteBodyWithdrawsInvalidNexthopPath(t *testing.T) {
 	assert.True(isWithdraw)
 	assert.Equal(netip.MustParseAddr("10.3.1.0"), body.Prefix.Prefix)
 	assert.Equal(uint8(24), body.Prefix.PrefixLen)
+}
+
+// globalRibOptions reads the live table manager, so a client created before
+// StartBgp picks up the options once the RIB exists. It must take the server
+// state lock: StartBgp replaces the table manager from the management
+// dispatcher while the zebra client runs in its own goroutine.
+func TestZebraClientGlobalRibOptions(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := &BgpServer{shared: newSharedData(), logger: logger}
+	z := &zebraClient{server: s}
+
+	// Before StartBgp there is no table manager.
+	selection, multiPaths := z.globalRibOptions()
+	assert.Equal(t, oc.RouteSelectionOptionsConfig{}, selection)
+	assert.False(t, multiPaths.Enabled)
+
+	want := oc.RouteSelectionOptionsConfig{AlwaysCompareMed: true}
+	s.shared.mu.Lock()
+	s.globalRib = table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC},
+		want, oc.UseMultiplePathsConfig{Enabled: true})
+	s.shared.mu.Unlock()
+
+	selection, multiPaths = z.globalRibOptions()
+	assert.Equal(t, want, selection)
+	assert.True(t, multiPaths.Enabled)
 }
