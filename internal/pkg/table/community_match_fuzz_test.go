@@ -148,6 +148,8 @@ func TestCommunityMatcherAgreesWithRegexp(t *testing.T) {
 		{`^65100:(666|777)$`, 65100<<16 | 777},
 		{`^65100:.*$`, 65100<<16 | 5},
 		{`^\d+:100$`, 65001<<16 | 100},
+		{`^65001:\d+:\d+$`, 65001<<16 | 7},
+		{`^65001:[0-9]+:[0-9]+$`, 65001<<16 | 7},
 	} {
 		cs, err := NewCommunitySet(oc.CommunitySet{
 			CommunitySetName: "t",
@@ -174,6 +176,7 @@ func TestExtCommunityMatcherAgreesWithRegexp(t *testing.T) {
 		{`rt:^65200:666$|^65100:\d+$`, 65200, 9999},
 		{`rt:^\d+:(100|200)$`, 65001, 200},
 		{`rt:^65000:.*$`, 65000, 200},
+		{`rt:^65001:\d+:\d+$`, 65001, 7},
 	} {
 		es, err := NewExtCommunitySet(oc.ExtCommunitySet{
 			ExtCommunitySetName: "t",

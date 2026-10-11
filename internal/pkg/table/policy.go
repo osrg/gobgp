@@ -1122,7 +1122,16 @@ func isWildcardASN(lhs string) bool {
 
 func isWildcardLocal(s string) bool {
 	s = strings.TrimSuffix(s, "$")
-	return strings.HasSuffix(s, `:\d+`) || strings.HasSuffix(s, `:[0-9]+`) || strings.HasSuffix(s, `:.*`)
+	// The wildcard tail must hold the only colon: the fixed-AS matcher it
+	// promotes to ignores the local-admin part, so a pattern with a second
+	// colon (for example ^65001:\d+:\d+) describes a community a one-colon
+	// asn:local value can never match and has to stay on the regexp.
+	for _, tail := range []string{`:\d+`, `:[0-9]+`, `:.*`} {
+		if prefix, found := strings.CutSuffix(s, tail); found {
+			return !strings.ContainsRune(prefix, ':')
+		}
+	}
+	return false
 }
 
 func parseLocalAdminSet(rhs string) (*localAdminBitmap, bool) {
