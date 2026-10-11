@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,6 +60,15 @@ func BenchmarkNormalizeFlowSpecOpValues(b *testing.B) {
 
 func Test_Message(t *testing.T) {
 	l := []*BGPMessage{keepalive(), notification(), refresh(), NewTestBGPOpenMessage(), NewTestBGPUpdateMessage()}
+	// One UPDATE per family, since an UPDATE carries one MP_REACH_NLRI.
+	for _, mp := range newTestMpReachNLRIs() {
+		attrs := []PathAttributeInterface{
+			NewPathAttributeOrigin(0),
+			NewPathAttributeAsPath(nil),
+			mp,
+		}
+		l = append(l, NewBGPUpdateMessage(nil, attrs, nil))
+	}
 
 	for _, m1 := range l {
 		buf1, err := m1.Serialize()
@@ -2515,6 +2525,54 @@ func TestUpdatePathAttrLenUnderflow(t *testing.T) {
 	u := &BGPUpdate{}
 	err := u.DecodeFromBytes(buf)
 	require.Error(t, err)
+}
+
+func TestUpdateRepeatedMpAttribute(t *testing.T) {
+	// ORIGIN: IGP
+	origin := []byte{0x40, 0x01, 0x01, 0x00}
+	// AS_PATH: empty
+	aspath := []byte{0x40, 0x02, 0x00}
+	// MP_REACH_NLRI: 10.3.3.0/24 via 10.0.0.1
+	mpReach := []byte{0x80, 0x0e, 0x0d, 0x00, 0x01, 0x01, 0x04, 0x0a, 0x00, 0x00, 0x01, 0x00, 0x18, 0x0a, 0x03, 0x03}
+	// MP_UNREACH_NLRI: 10.1.1.0/24 and 10.2.2.0/24
+	mpUnreach1 := []byte{0x80, 0x0f, 0x07, 0x00, 0x01, 0x01, 0x18, 0x0a, 0x01, 0x01}
+	mpUnreach2 := []byte{0x80, 0x0f, 0x07, 0x00, 0x01, 0x01, 0x18, 0x0a, 0x02, 0x02}
+	// MP_UNREACH_NLRI with the Optional bit cleared: a flags error
+	badFlags := []byte{0x60, 0x0f, 0x04, 0x11, 0x22, 0x33, 0x44}
+	// ORIGIN with a bad length: treat-as-withdraw
+	badOrigin := []byte{0x40, 0x01, 0x02, 0x00, 0x00}
+
+	tests := []struct {
+		name  string
+		attrs [][]byte
+		reset bool
+	}{
+		{"MpReachAndMpUnreach", [][]byte{origin, aspath, mpReach, mpUnreach1}, false},
+		{"MpUnreachTwice", [][]byte{origin, aspath, mpUnreach1, mpUnreach2}, true},
+		{"MpReachTwice", [][]byte{origin, aspath, mpReach, mpReach}, true},
+		{"FirstMpUnreachMalformed", [][]byte{origin, aspath, badFlags, mpUnreach2}, true},
+		{"TreatAsWithdrawThenMpUnreachTwice", [][]byte{badOrigin, aspath, mpUnreach1, mpUnreach2}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := slices.Concat(tt.attrs...)
+			buf := append([]byte{0x00, 0x00, byte(len(attrs) >> 8), byte(len(attrs))}, attrs...)
+
+			u := &BGPUpdate{}
+			err := u.DecodeFromBytes(buf)
+			if !tt.reset {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			e := err.(*MessageError)
+			assert.Equal(t, uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+			assert.Equal(t, uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), e.SubTypeCode)
+			assert.Equal(t, ERROR_HANDLING_SESSION_RESET, e.ErrorHandling)
+			// Decoding goes on after the repeat.
+			assert.Len(t, u.PathAttributes, len(tt.attrs))
+		})
+	}
 }
 
 func TestCapFQDNRoundTrip(t *testing.T) {

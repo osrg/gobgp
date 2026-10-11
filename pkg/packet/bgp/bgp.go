@@ -17042,6 +17042,7 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 	options = append(options, &o)
 
 	msg.PathAttributes = []PathAttributeInterface{}
+	seenMpReach, seenMpUnreach := false, false
 	for pathlen := msg.TotalPathAttributeLen; pathlen > 0; {
 		var e error
 		if pathlen < 3 {
@@ -17056,6 +17057,24 @@ func (msg *BGPUpdate) DecodeFromBytes(data []byte, options ...*MarshallingOption
 		p, err := GetPathAttribute(data)
 		if err != nil {
 			return err
+		}
+		// RFC 7606 Section 3 g: a repeated MP_REACH_NLRI or
+		// MP_UNREACH_NLRI resets the session. Check it here, before the
+		// attribute is decoded, so that it is found whatever the other
+		// attributes or this one look like. Decoding goes on so that
+		// the caller still gets the whole message.
+		if t := BGPAttrType(data[1]); t == BGP_ATTR_TYPE_MP_REACH_NLRI || t == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
+			seen := &seenMpReach
+			if t == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
+				seen = &seenMpUnreach
+			}
+			if *seen {
+				e := NewMessageError(eCode, eSubCode, nil, fmt.Sprintf("the path attribute appears twice. Type : %d", t))
+				if e.(*MessageError).Stronger(strongestError) {
+					strongestError = e
+				}
+			}
+			*seen = true
 		}
 		err = p.DecodeFromBytes(data, options...)
 		if err != nil {
