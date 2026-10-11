@@ -160,6 +160,10 @@ type BgpServer struct {
 	logLevelVar   *slog.LevelVar
 	timingHook    FSMTimingHook
 	// manage lifecycle of the server
+	// isServing is set by Serve and is never cleared. It says that Serve was
+	// entered, not that it is still running. A server cannot be served twice:
+	// closeCh is closed when Serve returns and a closed channel cannot be
+	// reopened.
 	isServing     atomic.Bool
 	shutdownWG    *sync.WaitGroup
 	runningCtx    context.Context
@@ -417,10 +421,15 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 }
 
 func (s *BgpServer) Serve() {
+	// Serve runs once per server. closeCh is closed when it returns, and a
+	// closed channel cannot be reopened, so a second run would make every
+	// management operation fail with "server stopped" and would close closeCh
+	// a second time, which panics.
 	if s.isServing.Swap(true) {
 		s.logger.Warn("server is already serving",
 			slog.String("Topic", "BgpServer"),
 		)
+		return
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -432,7 +441,6 @@ func (s *BgpServer) Serve() {
 	defer func() {
 		close(s.closeCh)
 		s.shutdownWG.Done()
-		s.isServing.Store(false)
 	}()
 
 	for {

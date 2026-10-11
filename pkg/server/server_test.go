@@ -5861,3 +5861,54 @@ func TestUpdatePeerGroupSkipsDynamicNeighbor(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal([]string{static}, members)
 }
+
+// Serve runs once per server. A second run would close closeCh twice and
+// would leave the server unusable, because mgmtOperation returns an error as
+// soon as closeCh is closed.
+func TestServeRunsOnce(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.mgmtOperation(func() error { return nil }, false))
+	s.Stop()
+
+	returned := make(chan struct{})
+	go func() {
+		defer close(returned)
+		s.Serve()
+	}()
+	select {
+	case <-returned:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the second Serve did not return")
+	}
+	// The second call must not resurrect the dispatcher.
+	assert.Error(t, s.mgmtOperation(func() error { return nil }, false))
+}
+
+// Two concurrent calls must not both run the dispatcher loop.
+func TestServeConcurrentCallsRunOnce(t *testing.T) {
+	s := NewBgpServer()
+	defer s.Stop()
+
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.Serve()
+		}()
+	}
+	require.NoError(t, s.mgmtOperation(func() error { return nil }, false))
+
+	s.Stop()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wg.Wait()
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a Serve call did not return")
+	}
+}
