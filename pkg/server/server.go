@@ -737,11 +737,11 @@ func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
 		return nil
 	}
 	options.Validate = s.roaTable.Validate
-	path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+	path = peer.policy.ApplyPolicy(peer.exportPolicyID, table.POLICY_DIRECTION_EXPORT, path, options)
 	// When 'path' is filtered (path == nil), check 'old' has been sent to this peer.
 	// If it has, send withdrawal to the peer.
 	if path == nil && old != nil {
-		o := peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, old, options)
+		o := peer.policy.ApplyPolicy(peer.exportPolicyID, table.POLICY_DIRECTION_EXPORT, old, options)
 		if o != nil {
 			path = old.Clone(true)
 		}
@@ -1175,7 +1175,7 @@ func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []
 			return nil
 		}
 		options.Validate = s.roaTable.Validate
-		path = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, path, options)
+		path = peer.policy.ApplyPolicy(peer.exportPolicyID, table.POLICY_DIRECTION_EXPORT, path, options)
 		if path != nil {
 			return s.postFilterpath(peer, path)
 		}
@@ -1289,6 +1289,11 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 		rib = s.rsRib
 	}
 
+	policyID := tableId
+	if peer != nil {
+		policyID = peer.importPolicyID
+	}
+
 	for _, path := range pathList {
 		if vrf {
 			vrfObj, ok := rib.GetVrf(peerVrf)
@@ -1327,7 +1332,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				policyOptions.Info = peer.peerInfo.Load()
 			}
 
-			if p := s.policy.ApplyPolicy(tableId, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
+			if p := s.policy.ApplyPolicy(policyID, table.POLICY_DIRECTION_IMPORT, path, policyOptions); p != nil {
 				path = p
 			} else {
 				path = path.Clone(true)
@@ -1659,9 +1664,7 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	if s.neighborMap[key] == peer {
 		delete(s.neighborMap, key)
 		s.rebuildLocalClusterIDs()
-		// Drop the policy assignment of this peer as well. Only a route server
-		// client has one, but peer.ID() is always an address and never collides
-		// with the global RIB name, so there is nothing to check here.
+		// Drop the policy assignment without touching the global assignment.
 		s.policy.DeletePeerPolicy(peer.ID())
 	}
 	// deregister BFD here for both static peers (deleted) and dynamic peers (stopped on session loss);
@@ -2325,7 +2328,7 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 		return err
 	}
 
-	getConfig := func(id string) (*oc.ApplyPolicy, error) {
+	getConfig := func(id string, inheritGlobal bool) (*oc.ApplyPolicy, error) {
 		f := func(id string, dir table.PolicyDirection) (oc.DefaultPolicyType, []string, error) {
 			rt, policies, err := s.policy.GetPolicyAssignment(id, dir)
 			if err != nil {
@@ -2336,6 +2339,9 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 				names = append(names, p.Name)
 			}
 			t := oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+			if inheritGlobal && rt == table.ROUTE_TYPE_NONE {
+				t = ""
+			}
 			if rt == table.ROUTE_TYPE_REJECT {
 				t = oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE
 			}
@@ -2360,24 +2366,27 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 
 	return s.mgmtOperation(func() error {
 		ap := make(map[string]oc.ApplyPolicy, len(s.neighborMap)+1)
-		a, err := getConfig(table.GLOBAL_RIB_NAME)
+		a, err := getConfig(table.GLOBAL_RIB_NAME, false)
 		if err != nil {
 			return err
 		}
 		ap[table.GLOBAL_RIB_NAME] = *a
 		for _, peer := range s.neighborMap {
-			if !peer.isRouteServerClient() {
-				continue
-			}
 			peer.fsm.logger.Info("call set policy")
 
-			a, err := getConfig(peer.ID())
+			a, err := getConfig(peer.ID(), !peer.isRouteServerClient())
 			if err != nil {
 				return err
 			}
 			ap[peer.ID()] = *a
 		}
-		return s.policy.Reset(rp, ap)
+		if err := s.policy.Reset(rp, ap); err != nil {
+			return err
+		}
+		for _, peer := range s.neighborMap {
+			peer.updatePolicyIDs()
+		}
+		return nil
 	}, false)
 }
 
@@ -3149,7 +3158,7 @@ func (s *BgpServer) policyAcceptedAdjRibInPaths(peer *peer, family bgp.Family, f
 		options := &table.PolicyOptions{
 			Validate: s.roaTable.Validate,
 		}
-		p := s.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_IMPORT, path, options)
+		p := s.policy.ApplyPolicy(peer.importPolicyID, table.POLICY_DIRECTION_IMPORT, path, options)
 		if p == nil {
 			filtered[pathLocalKey] = table.PolicyFiltered
 		} else {
@@ -3182,7 +3191,7 @@ func (s *BgpServer) policyEvaluatedAdjRibOutPaths(peer *peer, family bgp.Family,
 			continue
 		}
 		options.Validate = s.roaTable.Validate
-		if p = peer.policy.ApplyPolicy(peer.TableID(), table.POLICY_DIRECTION_EXPORT, p, options); p == nil {
+		if p = peer.policy.ApplyPolicy(peer.exportPolicyID, table.POLICY_DIRECTION_EXPORT, p, options); p == nil {
 			filtered[pathLocalKey] = table.PolicyFiltered
 		}
 		pathList = append(pathList, path)
@@ -3611,16 +3620,23 @@ func (s *BgpServer) addPeerGroup(c *oc.PeerGroup) error {
 	return nil
 }
 
-// setPeerPolicy stores the per peer policy assignment. Only a route server
-// client uses it. ApplyPolicy looks the assignment up by peer.TableID(), which
-// is the neighbor address for a route server client and the global RIB name for
-// every other peer. An entry keyed by the address of a non route server client
-// is never read, and the gRPC API rejects such a peer in toPolicyInfo.
+// setPeerPolicy stores the neighbor's effective assignment after peer-group
+// inheritance. A regular peer with no assignment uses the global policy.
 func (s *BgpServer) setPeerPolicy(peer *peer, a oc.ApplyPolicy) error {
-	if !peer.isRouteServerClient() {
-		return nil
+	// Route-server clients use their own assignment even when none is configured.
+	if peer.isRouteServerClient() {
+		if a.Config.DefaultImportPolicy == "" {
+			a.Config.DefaultImportPolicy = oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+		}
+		if a.Config.DefaultExportPolicy == "" {
+			a.Config.DefaultExportPolicy = oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+		}
 	}
-	return s.policy.SetPeerPolicy(peer.ID(), a)
+	if err := s.policy.SetPeerPolicy(peer.ID(), a); err != nil {
+		return err
+	}
+	peer.updatePolicyIDs()
+	return nil
 }
 
 func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
@@ -4647,32 +4663,31 @@ func (s *BgpServer) DeletePolicy(ctx context.Context, r *api.DeletePolicyRequest
 	}, false)
 }
 
-func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, table.PolicyDirection, error) {
+func (s *BgpServer) toPolicyInfo(name string, dir api.PolicyDirection) (string, table.PolicyDirection, *peer, error) {
 	if name == "" {
 		name = table.GLOBAL_RIB_NAME
 	}
 
+	var target *peer
 	if name != table.GLOBAL_RIB_NAME {
 		remoteAddr, err := netip.ParseAddr(name)
 		if err != nil {
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("failed to parse address: %v", err)
+			return "", table.POLICY_DIRECTION_NONE, nil, fmt.Errorf("failed to parse address: %v", err)
 		}
 		peer, ok := s.neighborMap[remoteAddr]
 		if !ok {
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("not found peer %s", name)
+			return "", table.POLICY_DIRECTION_NONE, nil, fmt.Errorf("not found peer %s", name)
 		}
-		if !peer.isRouteServerClient() {
-			return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("non-rs-client peer %s doesn't have per peer policy", name)
-		}
+		target = peer
 		name = peer.ID()
 	}
 	switch dir {
 	case api.PolicyDirection_POLICY_DIRECTION_IMPORT:
-		return name, table.POLICY_DIRECTION_IMPORT, nil
+		return name, table.POLICY_DIRECTION_IMPORT, target, nil
 	case api.PolicyDirection_POLICY_DIRECTION_EXPORT:
-		return name, table.POLICY_DIRECTION_EXPORT, nil
+		return name, table.POLICY_DIRECTION_EXPORT, target, nil
 	}
-	return "", table.POLICY_DIRECTION_NONE, fmt.Errorf("invalid policy type")
+	return "", table.POLICY_DIRECTION_NONE, nil, fmt.Errorf("invalid policy type")
 }
 
 func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyAssignmentRequest, fn func(*api.PolicyAssignment)) error {
@@ -4684,10 +4699,8 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 		names := make([]string, 0, len(s.neighborMap)+1)
 		if r.Name == "" {
 			names = append(names, table.GLOBAL_RIB_NAME)
-			for name, peer := range s.neighborMap {
-				if peer.isRouteServerClient() {
-					names = append(names, name.String())
-				}
+			for name := range s.neighborMap {
+				names = append(names, name.String())
 			}
 		} else {
 			names = append(names, r.Name)
@@ -4702,7 +4715,7 @@ func (s *BgpServer) ListPolicyAssignment(ctx context.Context, r *api.ListPolicyA
 		a = make([]*api.PolicyAssignment, 0, len(names))
 		for _, name := range names {
 			for _, dir := range dirs {
-				id, dir, err := s.toPolicyInfo(name, dir)
+				id, dir, _, err := s.toPolicyInfo(name, dir)
 				if err != nil {
 					return err
 				}
@@ -4738,11 +4751,17 @@ func (s *BgpServer) AddPolicyAssignment(ctx context.Context, r *api.AddPolicyAss
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
+		id, dir, target, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
 		}
-		return s.policy.AddPolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), defaultRouteType(r.Assignment.DefaultAction))
+		if err := s.policy.AddPolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), defaultRouteType(r.Assignment.DefaultAction)); err != nil {
+			return err
+		}
+		if target != nil {
+			target.updatePolicyIDs()
+		}
+		return nil
 	}, false)
 }
 
@@ -4751,11 +4770,17 @@ func (s *BgpServer) DeletePolicyAssignment(ctx context.Context, r *api.DeletePol
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
+		id, dir, target, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
 		}
-		return s.policy.DeletePolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), r.All)
+		if err := s.policy.DeletePolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), r.All); err != nil {
+			return err
+		}
+		if target != nil {
+			target.updatePolicyIDs()
+		}
+		return nil
 	}, false)
 }
 
@@ -4764,11 +4789,17 @@ func (s *BgpServer) SetPolicyAssignment(ctx context.Context, r *api.SetPolicyAss
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		id, dir, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
+		id, dir, target, err := s.toPolicyInfo(r.Assignment.Name, r.Assignment.Direction)
 		if err != nil {
 			return err
 		}
-		return s.policy.SetPolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), defaultRouteType(r.Assignment.DefaultAction))
+		if err := s.policy.SetPolicyAssignment(id, dir, toPolicyDefinition(r.Assignment.Policies), defaultRouteType(r.Assignment.DefaultAction)); err != nil {
+			return err
+		}
+		if target != nil {
+			target.updatePolicyIDs()
+		}
+		return nil
 	}, false)
 }
 

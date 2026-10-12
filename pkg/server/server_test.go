@@ -5182,7 +5182,408 @@ func TestRTCShouldNotWithdrawVPNRouteAfterOneRTCWithdraw(t *testing.T) {
 	assert.True(t, assertVpnRouteCountS2AdjIn(1), "VPN path should still be present at s2 adj-in from s1 after one RTC withdraw")
 }
 
-func TestPerPeerPolicyIsRouteServerOnly(t *testing.T) {
+func newPolicyTestServer(t *testing.T) *BgpServer {
+	t.Helper()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{Global: &api.Global{
+		Asn: 65000, RouterId: "192.0.2.254", ListenPort: -1,
+	}}))
+	t.Cleanup(func() { require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{})) })
+	return s
+}
+
+func newPolicyTestPath(t *testing.T, source *table.PeerInfo) *table.Path {
+	t.Helper()
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("203.0.113.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	return table.NewPath(bgp.RF_IPv4_UC, source, bgp.PathNLRI{NLRI: nlri}, false,
+		[]bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0), nh,
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}),
+		}, time.Now(), false)
+}
+
+func TestPeerPolicyAssignmentIDs(t *testing.T) {
+	s := newPolicyTestServer(t)
+	const addr = "192.0.2.39"
+	ctx := context.Background()
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{
+		NeighborAddress: addr, PeerAsn: 65100, AdminDown: true,
+	}}}))
+	path := newPolicyTestPath(t, &table.PeerInfo{})
+	check := func(t *testing.T, dir api.PolicyDirection, id string, accepted bool) {
+		t.Helper()
+		require.NoError(t, s.mgmtOperation(func() error {
+			p := s.neighborMap[netip.MustParseAddr(addr)]
+			policyID, direction := p.importPolicyID, table.POLICY_DIRECTION_IMPORT
+			if dir == api.PolicyDirection_POLICY_DIRECTION_EXPORT {
+				policyID, direction = p.exportPolicyID, table.POLICY_DIRECTION_EXPORT
+			}
+			assert.Equal(t, id, policyID)
+			out := p.policy.ApplyPolicy(policyID, direction, path, nil)
+			if accepted {
+				assert.NotNil(t, out)
+			} else {
+				assert.Nil(t, out)
+			}
+			withdraw := path.Clone(true)
+			assert.Same(t, withdraw, p.policy.ApplyPolicy(policyID, direction, withdraw, nil))
+			return nil
+		}, true))
+	}
+	for _, tc := range []struct {
+		name string
+		dir  api.PolicyDirection
+	}{
+		{"import", api.PolicyDirection_POLICY_DIRECTION_IMPORT},
+		{"export", api.PolicyDirection_POLICY_DIRECTION_EXPORT},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := tc.dir
+			global := &api.PolicyAssignment{Name: "global", Direction: dir, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT}
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: global}))
+			check(t, dir, table.GLOBAL_RIB_NAME, false)
+			require.Error(t, s.AddPolicyAssignment(ctx, &api.AddPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+				Name: addr, Direction: dir, Policies: []*api.Policy{{Name: "missing"}}, DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+			}}))
+			check(t, dir, table.GLOBAL_RIB_NAME, false)
+			a := &api.PolicyAssignment{Name: addr, Direction: dir, DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT}
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: a}))
+			check(t, dir, addr, true)
+			require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{}))
+			check(t, dir, addr, true)
+			global.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: global}))
+			a.DefaultAction = api.RouteAction_ROUTE_ACTION_REJECT
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: a}))
+			check(t, dir, addr, false)
+			// A failed assignment update must not change the cached IDs.
+			a.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
+			a.Policies = []*api.Policy{{Name: "missing"}}
+			require.Error(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: a}))
+			check(t, dir, addr, false)
+			a.Policies = nil
+			require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{Assignment: a, All: true}))
+			check(t, dir, table.GLOBAL_RIB_NAME, true)
+			require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{}))
+			check(t, dir, table.GLOBAL_RIB_NAME, true)
+		})
+	}
+}
+
+// Exercise both server pipelines while all ordinary peers still share one RIB.
+func TestRegularPeerImportAndExportPolicy(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	for _, dir := range []api.PolicyDirection{api.PolicyDirection_POLICY_DIRECTION_IMPORT, api.PolicyDirection_POLICY_DIRECTION_EXPORT} {
+		require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+			Name: "global", Direction: dir, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		}}))
+	}
+	const sourceAddr, targetAddr = "192.0.2.40", "192.0.2.41"
+	for _, policy := range []*api.Policy{
+		{Name: "regular-import", Statements: []*api.Statement{{Name: "regular-import-stmt", Actions: &api.Actions{
+			RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT, LocalPref: &api.LocalPrefAction{Value: 150},
+		}}}},
+		{Name: "regular-export", Statements: []*api.Statement{{Name: "regular-export-stmt", Actions: &api.Actions{
+			RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT, Med: &api.MedAction{Type: api.MedAction_TYPE_REPLACE, Value: 200},
+		}}}},
+	} {
+		require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: policy}))
+	}
+	for _, addr := range []string{sourceAddr, targetAddr} {
+		p := &api.Peer{Conf: &api.PeerConf{NeighborAddress: addr, PeerAsn: 65100, AdminDown: true}}
+		if addr == targetAddr {
+			p.Conf.PeerAsn = 65200
+		}
+		require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: p}))
+	}
+	for _, assignment := range []*api.PolicyAssignment{
+		{
+			Name: sourceAddr, Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			Policies: []*api.Policy{{Name: "regular-import"}}, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+		{
+			Name: targetAddr, Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+			Policies: []*api.Policy{{Name: "regular-export"}}, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+	} {
+		require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: assignment}))
+	}
+	require.NoError(t, s.mgmtOperation(func() error {
+		source, target := s.neighborMap[netip.MustParseAddr(sourceAddr)], s.neighborMap[netip.MustParseAddr(targetAddr)]
+		for _, p := range []*peer{source, target} {
+			conf := p.fsm.pConf.ReadOnly()
+			p.peerInfo.Store(table.NewPeerInfo(&s.bgpConfig.Global, conf, conf.State.PeerAs, 65000,
+				conf.State.NeighborAddress, s.bgpConfig.Global.Config.RouterId,
+				conf.State.NeighborAddress, s.bgpConfig.Global.Config.RouterId))
+			p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+			assert.Equal(t, table.GLOBAL_RIB_NAME, p.TableID())
+		}
+		path := newPolicyTestPath(t, source.peerInfo.Load())
+		s.propagateUpdate(source, []*table.Path{path})
+		best := s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC})
+		if !assert.Len(t, best, 1, "source import overrides rejecting global policy") {
+			return nil
+		}
+		lp, err := best[0].GetLocalPref()
+		assert.NoError(t, err)
+		assert.Equal(t, uint32(150), lp, "import policy transforms the route before RIB insertion")
+		out := s.filterpath(target, best[0], nil)
+		if !assert.NotNil(t, out, "destination export overrides global") {
+			return nil
+		}
+		med, err := out.GetMed()
+		assert.NoError(t, err)
+		assert.Equal(t, uint32(200), med, "export policy transforms the advertised route")
+		assert.NoError(t, s.policy.DeletePolicyAssignment(targetAddr, table.POLICY_DIRECTION_EXPORT, nil, true))
+		target.updatePolicyIDs()
+		out = s.filterpath(target, best[0], best[0])
+		assert.Nil(t, out, "destination now uses rejecting global export")
+		assert.NoError(t, s.policy.DeletePolicyAssignment(sourceAddr, table.POLICY_DIRECTION_IMPORT, nil, true))
+		source.updatePolicyIDs()
+		s.propagateUpdate(source, []*table.Path{path.Clone(false)})
+		assert.Empty(t, s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC}), "global import rejects the replacement")
+		return nil
+	}, true))
+}
+
+func TestRegularPeerGroupPolicyInheritanceAndReload(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	policy := &api.Policy{Name: "group-import", Statements: []*api.Statement{{
+		Name:    "group-import-stmt",
+		Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT},
+	}}}
+	require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: policy}))
+	group := &api.PeerGroup{
+		Conf:        &api.PeerGroupConf{PeerGroupName: "customers", PeerAsn: 65100},
+		ApplyPolicy: &api.ApplyPolicy{ImportPolicy: &api.PolicyAssignment{Policies: []*api.Policy{{Name: policy.Name}}}},
+	}
+	require.NoError(t, s.AddPeerGroup(ctx, &api.AddPeerGroupRequest{PeerGroup: group}))
+	const inherits, overrides = "192.0.2.50", "192.0.2.51"
+	for _, addr := range []string{inherits, overrides} {
+		p := &api.Peer{Conf: &api.PeerConf{NeighborAddress: addr, PeerGroup: "customers", AdminDown: true}}
+		if addr == overrides {
+			p.ApplyPolicy = &api.ApplyPolicy{ImportPolicy: &api.PolicyAssignment{
+				Policies: []*api.Policy{{Name: policy.Name}}, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			}}
+		}
+		require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: p}))
+	}
+	assignment := func(addr string, dir api.PolicyDirection) *api.PolicyAssignment {
+		t.Helper()
+		var a *api.PolicyAssignment
+		require.NoError(t, s.ListPolicyAssignment(ctx, &api.ListPolicyAssignmentRequest{Name: addr, Direction: dir}, func(p *api.PolicyAssignment) { a = p }))
+		require.NotNil(t, a)
+		require.NoError(t, s.mgmtOperation(func() error {
+			p := s.neighborMap[netip.MustParseAddr(addr)]
+			id := p.importPolicyID
+			if dir == api.PolicyDirection_POLICY_DIRECTION_EXPORT {
+				id = p.exportPolicyID
+			}
+			expected := table.GLOBAL_RIB_NAME
+			if len(a.Policies) != 0 || a.DefaultAction != api.RouteAction_ROUTE_ACTION_UNSPECIFIED {
+				expected = addr
+			}
+			assert.Equal(t, expected, id, "cached ID follows the group's effective assignment")
+			return nil
+		}, true))
+		return a
+	}
+	require.Equal(t, policy.Name, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies[0].Name)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_EXPORT).DefaultAction)
+	// SetPolicies rebuilds definitions while preserving assignments made via
+	// either peer configuration or the assignment API, including unset directions.
+	require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{Policies: []*api.Policy{policy}}))
+	require.Equal(t, policy.Name, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies[0].Name)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_EXPORT).DefaultAction)
+	group.ApplyPolicy.ImportPolicy.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
+	group.ApplyPolicy.ImportPolicy.Policies = nil
+	rsp, err := s.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{PeerGroup: group})
+	require.NoError(t, err)
+	require.True(t, rsp.NeedsSoftResetIn)
+	require.Empty(t, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_ACCEPT, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).DefaultAction)
+	require.Equal(t, policy.Name, assignment(overrides, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies[0].Name)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_REJECT, assignment(overrides, api.PolicyDirection_POLICY_DIRECTION_IMPORT).DefaultAction)
+	// Removing the group assignment restores inheritance from global.
+	group.ApplyPolicy = nil
+	_, err = s.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{PeerGroup: group})
+	require.NoError(t, err)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).DefaultAction)
+	// List all assignments also includes ordinary peers.
+	var count int
+	require.NoError(t, s.ListPolicyAssignment(ctx, &api.ListPolicyAssignmentRequest{}, func(*api.PolicyAssignment) { count++ }))
+	require.Equal(t, 6, count)
+	require.NoError(t, s.DeletePeer(ctx, &api.DeletePeerRequest{Address: inherits}))
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{NeighborAddress: inherits, PeerAsn: 65100, AdminDown: true}}}))
+	require.Empty(t, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies)
+}
+
+func TestRegularPeerPolicyAPIDefaultAndReload(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	policy := &api.Policy{Name: "transform", Statements: []*api.Statement{{
+		Name: "transform-stmt", Actions: &api.Actions{Med: &api.MedAction{Type: api.MedAction_TYPE_REPLACE, Value: 200}},
+	}}}
+	require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: policy}))
+	require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+		Name: "global", Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+	}}))
+	const addr = "192.0.2.55"
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{
+		NeighborAddress: addr, PeerAsn: 65100, AdminDown: true,
+	}}}))
+	check := func(t *testing.T) {
+		t.Helper()
+		path := newPolicyTestPath(t, &table.PeerInfo{})
+		var out *table.Path
+		require.NoError(t, s.mgmtOperation(func() error {
+			p := s.neighborMap[netip.MustParseAddr(addr)]
+			out = p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, path, nil)
+			return nil
+		}, true))
+		require.NotNil(t, out)
+		med, err := out.GetMed()
+		require.NoError(t, err)
+		require.Equal(t, uint32(200), med)
+	}
+	for _, tc := range []struct {
+		name   string
+		assign func(*api.PolicyAssignment) error
+	}{
+		{"set", func(a *api.PolicyAssignment) error {
+			return s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: a})
+		}},
+		{"add", func(a *api.PolicyAssignment) error {
+			return s.AddPolicyAssignment(ctx, &api.AddPolicyAssignmentRequest{Assignment: a})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &api.PolicyAssignment{Name: addr, Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT}
+			require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{Assignment: a, All: true}))
+			a.Policies = []*api.Policy{{Name: policy.Name}}
+			require.NoError(t, tc.assign(a))
+			check(t)
+			checkDefault := func() {
+				t.Helper()
+				var assignment *api.PolicyAssignment
+				require.NoError(t, s.ListPolicyAssignment(ctx, &api.ListPolicyAssignmentRequest{
+					Name: addr, Direction: a.Direction,
+				}, func(p *api.PolicyAssignment) { assignment = p }))
+				require.NotNil(t, assignment)
+				require.Equal(t, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, assignment.DefaultAction)
+			}
+			checkDefault()
+			require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{Policies: []*api.Policy{policy}}))
+			check(t)
+			checkDefault()
+			// Removing the list restores global policy when no default was explicit.
+			require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{Assignment: a}))
+			require.NoError(t, s.mgmtOperation(func() error {
+				p := s.neighborMap[netip.MustParseAddr(addr)]
+				assert.Equal(t, table.GLOBAL_RIB_NAME, p.exportPolicyID)
+				assert.Nil(t, p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+				return nil
+			}, true))
+			// An explicit accept remains after the last policy is removed.
+			a.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
+			require.NoError(t, tc.assign(a))
+			require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{Assignment: a}))
+			require.NoError(t, s.mgmtOperation(func() error {
+				p := s.neighborMap[netip.MustParseAddr(addr)]
+				assert.Equal(t, addr, p.exportPolicyID)
+				assert.NotNil(t, p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+				return nil
+			}, true))
+			a.DefaultAction = api.RouteAction_ROUTE_ACTION_UNSPECIFIED
+			// An unspecified API default must not replace an existing explicit one.
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+				Name: addr, Direction: a.Direction, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			}}))
+			require.NoError(t, tc.assign(a))
+			require.NoError(t, s.mgmtOperation(func() error {
+				p := s.neighborMap[netip.MustParseAddr(addr)]
+				assert.Equal(t, addr, p.exportPolicyID)
+				assert.Nil(t, p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+				return nil
+			}, true))
+		})
+	}
+}
+
+func TestRouteServerPolicyDoesNotInheritGlobal(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+		Name: "global", Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+	}}))
+	const addr = "192.0.2.60"
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{
+		NeighborAddress: addr, PeerAsn: 65100, AdminDown: true,
+	}, RouteServer: &api.RouteServer{RouteServerClient: true}}}))
+	check := func(accepted bool) {
+		t.Helper()
+		require.NoError(t, s.mgmtOperation(func() error {
+			p := s.neighborMap[netip.MustParseAddr(addr)]
+			assert.Equal(t, addr, p.TableID())
+			assert.Equal(t, addr, p.importPolicyID)
+			assert.Equal(t, addr, p.exportPolicyID, "RS keeps its own ID even without an assignment")
+			out := p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil)
+			if accepted {
+				assert.NotNil(t, out)
+			} else {
+				assert.Nil(t, out)
+			}
+			return nil
+		}, true))
+	}
+	check(true)
+	require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{Name: addr, Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT}, All: true,
+	}))
+	check(false)
+	require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{}))
+	check(true)
+}
+
+func TestDynamicRegularPeerInheritsGroupPolicy(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	require.NoError(t, s.AddPeerGroup(ctx, &api.AddPeerGroupRequest{PeerGroup: &api.PeerGroup{
+		// iBGP avoids applying OS-specific eBGP TTL options to the mock socket.
+		Conf:        &api.PeerGroupConf{PeerGroupName: "dynamic", PeerAsn: 65000},
+		ApplyPolicy: &api.ApplyPolicy{ImportPolicy: &api.PolicyAssignment{DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT}},
+	}}))
+	require.NoError(t, s.AddDynamicNeighbor(ctx, &api.AddDynamicNeighborRequest{DynamicNeighbor: &api.DynamicNeighbor{
+		Prefix: "192.0.2.0/24", PeerGroup: "dynamic",
+	}}))
+	m := NewMockConnection()
+	m.SetRemoteAddr("192.0.2.70")
+	t.Cleanup(func() { m.Close() })
+	openSent := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_OPENSENT)
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.passConnToPeer(m)
+		p := s.neighborMap[netip.MustParseAddr("192.0.2.70")]
+		if !assert.NotNil(t, p) {
+			return nil
+		}
+		assert.True(t, p.isDynamicNeighbor())
+		assert.Equal(t, p.ID(), p.importPolicyID)
+		assert.Equal(t, table.GLOBAL_RIB_NAME, p.exportPolicyID)
+		assert.Nil(t, p.policy.ApplyPolicy(p.importPolicyID, table.POLICY_DIRECTION_IMPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+		assert.NotNil(t, p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+		return nil
+	}, true))
+	// Do not tear down the server while the mock session is still building OPEN.
+	openSent.Wait(t, 5*time.Second)
+}
+
+func TestPerPeerPolicyInUse(t *testing.T) {
 	for _, rs := range []bool{false, true} {
 		name := "non-rs-client"
 		if rs {
@@ -5225,19 +5626,14 @@ func TestPerPeerPolicyIsRouteServerOnly(t *testing.T) {
 			}})
 			assert.NoError(err)
 
-			// A route server client keeps the policy in use. Any other peer
-			// never reads the assignment, so nothing holds the policy.
+			// Both regular and route server peers keep their policies in use.
 			err = s.DeletePolicy(context.Background(), &api.DeletePolicyRequest{
 				Policy:             &api.Policy{Name: "p1"},
 				All:                true,
 				PreserveStatements: true,
 			})
-			if rs {
-				assert.Error(err)
-				assert.Contains(err.Error(), "in use")
-			} else {
-				assert.NoError(err)
-			}
+			assert.Error(err)
+			assert.Contains(err.Error(), "in use")
 		})
 	}
 }

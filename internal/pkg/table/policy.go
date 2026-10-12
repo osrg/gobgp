@@ -4010,7 +4010,8 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for _, p := range r.getPolicy(id, dir) {
+	policies := r.getPolicy(id, dir)
+	for _, p := range policies {
 		result, after = p.Apply(r.logger, after, options)
 		if result != ROUTE_TYPE_NONE {
 			break
@@ -4018,6 +4019,11 @@ func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path
 	}
 	if result == ROUTE_TYPE_NONE {
 		result = r.getDefaultPolicy(id, dir)
+		// A configured list without an explicit default implicitly accepts.
+		// Keep that default unset so removing the list removes the assignment.
+		if result == ROUTE_TYPE_NONE && len(policies) != 0 {
+			result = ROUTE_TYPE_ACCEPT
+		}
 	}
 	switch result {
 	case ROUTE_TYPE_ACCEPT:
@@ -4088,7 +4094,7 @@ func (r *RoutingPolicy) setDefaultPolicy(id string, dir PolicyDirection, typ Rou
 func (r *RoutingPolicy) getAssignmentFromConfig(dir PolicyDirection, a oc.ApplyPolicy) ([]*Policy, RouteType, error) {
 	var names []string
 	var cdef oc.DefaultPolicyType
-	def := ROUTE_TYPE_ACCEPT
+	def := ROUTE_TYPE_NONE
 	c := a.Config
 	switch dir {
 	case POLICY_DIRECTION_IMPORT:
@@ -4100,8 +4106,11 @@ func (r *RoutingPolicy) getAssignmentFromConfig(dir PolicyDirection, a oc.ApplyP
 	default:
 		return nil, def, fmt.Errorf("invalid policy direction")
 	}
-	if cdef == oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE {
+	switch {
+	case cdef == oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE:
 		def = ROUTE_TYPE_REJECT
+	case cdef != "":
+		def = ROUTE_TYPE_ACCEPT
 	}
 	ps := make([]*Policy, 0, len(names))
 	seen := make(map[string]bool)
@@ -4551,7 +4560,7 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool) (err error) 
 		err = fmt.Errorf("not found policy: %s", name)
 		return err
 	}
-	// The assignment map holds the global RIB and the route server clients that
+	// The assignment map holds the global RIB and the peers that
 	// still exist. An entry is removed when the peer goes away.
 	inUse := func() bool {
 		for id := range r.assignmentMap {
@@ -4743,6 +4752,12 @@ func (r *RoutingPolicy) setPeerPolicy(id string, c oc.ApplyPolicy) {
 				slog.String("Dir", dir.String()),
 				slog.String("Error", err.Error()))
 			continue
+		}
+		// The global assignment defaults to accept. Keep NONE for an absent
+		// regular-peer assignment so the server can select the global policy
+		// for that direction. Route-server defaults are resolved by the server.
+		if id == GLOBAL_RIB_NAME && def == ROUTE_TYPE_NONE {
+			def = ROUTE_TYPE_ACCEPT
 		}
 		r.setDefaultPolicy(id, dir, def)
 		r.setPolicy(id, dir, ps)

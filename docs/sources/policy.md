@@ -38,6 +38,7 @@ Assumed that you finished [Getting Started](getting-started.md).
     - [4. Attaching policy](#4-attaching-policy)
       - [4.1 Attach policy to global rib](#41-attach-policy-to-global-rib)
       - [4.2. Attach policy to route-server-client](#42-attach-policy-to-route-server-client)
+      - [4.3. Attach policy to regular peers and peer groups](#43-attach-policy-to-regular-peers-and-peer-groups)
   - [Policy Configuration Example](#policy-configuration-example)
   - [Policy and Soft Reset](#policy-and-soft-reset)
 
@@ -64,6 +65,12 @@ The following figure shows how policy works in normal BGP configuration.
 There are **Import** and **Export** policy. **Import** policy is invoked
 before best path calculation and pushing routes to RIB.
 **Export** policy is invoked after that.
+
+Regular peers use the global policy unless they have an import or export
+assignment of their own, including an assignment inherited from a peer group.
+The choice is independent for each direction. A peer assignment replaces the
+global assignment for that direction; the two policy lists are not concatenated.
+Locally injected routes continue to use the global import assignment.
 
 You can check each policy by the following commands.
 
@@ -169,8 +176,7 @@ Below are the steps for policy configuration
     1. define as-path-setList
     1. define large-community-sets
 1. define policy-definitions
-1. attach policies to global rib (or neighbor local rib when neighbor is
-   [route-server-client](route-server.md)).
+1. attach policies to the global RIB, a neighbor, or a peer group.
 
 ### 1. Defining defined-sets
 
@@ -876,7 +882,9 @@ evaluate routes from neighbors, if matched, action will be applied.
 ### 4. Attaching policy
 
 Here we explain how to attach defined policies to
-[global rib](#41-attach-policy-to-global-rib) and [neighbor local rib](#42-attach-policy-to-route-server-client).
+[global rib](#41-attach-policy-to-global-rib),
+[route server clients](#42-attach-policy-to-route-server-client), and
+[regular peers and peer groups](#43-attach-policy-to-regular-peers-and-peer-groups).
 
 #### 4.1 Attach policy to global rib
 
@@ -931,6 +939,68 @@ apply-policy. The apply-policy has 6 elements.
 | export-policy         | policy-definitions.name for Export policy                                                                                                                                   | "policy2"      |
 | default-import-policy | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
 | default-export-policy | action when the route doesn't match any policy or none of the matched policy specifies `route-disposition`:<br> "accept-route" or "reject-route". default is "accept-route" | "accept-route" |
+
+#### 4.3. Attach policy to regular peers and peer groups
+
+Regular peers support the same `neighbors.apply-policy.config` as route server
+clients. Their routes still share the global RIB; only the policy assignment
+is selected per neighbor. Import uses the source neighbor's assignment and
+export uses the destination neighbor's assignment.
+
+For example, assign common policies to a group:
+
+```toml
+[[peer-groups]]
+  [peer-groups.config]
+    peer-group-name = "customers"
+    peer-as = 65002
+  [peer-groups.apply-policy.config]
+    import-policy-list = ["customer-import"]
+    export-policy-list = ["customer-export"]
+    default-import-policy = "reject-route"
+    default-export-policy = "reject-route"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "192.0.2.1"
+    peer-group = "customers"
+```
+
+Static and dynamic members inherit the group's policy configuration. Fields
+explicitly configured on the neighbor override the corresponding group fields,
+using the existing peer-group inheritance rules. An established dynamic
+neighbor retains its configuration until it reconnects; static members follow
+`UpdatePeerGroup`. Updating import policy reports `NeedsSoftResetIn`; use a soft
+reset to reprocess existing routes, as with other policy changes.
+
+In each direction, a non-empty policy list or an explicit default action selects
+the peer assignment. If a list is supplied without a default, the assignment's
+default is implicitly `accept-route` while the list is non-empty; the default
+is kept unspecified. An empty list with an explicit default is also an
+assignment: it can accept or reject all routes without running the global policy.
+If neither a list nor a default is supplied after peer-group inheritance, the
+peer uses the current global assignment. The assignment API can override an
+inherited list with an empty list and an explicit default. An empty list in
+an `AddPeer` or `UpdatePeer` request does not override peer-group inheritance.
+
+The global assignment is a fallback for an absent assignment, not for a route
+that the peer policy rejects. An import-only assignment leaves global export in
+effect, and an export-only assignment leaves global import in effect.
+
+The existing policy assignment API and CLI also support regular peers:
+
+```shell
+$ gobgp neighbor 192.0.2.1 policy import
+$ gobgp neighbor 192.0.2.1 policy export
+```
+
+These show the neighbor's assignment. An unspecified default and empty list
+mean that a regular peer inherits global policy in that direction. Assignment
+API changes affect the live neighbor; change the peer-group configuration to
+configure policy for future members as well. Deleting the entire neighbor
+assignment restores global policy. Removing the last policy also restores global
+policy if no default was explicitly set. Route server clients keep their separate
+assignments and do not inherit global policy.
 
 ## Policy Configuration Example
 
