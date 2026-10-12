@@ -1131,7 +1131,7 @@ func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Fami
 				}
 				dl = append(dl, u)
 			}
-			paths, rejected := s.sendSecondaryRoutes(peer, nil, dl)
+			paths, rejected := s.sendSecondaryRoutes(peer, dl)
 			pathList = append(pathList, paths...)
 			filtered = append(filtered, rejected...)
 		}
@@ -1194,7 +1194,7 @@ func needToAdvertise(peer *peer) bool {
 	return true
 }
 
-func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []*table.Update) (paths, filtered []*table.Path) {
+func (s *BgpServer) sendSecondaryRoutes(peer *peer, dsts []*table.Update) (paths, filtered []*table.Path) {
 	if !needToAdvertise(peer) {
 		return nil, nil
 	}
@@ -1658,7 +1658,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			} else {
 				if targetPeer.isRouteServerClient() {
 					if targetPeer.isSecondaryRouteEnabled() {
-						if paths, _ := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
+						if paths, _ := s.sendSecondaryRoutes(targetPeer, dsts); len(paths) > 0 {
 							targetPeer.updateRoutes(paths...)
 							sendfsmOutgoingMsg(targetPeer, paths)
 						}
