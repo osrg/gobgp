@@ -1103,14 +1103,26 @@ func anchoredBody(s string) (body string, ok bool) {
 	return s[1 : len(s)-1], true
 }
 
+// parseDecimal parses s only if it is the text that a community value is
+// formatted to. strconv.ParseUint also accepts a leading zero, but the
+// regexp side compares against "ASN:local" with no leading zero, so a
+// pattern such as ^065001:7$ must stay on the regexp.
+func parseDecimal(s string, bitSize int) (uint64, bool) {
+	if len(s) > 1 && s[0] == '0' {
+		return 0, false
+	}
+	n, err := strconv.ParseUint(s, 10, bitSize)
+	return n, err == nil
+}
+
 func parseExactASColonLocal(body string, localBits int) (asn uint16, local uint32, ok bool) {
 	idx := strings.IndexByte(body, ':')
 	if idx <= 0 || idx != strings.LastIndexByte(body, ':') {
 		return 0, 0, false
 	}
-	asn64, err1 := strconv.ParseUint(body[:idx], 10, 16)
-	loc64, err2 := strconv.ParseUint(body[idx+1:], 10, localBits)
-	if err1 != nil || err2 != nil {
+	asn64, ok1 := parseDecimal(body[:idx], 16)
+	loc64, ok2 := parseDecimal(body[idx+1:], localBits)
+	if !ok1 || !ok2 {
 		return 0, 0, false
 	}
 	return uint16(asn64), uint32(loc64), true
@@ -1135,20 +1147,19 @@ func isWildcardLocal(s string) bool {
 }
 
 func parseLocalAdminSet(rhs string) (*localAdminBitmap, bool) {
-	rhs = strings.TrimSpace(rhs)
 	var locals []uint16
 	switch {
 	case strings.HasPrefix(rhs, "(") && strings.HasSuffix(rhs, ")"):
 		for _, tok := range strings.Split(rhs[1:len(rhs)-1], "|") {
-			n, err := strconv.ParseUint(strings.TrimSpace(tok), 10, 16)
-			if err != nil {
+			n, ok := parseDecimal(tok, 16)
+			if !ok {
 				return nil, false
 			}
 			locals = append(locals, uint16(n))
 		}
 	default:
-		n, err := strconv.ParseUint(rhs, 10, 16)
-		if err != nil {
+		n, ok := parseDecimal(rhs, 16)
+		if !ok {
 			return nil, false
 		}
 		locals = []uint16{uint16(n)}
@@ -1217,8 +1228,8 @@ func extractLiteralASN(s string) (uint16, bool) {
 	if idx <= 0 {
 		return 0, false
 	}
-	asn, err := strconv.ParseUint(s[start:start+idx], 10, 16)
-	return uint16(asn), err == nil
+	asn, ok := parseDecimal(s[start:start+idx], 16)
+	return uint16(asn), ok
 }
 
 func compileCommunityMatcher(re *regexp.Regexp, listIndex int) communityMatcher {
