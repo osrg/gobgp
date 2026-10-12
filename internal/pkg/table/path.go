@@ -1354,6 +1354,9 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	default:
 		return fmt.Errorf("unsupported route family for vrf: %s", rf)
 	}
+	// The NLRI now carries the RD, so the string that the destination keys
+	// such as GetDestLocalKey are built from has to follow it.
+	path.OriginInfo().nlriString = path.OriginInfo().nlri.String()
 	path.SetExtCommunities(v.ExportRt, false)
 	// FIXME: we should not need to keep mp reach in Path.
 	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)

@@ -909,3 +909,38 @@ func TestNlriToPrefix(t *testing.T) {
 		})
 	}
 }
+
+// Two VRFs with the same prefix give two VPN routes that differ only in the
+// RD. After ToGlobalPath, their destination keys have to differ too.
+// Otherwise one hides the other wherever the key is used, for example when
+// an UPDATE is built from both.
+func TestToGlobalPathKeepsRDInKey(t *testing.T) {
+	rt, _ := bgp.ParseRouteTarget("100:100")
+	newGlobal := func(rd string) *Path {
+		r, err := bgp.ParseRouteDistinguisher(rd)
+		assert.NoError(t, err)
+		v := &Vrf{Name: rd, Rd: r, ExportRt: []bgp.ExtendedCommunityInterface{rt}}
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.0.0.0/24"))
+		nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+		p := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false,
+			[]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}, time.Now(), false)
+		assert.NoError(t, v.ToGlobalPath(p))
+		return p
+	}
+	p1 := newGlobal("100:100")
+	p2 := newGlobal("300:300")
+
+	assert.Equal(t, "100:100:20.0.0.0/24", p1.GetDestLocalKey().Prefix)
+	assert.Equal(t, "300:300:20.0.0.0/24", p2.GetDestLocalKey().Prefix)
+	assert.NotEqual(t, p1.GetLocalKey(), p2.GetLocalKey())
+
+	n := 0
+	for _, msg := range CreateUpdateMsgFromPaths([]*Path{p1, p2}) {
+		for _, a := range msg.Body.(*bgp.BGPUpdate).PathAttributes {
+			if mp, ok := a.(*bgp.PathAttributeMpReachNLRI); ok {
+				n += len(mp.Value)
+			}
+		}
+	}
+	assert.Equal(t, 2, n, "both routes must be in the UPDATE")
+}
