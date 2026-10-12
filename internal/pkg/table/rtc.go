@@ -35,8 +35,19 @@ func rtMask(l uint8) uint64 {
 	return ^uint64(0) << (bgp.RouteTargetMembershipPrefixLen - int(l))
 }
 
+// routeTargetTypes are the Type Fields of a Route Target, as the first 16
+// bits of a Route Target key. RFC 4360 Section 4: "The value of the
+// high-order octet of the Type field for the Route Target Community can be
+// 0x00, 0x01, or 0x02. The value of the low-order octet of the Type field
+// for this community is 0x02."
+var routeTargetTypes = [...]uint64{
+	uint64(bgp.EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC)<<56 | uint64(bgp.EC_SUBTYPE_ROUTE_TARGET)<<48,
+	uint64(bgp.EC_TYPE_TRANSITIVE_IP4_SPECIFIC)<<56 | uint64(bgp.EC_SUBTYPE_ROUTE_TARGET)<<48,
+	uint64(bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC)<<56 | uint64(bgp.EC_SUBTYPE_ROUTE_TARGET)<<48,
+}
+
 // rtPrefixOf returns the rtPrefix of nlri. It returns false when the NLRI
-// has an invalid length or a Route Target of a type that has no key.
+// has an invalid length, or when it cannot contain any Route Target.
 func rtPrefixOf(nlri *bgp.RouteTargetMembershipNLRI) (rtPrefix, bool) {
 	// RFC 4684 Section 4: the prefix is 0 to 96 bits, and other than the
 	// zero-length default route target it is at least 32 bits.
@@ -49,7 +60,19 @@ func rtPrefixOf(nlri *bgp.RouteTargetMembershipNLRI) (rtPrefix, bool) {
 	}
 	// A received NLRI has its trailing bits cleared already, but one built
 	// locally keeps the whole Route Target whatever its length is.
-	return rtPrefix{len: nlri.Length, bits: key & rtMask(nlri.Length)}, true
+	mask := rtMask(nlri.Length)
+	bits := key & mask
+	// Only a Route Target is looked up, so a prefix that contains none is
+	// never matched. Keep such an NLRI out. A prefix that covers only part
+	// of the Type Field, or none of it, is kept when that part fits a Route
+	// Target type.
+	typeMask := mask & (0xffff << 48)
+	for _, t := range routeTargetTypes {
+		if bits&typeMask == t&typeMask {
+			return rtPrefix{len: nlri.Length, bits: bits}, true
+		}
+	}
+	return rtPrefix{}, false
 }
 
 // rtmSet tracks which (AS, pathID) pairs are present per rtPrefix.

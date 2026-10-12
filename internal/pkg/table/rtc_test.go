@@ -322,6 +322,52 @@ func TestRouteTargetMembershipHandlerDefaultAndOriginASOnly(t *testing.T) {
 	}
 }
 
+// rtmSet keeps an RTC NLRI only when its prefix can contain a Route Target.
+// The NLRI may cover all of the Type Field, part of it or none of it.
+func TestRTMSetRouteTargetOnly(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		len  uint8
+		rt   []byte
+		kept bool
+	}{
+		{"default", 0, nil, true},
+		{"origin AS only", 32, nil, true},
+		{"two-octet AS route target", 96, []byte{0x00, 0x02, 0xfd, 0xe8, 0, 0, 0, 1}, true},
+		{"IPv4 address route target", 96, []byte{0x01, 0x02, 10, 0, 0, 1, 0, 1}, true},
+		{"four-octet AS route target", 96, []byte{0x02, 0x02, 0, 0, 0xfd, 0xe8, 0, 1}, true},
+		{"route origin", 96, []byte{0x00, 0x03, 0xfd, 0xe8, 0, 0, 0, 1}, false},
+		{"IPv4 address route origin", 96, []byte{0x01, 0x03, 10, 0, 0, 1, 0, 1}, false},
+		{"all zero", 96, make([]byte, 8), false},
+		{"non-transitive route target", 96, []byte{0x40, 0x02, 0xfd, 0xe8, 0, 0, 0, 1}, false},
+		{"route origin at /48", 48, []byte{0x00, 0x03}, false},
+		// The sub-type 0x03 loses its last bit at /47, so it fits 0x02.
+		{"route origin at /47", 47, []byte{0x00, 0x03}, true},
+		{"sub-type 0x04 at /47", 47, []byte{0x00, 0x04}, false},
+		{"two-octet AS type at /40", 40, []byte{0x00}, true},
+		{"IPv4 address type at /40", 40, []byte{0x01}, true},
+		{"four-octet AS type at /40", 40, []byte{0x02}, true},
+		{"non-transitive type at /40", 40, []byte{0x40}, false},
+		// 0x03 loses its last two bits at /38 and fits all three types.
+		{"opaque type at /38", 38, []byte{0x03}, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newRtmSet()
+			p := rtcPathFromWire(t, tt.len, 65001, tt.rt, 0)
+			s.add(p)
+			if tt.kept {
+				assert.Len(t, s.m, 1)
+			} else {
+				assert.Empty(t, s.m)
+				assert.Empty(t, s.count)
+			}
+			s.sub(p.Clone(true))
+			assert.Empty(t, s.m)
+			assert.Empty(t, s.count)
+		})
+	}
+}
+
 // rtmSet keeps count in step with the buckets: count[l] is the number of
 // prefixes of length l, a length with no prefix is not listed, and reset
 // clears it.
