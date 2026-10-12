@@ -112,6 +112,25 @@ func TimingHookOption(hook FSMTimingHook) ServerOption {
 const propagateBucketCount = 2048
 
 type sharedData struct {
+	// mu is the server state lock. Serve takes it for writing around every
+	// management operation, around passConnToPeer and around a ROA event. So
+	// a management operation needs no further locking for the BgpServer
+	// fields it touches. handleFSMMessage takes it for reading, which means
+	// FSM callbacks run in parallel with each other but never with a
+	// management operation.
+	//
+	// Code that runs in its own goroutine and reaches into BgpServer, such as
+	// a BMP client, an MRT writer or the zebra client, must take mu before it
+	// reads those fields. It must not hold mu while it calls a method that
+	// runs a management operation, because the dispatcher needs the write
+	// lock and that would deadlock. The pattern is to copy what is needed
+	// under the lock and work on the copy.
+	//
+	// mu does not protect the RIB or the paths in it. TableManager and
+	// RoutingPolicy have their own locks, GetDestinations hands out
+	// snapshots, and attributes are rewritten on a clone rather than on a
+	// stored path. A reader that has copied what it needs from BgpServer can
+	// walk the RIB without mu.
 	mu               sync.RWMutex
 	propagateBuckets [propagateBucketCount]sync.Mutex
 }
@@ -132,6 +151,9 @@ func (d *sharedData) propagateBucket(path *table.Path) *sync.Mutex {
 	return &d.propagateBuckets[idx]
 }
 
+// BgpServer holds the BGP state. shared.mu covers every field below unless
+// the field says otherwise, so read the comment on sharedData.mu before you
+// touch one of them from outside a management operation.
 type BgpServer struct {
 	shared        *sharedData
 	apiServer     *server
@@ -139,7 +161,7 @@ type BgpServer struct {
 	acceptCh      chan net.Conn
 	mgmtCh        chan *mgmtOp
 	closeCh       chan struct{}
-	policy        *table.RoutingPolicy
+	policy        *table.RoutingPolicy // has its own lock
 	listeners     []*netutils.TCPListener
 	neighborMap   map[netip.Addr]*peer
 	rrClusterIDs  map[netip.Addr]struct{}
@@ -147,14 +169,14 @@ type BgpServer struct {
 	globalRib     *table.TableManager
 	rsRib         *table.TableManager
 	roaManager    *roaManager
-	watcherMap    map[watchEventType][]*watcher
+	watcherMap    map[watchEventType][]*watcher // guarded by watcherMu
 	watcherMu     sync.RWMutex
 	zclient       *zebraClient
 	bmpManager    *bmpClientManager
 	mrtManager    *mrtManager
-	roaTable      *table.ROATable
+	roaTable      *table.ROATable // no lock of its own, so shared.mu covers it
 	uuidMap       map[string]uuid.UUID
-	bfdServer     *bfdServer
+	bfdServer     *bfdServer // has its own lock
 	keychainStore *tcpAoKeychainStore
 	logger        *slog.Logger
 	logLevelVar   *slog.LevelVar

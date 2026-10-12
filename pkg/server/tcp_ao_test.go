@@ -350,9 +350,7 @@ func startTcpAoTestServer(t *testing.T, opts ...ServerOption) *BgpServer {
 		ListenPort: -1,
 	}}))
 	t.Cleanup(func() {
-		if s.isServing.Load() {
-			require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
-		}
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
 	})
 	return s
 }
