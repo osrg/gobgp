@@ -1418,31 +1418,24 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 	peer.routeRefreshInProgress.Lock()
 	defer peer.routeRefreshInProgress.Unlock()
 
-	rt := nlri.RouteTarget
-	hasRt := func(rt bgp.ExtendedCommunityInterface) bool {
-		if rt == nil {
-			return peer.rtmHandler.HasDefaultRouteTarget()
-		}
-		return peer.rtmHandler.HasRouteTarget(rt)
-	}
-
-	rtKnownBefore := hasRt(rt)
+	coveredBefore := peer.rtmHandler.Covers(nlri)
 
 	peer.rtmHandler.SyncAfterImport(path)
 
-	rtKnownAfter := hasRt(rt)
+	coveredAfter := peer.rtmHandler.Covers(nlri)
 
 	// RFC 4684 Section 3 defines RT membership as {origin-as#, route-target},
 	// so a new origin AS is a distinct RTM NLRI and remains in the RTC RIB.
 	// RFC 4684 Section 6: "A BGP speaker should generate the minimum set of BGP
-	// VPN route updates"; when this peer already advertises this RT, its VPN
-	// distribution state is unchanged, so no additional VPN update is needed.
-	if rtKnownBefore == rtKnownAfter {
+	// VPN route updates"; when other memberships of this peer already contain
+	// every Route Target of this one, its VPN distribution state is unchanged,
+	// so no additional VPN update is needed.
+	if coveredBefore == coveredAfter {
 		return
 	}
 
 	fs := peerNonRTCFamilies(peer)
-	candidates := s.rtcVPNCandidates(peer, path.IsWithdraw, rt, fs)
+	candidates := s.rtcVPNCandidates(peer, path.IsWithdraw, nlri, fs)
 	if path.IsWithdraw {
 		// Withdraw only what this peer was sent and can no longer receive. A
 		// candidate may still be eligible through another RT, and a candidate
@@ -1466,7 +1459,8 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 		peer.fsm.logger.Debug("Nothing sent in response to RT received. Waiting for RTC EOR.", slog.Any("Path", path))
 		return
 	}
-	paths := s.processOutgoingPaths(peer, candidates, nil)
+	// A path may have been sent through another membership already.
+	paths := slices.DeleteFunc(s.processOutgoingPaths(peer, candidates, nil), peer.hasPathAlreadyBeenSent)
 	peer.updateRoutes(paths...)
 	sendfsmOutgoingMsg(peer, paths)
 }
@@ -1483,25 +1477,32 @@ func peerNonRTCFamilies(peer *peer) []bgp.Family {
 	return fs
 }
 
-// rtcVPNCandidates returns the VPN paths that an RTC update for rt can affect.
-// For a specific rt it uses the VPN path index (O(1)); for the wildcard (nil rt)
-// it falls back to a full RIB scan because all VPN families are in scope. On a
-// wildcard withdraw it returns every path that may have been sent to the peer,
+// rtcVPNCandidates returns the VPN paths that an RTC update for nlri can
+// affect. For a whole Route Target it uses the VPN path index (O(1)).
+// Otherwise nlri is a prefix of Route Targets, or the default RT, so it falls
+// back to a full RIB scan and keeps the paths that nlri contains. On a
+// withdraw it returns every path that may have been sent to the peer,
 // including the extra paths of an ADD-PATH peer. The paths are returned as
 // they are in the RIB; the caller filters them and turns them into
 // withdrawals.
-func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, rt bgp.ExtendedCommunityInterface, fs []bgp.Family) []*table.Path {
-	if rt != nil {
-		return s.globalRib.GetPathsByRT(rt, fs)
+func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, nlri *bgp.RouteTargetMembershipNLRI, fs []bgp.Family) []*table.Path {
+	if nlri.Length == bgp.RouteTargetMembershipPrefixLen && nlri.RouteTarget != nil {
+		return s.globalRib.GetPathsByRT(nlri.RouteTarget, fs)
 	}
+	var paths []*table.Path
 	if isWithdraw {
-		var paths []*table.Path
 		for _, f := range peer.toGlobalFamilies(fs) {
 			paths = append(paths, s.getPossibleBest(peer, f)...)
 		}
+	} else {
+		paths = s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
+	}
+	if nlri.Length <= 32 {
 		return paths
 	}
-	return s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
+	return slices.DeleteFunc(paths, func(p *table.Path) bool {
+		return !table.RouteTargetMembershipContains(nlri, p)
+	})
 }
 
 func dstsToPaths(id string, as uint32, dsts []*table.Update, useMultiplePaths bool) ([]*table.Path, []*table.Path, [][]*table.Path, []*table.Path, []*table.Path) {

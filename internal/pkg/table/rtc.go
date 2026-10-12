@@ -35,6 +35,16 @@ func rtMask(l uint8) uint64 {
 	return ^uint64(0) << (bgp.RouteTargetMembershipPrefixLen - int(l))
 }
 
+// rtLen returns the length of the Route Target part of an RTC NLRI of
+// length l. The default RT (/0) and an NLRI with the origin AS only (/32)
+// both have none, so they cover the same Route Targets: all of them.
+func rtLen(l uint8) uint8 {
+	if l <= 32 {
+		return 0
+	}
+	return l - 32
+}
+
 // routeTargetTypes are the Type Fields of a Route Target, as the first 16
 // bits of a Route Target key. RFC 4360 Section 4: "The value of the
 // high-order octet of the Type field for the Route Target Community can be
@@ -189,6 +199,26 @@ func (s *rtmSet) containsAll() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.m[rtPrefix{len: 0}]) > 0 || len(s.m[rtPrefix{len: 32}]) > 0
+}
+
+// covers reports whether a present prefix contains every Route Target that
+// prefix contains. That is a prefix whose Route Target part is not longer
+// than the one of prefix and matches it.
+func (s *rtmSet) covers(prefix rtPrefix) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for l := range s.count {
+		if rtLen(l) > rtLen(prefix.len) {
+			continue
+		}
+		if len(s.m[rtPrefix{len: l, bits: prefix.bits & rtMask(l)}]) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *rtmSet) reset() {
@@ -353,6 +383,41 @@ func (handler *RouteTargetMembershipHandler) HasDefaultRouteTarget() bool {
 		return false
 	}
 	return handler.s.containsAll()
+}
+
+// Covers reports whether the peer advertised RT memberships that contain
+// every Route Target nlri contains, so that advertising or withdrawing nlri
+// alone changes nothing for the peer. It returns false for an NLRI that
+// rtmSet does not keep.
+func (handler *RouteTargetMembershipHandler) Covers(nlri *bgp.RouteTargetMembershipNLRI) bool {
+	if handler == nil || handler.s == nil {
+		return false
+	}
+	prefix, ok := rtPrefixOf(nlri)
+	if !ok {
+		return false
+	}
+	return handler.s.covers(prefix)
+}
+
+// RouteTargetMembershipContains reports whether nlri contains one of the
+// Route Targets of path.
+func RouteTargetMembershipContains(nlri *bgp.RouteTargetMembershipNLRI, path *Path) bool {
+	prefix, ok := rtPrefixOf(nlri)
+	if !ok {
+		return false
+	}
+	mask := rtMask(prefix.len)
+	for _, rt := range path.GetRouteTargets() {
+		key, err := bgp.ExtCommRouteTargetKey(rt)
+		if err != nil {
+			continue
+		}
+		if key&mask == prefix.bits {
+			return true
+		}
+	}
+	return false
 }
 
 // Reset clears all tracked memberships (e.g. when Adj-RIB-In for RTC is dropped).

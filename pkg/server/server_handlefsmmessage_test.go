@@ -1064,6 +1064,160 @@ func TestRTCMembershipDefaultWithdraw(t *testing.T) {
 	})
 }
 
+// An RT membership shorter than /96 is a prefix of the Route Target. When it
+// is advertised, the peer must get the VPN paths that the prefix contains,
+// and when it is withdrawn, the peer must lose the ones it got through it,
+// including the ones that were sent after the membership arrived.
+func TestRTCMembershipPrefix(t *testing.T) {
+	ctx := context.Background()
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	rd, err := bgp.ParseRouteDistinguisher("65001:1")
+	require.NoError(t, err)
+
+	setup := func(t *testing.T) (*BgpServer, *peer) {
+		t.Helper()
+		s := NewBgpServer()
+		go s.Serve()
+		err := s.StartBgp(ctx, &api.StartBgpRequest{
+			Global: &api.Global{
+				Asn:        65001,
+				RouterId:   "1.1.1.1",
+				ListenPort: -1,
+			},
+		})
+		require.NoError(t, err)
+
+		p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+		p.policy = s.policy
+		p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+		p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+			bgp.RF_RTC_UC:   bgp.BGP_ADD_PATH_NONE,
+			bgp.RF_IPv4_VPN: bgp.BGP_ADD_PATH_NONE,
+		})
+		err = s.mgmtOperation(func() error {
+			s.neighborMap[peerAddr] = p
+			return nil
+		}, true)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			err := s.mgmtOperation(func() error {
+				delete(s.neighborMap, peerAddr)
+				return nil
+			}, false)
+			require.NoError(t, err)
+			cleanInfiniteChannel(p.fsm.outgoingCh)
+			require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		})
+		return s, p
+	}
+
+	vpnPath := func(t *testing.T, prefix, rt string) *table.Path {
+		t.Helper()
+		ec, err := bgp.ParseRouteTarget(rt)
+		require.NoError(t, err)
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(prefix), *bgp.NewMPLSLabelStack(100), rd)
+		require.NoError(t, err)
+		return table.NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nh,
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{ec}),
+		}, time.Now(), false)
+	}
+	rtcPath := func(t *testing.T, p *peer, s string) *table.Path {
+		t.Helper()
+		nlri, err := bgp.ParseRouteTargetMembershipNLRI(s)
+		require.NoError(t, err)
+		return table.NewPath(bgp.RF_RTC_UC, p.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nh,
+		}, time.Now(), false)
+	}
+	// collect returns the VPN prefixes queued for the peer, with "-" in
+	// front of a withdrawal.
+	collect := func(t *testing.T, p *peer) []string {
+		t.Helper()
+		var got []string
+		for {
+			select {
+			case o := <-p.fsm.outgoingCh.Out():
+				msg, ok := o.(*fsmOutgoingMsg)
+				require.True(t, ok)
+				for _, path := range msg.Paths {
+					if path.IsEOR() || path.GetFamily() != bgp.RF_IPv4_VPN {
+						continue
+					}
+					prefix := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.String()
+					if path.IsWithdraw {
+						prefix = "-" + prefix
+					}
+					got = append(got, prefix)
+				}
+			case <-time.After(200 * time.Millisecond):
+				slices.Sort(got)
+				return got
+			}
+		}
+	}
+	// The RIB holds two paths with a Route Target of AS 65000 and one of
+	// AS 65003.
+	addRIB := func(t *testing.T, s *BgpServer) {
+		t.Helper()
+		for _, path := range []*table.Path{
+			vpnPath(t, "10.0.1.0/24", "65000:100"),
+			vpnPath(t, "10.0.2.0/24", "65000:200"),
+			vpnPath(t, "10.0.3.0/24", "65003:100"),
+		} {
+			require.NotEmpty(t, s.globalRib.Update(path))
+		}
+	}
+
+	t.Run("announce and withdraw", func(t *testing.T) {
+		s, p := setup(t)
+		addRIB(t, s)
+		as65000 := rtcPath(t, p, "65002:65000:0/64")
+
+		s.processRTCMembership(p, as65000)
+		require.Equal(t, []string{"10.0.1.0/24", "10.0.2.0/24"}, collect(t, p))
+
+		// A path that arrives later is sent through the same membership.
+		s.propagateUpdate(nil, []*table.Path{vpnPath(t, "10.0.4.0/24", "65000:300")})
+		require.Equal(t, []string{"10.0.4.0/24"}, collect(t, p))
+
+		s.processRTCMembership(p, as65000.Clone(true))
+		require.Equal(t, []string{"-10.0.1.0/24", "-10.0.2.0/24", "-10.0.4.0/24"}, collect(t, p))
+	})
+
+	t.Run("a prefix that is already covered changes nothing", func(t *testing.T) {
+		s, p := setup(t)
+		addRIB(t, s)
+		s.processRTCMembership(p, rtcPath(t, p, "65002:65000:0/64"))
+		collect(t, p)
+
+		rt100 := rtcPath(t, p, "65002:65000:100")
+		s.processRTCMembership(p, rt100)
+		require.Empty(t, collect(t, p))
+		s.processRTCMembership(p, rt100.Clone(true))
+		require.Empty(t, collect(t, p))
+	})
+
+	t.Run("a shorter prefix over a longer one", func(t *testing.T) {
+		s, p := setup(t)
+		addRIB(t, s)
+		s.processRTCMembership(p, rtcPath(t, p, "65002:65000:100"))
+		require.Equal(t, []string{"10.0.1.0/24"}, collect(t, p))
+
+		// 10.0.1.0/24 was sent already, so only the other path goes out,
+		// and it is the only one that goes away with the /64.
+		as65000 := rtcPath(t, p, "65002:65000:0/64")
+		s.processRTCMembership(p, as65000)
+		require.Equal(t, []string{"10.0.2.0/24"}, collect(t, p))
+		s.processRTCMembership(p, as65000.Clone(true))
+		require.Equal(t, []string{"-10.0.2.0/24"}, collect(t, p))
+	})
+}
+
 func TestPropagateUpdateUsesPrefixBuckets(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()

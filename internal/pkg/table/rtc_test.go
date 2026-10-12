@@ -322,6 +322,76 @@ func TestRouteTargetMembershipHandlerDefaultAndOriginASOnly(t *testing.T) {
 	}
 }
 
+// Covers reports whether the present memberships contain every Route Target
+// of an NLRI. Only a membership whose Route Target part is not longer can do
+// that, and /0 and /32 both have an empty one.
+func TestRouteTargetMembershipHandlerCovers(t *testing.T) {
+	rt := []byte{0x00, 0x02, 0xfd, 0xe8, 0x00, 0x00, 0x00, 0x64}    // 65000:100
+	other := []byte{0x00, 0x02, 0xfd, 0xe9, 0x00, 0x00, 0x00, 0x64} // 65001:100
+	nlri := func(p *Path) *bgp.RouteTargetMembershipNLRI {
+		return p.GetNlri().(*bgp.RouteTargetMembershipNLRI)
+	}
+	p0 := rtcPathFromWire(t, 0, 0, nil, 0)
+	p32 := rtcPathFromWire(t, 32, 65002, nil, 0)
+	p64 := rtcPathFromWire(t, 64, 65002, rt, 0)
+	p96 := rtcPathFromWire(t, 96, 65002, rt, 0)
+	p96other := rtcPathFromWire(t, 96, 65002, other, 0)
+	routeOrigin := rtcPathFromWire(t, 96, 65002, []byte{0x00, 0x03, 0xfd, 0xe8, 0, 0, 0, 0x64}, 0)
+
+	for _, tt := range []struct {
+		name    string
+		present []*Path
+		covered []*Path
+		not     []*Path
+	}{
+		{"nothing", nil, nil, []*Path{p0, p32, p64, p96}},
+		{"/96", []*Path{p96}, []*Path{p96}, []*Path{p0, p32, p64, p96other}},
+		{"/64", []*Path{p64}, []*Path{p64, p96}, []*Path{p0, p32, p96other}},
+		{"/32", []*Path{p32}, []*Path{p0, p32, p64, p96, p96other}, nil},
+		{"/0", []*Path{p0}, []*Path{p0, p32, p64, p96, p96other}, nil},
+		{"not kept", []*Path{p0}, nil, []*Path{routeOrigin}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rtc := NewRouteTargetMembershipHandler()
+			for _, p := range tt.present {
+				rtc.SyncAfterImport(p)
+			}
+			for _, p := range tt.covered {
+				assert.True(t, rtc.Covers(nlri(p)), nlri(p).String())
+			}
+			for _, p := range tt.not {
+				assert.False(t, rtc.Covers(nlri(p)), nlri(p).String())
+			}
+		})
+	}
+}
+
+func TestRouteTargetMembershipContains(t *testing.T) {
+	pi := &PeerInfo{}
+	rt100, _ := bgp.ParseRouteTarget("65000:100")
+	rt300, _ := bgp.ParseRouteTarget("65001:300")
+	origin := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_ORIGIN, 65000, 100, true)
+
+	p := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt100, rt300}, "10.7.0.0/24")
+	q := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{origin}, "10.8.0.0/24")
+	parse := func(s string) *bgp.RouteTargetMembershipNLRI {
+		n, err := bgp.ParseRouteTargetMembershipNLRI(s)
+		assert.NoError(t, err)
+		return n
+	}
+
+	assert.True(t, RouteTargetMembershipContains(parse("65002:65000:100"), p))
+	assert.False(t, RouteTargetMembershipContains(parse("65002:65000:200"), p))
+	assert.True(t, RouteTargetMembershipContains(parse("65002:65001:0/64"), p), "65001:300 is in AS 65001")
+	assert.True(t, RouteTargetMembershipContains(parse("65002:65000:0/64"), p))
+	assert.False(t, RouteTargetMembershipContains(parse("65002:65003:0/64"), p))
+	assert.True(t, RouteTargetMembershipContains(bgp.NewRouteTargetMembershipNLRI(0, nil), p))
+
+	// A Route Origin is not a Route Target, so nothing contains it.
+	assert.False(t, RouteTargetMembershipContains(parse("65002:65000:100"), q))
+	assert.False(t, RouteTargetMembershipContains(bgp.NewRouteTargetMembershipNLRI(0, nil), q))
+}
+
 // rtmSet keeps an RTC NLRI only when its prefix can contain a Route Target.
 // The NLRI may cover all of the Type Field, part of it or none of it.
 func TestRTMSetRouteTargetOnly(t *testing.T) {
