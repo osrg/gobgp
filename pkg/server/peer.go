@@ -555,7 +555,7 @@ func (peer *peer) interestedIn(path *table.Path) bool {
 	if peer.rtmHandler.HasDefaultRouteTarget() {
 		return true
 	}
-	for _, ext := range path.GetExtCommunities() {
+	for _, ext := range path.GetRouteTargets() {
 		if peer.rtmHandler.HasRouteTarget(ext) {
 			return true
 		}

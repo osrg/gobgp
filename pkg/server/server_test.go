@@ -2916,6 +2916,36 @@ func addVrf(t *testing.T, s *BgpServer, vrfName, rdStr string, importRtsStr []st
 	}
 }
 
+// A peer is interested in a VPN path only through the Route Targets of the
+// path. An RTC NLRI that carries a Route Origin must not match a VPN path
+// that carries the same Route Origin.
+func TestInterestedInMatchesOnlyRouteTargets(t *testing.T) {
+	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 1, true)
+	origin := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_ORIGIN, 65000, 1, true)
+
+	rd, _ := bgp.ParseRouteDistinguisher("65000:1")
+	prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"), *bgp.NewMPLSLabelStack(100), rd)
+	vpnPath := func(ec bgp.ExtendedCommunityInterface) *table.Path {
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{ec}),
+		}
+		return table.NewPath(bgp.RF_IPv4_VPN, &table.PeerInfo{}, bgp.PathNLRI{NLRI: prefix}, false, attrs, time.Now(), false)
+	}
+	rtcPath := func(ec bgp.ExtendedCommunityInterface) *table.Path {
+		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+		nlri := bgp.NewRouteTargetMembershipNLRI(65001, ec)
+		return table.NewPath(bgp.RF_RTC_UC, &table.PeerInfo{}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+
+	p := &peer{rtmHandler: table.NewRouteTargetMembershipHandler()}
+	p.rtmHandler.SyncAfterImport(rtcPath(origin))
+	assert.False(t, p.interestedIn(vpnPath(origin)))
+
+	p.rtmHandler.SyncAfterImport(rtcPath(rt))
+	assert.True(t, p.interestedIn(vpnPath(rt)))
+}
+
 func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
 	ctx := context.Background()
 

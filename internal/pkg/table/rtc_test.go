@@ -290,6 +290,28 @@ func TestVPNPathIndexMultipleRTsPerPath(t *testing.T) {
 	assert.Empty(t, idx.GetPathsByRT(rt2))
 }
 
+// Only Route Targets are indexed. A Route Origin, or an all-zero extended
+// community, uses the same Go type as a two-octet AS Route Target but has a
+// different sub-type, so it must not get a bucket.
+func TestVPNPathIndexIgnoresNonRouteTargets(t *testing.T) {
+	pi := &PeerInfo{}
+	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 1, true)
+	origin := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_ORIGIN, 65000, 1, true)
+	zero := bgp.NewTwoOctetAsSpecificExtended(0, 0, 0, true)
+
+	p := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt, origin, zero}, "10.6.0.0/24")
+
+	idx := NewVPNPathIndex()
+	idx.RegisterPath(p)
+	assert.Equal(t, []*Path{p}, idx.GetPathsByRT(rt))
+	assert.Empty(t, idx.GetPathsByRT(origin))
+	assert.Empty(t, idx.GetPathsByRT(zero))
+	assert.Len(t, idx.rts, 1)
+
+	idx.UnregisterPath(p)
+	assert.Empty(t, idx.rts)
+}
+
 func TestVPNPathIndexNilInputs(t *testing.T) {
 	var nilIdx *VPNPathIndex
 	// All methods must be no-ops on a nil receiver.

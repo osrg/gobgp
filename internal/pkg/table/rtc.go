@@ -141,7 +141,7 @@ func (idx *VPNPathIndex) RegisterPath(path *Path) {
 	}
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
-	for _, ext := range path.GetExtCommunities() {
+	for _, ext := range path.GetRouteTargets() {
 		rtHash, err := bgp.ExtCommRouteTargetKey(ext)
 		if err != nil {
 			continue
@@ -162,7 +162,7 @@ func (idx *VPNPathIndex) UnregisterPath(path *Path) {
 	}
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
-	for _, ext := range path.GetExtCommunities() {
+	for _, ext := range path.GetRouteTargets() {
 		rtHash, err := bgp.ExtCommRouteTargetKey(ext)
 		if err != nil {
 			continue
