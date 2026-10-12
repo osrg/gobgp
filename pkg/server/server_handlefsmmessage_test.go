@@ -18,6 +18,7 @@ package server
 import (
 	"context"
 	"net/netip"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -921,6 +922,145 @@ func TestRTCMembershipDuplicateUpdatesAreNoop(t *testing.T) {
 
 		s.processRTCMembership(p, rtcPath)
 		requireNoOutgoing(t)
+	})
+}
+
+// A withdraw of the default RT membership must withdraw the VPN paths that the
+// peer was sent and can no longer receive. It must not withdraw a path that is
+// still covered by another RT, and it must not touch a path that was never sent.
+func TestRTCMembershipDefaultWithdraw(t *testing.T) {
+	ctx := context.Background()
+
+	rd, rt100, err := parseRDRT("65001:100")
+	require.NoError(t, err)
+	_, rt200, err := parseRDRT("65001:200")
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+
+	setup := func(t *testing.T) (*BgpServer, *peer) {
+		t.Helper()
+		s := NewBgpServer()
+		go s.Serve()
+		err := s.StartBgp(ctx, &api.StartBgpRequest{
+			Global: &api.Global{
+				Asn:        65001,
+				RouterId:   "1.1.1.1",
+				ListenPort: -1,
+			},
+		})
+		require.NoError(t, err)
+
+		p := newPeerandInfo(t, 65001, 65002, "10.0.0.1", s.globalRib)
+		p.policy = s.policy
+		p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+		p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+			bgp.RF_RTC_UC:   bgp.BGP_ADD_PATH_NONE,
+			bgp.RF_IPv4_VPN: bgp.BGP_ADD_PATH_NONE,
+		})
+		t.Cleanup(func() {
+			cleanInfiniteChannel(p.fsm.outgoingCh)
+			require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		})
+
+		for _, v := range []struct {
+			prefix string
+			rt     bgp.ExtendedCommunityInterface
+		}{
+			{"192.0.2.0/24", rt100},
+			{"198.51.100.0/24", rt200},
+		} {
+			nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(v.prefix), *bgp.NewMPLSLabelStack(100), rd)
+			require.NoError(t, err)
+			path := table.NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0),
+				nh,
+				bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{v.rt}),
+			}, time.Now(), false)
+			require.NotEmpty(t, s.globalRib.Update(path))
+		}
+		return s, p
+	}
+
+	rtcPath := func(p *peer, rt bgp.ExtendedCommunityInterface) *table.Path {
+		as := uint32(65002)
+		if rt == nil {
+			as = 0
+		}
+		return table.NewPath(bgp.RF_RTC_UC, p.peerInfo.Load(), bgp.PathNLRI{
+			NLRI: bgp.NewRouteTargetMembershipNLRI(as, rt),
+		}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nh,
+		}, time.Now(), false)
+	}
+
+	// collect returns the paths queued for the peer, as "prefix" for an
+	// advertisement and "-prefix" for a withdrawal.
+	collect := func(t *testing.T, p *peer) []string {
+		t.Helper()
+		var got []string
+		for {
+			select {
+			case o := <-p.fsm.outgoingCh.Out():
+				msg, ok := o.(*fsmOutgoingMsg)
+				require.True(t, ok)
+				for _, path := range msg.Paths {
+					if path.IsWithdraw {
+						got = append(got, "-"+path.GetPrefix())
+					} else {
+						got = append(got, path.GetPrefix())
+					}
+				}
+			case <-time.After(200 * time.Millisecond):
+				slices.Sort(got)
+				return got
+			}
+		}
+	}
+
+	t.Run("withdraws what was sent", func(t *testing.T) {
+		s, p := setup(t)
+		def := rtcPath(p, nil)
+
+		s.processRTCMembership(p, def)
+		require.Equal(t, []string{"65001:100:192.0.2.0/24", "65001:100:198.51.100.0/24"}, collect(t, p))
+
+		s.processRTCMembership(p, def.Clone(true))
+		require.Equal(t, []string{"-65001:100:192.0.2.0/24", "-65001:100:198.51.100.0/24"}, collect(t, p))
+	})
+
+	t.Run("keeps a path covered by another RT", func(t *testing.T) {
+		s, p := setup(t)
+		def := rtcPath(p, nil)
+
+		s.processRTCMembership(p, rtcPath(p, rt100))
+		require.Equal(t, []string{"65001:100:192.0.2.0/24"}, collect(t, p))
+		s.processRTCMembership(p, def)
+		collect(t, p)
+
+		s.processRTCMembership(p, def.Clone(true))
+		require.Equal(t, []string{"-65001:100:198.51.100.0/24"}, collect(t, p))
+	})
+
+	t.Run("does not touch a path that was never sent", func(t *testing.T) {
+		s, p := setup(t)
+		def := rtcPath(p, nil)
+
+		err := s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+			Assignment: &api.PolicyAssignment{
+				Name:          table.GLOBAL_RIB_NAME,
+				Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+				DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			},
+		})
+		require.NoError(t, err)
+
+		s.processRTCMembership(p, def)
+		require.Empty(t, collect(t, p))
+
+		s.processRTCMembership(p, def.Clone(true))
+		require.Empty(t, collect(t, p))
 	})
 }
 
