@@ -1,7 +1,9 @@
 package table
 
 import (
+	"fmt"
 	"net/netip"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -19,18 +21,19 @@ func TestRTMSetAddSubHas(t *testing.T) {
 	rt, err := bgp.ParseRouteTarget("65520:1000000")
 	assert.NoError(t, err)
 	nlri := bgp.NewRouteTargetMembershipNLRI(65000, rt)
-	rtHash, err := nlri.RouteTargetKey()
-	assert.NoError(t, err)
+	rtHash, ok := rtPrefixOf(nlri)
+	assert.True(t, ok)
+	defRT := rtPrefix{}
 
 	var nilSet *rtmSet
 	nilSet.add(nil)
 	nilSet.sub(nil)
 	assert.False(t, nilSet.has(rtHash))
-	assert.False(t, nilSet.has(DefaultRT))
+	assert.False(t, nilSet.has(defRT))
 
 	s := newRtmSet()
 	assert.False(t, s.has(rtHash))
-	assert.False(t, s.has(DefaultRT))
+	assert.False(t, s.has(defRT))
 
 	// Non-RTC paths are ignored.
 	v4 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: &bgp.IPAddrPrefix{}}, false, attrs, time.Now(), false)
@@ -68,13 +71,15 @@ func TestRTMSetAddSubHas(t *testing.T) {
 	s.sub(pB.Clone(true))
 	assert.False(t, s.has(rtHash))
 
-	// Default (wildcard) RT uses key DefaultRT.
+	// Default (wildcard) RT uses the zero-length prefix.
 	nlriDef := bgp.NewRouteTargetMembershipNLRI(0, nil)
 	pDef := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlriDef, ID: 1}, false, attrs, time.Now(), false)
 	s.add(pDef)
-	assert.True(t, s.has(DefaultRT))
+	assert.True(t, s.has(defRT))
+	assert.Equal(t, map[uint8]int{0: 1}, s.count)
 	s.sub(pDef.Clone(true))
-	assert.False(t, s.has(DefaultRT))
+	assert.False(t, s.has(defRT))
+	assert.Empty(t, s.count)
 
 	// Spurious withdraw is a no-op on an empty set.
 	s.sub(p.Clone(true))
@@ -87,7 +92,7 @@ func TestRTMSetConcurrent(t *testing.T) {
 
 	rt, _ := bgp.ParseRouteTarget("65520:1000000")
 	nlri := bgp.NewRouteTargetMembershipNLRI(65000, rt)
-	rtHash, err := nlri.RouteTargetKey()
+	rtKey, err := nlri.RouteTargetKey()
 	assert.NoError(t, err)
 
 	s := newRtmSet()
@@ -117,8 +122,8 @@ func TestRTMSetConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for range iters {
-				_ = s.has(rtHash)
-				_ = s.has(DefaultRT)
+				_ = s.contains(rtKey)
+				_ = s.containsAll()
 			}
 		}()
 	}
@@ -155,17 +160,204 @@ func TestRouteTargetMembershipHandlerDefaultAndRTs(t *testing.T) {
 	assert.True(t, rtc.HasRouteTarget(rt1))
 	assert.True(t, rtc.HasRouteTarget(rt2))
 
+	// The default RT contains every Route Target, including a withdrawn one.
 	rtc.SyncAfterImport(p1.Clone(true))
 	assert.True(t, rtc.HasDefaultRouteTarget())
-	assert.False(t, rtc.HasRouteTarget(rt1))
+	assert.True(t, rtc.HasRouteTarget(rt1))
 	assert.True(t, rtc.HasRouteTarget(rt2))
 
 	rtc.SyncAfterImport(p3.Clone(true))
 	assert.False(t, rtc.HasDefaultRouteTarget())
+	assert.False(t, rtc.HasRouteTarget(rt1))
 	assert.True(t, rtc.HasRouteTarget(rt2))
 
 	rtc.SyncAfterImport(p2.Clone(true))
 	assert.False(t, rtc.HasRouteTarget(rt2))
+}
+
+// rtcPathFromWire decodes an RTC NLRI of length l with the given origin AS
+// and the first octets of rt, the way a received NLRI is decoded.
+func rtcPathFromWire(t *testing.T, l uint8, as uint32, rt []byte, id uint32) *Path {
+	t.Helper()
+	wire := []byte{l, byte(as >> 24), byte(as >> 16), byte(as >> 8), byte(as)}
+	if l > 32 {
+		wire = append(wire, rt[:(int(l)-32+7)/8]...)
+	}
+	if l == 0 {
+		wire = []byte{0}
+	}
+	nlri, err := bgp.NLRIFromSlice(bgp.RF_RTC_UC, wire)
+	if err != nil {
+		t.Fatalf("NLRIFromSlice: %v", err)
+	}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	return NewPath(bgp.RF_RTC_UC, &PeerInfo{}, bgp.PathNLRI{NLRI: nlri, ID: id}, false, attrs, time.Now(), false)
+}
+
+// An RT membership is a prefix of the Route Target. It contains every Route
+// Target whose first len-32 bits are the same as its own, whatever the
+// boundary cuts through.
+func TestRouteTargetMembershipHandlerPrefixMatch(t *testing.T) {
+	// 65000:100
+	advertised := []byte{0x00, 0x02, 0xfd, 0xe8, 0x00, 0x00, 0x00, 0x64}
+
+	rts := []string{
+		"65000:100",
+		"65000:101",
+		"65000:200",
+		"65000:0",
+		"65000:100000",
+		"65001:100",
+		"0:0",
+		"10.0.0.1:1",
+		"64000.1000:1",
+	}
+	for _, tt := range []struct {
+		len   uint8
+		all   bool
+		match []string
+	}{
+		{32, true, rts},
+		// The type high octet: every two-octet AS Route Target.
+		{40, false, []string{"65000:100", "65000:101", "65000:200", "65000:0", "65000:100000", "65001:100", "0:0"}},
+		{47, false, []string{"65000:100", "65000:101", "65000:200", "65000:0", "65000:100000", "65001:100", "0:0"}},
+		{48, false, []string{"65000:100", "65000:101", "65000:200", "65000:0", "65000:100000", "65001:100", "0:0"}},
+		// The high octet of the AS: AS 64768 to 65023.
+		{56, false, []string{"65000:100", "65000:101", "65000:200", "65000:0", "65000:100000", "65001:100"}},
+		// Every Route Target of AS 65000.
+		{64, false, []string{"65000:100", "65000:101", "65000:200", "65000:0", "65000:100000"}},
+		{80, false, []string{"65000:100", "65000:101", "65000:200", "65000:0"}},
+		{95, false, []string{"65000:100", "65000:101"}},
+		{96, false, []string{"65000:100"}},
+	} {
+		t.Run(strconv.Itoa(int(tt.len)), func(t *testing.T) {
+			p := rtcPathFromWire(t, tt.len, 65001, advertised, 0)
+			rtc := NewRouteTargetMembershipHandler()
+			rtc.SyncAfterImport(p)
+			assert.Equal(t, tt.all, rtc.HasDefaultRouteTarget())
+			for _, s := range rts {
+				rt, err := bgp.ParseRouteTarget(s)
+				assert.NoError(t, err)
+				assert.Equal(t, slices.Contains(tt.match, s), rtc.HasRouteTarget(rt), s)
+			}
+
+			rtc.SyncAfterImport(p.Clone(true))
+			assert.False(t, rtc.HasDefaultRouteTarget())
+			for _, s := range rts {
+				rt, _ := bgp.ParseRouteTarget(s)
+				assert.False(t, rtc.HasRouteTarget(rt), s)
+			}
+			assert.Empty(t, rtc.s.count)
+		})
+	}
+}
+
+// A Route Target part that is all zero is not the default RT. That happens
+// with an all-zero Route Target at /96, and with a short prefix whose bits
+// are all zero after the trailing bits are cleared, such as 65000:100 at
+// /40. Neither may contain every Route Target, and neither may cancel the
+// default RT when it is withdrawn, although both carry AS 0 like the default
+// RT does.
+func TestRouteTargetMembershipHandlerZeroRouteTarget(t *testing.T) {
+	zero := make([]byte, 8)
+	rt100 := []byte{0x00, 0x02, 0xfd, 0xe8, 0x00, 0x00, 0x00, 0x64}
+	other, _ := bgp.ParseRouteTarget("10.0.0.1:1")
+
+	for _, tt := range []struct {
+		name string
+		len  uint8
+		rt   []byte
+	}{
+		{"all-zero route target", 96, zero},
+		{"route target prefix of one octet", 40, rt100},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			p := rtcPathFromWire(t, tt.len, 0, tt.rt, 1)
+			key, err := p.GetNlri().(*bgp.RouteTargetMembershipNLRI).RouteTargetKey()
+			assert.NoError(t, err)
+			assert.Zero(t, key, "the NLRI has to have a zero key for this case to test anything")
+
+			rtc := NewRouteTargetMembershipHandler()
+			rtc.SyncAfterImport(p)
+			assert.False(t, rtc.HasDefaultRouteTarget())
+			assert.False(t, rtc.HasRouteTarget(other))
+
+			def := rtcPathFromWire(t, 0, 0, nil, 1)
+			rtc.SyncAfterImport(def)
+			assert.True(t, rtc.HasDefaultRouteTarget())
+			rtc.SyncAfterImport(p.Clone(true))
+			assert.True(t, rtc.HasDefaultRouteTarget(), "withdrawing it must leave the default RT alone")
+			assert.True(t, rtc.HasRouteTarget(other))
+		})
+	}
+}
+
+// The default RT (/0) and an NLRI without a Route Target (/32) both contain
+// every Route Target, but they are different NLRIs. Withdrawing one must keep
+// the other, also when the /32 carries origin AS 0 like the default RT.
+func TestRouteTargetMembershipHandlerDefaultAndOriginASOnly(t *testing.T) {
+	rt, _ := bgp.ParseRouteTarget("65000:100")
+	for _, as := range []uint32{65001, 0} {
+		for _, first := range []uint8{0, 32} {
+			t.Run(fmt.Sprintf("as %d withdraw /%d", as, first), func(t *testing.T) {
+				def := rtcPathFromWire(t, 0, 0, nil, 0)
+				asOnly := rtcPathFromWire(t, 32, as, nil, 0)
+				rtc := NewRouteTargetMembershipHandler()
+				rtc.SyncAfterImport(def)
+				rtc.SyncAfterImport(asOnly)
+
+				withdrawn, other := def, asOnly
+				if first == 32 {
+					withdrawn, other = asOnly, def
+				}
+				rtc.SyncAfterImport(withdrawn.Clone(true))
+				assert.True(t, rtc.HasDefaultRouteTarget())
+				assert.True(t, rtc.HasRouteTarget(rt))
+
+				rtc.SyncAfterImport(other.Clone(true))
+				assert.False(t, rtc.HasDefaultRouteTarget())
+				assert.False(t, rtc.HasRouteTarget(rt))
+			})
+		}
+	}
+}
+
+// rtmSet keeps count in step with the buckets: count[l] is the number of
+// prefixes of length l, a length with no prefix is not listed, and reset
+// clears it.
+func TestRTMSetCount(t *testing.T) {
+	rt := []byte{0x00, 0x02, 0xfd, 0xe8, 0x00, 0x00, 0x00, 0x64}
+	other := []byte{0x00, 0x02, 0xfd, 0xe9, 0x00, 0x00, 0x00, 0x64}
+	s := newRtmSet()
+
+	p96a := rtcPathFromWire(t, 96, 65001, rt, 0)
+	p96b := rtcPathFromWire(t, 96, 65002, rt, 0)
+	p96c := rtcPathFromWire(t, 96, 65001, other, 0)
+	p64 := rtcPathFromWire(t, 64, 65001, rt, 0)
+	def := rtcPathFromWire(t, 0, 0, nil, 0)
+
+	s.add(p96a)
+	s.add(p64)
+	s.add(def)
+	s.add(p96b)
+	s.add(p96c)
+	assert.Equal(t, map[uint8]int{0: 1, 64: 1, 96: 2}, s.count, "p96a and p96b share a bucket, p96c has its own")
+
+	s.sub(p96a.Clone(true))
+	assert.Equal(t, map[uint8]int{0: 1, 64: 1, 96: 2}, s.count, "p96b still holds the bucket")
+	s.sub(p96b.Clone(true))
+	assert.Equal(t, map[uint8]int{0: 1, 64: 1, 96: 1}, s.count)
+	s.sub(p96b.Clone(true))
+	assert.Equal(t, map[uint8]int{0: 1, 64: 1, 96: 1}, s.count, "a spurious withdraw changes nothing")
+	s.sub(p96c.Clone(true))
+	s.sub(p64.Clone(true))
+	assert.Equal(t, map[uint8]int{0: 1}, s.count, "an unused length is deleted")
+
+	s.reset()
+	assert.Empty(t, s.count)
+	assert.Empty(t, s.m)
+	s.add(p96a)
+	assert.Equal(t, map[uint8]int{96: 1}, s.count, "the set is usable after reset")
 }
 
 func TestRouteTargetMembershipHandlerSameRTAddPath(t *testing.T) {

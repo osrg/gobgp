@@ -6,7 +6,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
-// rtmKey uniquely identifies an RT membership entry within an RT hash bucket.
+// rtmKey uniquely identifies an RT membership entry within an rtPrefix bucket.
 // With ADD-PATH, the same (AS, RT) NLRI can appear with different path IDs;
 // both fields are required so a withdraw of one path-ID or different AS does not cancel others.
 type rtmKey struct {
@@ -14,18 +14,63 @@ type rtmKey struct {
 	pathID uint32
 }
 
-// rtmSet tracks which (AS, pathID) pairs are present per RT hash.
+// rtPrefix is the key of an RT membership: the length of the RTC NLRI and the
+// Route Target part of its prefix. The origin AS is not part of the key, it
+// is kept in rtmKey. bits holds the first len-32 bits of the Route Target and
+// zero in the rest. The length keeps NLRIs that differ only in length apart:
+// the default RT (/0), an NLRI without a Route Target (/32), an all-zero Route
+// Target (/96) and a short prefix such as /40 all have zero bits.
+type rtPrefix struct {
+	len  uint8
+	bits uint64
+}
+
+// rtMask returns the mask of the Route Target part of an RTC NLRI of length
+// l. An NLRI of length 32 or less has no Route Target part, so its mask is
+// zero and it matches every Route Target.
+func rtMask(l uint8) uint64 {
+	if l <= 32 {
+		return 0
+	}
+	return ^uint64(0) << (bgp.RouteTargetMembershipPrefixLen - int(l))
+}
+
+// rtPrefixOf returns the rtPrefix of nlri. It returns false when the NLRI
+// has an invalid length or a Route Target of a type that has no key.
+func rtPrefixOf(nlri *bgp.RouteTargetMembershipNLRI) (rtPrefix, bool) {
+	// RFC 4684 Section 4: the prefix is 0 to 96 bits, and other than the
+	// zero-length default route target it is at least 32 bits.
+	if nlri.Length != 0 && nlri.Length < 32 || nlri.Length > bgp.RouteTargetMembershipPrefixLen {
+		return rtPrefix{}, false
+	}
+	key, err := nlri.RouteTargetKey()
+	if err != nil {
+		return rtPrefix{}, false
+	}
+	// A received NLRI has its trailing bits cleared already, but one built
+	// locally keeps the whole Route Target whatever its length is.
+	return rtPrefix{len: nlri.Length, bits: key & rtMask(nlri.Length)}, true
+}
+
+// rtmSet tracks which (AS, pathID) pairs are present per rtPrefix.
 // Set semantics make ADD-PATH or different AS withdrawals safe: removing one path-ID does not
-// affect others sharing the same RT, and spurious removes are no-ops.
-// Thread-safe: add/sub are called under a shard write-lock, has is called from
+// affect others sharing the same prefix, and spurious removes are no-ops.
+// Thread-safe: add/sub are called under a shard write-lock, contains is called from
 // interestedIn without any lock, so an internal RWMutex is required.
 type rtmSet struct {
 	mu sync.RWMutex
-	m  map[uint64]map[rtmKey]struct{}
+	m  map[rtPrefix]map[rtmKey]struct{}
+	// count[l] is the number of prefixes of length l in m. A length is
+	// deleted when its count drops to zero, so that contains looks up only
+	// the lengths in use. There are only a few of them in practice.
+	count map[uint8]int
 }
 
 func newRtmSet() *rtmSet {
-	return &rtmSet{m: make(map[uint64]map[rtmKey]struct{})}
+	return &rtmSet{
+		m:     make(map[rtPrefix]map[rtmKey]struct{}),
+		count: make(map[uint8]int),
+	}
 }
 
 func (s *rtmSet) add(path *Path) {
@@ -39,16 +84,17 @@ func (s *rtmSet) add(path *Path) {
 	if !ok {
 		return
 	}
-	rtHash, err := nlri.RouteTargetKey()
-	if err != nil {
+	prefix, ok := rtPrefixOf(nlri)
+	if !ok {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	keys, ok := s.m[rtHash]
+	keys, ok := s.m[prefix]
 	if !ok {
 		keys = make(map[rtmKey]struct{})
-		s.m[rtHash] = keys
+		s.m[prefix] = keys
+		s.count[prefix.len]++
 	}
 	keys[rtmKey{as: nlri.AS, pathID: path.remoteID}] = struct{}{}
 }
@@ -64,29 +110,62 @@ func (s *rtmSet) sub(path *Path) {
 	if !ok {
 		return
 	}
-	rtHash, err := nlri.RouteTargetKey()
-	if err != nil {
+	prefix, ok := rtPrefixOf(nlri)
+	if !ok {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	keys, ok := s.m[rtHash]
+	keys, ok := s.m[prefix]
 	if !ok {
 		return
 	}
 	delete(keys, rtmKey{as: nlri.AS, pathID: path.remoteID})
 	if len(keys) == 0 {
-		delete(s.m, rtHash)
+		delete(s.m, prefix)
+		s.count[prefix.len]--
+		if s.count[prefix.len] == 0 {
+			delete(s.count, prefix.len)
+		}
 	}
 }
 
-func (s *rtmSet) has(rtHash uint64) bool {
+// has reports whether prefix itself is present.
+func (s *rtmSet) has(prefix rtPrefix) bool {
 	if s == nil {
 		return false
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return len(s.m[rtHash]) > 0
+	return len(s.m[prefix]) > 0
+}
+
+// contains reports whether a present prefix contains the Route Target whose
+// key is rtKey. A prefix of length 32 or less contains every Route Target.
+func (s *rtmSet) contains(rtKey uint64) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// Any containing prefix is enough, so the order does not matter.
+	for l := range s.count {
+		if len(s.m[rtPrefix{len: l, bits: rtKey & rtMask(l)}]) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// containsAll reports whether a present prefix contains every Route Target:
+// the default RT (/0) or an NLRI without a Route Target (/32).
+func (s *rtmSet) containsAll() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.m[rtPrefix{len: 0}]) > 0 || len(s.m[rtPrefix{len: 32}]) > 0
 }
 
 func (s *rtmSet) reset() {
@@ -95,7 +174,8 @@ func (s *rtmSet) reset() {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.m = make(map[uint64]map[rtmKey]struct{})
+	s.m = make(map[rtPrefix]map[rtmKey]struct{})
+	s.count = make(map[uint8]int)
 }
 
 // vpnPathKey identifies a VPN path without relying on *Path pointer identity.
@@ -228,6 +308,9 @@ func (handler *RouteTargetMembershipHandler) SyncAfterImport(path *Path) {
 	}
 }
 
+// HasRouteTarget reports whether the peer advertised an RT membership that
+// contains routeTarget. A membership is a prefix, so it can contain more than
+// one Route Target, and the default RT contains every one of them.
 func (handler *RouteTargetMembershipHandler) HasRouteTarget(routeTarget bgp.ExtendedCommunityInterface) bool {
 	if handler == nil || handler.s == nil {
 		return false
@@ -236,14 +319,17 @@ func (handler *RouteTargetMembershipHandler) HasRouteTarget(routeTarget bgp.Exte
 	if err != nil {
 		return false
 	}
-	return handler.s.has(key)
+	return handler.s.contains(key)
 }
 
+// HasDefaultRouteTarget reports whether the peer advertised an RT membership
+// that contains every Route Target. That is the default RT (/0), or an NLRI
+// that has the origin AS only (/32).
 func (handler *RouteTargetMembershipHandler) HasDefaultRouteTarget() bool {
 	if handler == nil || handler.s == nil {
 		return false
 	}
-	return handler.s.has(DefaultRT)
+	return handler.s.containsAll()
 }
 
 // Reset clears all tracked memberships (e.g. when Adj-RIB-In for RTC is dropped).
