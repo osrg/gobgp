@@ -530,6 +530,28 @@ func isASLoop(peer *peer, path *table.Path) bool {
 	return slices.Contains(path.GetAsList(), peer.AS())
 }
 
+// rejectedByWellKnownCommunities reports whether RFC 1997 keeps path from
+// being advertised to peer: NO_ADVERTISE keeps it from every peer,
+// NO_EXPORT_SUBCONFED from every external peer, confederation members
+// included, and NO_EXPORT from peers outside the confederation (for a
+// stand-alone AS, every eBGP peer).
+func rejectedByWellKnownCommunities(peer *peer, path *table.Path) bool {
+	comms := path.GetCommunities()
+	if len(comms) == 0 {
+		return false
+	}
+	if slices.Contains(comms, uint32(bgp.COMMUNITY_NO_ADVERTISE)) {
+		return true
+	}
+	if peer.isIBGPPeer() {
+		return false
+	}
+	if slices.Contains(comms, uint32(bgp.COMMUNITY_NO_EXPORT_SUBCONFED)) {
+		return true
+	}
+	return !peer.peerInfo.Load().Confederation && slices.Contains(comms, uint32(bgp.COMMUNITY_NO_EXPORT))
+}
+
 func filterpath(peer *peer, path, old *table.Path) *table.Path {
 	if path == nil {
 		return nil
@@ -635,6 +657,25 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 			}
 			return nil
 		}
+	}
+
+	// RFC 1997: the three well-known communities limit where a route may be
+	// advertised. RFC 7947 2.2.4 says:
+	//
+	//   Transitive as well as non-transitive Communities attributes
+	//   applied to an NLRI UPDATE sent to a route server SHOULD NOT be
+	//   modified, processed, or removed, except as defined by local
+	//   policy.
+	//
+	// So skip the check for route server clients. Locally originated paths
+	// are skipped too: RFC 1997 defines the communities for received routes.
+	if !peer.isRouteServerClient() && !path.IsLocal() && !path.IsWithdraw && rejectedByWellKnownCommunities(peer, path) {
+		if old != nil {
+			// As in the AS-loop case above: the new best cannot be sent, so
+			// the path advertised before has to be withdrawn explicitly.
+			return old.Clone(true)
+		}
+		return nil
 	}
 	return path
 }
