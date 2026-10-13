@@ -1823,6 +1823,91 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	assert.Nil(t, path)
 }
 
+func TestFilterpathWithWellKnownCommunities(t *testing.T) {
+	const (
+		as    = uint32(65000)
+		eAs   = uint32(65001)
+		srcAs = uint32(65002)
+	)
+
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+	ebgp := newPeerandInfo(t, as, eAs, "192.168.0.1", rib)
+	ibgp := newPeerandInfo(t, as, as, "192.168.0.2", rib)
+	confed := newPeerandInfo(t, as, eAs, "192.168.0.3", rib)
+	confedInfo := *confed.peerInfo.Load()
+	confedInfo.Confederation = true
+	confed.peerInfo.Store(&confedInfo)
+	rs := newPeerandInfo(t, as, eAs, "192.168.0.4", rib)
+	rs.fsm.lock.Lock()
+	rsConf := rs.fsm.pConf.ReadCopy()
+	rsConf.RouteServer.Config.RouteServerClient = true
+	rs.fsm.pConf.Update(&rsConf)
+	rs.fsm.lock.Unlock()
+	source := newPeerandInfo(t, as, srcAs, "192.168.0.5", rib)
+
+	newPathFrom := func(info *table.PeerInfo, comms ...uint32) *table.Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+		require.NoError(t, err)
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{srcAs})}),
+		}
+		if len(comms) > 0 {
+			attrs = append(attrs, bgp.NewPathAttributeCommunities(comms))
+		}
+		return table.NewPath(bgp.RF_IPv4_UC, info, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+	newPath := func(comms ...uint32) *table.Path {
+		return newPathFrom(source.peerInfo.Load(), comms...)
+	}
+
+	noExport := newPath(uint32(bgp.COMMUNITY_NO_EXPORT))
+	noAdvertise := newPath(uint32(bgp.COMMUNITY_NO_ADVERTISE))
+	noExportSubconfed := newPath(uint32(bgp.COMMUNITY_NO_EXPORT_SUBCONFED))
+	plain := newPath(srcAs<<16 | 100)
+
+	// A community that is not one of the three does not filter anything.
+	assert.NotNil(t, filterpath(ebgp, plain, nil))
+	assert.NotNil(t, filterpath(ibgp, plain, nil))
+
+	// NO_ADVERTISE keeps the route from every peer.
+	assert.Nil(t, filterpath(ebgp, noAdvertise, nil))
+	assert.Nil(t, filterpath(ibgp, noAdvertise, nil))
+	assert.Nil(t, filterpath(confed, noAdvertise, nil))
+
+	// NO_EXPORT keeps the route inside the confederation: an eBGP peer does
+	// not get it, an iBGP peer and a confederation member do.
+	assert.Nil(t, filterpath(ebgp, noExport, nil))
+	assert.NotNil(t, filterpath(ibgp, noExport, nil))
+	assert.NotNil(t, filterpath(confed, noExport, nil))
+
+	// NO_EXPORT_SUBCONFED keeps the route inside the member AS: no external
+	// peer gets it, a confederation member included.
+	assert.Nil(t, filterpath(ebgp, noExportSubconfed, nil))
+	assert.NotNil(t, filterpath(ibgp, noExportSubconfed, nil))
+	assert.Nil(t, filterpath(confed, noExportSubconfed, nil))
+
+	// A route server is transparent and leaves the communities to its clients.
+	assert.NotNil(t, filterpath(rs, noAdvertise, nil))
+
+	// RFC 1997 defines the communities for received routes: a locally
+	// originated path tagged NO_EXPORT is still sent to an eBGP peer.
+	localNoExport := newPathFrom(&table.PeerInfo{}, uint32(bgp.COMMUNITY_NO_EXPORT))
+	assert.NotNil(t, filterpath(ebgp, localNoExport, nil))
+
+	// The server may advertise to a peer that reached ESTABLISHED before its
+	// peerInfo was stored; such a peer is not a confederation member.
+	fresh := newPeerandInfo(t, as, eAs, "192.168.0.6", rib)
+	fresh.peerInfo.Store(nil)
+	assert.Nil(t, filterpath(fresh, noExport, nil))
+	assert.NotNil(t, filterpath(fresh, plain, nil))
+
+	// When the new best path cannot be advertised, the path advertised before
+	// is withdrawn explicitly.
+	p := filterpath(ebgp, noExport, plain)
+	require.NotNil(t, p)
+	assert.True(t, p.IsWithdraw)
+}
+
 func TestInboundClusterLoopCheck(t *testing.T) {
 	const (
 		as     = uint32(65000)
