@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
+	tspb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func mustApi2apiutilPath(path *api.Path) *apiutil.Path {
@@ -643,7 +644,7 @@ func TestApi2PathFlowSpecWithoutNexthop(t *testing.T) {
 				Pattrs: attrs([]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), mpreach}),
 			}
 
-			p, err := api2Path(api.TableType_TABLE_TYPE_GLOBAL, path, false)
+			p, err := api2Path(api.TableType_TABLE_TYPE_GLOBAL, path)
 			require.NoError(t, err, "api2Path")
 			assert.Equal(t, tt.family, p.GetFamily())
 			assert.False(t, p.GetNexthop().IsValid())
@@ -652,6 +653,51 @@ func TestApi2PathFlowSpecWithoutNexthop(t *testing.T) {
 			require.NoError(t, err, "apiutil2Path")
 			assert.Equal(t, tt.family, p.GetFamily())
 			assert.False(t, p.GetNexthop().IsValid())
+		})
+	}
+}
+
+// AddPath (apiutil2Path) and AddPathStream (api2Path) take the source
+// address of a path from neighbor_ip, and take its timestamp from age, or
+// use the current time when age is not set.
+func TestApi2PathSourceAndAge(t *testing.T) {
+	prefix, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	newPath := func() *api.Path {
+		return &api.Path{
+			Family: apiutil.ToApiFamily(bgp.AFI_IP, bgp.SAFI_UNICAST),
+			Nlri:   nlri(prefix),
+			Pattrs: attrs([]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}),
+		}
+	}
+
+	for _, conv := range []struct {
+		name string
+		fn   func(*api.Path) (*table.Path, error)
+	}{
+		{"apiutil2Path", func(p *api.Path) (*table.Path, error) { return apiutil2Path(mustApi2apiutilPath(p), false) }},
+		{"api2Path", func(p *api.Path) (*table.Path, error) { return api2Path(api.TableType_TABLE_TYPE_GLOBAL, p) }},
+	} {
+		t.Run(conv.name, func(t *testing.T) {
+			age := time.Unix(1700000000, 0)
+			path := newPath()
+			path.SourceAsn = 65001
+			path.SourceId = "10.0.0.2"
+			path.NeighborIp = "10.0.0.3"
+			path.Age = tspb.New(age)
+			p, err := conv.fn(path)
+			require.NoError(t, err)
+			assert.Equal(t, netip.MustParseAddr("10.0.0.3"), p.GetSource().Address)
+			assert.False(t, p.IsLocal())
+			assert.Equal(t, age, p.GetTimestamp())
+
+			before := time.Now().Truncate(time.Second)
+			p, err = conv.fn(newPath())
+			require.NoError(t, err)
+			assert.True(t, p.IsLocal())
+			assert.False(t, p.GetTimestamp().Before(before), "timestamp %s", p.GetTimestamp())
 		})
 	}
 }

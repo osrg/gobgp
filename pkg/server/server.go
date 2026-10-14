@@ -2630,7 +2630,13 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 	}
 
 	doWithdraw := len(isWithdraw) > 0 && isWithdraw[0] || path.Withdrawal
-	p := table.NewPath(path.Family, source, bgp.PathNLRI{NLRI: path.Nlri, ID: path.RemoteID}, doWithdraw, pattrs, time.Unix(path.Age, 0), path.NoImplicitWithdraw)
+	// A client that does not set the age gets the time the path is added,
+	// not the Unix epoch.
+	timestamp := time.Now()
+	if path.Age != 0 {
+		timestamp = time.Unix(path.Age, 0)
+	}
+	p := table.NewPath(path.Family, source, bgp.PathNLRI{NLRI: path.Nlri, ID: path.RemoteID}, doWithdraw, pattrs, timestamp, path.NoImplicitWithdraw)
 	if p == nil {
 		return nil, fmt.Errorf("invalid path: %v", path)
 	}

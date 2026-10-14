@@ -518,78 +518,14 @@ func newRoutingPolicyFromApiStruct(arg *api.SetPoliciesRequest) (*oc.RoutingPoli
 	}, nil
 }
 
-func api2Path(resource api.TableType, path *api.Path, isWithdraw bool) (*table.Path, error) {
-	var pi *table.PeerInfo
-	var nlri bgp.NLRI
-	var nexthop netip.Addr
-
-	if path.SourceAsn != 0 {
-		id, err := netip.ParseAddr(path.SourceId)
-		if err != nil {
-			return nil, fmt.Errorf("invalid source ID: %w", err)
-		}
-		pi = &table.PeerInfo{
-			AS: path.SourceAsn,
-			ID: id,
-		}
-	}
-
-	nlri, err := apiutil.GetNativeNlri(path)
+// api2Path converts a path that AddPathStream receives. It uses the same
+// conversion as AddPath.
+func api2Path(resource api.TableType, path *api.Path) (*table.Path, error) {
+	p, err := api2apiutilPath(path)
 	if err != nil {
 		return nil, err
 	}
-
-	attrList, err := apiutil.GetNativePathAttributes(path)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO (sbezverk) At this poinnt nlri and path attributes are converted to native mode
-	// need to check if update with SR Policy nlri comes with mandatory route distinguisher
-	// extended community or NO_ADVERTISE community, with Tunnel Encapsulation Attribute 23
-	// and tunnel type 15. If it is not the case ignore update and log an error.
-
-	isMPFlowSpec := false
-	pattrs := make([]bgp.PathAttributeInterface, 0)
-	seen := make(map[bgp.BGPAttrType]struct{})
-	for _, attr := range attrList {
-		attrType := attr.GetType()
-		if _, ok := seen[attrType]; !ok {
-			seen[attrType] = struct{}{}
-		} else {
-			return nil, fmt.Errorf("duplicated path attribute type: %d", attrType)
-		}
-
-		switch a := attr.(type) {
-		case *bgp.PathAttributeNextHop:
-			nexthop = a.Value
-		case *bgp.PathAttributeMpReachNLRI:
-			if len(a.Value) == 0 {
-				return nil, fmt.Errorf("invalid mp reach attribute")
-			}
-			isMPFlowSpec = a.SAFI == bgp.SAFI_FLOW_SPEC_UNICAST || a.SAFI == bgp.SAFI_FLOW_SPEC_VPN
-			nexthop = a.Nexthop
-		default:
-			pattrs = append(pattrs, attr)
-		}
-	}
-
-	if !path.IsWithdraw && !nexthop.IsValid() && !isMPFlowSpec {
-		return nil, fmt.Errorf("nexthop not found")
-	}
-	rf := bgp.NewFamily(uint16(path.Family.Afi), uint8(path.Family.Safi))
-	if resource != api.TableType_TABLE_TYPE_VRF && rf == bgp.RF_IPv4_UC && nexthop.Is4() {
-		pa, _ := bgp.NewPathAttributeNextHop(nexthop)
-		pattrs = append(pattrs, pa)
-	} else {
-		attr, _ := bgp.NewPathAttributeMpReachNLRI(rf, []bgp.PathNLRI{{NLRI: nlri}}, nexthop)
-		pattrs = append(pattrs, attr)
-	}
-
-	doWithdraw := isWithdraw || path.IsWithdraw
-	newPath := table.NewPath(rf, pi, bgp.PathNLRI{NLRI: nlri, ID: path.Identifier}, doWithdraw, pattrs, time.Now(), path.NoImplicitWithdraw)
-	newPath.SetIsFromExternal(path.IsFromExternal)
-	return newPath, nil
+	return apiutil2Path(p, resource == api.TableType_TABLE_TYPE_VRF)
 }
 
 func api2apiutilPath(path *api.Path) (*apiutil.Path, error) {
@@ -708,7 +644,7 @@ func (s *server) AddPathStream(stream api.GoBgpService_AddPathStreamServer) erro
 		}
 		pathList := make([]*table.Path, 0, len(arg.Paths))
 		for _, apiPath := range arg.Paths {
-			if path, err := api2Path(arg.TableType, apiPath, apiPath.IsWithdraw); err != nil {
+			if path, err := api2Path(arg.TableType, apiPath); err != nil {
 				return err
 			} else {
 				pathList = append(pathList, path)

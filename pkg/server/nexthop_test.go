@@ -236,8 +236,8 @@ func TestNexthopReceivedPathInAPI(t *testing.T) {
 	}
 }
 
-// AddPath and AddPathStream put the same next hop on a path. They use two
-// functions to convert the path, apiutil2Path and api2Path.
+// AddPath and AddPathStream put the same next hop on a path. AddPath
+// converts the path with apiutil2Path, and AddPathStream with api2Path.
 func TestNexthopAddPath(t *testing.T) {
 	const vrfName = "vrf1"
 
@@ -381,7 +381,7 @@ func TestNexthopAddPath(t *testing.T) {
 			{
 				name: "AddPathStream",
 				fn: func(s *BgpServer) error {
-					p, err := api2Path(tableType, path, false)
+					p, err := api2Path(tableType, path)
 					if err != nil {
 						return err
 					}
