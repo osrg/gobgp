@@ -5015,7 +5015,7 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 		Family:             path.GetFamily(),
 		Nlri:               path.GetNlri(),
 		Age:                path.GetTimestamp().Unix(),
-		Attrs:              path.GetPathAttrs(),
+		Attrs:              path.GetFullPathAttrs(),
 		Stale:              path.IsStale(),
 		Withdrawal:         path.IsWithdraw,
 		IsFromExternal:     path.IsFromExternal(),

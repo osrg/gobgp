@@ -180,9 +180,9 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 						isAddPath = neighbor.isAddPathReceiveEnabled(family)
 					}
 					if !isAddPath {
-						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetPathAttrs(), false))
+						entries = append(entries, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), 0, path.GetFullPathAttrs(), false))
 					} else {
-						entriesAddPath = append(entriesAddPath, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.RemoteID(), path.GetPathAttrs(), true))
+						entriesAddPath = append(entriesAddPath, mrt.NewRibEntry(idx(path), uint32(path.GetTimestamp().Unix()), path.RemoteID(), path.GetFullPathAttrs(), true))
 					}
 				}
 				if len(entries) > 0 {

@@ -643,6 +643,18 @@ func (a PathAttrs) Less(i, j int) bool {
 	return a[i].GetType() < a[j].GetType()
 }
 
+// GetFullPathAttrs returns the path attributes together with a NEXT_HOP
+// or MP_REACH_NLRI attribute that carries the next hop of the path. Use it
+// where the attributes are shown to a user or written out, such as the API
+// and MRT dumps. Use GetPathAttrs for the attributes that the path itself
+// carries.
+//
+// The next hop is still kept in the path attributes, so this returns
+// the same as GetPathAttrs.
+func (path *Path) GetFullPathAttrs() []bgp.PathAttributeInterface {
+	return path.GetPathAttrs()
+}
+
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
 	deleted := NewBitmap(math.MaxUint8)
 	modified := make(map[uint]bgp.PathAttributeInterface)
@@ -1296,7 +1308,7 @@ func (path *Path) MarshalJSON() ([]byte, error) {
 		ID         uint32                       `json:"id,omitempty"`
 	}{
 		Nlri:       path.GetNlri(),
-		PathAttrs:  path.GetPathAttrs(),
+		PathAttrs:  path.GetFullPathAttrs(),
 		Age:        path.GetTimestamp().Unix(),
 		Withdrawal: path.IsWithdraw,
 		SourceID:   path.GetSource().ID.AsSlice(),
