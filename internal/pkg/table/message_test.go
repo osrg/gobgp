@@ -1168,6 +1168,66 @@ func TestNotMergeMPReachNLRIsWithDifferentLinkLocalNexthop(t *testing.T) {
 	assert.Equal(t, map[netip.Addr]int{netip.MustParseAddr("fe80::2"): 1}, nlrisByLinkLocal(msgs))
 }
 
+// IPv4 paths with the same attributes and different next hops go in
+// different UPDATEs.
+func TestNotMergeV4NLRIsWithDifferentNexthop(t *testing.T) {
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{100})}),
+	}
+
+	paths := make([]*Path, 0, 3)
+	for i, nh := range []string{"192.0.2.1", "192.0.2.1", "192.0.2.2"} {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("10.%d.0.0/24", i)))
+		nexthop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nh))
+		require.NoError(t, err)
+		msg := bgp.NewBGPUpdateMessage(nil, append(attrs[:len(attrs):len(attrs)], nexthop), []bgp.PathNLRI{{NLRI: nlri}})
+		paths = append(paths, ProcessMessage(msg, peerR1(), time.Now(), false)...)
+	}
+
+	msgs := CreateUpdateMsgFromPaths(paths)
+	assert.Equal(t, 2, len(msgs), "different next hops must produce separate UPDATEs")
+	nlrisByNexthop := make(map[netip.Addr]int)
+	for _, msg := range msgs {
+		u := msg.Body.(*bgp.BGPUpdate)
+		for _, attr := range u.PathAttributes {
+			if a, ok := attr.(*bgp.PathAttributeNextHop); ok {
+				nlrisByNexthop[a.Value] += len(u.NLRI)
+			}
+		}
+	}
+	assert.Equal(t, map[netip.Addr]int{
+		netip.MustParseAddr("192.0.2.1"): 2,
+		netip.MustParseAddr("192.0.2.2"): 1,
+	}, nlrisByNexthop)
+}
+
+func BenchmarkCreateUpdateMsgFromPathsV4(b *testing.B) {
+	for _, n := range []int{1, 100} {
+		nlris := make([]bgp.PathNLRI, 0, n)
+		for i := range n {
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("10.%d.%d.0/24", i/256, i%256)))
+			nlris = append(nlris, bgp.PathNLRI{NLRI: nlri})
+		}
+		nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001, 65002})}),
+			nexthop,
+			bgp.NewPathAttributeMultiExitDisc(100),
+			bgp.NewPathAttributeCommunities([]uint32{100, 200}),
+		}
+		paths := ProcessMessage(bgp.NewBGPUpdateMessage(nil, attrs, nlris), peerR1(), time.Now(), false)
+
+		b.Run(fmt.Sprintf("paths=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				CreateUpdateMsgFromPaths(paths)
+			}
+		})
+	}
+}
+
 func BenchmarkCreateUpdateMsgFromPathsMP(b *testing.B) {
 	for _, n := range []int{1, 100} {
 		nlris := make([]bgp.PathNLRI, 0, n)

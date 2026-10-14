@@ -296,12 +296,14 @@ func UpdatePathAggregator4ByteAs(msg *bgp.BGPUpdate) error {
 
 type cage struct {
 	attrsBytes []byte
+	nexthops   Nexthops
 	paths      []*Path
 }
 
-func newCage(b []byte, path *Path) *cage {
+func newCage(b []byte, nexthops Nexthops, path *Path) *cage {
 	return &cage{
 		attrsBytes: b,
+		nexthops:   nexthops,
 		paths:      []*Path{path},
 	}
 }
@@ -571,7 +573,14 @@ func (p *packerV4) add(path *Path) {
 		return
 	}
 
-	key := path.GetHash()
+	// Paths with the same attributes and different next hops must not
+	// share an UPDATE, so the next hop is part of the key.
+	nexthops := path.nexthops()
+	global, linkLocal := nexthops.global.As16(), nexthops.linkLocal.As16()
+	key := fnv1a.AddUint64(fnv1a.Init64, path.GetHash())
+	key = fnv1a.AddBytes64(key, global[:])
+	key = fnv1a.AddBytes64(key, linkLocal[:])
+
 	attrsB := bytes.NewBuffer(make([]byte, 0))
 	for _, v := range path.GetPathAttrs() {
 		b, _ := v.Serialize()
@@ -581,17 +590,17 @@ func (p *packerV4) add(path *Path) {
 	if cages, y := p.hashmap[key]; y {
 		added := false
 		for _, c := range cages {
-			if bytes.Equal(c.attrsBytes, attrsB.Bytes()) {
+			if c.nexthops == nexthops && bytes.Equal(c.attrsBytes, attrsB.Bytes()) {
 				c.paths = append(c.paths, path)
 				added = true
 				break
 			}
 		}
 		if !added {
-			p.hashmap[key] = append(p.hashmap[key], newCage(attrsB.Bytes(), path))
+			p.hashmap[key] = append(p.hashmap[key], newCage(attrsB.Bytes(), nexthops, path))
 		}
 	} else {
-		p.hashmap[key] = []*cage{newCage(attrsB.Bytes(), path)}
+		p.hashmap[key] = []*cage{newCage(attrsB.Bytes(), nexthops, path)}
 	}
 }
 
