@@ -73,6 +73,29 @@ func TestRoundTripPrefixSID(t *testing.T) {
 			name:  "srv6 prefix sid",
 			input: []byte{0xc0, 0x28, 0x25, 0x05, 0x00, 0x22, 0x00, 0x01, 0x00, 0x1e, 0x00, 0x20, 0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x13, 0x00, 0x01, 0x00, 0x06, 0x28, 0x18, 0x10, 0x00, 0x10, 0x40},
 		},
+		{
+			// RFC 8669 Section 3.1: Label-Index TLV (type 1). The type is
+			// not implemented, so it must be propagated unmodified.
+			name:  "label-index tlv",
+			input: []byte{0xc0, 0x28, 0x0a, 0x01, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xe8},
+		},
+		{
+			// RFC 8669 Section 3.2: Originator SRGB TLV (type 3).
+			name:  "originator srgb tlv",
+			input: []byte{0xc0, 0x28, 0x0b, 0x03, 0x00, 0x08, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00},
+		},
+		{
+			// An SRv6 L3 Service TLV holding a sub-TLV of an unrecognized
+			// type (0xff).
+			name:  "unknown sub-tlv",
+			input: []byte{0xc0, 0x28, 0x0a, 0x05, 0x00, 0x07, 0x00, 0xff, 0x00, 0x03, 0x01, 0x02, 0x03},
+		},
+		{
+			// An SRv6 SID Information Sub-TLV holding a sub-sub-TLV of an
+			// unrecognized type (0xfe).
+			name:  "unknown sub-sub-tlv",
+			input: []byte{0xc0, 0x28, 0x21, 0x05, 0x00, 0x1e, 0x00, 0x01, 0x00, 0x1a, 0x00, 0x20, 0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x13, 0x00, 0xfe, 0x00, 0x02, 0xab, 0xcd},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -160,7 +183,45 @@ func TestSRv6ServiceTLVUnknownSubTLV(t *testing.T) {
 	s := &SRv6ServiceTLV{}
 	err := s.DecodeFromBytes(input)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, len(s.SubTLVs))
+
+	// RFC 9252 Section 2: the unrecognized sub-TLV is kept so the TLV
+	// propagates unmodified. Dropping it would make Serialize, whose buffer
+	// is sized from the TLV's declared Length, write zero bytes in its
+	// place.
+	assert.Equal(t, 1, len(s.SubTLVs))
+	recovered, err := s.Serialize()
+	assert.NoError(t, err)
+	assert.Equal(t, input, recovered)
+}
+
+func TestPathAttributePrefixSIDTrailingBytes(t *testing.T) {
+	// RFC 8669 Section 6: an attribute that cannot be parsed is discarded.
+	// Bytes left over after the last TLV used to be silently ignored, and
+	// the attribute was re-advertised without them.
+	tests := []struct {
+		name  string
+		input []byte
+	}{
+		{
+			name:  "two stray bytes",
+			input: []byte{0xc0, 0x28, 0x02, 0xde, 0xad},
+		},
+		{
+			name:  "stray byte after a tlv",
+			input: []byte{0xc0, 0x28, 0x04, 0x01, 0x00, 0x00, 0xff},
+		},
+		{
+			name:  "truncated tlv value",
+			input: []byte{0xc0, 0x28, 0x05, 0x01, 0x00, 0x07, 0x00, 0x00},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attribute, err := GetPathAttribute(tt.input)
+			assert.NoError(t, err)
+			assert.Error(t, attribute.DecodeFromBytes(tt.input))
+		})
+	}
 }
 
 func TestSRv6SIDStructureSubSubTLVLength(t *testing.T) {
