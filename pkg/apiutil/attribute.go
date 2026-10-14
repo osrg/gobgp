@@ -432,6 +432,11 @@ func MarshalSRv6TLVs(tlvs []bgp.PrefixSIDTLVInterface) ([]*api.PrefixSID_TLV, er
 				}
 				mtlv.Tlv = &api.PrefixSID_TLV_L2Service{L2Service: o}
 			}
+		case *bgp.PrefixSIDUnknownTLV:
+			// The API has no representation for a TLV of an unknown type;
+			// it is kept on the path only so the attribute is propagated
+			// unmodified (RFC 8669 Section 3).
+			continue
 		default:
 			return nil, fmt.Errorf("invalid prefix sid tlv type to marshal %v", t)
 		}
@@ -463,6 +468,8 @@ func MarshalSRv6SubTLVs(tlvs []bgp.PrefixSIDTLVInterface) (map[uint32]*api.SRv6S
 			// SRv6 Information Sub TLV is type 1 Sub TLV
 			key = 1
 			r.Tlv = &api.SRv6SubTLV_Information{Information: o}
+		case *bgp.PrefixSIDUnknownTLV:
+			continue
 		default:
 			return nil, fmt.Errorf("invalid prefix sid sub tlv type to marshal: %v", t)
 		}
@@ -497,6 +504,8 @@ func MarshalSRv6SubSubTLVs(tlvs []bgp.PrefixSIDTLVInterface) (map[uint32]*api.SR
 			// SRv6 SID Structure Sub Sub TLV is type 1 Sub Sub TLV
 			key = 1
 			r.Tlv = &api.SRv6SubSubTLV_Structure{Structure: o}
+		case *bgp.PrefixSIDUnknownTLV:
+			continue
 		default:
 			return nil, fmt.Errorf("invalid prefix sid sub sub tlv type to marshal: %v", t)
 		}
