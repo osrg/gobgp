@@ -830,9 +830,7 @@ func TestUpdatePathAttrsLinkLocalNexthop(t *testing.T) {
 			path := linkLocalNexthopPath(t, tt.source, tt.nexthops...)
 			updated := UpdatePathAttrs(logger, global, tt.info, path)
 
-			nexthop, linkLocalNexthop := updated.mpReachNexthops()
-			assert.Equal(t, tt.wantNexthop, nexthop)
-			assert.Equal(t, tt.wantLinkLocal, linkLocalNexthop)
+			assert.Equal(t, Nexthops{global: tt.wantNexthop, linkLocal: tt.wantLinkLocal}, updated.nexthops())
 		})
 	}
 }

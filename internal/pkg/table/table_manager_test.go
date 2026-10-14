@@ -2605,9 +2605,7 @@ func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(pList))
 
-			nexthop, linkLocal := pList[0].mpReachNexthops()
-			assert.Equal(t, tt.wantNexthop, nexthop)
-			assert.Equal(t, tt.wantLinkLocal, linkLocal)
+			assert.Equal(t, Nexthops{global: tt.wantNexthop, linkLocal: tt.wantLinkLocal}, pList[0].nexthops())
 			assert.Equal(t, tt.wantResolved, pList[0].GetNexthop())
 		})
 	}

@@ -273,7 +273,8 @@ func (path *Path) learnedOnSameLink(info *PeerInfo) bool {
 // FRR (bpacket_reformat_for_peer) do the same, and both treat an unspecified
 // and a link-local global address alike.
 func updateLinkLocalNexthop(info *PeerInfo, path *Path) {
-	globalNexthop, linkLocalNexthop := path.mpReachNexthops()
+	nexthops := path.nexthops()
+	globalNexthop, linkLocalNexthop := nexthops.global, nexthops.linkLocal
 	// An IPv4 next hop has no link-local form in an MP_REACH_NLRI
 	// attribute, so leave it alone. 169.254.0.0/16 is not handled here.
 	onLink := globalNexthop.Is6() && !globalNexthop.Is4In6() &&
@@ -553,12 +554,34 @@ func (path *Path) GetNexthop() netip.Addr {
 	return netip.Addr{}
 }
 
-func (path *Path) mpReachNexthops() (netip.Addr, netip.Addr) {
+// Nexthops holds the next hops of a path. global is the NEXT_HOP value or
+// the first next hop in MP_REACH_NLRI, and linkLocal is the second one in
+// MP_REACH_NLRI. An invalid netip.Addr means the next hop is absent.
+type Nexthops struct {
+	global, linkLocal netip.Addr
+}
+
+// list returns the valid next hops, the global one first.
+func (n Nexthops) list() []netip.Addr {
+	l := make([]netip.Addr, 0, 2)
+	if n.global.IsValid() {
+		l = append(l, n.global)
+	}
+	if n.linkLocal.IsValid() {
+		l = append(l, n.linkLocal)
+	}
+	return l
+}
+
+// nexthops returns the next hops of path as they are stored. Unlike
+// GetNexthop, it does not pick the link-local next hop when the global
+// one is unspecified.
+func (path *Path) nexthops() Nexthops {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI); attr != nil {
 		mp := attr.(*bgp.PathAttributeMpReachNLRI)
-		return mp.Nexthop, mp.LinkLocalNexthop
+		return Nexthops{global: mp.Nexthop, linkLocal: mp.LinkLocalNexthop}
 	}
-	return netip.Addr{}, netip.Addr{}
+	return Nexthops{global: path.GetNexthop()}
 }
 
 func (path *Path) SetNexthop(nexthop netip.Addr) {
@@ -1226,9 +1249,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 	// comparison uses serialized bytes because it must cover fields outside
 	// the route key (e.g. the TEID of a MUP type-1 session transformed route),
 	// which nlri.String() does not include.
-	lhsNexthop, lhsLinkLocal := lhs.mpReachNexthops()
-	rhsNexthop, rhsLinkLocal := rhs.mpReachNexthops()
-	if lhsNexthop != rhsNexthop || lhsLinkLocal != rhsLinkLocal {
+	if lhs.nexthops() != rhs.nexthops() {
 		return false
 	}
 	lhsNlri, rhsNlri := lhs.GetNlri(), rhs.GetNlri()

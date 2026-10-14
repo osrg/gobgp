@@ -337,57 +337,16 @@ type packerMP struct {
 
 type mpCage struct {
 	attrsBytes []byte
-	nexthops   mpNexthops
+	nexthops   Nexthops
 	paths      []*Path
 }
 
-func newMPCage(b []byte, nexthops mpNexthops, path *Path) *mpCage {
+func newMPCage(b []byte, nexthops Nexthops, path *Path) *mpCage {
 	return &mpCage{
 		attrsBytes: b,
 		nexthops:   nexthops,
 		paths:      []*Path{path},
 	}
-}
-
-// mpNexthops holds the next hops to put in MP_REACH_NLRI. An invalid
-// netip.Addr means the next hop is absent.
-type mpNexthops struct {
-	global, linkLocal netip.Addr
-}
-
-// list returns the valid next hops, the global one first.
-func (n mpNexthops) list() []netip.Addr {
-	l := make([]netip.Addr, 0, 2)
-	if n.global.IsValid() {
-		l = append(l, n.global)
-	}
-	if n.linkLocal.IsValid() {
-		l = append(l, n.linkLocal)
-	}
-	return l
-}
-
-// getMPReachNexthops returns the next hops of path. attrs must be
-// path.GetPathAttrs().
-func getMPReachNexthops(path *Path, attrs []bgp.PathAttributeInterface) mpNexthops {
-	for _, attr := range attrs {
-		if mp, ok := attr.(*bgp.PathAttributeMpReachNLRI); ok {
-			var n mpNexthops
-			if mp.Nexthop.IsValid() {
-				n.global = mp.Nexthop
-			}
-			if mp.LinkLocalNexthop.IsValid() {
-				n.linkLocal = mp.LinkLocalNexthop
-			}
-			return n
-		}
-	}
-
-	var n mpNexthops
-	if nexthop := path.GetNexthop(); nexthop.IsValid() {
-		n.global = nexthop
-	}
-	return n
 }
 
 func (p *packerMP) add(path *Path) {
@@ -408,7 +367,7 @@ func (p *packerMP) add(path *Path) {
 
 func (p *packer) createMPReachMessage(path *Path, nlris []bgp.PathNLRI) *bgp.BGPMessage {
 	oattrs := path.GetPathAttrs()
-	return p.createMPReachMessageWith(path, oattrs, getMPReachNexthops(path, oattrs).list(), nlris)
+	return p.createMPReachMessageWith(path, oattrs, path.nexthops().list(), nlris)
 }
 
 // createMPReachMessageWith is createMPReachMessage for a caller that
@@ -500,7 +459,7 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	// announce packs paths that share the attributes other than
 	// MP_REACH_NLRI and the next hops. attrs and nexthops are those of
 	// paths[0].
-	announce := func(paths []*Path, attrs []bgp.PathAttributeInterface, nexthops mpNexthops) {
+	announce := func(paths []*Path, attrs []bgp.PathAttributeInterface, nexthops Nexthops) {
 		attrsLen := 0
 		for _, attr := range attrs {
 			if attr.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
@@ -527,13 +486,13 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		// A single path is a group by itself, so skip serializing its
 		// attributes for grouping.
 		attrs := p.paths[0].GetPathAttrs()
-		announce(p.paths, attrs, getMPReachNexthops(p.paths[0], attrs))
+		announce(p.paths, attrs, p.paths[0].nexthops())
 	default:
 		hashmap := make(map[uint64][]*mpCage)
 		var attrsB []byte
 		for _, path := range p.paths {
 			attrs := path.GetPathAttrs()
-			nexthops := getMPReachNexthops(path, attrs)
+			nexthops := path.nexthops()
 			attrsB = attrsB[:0]
 			for _, v := range attrs {
 				if v.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
