@@ -1512,15 +1512,10 @@ func (p *Path) ToLocal() *Path {
 		path.SetExtCommunities(newExtComms, true)
 	}
 
-	if f == bgp.RF_IPv4_VPN {
-		nh := path.GetNexthop()
-		path.delPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-		pa, _ := bgp.NewPathAttributeNextHop(nh)
-		path.setPathAttr(pa)
-	}
 	path.IsNexthopInvalid = p.IsNexthopInvalid
 	path.localID = p.localID
 	path.remoteID = p.remoteID
+	path.setNexthops(p.nexthops())
 	return path
 }
 

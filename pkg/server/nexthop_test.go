@@ -337,15 +337,13 @@ func TestNexthopAddPath(t *testing.T) {
 			wantVrf: &apiNexthop{nextHop: "192.0.2.1"},
 		},
 		{
-			// The VRF table is not checked. ToLocal keeps the
-			// MP_REACH_NLRI of the IPv6 VPN path, so the API shows
-			// the VPN family and NLRI for an IPv6 unicast path.
 			name:    "IPv6 unicast in a VRF",
 			family:  bgp.RF_IPv6_UC,
 			nlri:    v6,
 			nexthop: mpReach(bgp.RF_IPv6_UC, v6, "2001:db8::1"),
 			vrf:     true,
 			want:    apiNexthop{mpFamily: bgp.RF_IPv6_VPN, mpNextHops: []string{"2001:db8::1"}, mpNLRIs: []string{vpn6.String()}},
+			wantVrf: &apiNexthop{mpFamily: bgp.RF_IPv6_UC, mpNextHops: []string{"2001:db8::1"}, mpNLRIs: []string{v6.String()}},
 		},
 	} {
 		n, err := apiutil.MarshalNLRI(tt.nlri)

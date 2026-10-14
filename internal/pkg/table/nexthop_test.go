@@ -165,6 +165,15 @@ func flowSpecNLRIs(t *testing.T, prefix string) []bgp.PathNLRI {
 	return []bgp.PathNLRI{{NLRI: nlri}}
 }
 
+func flowSpecVPNNLRIs(t *testing.T, prefix string) []bgp.PathNLRI {
+	t.Helper()
+	dst, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+	require.NoError(t, err)
+	nlri, err := bgp.NewFlowSpecVPN(bgp.RF_FS_IPv4_VPN, bgp.NewRouteDistinguisherTwoOctetAS(65000, 100), []bgp.FlowSpecComponentInterface{bgp.NewFlowSpecDestinationPrefix(dst)})
+	require.NoError(t, err)
+	return []bgp.PathNLRI{{NLRI: nlri}}
+}
+
 // A received path is advertised with the next hops it was received with
 // when nothing rewrites them.
 func TestNexthopReceiveAndSend(t *testing.T) {
@@ -556,9 +565,30 @@ func TestNexthopToLocal(t *testing.T) {
 			want:  sentRoute{family: bgp.RF_IPv4_UC, nexthop: netip.MustParseAddr("192.0.2.1")},
 		},
 		{
+			// It goes out in MP_REACH_NLRI without NEXT_HOP.
+			name:  "IPv4 VPN with an IPv6 next hop",
+			attrs: withMpReach(t, bgp.RF_IPv4_VPN, vpnNLRIs(t, "10.1.0.0/24"), "2001:db8::1"),
+			want:  sentRoute{family: bgp.RF_IPv4_UC, viaMP: true, nexthop: netip.MustParseAddr("2001:db8::1")},
+		},
+		{
 			name:  "IPv6 VPN",
 			attrs: withMpReach(t, bgp.RF_IPv6_VPN, vpnNLRIs(t, "2001:db8:1::/64"), "2001:db8::1"),
 			want:  sentRoute{family: bgp.RF_IPv6_UC, viaMP: true, nexthop: netip.MustParseAddr("2001:db8::1")},
+		},
+		{
+			name:  "IPv6 VPN with a link-local next hop",
+			attrs: withMpReach(t, bgp.RF_IPv6_VPN, vpnNLRIs(t, "2001:db8:1::/64"), "2001:db8::1", "fe80::1"),
+			want: sentRoute{
+				family:    bgp.RF_IPv6_UC,
+				viaMP:     true,
+				nexthop:   netip.MustParseAddr("2001:db8::1"),
+				linkLocal: netip.MustParseAddr("fe80::1"),
+			},
+		},
+		{
+			name:  "IPv4 FlowSpec VPN",
+			attrs: withMpReach(t, bgp.RF_FS_IPv4_VPN, flowSpecVPNNLRIs(t, "10.1.0.0/24")),
+			want:  sentRoute{family: bgp.RF_FS_IPv4_UC, viaMP: true},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
