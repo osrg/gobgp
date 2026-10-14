@@ -237,14 +237,13 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		ExportRt: exportRt,
 	}
 	msgs := make([]*Path, 0, len(importRt))
-	nexthop := netip.IPv4Unspecified()
 	for _, target := range importRt {
 		nlri := bgp.NewRouteTargetMembershipNLRI(info.AS, target)
 		pattr := make([]bgp.PathAttributeInterface, 0, 2)
 		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
-		attr, _ := bgp.NewPathAttributeMpReachNLRI(bgp.RF_RTC_UC, []bgp.PathNLRI{{NLRI: nlri}}, nexthop)
-		pattr = append(pattr, attr)
-		msgs = append(msgs, NewPath(bgp.RF_RTC_UC, info, bgp.PathNLRI{NLRI: nlri}, false, pattr, time.Now(), false))
+		path := NewPath(bgp.RF_RTC_UC, info, bgp.PathNLRI{NLRI: nlri}, false, pattr, time.Now(), false)
+		path.setNexthops(Nexthops{global: netip.IPv4Unspecified()})
+		msgs = append(msgs, path)
 	}
 	return msgs, nil
 }

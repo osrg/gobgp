@@ -584,6 +584,27 @@ func (path *Path) nexthops() Nexthops {
 	return Nexthops{global: path.GetNexthop()}
 }
 
+// setNexthops sets the next hops of path. An IPv4 unicast path with an
+// IPv4 next hop gets NEXT_HOP, and any other path gets MP_REACH_NLRI with
+// its own NLRI. The attribute of the other kind is deleted. The attribute
+// that is set must not be deleted first, because a deleted type hides an
+// attribute of that type set on the same path (see getPathAttr).
+func (path *Path) setNexthops(n Nexthops) {
+	if path.GetFamily() == bgp.RF_IPv4_UC && n.global.Is4() {
+		if path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI) != nil {
+			path.delPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+		}
+		pa, _ := bgp.NewPathAttributeNextHop(n.global)
+		path.setPathAttr(pa)
+		return
+	}
+	if path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) != nil {
+		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	}
+	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.PathNLRI{{NLRI: path.GetNlri(), ID: path.localID}}, n.list()...)
+	path.setPathAttr(mpreach)
+}
+
 func (path *Path) SetNexthop(nexthop netip.Addr) {
 	if path.GetFamily() == bgp.RF_IPv4_UC && nexthop.Is6() {
 		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
@@ -1379,10 +1400,7 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	// such as GetDestLocalKey are built from has to follow it.
 	path.OriginInfo().nlriString = path.OriginInfo().nlri.String()
 	path.SetExtCommunities(v.ExportRt, false)
-	// FIXME: we should not need to keep mp reach in Path.
-	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.family, []bgp.PathNLRI{{NLRI: path.OriginInfo().nlri, ID: path.localID}}, nh)
-	path.setPathAttr(mpreach)
+	path.setNexthops(Nexthops{global: nh})
 	return nil
 }
 
@@ -1448,11 +1466,9 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	}
 	path := NewPath(newFamily, p.OriginInfo().source, bgp.PathNLRI{NLRI: nlri}, p.IsWithdraw, p.GetPathAttrs(), p.GetTimestamp(), false)
 	path.SetExtCommunities(vrf.ExportRt, false)
-	path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-	attr, _ := bgp.NewPathAttributeMpReachNLRI(newFamily, []bgp.PathNLRI{{NLRI: nlri, ID: p.localID}}, nh)
-	path.setPathAttr(attr)
 	path.localID = p.localID
 	path.remoteID = p.remoteID
+	path.setNexthops(Nexthops{global: nh})
 	return path
 }
 
