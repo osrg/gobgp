@@ -2,6 +2,9 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"log/slog"
 	"net/netip"
 	"testing"
 	"time"
@@ -12,12 +15,16 @@ import (
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/mrt"
+	"github.com/osrg/gobgp/v4/pkg/zebra"
 )
 
-// The tests in this file pin the next hop of a path in the API: in the
-// paths that the API shows, and in the paths that AddPath and
-// AddPathStream add. The order of the attributes is not checked.
+// The tests in this file pin the next hop of a path where it leaves or
+// enters the server: in the paths that the API shows, in the paths that
+// AddPath and AddPathStream add, in an MRT table dump, and in the paths
+// made from zebra routes. The order of the attributes is not checked.
 
 // apiNexthop is the next hop part of the attributes of an api.Path.
 type apiNexthop struct {
@@ -423,5 +430,152 @@ func TestNexthopAddPath(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// mrtNexthop is the next hop of one RIB entry in an MRT table dump.
+type mrtNexthop struct {
+	// nextHop is the NEXT_HOP attribute.
+	nextHop string
+	// mpNexthop and mpLinkLocal are from MP_REACH_NLRI. mp is true
+	// when there is one.
+	mp          bool
+	mpNexthop   string
+	mpLinkLocal string
+}
+
+// addrString returns "" for an invalid address.
+func addrString(a netip.Addr) string {
+	if !a.IsValid() {
+		return ""
+	}
+	return a.String()
+}
+
+// An MRT table dump carries the next hops of a path in its RIB entry. An
+// MP_REACH_NLRI there has the next hops only (RFC 6396 4.3.4).
+func TestNexthopMrtDump(t *testing.T) {
+	s := newMrtTestServer(t)
+	s.globalRib = table.NewTableManager(s.logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+
+	peer := &table.PeerInfo{
+		AS:      65100,
+		LocalAS: 65000,
+		ID:      netip.MustParseAddr("10.0.0.2"),
+		Address: netip.MustParseAddr("10.0.0.2"),
+	}
+	update := func(source *table.PeerInfo, nlris []bgp.PathNLRI, attr bgp.PathAttributeInterface) {
+		msg := bgp.NewBGPUpdateMessage(nil, append(nexthopTestAttrs(), attr), nlris)
+		for _, p := range table.ProcessMessage(msg, source, time.Now(), false) {
+			s.globalRib.Update(p)
+		}
+	}
+	mpReach := func(nlri bgp.NLRI, nexthops ...string) bgp.PathAttributeInterface {
+		addrs := make([]netip.Addr, 0, len(nexthops))
+		for _, nh := range nexthops {
+			addrs = append(addrs, netip.MustParseAddr(nh))
+		}
+		a, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri}}, addrs...)
+		require.NoError(t, err)
+		return a
+	}
+
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	update(peer, []bgp.PathNLRI{{NLRI: nexthopTestPrefix(t, "10.1.0.0/24")}}, nh)
+	update(peer, nil, mpReach(nexthopTestPrefix(t, "2001:db8:1::/64"), "2001:db8::1", "fe80::1"))
+	// A local path goes in an ADD-PATH RIB entry.
+	update(nil, nil, mpReach(nexthopTestPrefix(t, "2001:db8:2::/64"), "2001:db8::2"))
+
+	m := &mrtWriter{s: s, c: &oc.MrtConfig{}}
+	got := make(map[string]mrtNexthop)
+	for _, msg := range m.dumpTable() {
+		b, err := msg.Serialize()
+		require.NoError(t, err)
+		h, err := mrt.ParseHeader(b[:mrt.MRT_COMMON_HEADER_LEN])
+		require.NoError(t, err)
+		decoded, err := mrt.ParseBody(b[mrt.MRT_COMMON_HEADER_LEN:], h)
+		require.NoError(t, err)
+		rib, ok := decoded.Body.(*mrt.Rib)
+		if !ok {
+			continue
+		}
+		for _, e := range rib.Entries {
+			var n mrtNexthop
+			for _, a := range e.PathAttributes {
+				switch a := a.(type) {
+				case *bgp.PathAttributeNextHop:
+					n.nextHop = addrString(a.Value)
+				case *bgp.PathAttributeMpReachNLRI:
+					n.mp = true
+					n.mpNexthop = addrString(a.Nexthop)
+					n.mpLinkLocal = addrString(a.LinkLocalNexthop)
+				}
+			}
+			got[fmt.Sprintf("%s id %d", rib.Prefix, e.PathIdentifier)] = n
+		}
+	}
+
+	assert.Equal(t, map[string]mrtNexthop{
+		"10.1.0.0/24 id 0":     {nextHop: "192.0.2.1"},
+		"2001:db8:1::/64 id 0": {mp: true, mpNexthop: "2001:db8::1", mpLinkLocal: "fe80::1"},
+		"2001:db8:2::/64 id 0": {mp: true, mpNexthop: "2001:db8::2"},
+	}, got)
+}
+
+// A path made from a zebra route has the gateway of the route as its
+// next hop.
+func TestNexthopZebraRoute(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	v := zebra.MaxZapiVer
+	software := zebra.NewSoftware(v, "")
+
+	for _, tt := range []struct {
+		name    string
+		prefix  netip.Prefix
+		gateway netip.Addr
+		want    apiNexthop
+	}{
+		{
+			name:    "IPv4",
+			prefix:  netip.MustParsePrefix("10.1.0.0/24"),
+			gateway: netip.MustParseAddr("192.0.2.1"),
+			want:    apiNexthop{nextHop: "192.0.2.1"},
+		},
+		{
+			name:    "IPv6",
+			prefix:  netip.MustParsePrefix("2001:db8:1::/64"),
+			gateway: netip.MustParseAddr("2001:db8::1"),
+			want: apiNexthop{
+				mpFamily:   bgp.RF_IPv6_UC,
+				mpNextHops: []string{"2001:db8::1"},
+				mpNLRIs:    []string{"2001:db8:1::/64"},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &zebra.Message{
+				Header: zebra.Header{
+					Len:     zebra.HeaderSize(v),
+					Marker:  zebra.HeaderMarker(v),
+					Version: v,
+					Command: zebra.RouteAdd.ToEach(v, software),
+				},
+				Body: &zebra.IPRouteBody{
+					Type:     zebra.RouteStatic,
+					Flags:    zebra.FlagSelected.ToEach(v, software),
+					Message:  zebra.MessageNexthop | zebra.MessageMetric.ToEach(v, software),
+					Safi:     zebra.SafiUnicast,
+					Prefix:   zebra.Prefix{Prefix: tt.prefix.Addr(), PrefixLen: uint8(tt.prefix.Bits())},
+					Nexthops: []zebra.Nexthop{{Gate: tt.gateway}},
+					Metric:   100,
+					API:      zebra.RouteAdd.ToEach(v, software),
+				},
+			}
+			path := newPathFromIPRouteMessage(logger, m, v, software)
+			require.NotNil(t, path)
+			assert.Equal(t, tt.gateway, path.GetNexthop())
+			assert.Equal(t, tt.want, apiNexthopOfPath(t, toPathApiUtil(path)))
+		})
 	}
 }
