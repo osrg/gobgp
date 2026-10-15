@@ -16,11 +16,13 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -562,4 +564,44 @@ func TestTcpAoPeerOperations(t *testing.T) {
 	require.NotNil(t, keyBinding)
 	assert.Equal(t, "group-chain", keyBinding.keychain.name)
 	assert.Equal(t, "group-chain", string(peer.fsm.pConf.ReadOnly().TcpAo.Config.Keychain))
+}
+
+func TestTcpAoUpdatePeerWithClosedConnection(t *testing.T) {
+	s := startTcpAoTestServer(t)
+	addTcpAoTestKeychain(t, s, "primary", 1, 1)
+	_, err := s.UpdateTcpAoKeychain(t.Context(), &api.UpdateTcpAoKeychainRequest{
+		Name:    "primary",
+		AddKeys: []*api.TcpAoKey{{SendId: 2, ReceiveId: 2, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("next")}},
+	})
+	require.NoError(t, err)
+	err = s.AddPeer(t.Context(), &api.AddPeerRequest{Peer: tcpAoTestPeer("192.0.2.1", "primary", 1)})
+	require.NoError(t, err)
+
+	peer := s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	require.NotNil(t, peer)
+
+	// The FSM can close a TCP connection while retaining it in fsm.conn.
+	// Model a later peer update that encounters the closed connection.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if errors.Is(err, syscall.EPERM) {
+		t.Skip("environment does not permit creating loopback TCP sockets")
+	}
+	require.NoError(t, err)
+	defer listener.Close()
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	require.NoError(t, err)
+
+	peer.fsm.lock.Lock()
+	peer.fsm.conn = conn
+	peer.fsm.lock.Unlock()
+
+	err = conn.Close()
+	require.NoError(t, err)
+
+	_, err = s.UpdatePeer(t.Context(), &api.UpdatePeerRequest{Peer: tcpAoTestPeer("192.0.2.1", "primary", 2)})
+	require.NoError(t, err)
+	keyBinding := peer.fsm.tcpAoKeyBinding.Load()
+	require.NotNil(t, keyBinding)
+	assert.Equal(t, "primary", keyBinding.keychain.name)
+	assert.EqualValues(t, 2, keyBinding.preferredSendID)
 }
