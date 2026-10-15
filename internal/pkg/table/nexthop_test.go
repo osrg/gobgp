@@ -298,6 +298,40 @@ func TestNexthopReceiveAndSend(t *testing.T) {
 	}
 }
 
+// A path from MP_REACH_NLRI does not use the NEXT_HOP attribute of its
+// UPDATE, and the NEXT_HOP is not sent again with it. RFC 4760 3: "An
+// UPDATE message that carries no NLRI, other than the one encoded in the
+// MP_REACH_NLRI attribute, SHOULD NOT carry the NEXT_HOP attribute. If
+// such a message contains the NEXT_HOP attribute, the BGP speaker that
+// receives the message SHOULD ignore this attribute." A path from the NLRI
+// field of the same UPDATE uses NEXT_HOP.
+func TestNexthopMPReachWithNextHop(t *testing.T) {
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.99"))
+	require.NoError(t, err)
+	v6 := prefixNLRIs(t, "2001:db8:1::/64")
+	v6Route := sentRoute{family: bgp.RF_IPv6_UC, viaMP: true, nexthop: netip.MustParseAddr("2001:db8::1")}
+
+	t.Run("no NLRI in the NLRI field", func(t *testing.T) {
+		paths := receive(t, peerR1(), nil, append(withMpReach(t, bgp.RF_IPv6_UC, v6, "2001:db8::1"), nh))
+		require.Len(t, paths, 1)
+		assert.Equal(t, netip.MustParseAddr("2001:db8::1"), paths[0].GetNexthop())
+		assert.Equal(t, wantRoutes(paths, v6Route), sentRoutes(t, CreateUpdateMsgFromPaths(paths)))
+	})
+
+	t.Run("NLRI in the NLRI field too", func(t *testing.T) {
+		v4 := prefixNLRIs(t, "10.1.0.0/24")
+		paths := receive(t, peerR1(), v4, append(withMpReach(t, bgp.RF_IPv6_UC, v6, "2001:db8::1"), nh))
+		require.Len(t, paths, 2)
+		want := wantRoutes(paths[1:], v6Route)
+		for k, v := range wantRoutes(paths[:1], sentRoute{family: bgp.RF_IPv4_UC, nexthop: netip.MustParseAddr("192.0.2.99")}) {
+			want[k] = v
+		}
+		assert.Equal(t, netip.MustParseAddr("192.0.2.99"), paths[0].GetNexthop())
+		assert.Equal(t, netip.MustParseAddr("2001:db8::1"), paths[1].GetNexthop())
+		assert.Equal(t, want, sentRoutes(t, CreateUpdateMsgFromPaths(paths)))
+	})
+}
+
 // With ADD-PATH the path IDs go out with the next hops of their paths.
 func TestNexthopReceiveAndSendAddPath(t *testing.T) {
 	opt := &bgp.MarshallingOption{AddPath: map[bgp.Family]bgp.BGPAddPathMode{

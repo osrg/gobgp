@@ -135,11 +135,13 @@ func TestNexthopReceivedPathInAPI(t *testing.T) {
 			want:     apiNexthop{nextHop: "192.0.2.1"},
 		},
 		{
+			// It is shown with NEXT_HOP, like a path from the NLRI
+			// field.
 			name:     "IPv4 unicast in MP_REACH_NLRI with an IPv4 next hop",
 			family:   bgp.RF_IPv4_UC,
 			nlris:    v4,
 			nexthops: []string{"192.0.2.1"},
-			want:     apiNexthop{mpFamily: bgp.RF_IPv4_UC, mpNextHops: []string{"192.0.2.1"}},
+			want:     apiNexthop{nextHop: "192.0.2.1"},
 		},
 		{
 			name:     "IPv4 unicast with an IPv6 global and link-local next hop (RFC 5549)",

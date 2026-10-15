@@ -42,18 +42,21 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 		return []*Path{NewEOR(f)}
 	}
 
+	// The next hops are kept out of the path attributes, so all the paths
+	// of the update share one attribute list and one hash.
 	attrs := make([]bgp.PathAttributeInterface, 0, len(update.PathAttributes))
+	var nexthop *bgp.PathAttributeNextHop
 	var reach *bgp.PathAttributeMpReachNLRI
 	var unreach *bgp.PathAttributeMpUnreachNLRI
 	for _, attr := range update.PathAttributes {
 		switch a := attr.(type) {
+		case *bgp.PathAttributeNextHop:
+			nexthop = a
 		case *bgp.PathAttributeMpReachNLRI:
 			reach = a
 		case *bgp.PathAttributeMpUnreachNLRI:
 			unreach = a
 		default:
-			// update msg may not contain next_hop (type:3) in attr
-			// due to it uses MpReachNLRI and it also has empty update.NLRI
 			attrs = append(attrs, attr)
 		}
 	}
@@ -63,7 +66,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 	}
 
 	// one hash shared by every path of this update; must stay in sync
-	// with Path.updateHash (farm.Hash64 over attrs without MP_REACH_NLRI)
+	// with Path.updateHash (farm.Hash64 over the path attributes)
 	var hash uint64
 	if len(attrs) != 0 {
 		total := bytes.NewBuffer(make([]byte, 0))
@@ -84,37 +87,37 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 
 	pathList := make([]*Path, 0, listLen)
 
+	// The NLRIs in the NLRI field use NEXT_HOP, and the NLRIs in
+	// MP_REACH_NLRI do not. RFC 4760 3: "An UPDATE message that carries no
+	// NLRI, other than the one encoded in the MP_REACH_NLRI attribute,
+	// SHOULD NOT carry the NEXT_HOP attribute. If such a message contains
+	// the NEXT_HOP attribute, the BGP speaker that receives the message
+	// SHOULD ignore this attribute."
+	var v4Nexthops *Nexthops
+	if nexthop != nil && !treatAsWithdraw {
+		v4Nexthops = &Nexthops{global: nexthop.Value}
+	}
 	for _, nlri := range update.NLRI {
 		p := NewPath(bgp.RF_IPv4_UC, peerInfo, bgp.PathNLRI{NLRI: nlri.NLRI}, treatAsWithdraw, attrs, timestamp, false)
 		p.remoteID = nlri.ID
+		p.nh = v4Nexthops
 		p.SetHash(hash)
 		pathList = append(pathList, p)
 	}
 
 	if reach != nil {
-		nexthop := reach.Nexthop
+		family := bgp.NewFamily(reach.AFI, reach.SAFI)
 		// RFC 2545 allows a 32 byte next hop that carries a link-local
 		// address after the global one. Keep it, it is the only usable
 		// next hop when the peer has no global address on the link.
-		linkLocalNexthop := reach.LinkLocalNexthop
-		family := bgp.NewFamily(reach.AFI, reach.SAFI)
-
+		var mpNexthops *Nexthops
+		if !treatAsWithdraw {
+			mpNexthops = &Nexthops{global: reach.Nexthop, linkLocal: reach.LinkLocalNexthop}
+		}
 		for _, nlri := range reach.Value {
-			// when build path from reach
-			// reachAttrs might not contain next_hop if `attrs` does not have one
-			// this happens when a MP peer send update to gobgp
-			// However nlri is always populated because how we build the path
-			// path.info{nlri: nlri}
-			// Compute a new attribute array for each path with one NLRI to make serialization
-			// of path attrs faster
-			reachAttrs := []bgp.PathAttributeInterface{}
-			if !treatAsWithdraw {
-				nlriAttr, _ := bgp.NewPathAttributeMpReachNLRI(family, []bgp.PathNLRI{nlri}, nexthop, linkLocalNexthop)
-				reachAttrs = makeAttributeList(attrs, nlriAttr)
-			}
-
-			p := NewPath(family, peerInfo, bgp.PathNLRI{NLRI: nlri.NLRI}, treatAsWithdraw, reachAttrs, timestamp, false)
+			p := NewPath(family, peerInfo, bgp.PathNLRI{NLRI: nlri.NLRI}, treatAsWithdraw, attrs, timestamp, false)
 			p.remoteID = nlri.ID
+			p.nh = mpNexthops
 			p.SetHash(hash)
 			pathList = append(pathList, p)
 		}
@@ -137,16 +140,6 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 	}
 
 	return pathList
-}
-
-func makeAttributeList(
-	attrs []bgp.PathAttributeInterface, reach *bgp.PathAttributeMpReachNLRI,
-) []bgp.PathAttributeInterface {
-	reachAttrs := make([]bgp.PathAttributeInterface, len(attrs)+1)
-	copy(reachAttrs, attrs)
-	// we sort attributes when creating a bgp message from paths
-	reachAttrs[len(reachAttrs)-1] = reach
-	return reachAttrs
 }
 
 type TableManager struct {

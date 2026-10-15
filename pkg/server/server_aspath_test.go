@@ -75,14 +75,14 @@ func asPathTestUpdate(t *testing.T, path *table.Path) *bgp.BGPMessage {
 		if path.IsWithdraw {
 			return bgp.NewBGPUpdateMessage(nlri, nil, nil)
 		}
-		return bgp.NewBGPUpdateMessage(nil, path.GetPathAttrs(), nlri)
+		return bgp.NewBGPUpdateMessage(nil, path.GetFullPathAttrs(), nlri)
 	}
 	if path.IsWithdraw {
 		mp, err := bgp.NewPathAttributeMpUnreachNLRI(path.GetFamily(), nlri)
 		require.NoError(t, err)
 		return bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{mp}, nil)
 	}
-	return bgp.NewBGPUpdateMessage(nil, path.GetPathAttrs(), nil)
+	return bgp.NewBGPUpdateMessage(nil, path.GetFullPathAttrs(), nil)
 }
 
 func TestSoftResetInReevaluatesASPathOptions(t *testing.T) {
@@ -165,7 +165,7 @@ func TestSoftResetInPreservesLoopChecksAndImportPolicy(t *testing.T) {
 		asPathTestPath(t, p, "10.0.3.0/24", 0, 65001),
 	}
 	for _, i := range []int{2, 3} {
-		paths[i] = table.NewPath(paths[i].GetFamily(), p.peerInfo.Load(), bgp.PathNLRI{NLRI: paths[i].GetNlri()}, false, append(paths[i].GetPathAttrs(), originator), time.Now(), false)
+		paths[i] = table.NewPath(paths[i].GetFamily(), p.peerInfo.Load(), bgp.PathNLRI{NLRI: paths[i].GetNlri()}, false, append(paths[i].GetFullPathAttrs(), originator), time.Now(), false)
 	}
 	require.NoError(t, s.mgmtOperation(func() error {
 		for _, path := range paths {

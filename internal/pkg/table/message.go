@@ -379,26 +379,9 @@ func (p *packer) createMPReachMessageWith(path *Path, oattrs []bgp.PathAttribute
 		nlris = []bgp.PathNLRI{{NLRI: path.GetNlri(), ID: p.pathID(path)}}
 	}
 	attrs := make([]bgp.PathAttributeInterface, 0, len(oattrs)+1)
-	replaced := false
-	for _, a := range oattrs {
-		if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-			if !replaced {
-				// Errors silently ignored to match original behavior.
-				if attr, err := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), nlris, nexthops...); err == nil {
-					attrs = append(attrs, attr)
-					replaced = true
-				} else {
-					attrs = append(attrs, a)
-				}
-			}
-		} else {
-			attrs = append(attrs, a)
-		}
-	}
-	if !replaced {
-		if attr, err := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), nlris, nexthops...); err == nil {
-			attrs = append(attrs, attr)
-		}
+	attrs = append(attrs, oattrs...)
+	if attr, err := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), nlris, nexthops...); err == nil {
+		attrs = insertPathAttr(attrs, attr)
 	}
 	return bgp.NewBGPUpdateMessage(nil, attrs, nil)
 }
@@ -458,15 +441,12 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{unreach}, nil))
 	})
 
-	// announce packs paths that share the attributes other than
-	// MP_REACH_NLRI and the next hops. attrs and nexthops are those of
-	// paths[0].
+	// announce packs paths that share the attributes and the next hops.
+	// attrs and nexthops are those of paths[0].
 	announce := func(paths []*Path, attrs []bgp.PathAttributeInterface, nexthops Nexthops) {
 		attrsLen := 0
 		for _, attr := range attrs {
-			if attr.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-				attrsLen += attr.Len()
-			}
+			attrsLen += attr.Len()
 		}
 
 		baseReachLen := 19 + 2 + 2 + attrsLen
@@ -497,9 +477,6 @@ func (p *packerMP) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 			nexthops := path.nexthops()
 			attrsB = attrsB[:0]
 			for _, v := range attrs {
-				if v.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-					continue
-				}
 				b, _ := v.Serialize()
 				attrsB = append(attrsB, b...)
 			}
@@ -649,31 +626,19 @@ func (p *packerV4) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 		for _, c := range cages {
 			paths := c.paths
 
+			// The paths of a cage share the next hop, which is an IPv4
+			// address (see add).
 			attrs := paths[0].GetPathAttrs()
-			// we can apply a fix here when gobgp receives from MP peer
-			// and propagtes to non-MP peer
-			// we should make sure that next-hop exists in pathattrs
-			// while we build the update message
-			// we do not want to modify the `path` though
-			if paths[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) == nil {
-				pa, _ := bgp.NewPathAttributeNextHop(paths[0].GetNexthop())
-				attrs = append(attrs, pa)
-			}
-			// if we have ever reach here
-			// there is no point keeping MP_REACH_NLRI in the announcement
-			attrs_without_mp := make([]bgp.PathAttributeInterface, 0, len(attrs))
-			for _, attr := range attrs {
-				if attr.GetType() != bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-					attrs_without_mp = append(attrs_without_mp, attr)
-				}
+			if pa, err := bgp.NewPathAttributeNextHop(paths[0].GetNexthop()); err == nil {
+				attrs = insertPathAttr(attrs, pa)
 			}
 			attrsLen := 0
-			for _, a := range attrs_without_mp {
+			for _, a := range attrs {
 				attrsLen += a.Len()
 			}
 
 			loop(attrsLen, paths, func(nlris []bgp.PathNLRI) {
-				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs_without_mp, nlris))
+				msgs = append(msgs, bgp.NewBGPUpdateMessage(nil, attrs, nlris))
 			})
 		}
 	}

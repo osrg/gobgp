@@ -145,10 +145,15 @@ type Path struct {
 	pathAttrs []bgp.PathAttributeInterface
 	dels      []bgp.BGPAttrType
 	attrsHash atomic.Uint64
-	localID   uint32
-	remoteID  uint32
-	family    bgp.Family
-	rejected  bool
+	// nh is the next hop of the path. It is never changed after it is
+	// set, so paths can share it: the paths made from one UPDATE do, and
+	// Clone copies the pointer. It is nil when the path has no next hop
+	// information, such as a received withdrawal.
+	nh       *Nexthops
+	localID  uint32
+	remoteID uint32
+	family   bgp.Family
+	rejected bool
 	// doesn't exist in the adj
 	dropped bool
 
@@ -194,6 +199,7 @@ func NewPath(family bgp.Family, source *PeerInfo, pathnlri bgp.PathNLRI, isWithd
 	if pathnlri.NLRI != nil {
 		nlriString = pathnlri.NLRI.String()
 	}
+	pattrs, nh := extractNexthops(pattrs)
 	return &Path{
 		info: &originInfo{
 			nlri:               pathnlri.NLRI,
@@ -205,8 +211,43 @@ func NewPath(family bgp.Family, source *PeerInfo, pathnlri bgp.PathNLRI, isWithd
 		family:     family,
 		IsWithdraw: isWithdraw,
 		pathAttrs:  pattrs,
+		nh:         nh,
 		remoteID:   pathnlri.ID,
 	}
+}
+
+// extractNexthops takes NEXT_HOP and MP_REACH_NLRI out of attrs and
+// returns the rest and the next hops they carry. A path keeps its next hop
+// outside of the path attributes. When both are in attrs, MP_REACH_NLRI is
+// used. attrs is not changed, and it is returned as it is when it has
+// neither attribute.
+func extractNexthops(attrs []bgp.PathAttributeInterface) ([]bgp.PathAttributeInterface, *Nexthops) {
+	found := false
+	for _, a := range attrs {
+		if t := a.GetType(); t == bgp.BGP_ATTR_TYPE_NEXT_HOP || t == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return attrs, nil
+	}
+	var nh, mp *Nexthops
+	rest := make([]bgp.PathAttributeInterface, 0, len(attrs)-1)
+	for _, a := range attrs {
+		switch a := a.(type) {
+		case *bgp.PathAttributeNextHop:
+			nh = &Nexthops{global: a.Value}
+		case *bgp.PathAttributeMpReachNLRI:
+			mp = &Nexthops{global: a.Nexthop, linkLocal: a.LinkLocalNexthop}
+		default:
+			rest = append(rest, a)
+		}
+	}
+	if mp != nil {
+		return rest, mp
+	}
+	return rest, nh
 }
 
 func NewEOR(family bgp.Family) *Path {
@@ -448,6 +489,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		IsNexthopInvalid: path.IsNexthopInvalid,
 		localID:          path.localID,
 		remoteID:         path.remoteID,
+		nh:               path.nh,
 	}
 	p.attrsHash.Store(path.attrsHash.Load())
 	return p
@@ -534,24 +576,16 @@ func (path *Path) GetSourceAs() uint32 {
 }
 
 func (path *Path) GetNexthop() netip.Addr {
-	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-	if attr != nil {
-		return attr.(*bgp.PathAttributeNextHop).Value
+	n := path.nexthops()
+	// A peer with no global address on the link sends an unspecified
+	// global address together with the link-local one. The link-local
+	// address is the only next hop we can use then. The next hops are
+	// kept as they are so that the received form is sent to the peers
+	// that share the link.
+	if n.global.IsUnspecified() && n.linkLocal.IsLinkLocalUnicast() {
+		return n.linkLocal
 	}
-	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-	if attr != nil {
-		mp := attr.(*bgp.PathAttributeMpReachNLRI)
-		// A peer with no global address on the link sends an
-		// unspecified global address together with the link-local one.
-		// The link-local address is the only next hop we can use then.
-		// The attribute is left as it is so that the received form is
-		// kept for the peers that share the link.
-		if mp.Nexthop.IsUnspecified() && mp.LinkLocalNexthop.IsLinkLocalUnicast() {
-			return mp.LinkLocalNexthop
-		}
-		return mp.Nexthop
-	}
-	return netip.Addr{}
+	return n.global
 }
 
 // Nexthops holds the next hops of a path. global is the NEXT_HOP value or
@@ -577,52 +611,61 @@ func (n Nexthops) list() []netip.Addr {
 // GetNexthop, it does not pick the link-local next hop when the global
 // one is unspecified.
 func (path *Path) nexthops() Nexthops {
-	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI); attr != nil {
-		mp := attr.(*bgp.PathAttributeMpReachNLRI)
-		return Nexthops{global: mp.Nexthop, linkLocal: mp.LinkLocalNexthop}
+	if path.nh == nil {
+		return Nexthops{}
 	}
-	return Nexthops{global: path.GetNexthop()}
+	return *path.nh
 }
 
-// setNexthops sets the next hops of path. An IPv4 unicast path with an
-// IPv4 next hop gets NEXT_HOP, and any other path gets MP_REACH_NLRI with
-// its own NLRI. The attribute of the other kind is deleted. The attribute
-// that is set must not be deleted first, because a deleted type hides an
-// attribute of that type set on the same path (see getPathAttr).
+// setNexthops sets the next hops of path.
 func (path *Path) setNexthops(n Nexthops) {
-	if path.GetFamily() == bgp.RF_IPv4_UC && n.global.Is4() {
-		if path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI) != nil {
-			path.delPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-		}
-		pa, _ := bgp.NewPathAttributeNextHop(n.global)
-		path.setPathAttr(pa)
-		return
-	}
-	if path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP) != nil {
-		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-	}
-	mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.PathNLRI{{NLRI: path.GetNlri(), ID: path.localID}}, n.list()...)
-	path.setPathAttr(mpreach)
+	path.nh = &n
 }
 
+// SetNexthop sets nexthop as the next hop of path and drops the
+// link-local one. A path with no next hop information, such as a received
+// withdrawal, is left as it is.
 func (path *Path) SetNexthop(nexthop netip.Addr) {
-	if path.GetFamily() == bgp.RF_IPv4_UC && nexthop.Is6() {
-		path.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.PathNLRI{{NLRI: path.GetNlri(), ID: path.localID}}, nexthop)
-		path.setPathAttr(mpreach)
+	if path.nh == nil {
 		return
 	}
-	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-	if attr != nil {
-		pa, _ := bgp.NewPathAttributeNextHop(nexthop)
-		path.setPathAttr(pa)
+	path.nh = &Nexthops{global: nexthop}
+}
+
+// nexthopAttr returns the attribute that carries the next hop of path: a
+// NEXT_HOP for an IPv4 unicast path with an IPv4 next hop, and an
+// MP_REACH_NLRI with the NLRI of path for any other path. id is the path
+// identifier of the NLRI. It returns nil when path has no next hop
+// information.
+func (path *Path) nexthopAttr(id uint32) bgp.PathAttributeInterface {
+	if path.nh == nil {
+		return nil
 	}
-	attr = path.getPathAttr(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
-	if attr != nil {
-		oldNlri := attr.(*bgp.PathAttributeMpReachNLRI)
-		mpreach, _ := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), oldNlri.Value, nexthop)
-		path.setPathAttr(mpreach)
+	n := *path.nh
+	if path.GetFamily() == bgp.RF_IPv4_UC && n.global.Is4() {
+		a, _ := bgp.NewPathAttributeNextHop(n.global)
+		return a
 	}
+	a, err := bgp.NewPathAttributeMpReachNLRI(path.GetFamily(), []bgp.PathNLRI{{NLRI: path.GetNlri(), ID: id}}, n.list()...)
+	if err != nil {
+		return nil
+	}
+	return a
+}
+
+// insertPathAttr inserts a into attrs before the first attribute with a
+// larger type, so that attrs sorted by type stays sorted. RFC 4271 5:
+// "The sender of an UPDATE message SHOULD order path attributes within
+// the UPDATE message in ascending order of attribute type."
+func insertPathAttr(attrs []bgp.PathAttributeInterface, a bgp.PathAttributeInterface) []bgp.PathAttributeInterface {
+	i := len(attrs)
+	for j, b := range attrs {
+		if b.GetType() > a.GetType() {
+			i = j
+			break
+		}
+	}
+	return slices.Insert(attrs, i, a)
 }
 
 func (path *Path) GetNlri() bgp.NLRI {
@@ -647,12 +690,16 @@ func (a PathAttrs) Less(i, j int) bool {
 // or MP_REACH_NLRI attribute that carries the next hop of the path. Use it
 // where the attributes are shown to a user or written out, such as the API
 // and MRT dumps. Use GetPathAttrs for the attributes that the path itself
-// carries.
+// carries, which never include NEXT_HOP or MP_REACH_NLRI.
 //
-// The next hop is still kept in the path attributes, so this returns
-// the same as GetPathAttrs.
+// An MP_REACH_NLRI carries the NLRI of the path only. A path with no next
+// hop information, such as a received withdrawal, gets neither attribute.
 func (path *Path) GetFullPathAttrs() []bgp.PathAttributeInterface {
-	return path.GetPathAttrs()
+	attrs := path.GetPathAttrs()
+	if a := path.nexthopAttr(path.remoteID); a != nil {
+		attrs = insertPathAttr(attrs, a)
+	}
+	return attrs
 }
 
 func (path *Path) GetPathAttrs() []bgp.PathAttributeInterface {
@@ -1237,7 +1284,7 @@ func (lhs *Path) Equal(rhs *Path) bool {
 	rhsPathAttrs := rhs.GetPathAttrs()
 	// comparing by length first as it's quite fast (with golang slice)
 	// and easy to know if paths are different
-	if len(lhsPathAttrs) == 0 && len(rhsPathAttrs) == 0 {
+	if len(lhsPathAttrs) == 0 && len(rhsPathAttrs) == 0 && lhs.nh == nil && rhs.nh == nil {
 		return lhs.EqualBySourceAndPathID(rhs)
 	}
 
@@ -1275,13 +1322,11 @@ func (lhs *Path) Equal(rhs *Path) bool {
 		}
 	}
 
-	// The attributes hash deliberately excludes MP_REACH_NLRI so it can double
-	// as the UPDATE batching key (see CreateUpdateMsgFromPaths), so its content
-	// -- the nexthops and the NLRI -- must be compared explicitly here; every
-	// other attribute, including NEXT_HOP, is covered by the hash. The NLRI
-	// comparison uses serialized bytes because it must cover fields outside
-	// the route key (e.g. the TEID of a MUP type-1 session transformed route),
-	// which nlri.String() does not include.
+	// The next hops and the NLRI are not path attributes, so the hash does
+	// not cover them and they are compared here. The NLRI comparison uses
+	// serialized bytes because it must cover fields outside the route key
+	// (e.g. the TEID of a MUP type-1 session transformed route), which
+	// nlri.String() does not include.
 	if lhs.nexthops() != rhs.nexthops() {
 		return false
 	}
@@ -1412,7 +1457,7 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	// such as GetDestLocalKey are built from has to follow it.
 	path.OriginInfo().nlriString = path.OriginInfo().nlri.String()
 	path.SetExtCommunities(v.ExportRt, false)
-	path.setNexthops(Nexthops{global: nh})
+	path.SetNexthop(nh)
 	return nil
 }
 
@@ -1480,7 +1525,9 @@ func (p *Path) ToGlobal(vrf *Vrf) *Path {
 	path.SetExtCommunities(vrf.ExportRt, false)
 	path.localID = p.localID
 	path.remoteID = p.remoteID
-	path.setNexthops(Nexthops{global: nh})
+	if p.nh != nil {
+		path.setNexthops(Nexthops{global: nh})
+	}
 	return path
 }
 
@@ -1527,21 +1574,19 @@ func (p *Path) ToLocal() *Path {
 	path.IsNexthopInvalid = p.IsNexthopInvalid
 	path.localID = p.localID
 	path.remoteID = p.remoteID
-	path.setNexthops(p.nexthops())
+	path.nh = p.nh
 	return path
 }
 
 // updateHash must stay in sync with the shared per-UPDATE hash in
 // ProcessMessage (table_manager.go) so that lazily and eagerly hashed
-// paths compare equal. MP_REACH_NLRI is excluded so the hash can double
-// as the UPDATE batching key (see CreateUpdateMsgFromPaths); Equal
-// compares the nexthop and the NLRI explicitly instead.
+// paths compare equal. The hash covers the path attributes only, not the
+// next hops and the NLRI, so it does not change when the next hop is
+// rewritten for a peer. The UPDATE packers mix the next hops in, and
+// Equal compares the next hops and the NLRI itself.
 func (p *Path) updateHash() {
 	total := bytes.NewBuffer(make([]byte, 0))
 	for _, a := range p.GetPathAttrs() {
-		if a.GetType() == bgp.BGP_ATTR_TYPE_MP_REACH_NLRI {
-			continue
-		}
 		d, _ := a.Serialize()
 		total.Write(d)
 	}

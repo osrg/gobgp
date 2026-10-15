@@ -15,6 +15,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPathNewIPv4(t *testing.T) {
@@ -65,9 +66,12 @@ func TestPathGetAttribute(t *testing.T) {
 	peerP := PathCreatePeer()
 	pathP := PathCreatePath(peerP)
 	nh := "192.168.50.1"
-	pa := pathP[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
-	r_nh := pa.(*bgp.PathAttributeNextHop).Value.String()
-	assert.Equal(t, r_nh, nh)
+	assert.Equal(t, nh, pathP[0].GetNexthop().String())
+	// The next hop is kept out of the path attributes.
+	assert.Nil(t, pathP[0].getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP))
+	pa := pathP[0].getPathAttr(bgp.BGP_ATTR_TYPE_ORIGIN)
+	require.NotNil(t, pa)
+	assert.Equal(t, bgp.BGP_ORIGIN_ATTR_TYPE_IGP, pa.(*bgp.PathAttributeOrigin).Value)
 }
 
 func TestASPathLen(t *testing.T) {
@@ -252,11 +256,11 @@ func TestGetPathAttrs(t *testing.T) {
 	paths := PathCreatePath(PathCreatePeer())
 	path0 := paths[0]
 	path1 := path0.Clone(false)
-	path1.delPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP)
+	path1.delPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
+	assert.Nil(t, path1.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC))
 	path2 := path1.Clone(false)
-	nexthopAttr, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
-	path2.setPathAttr(nexthopAttr)
-	assert.NotNil(t, path2.getPathAttr(bgp.BGP_ATTR_TYPE_NEXT_HOP))
+	path2.setPathAttr(bgp.NewPathAttributeMultiExitDisc(100))
+	assert.NotNil(t, path2.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC))
 }
 
 /*
