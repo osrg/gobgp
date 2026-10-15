@@ -364,13 +364,12 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 
 	updateLinkLocalNexthop(info, path)
 
-	localAddress := info.LocalAddress
 	nexthop := path.GetNexthop()
 	switch info.PeerType {
 	case oc.PEER_TYPE_EXTERNAL:
 		// NEXTHOP handling
 		if !path.IsLocal() || nexthop.IsUnspecified() {
-			path.SetNexthop(localAddress)
+			path.setNexthopsShared(info.localAddressNexthops())
 		}
 
 		// remove-private-as handling
@@ -393,7 +392,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 		// if not, don't modify it.
 		// TODO: NEXT-HOP-SELF support
 		if path.IsLocal() && nexthop.IsUnspecified() {
-			path.SetNexthop(localAddress)
+			path.setNexthopsShared(info.localAddressNexthops())
 		}
 
 		// AS_PATH handling for iBGP
@@ -424,7 +423,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 			// address for that session.
 			var attr *bgp.PathAttributeOriginatorId
 			if path.GetFamily() == bgp.RF_RTC_UC {
-				path.SetNexthop(localAddress)
+				path.setNexthopsShared(info.localAddressNexthops())
 				if path.IsLocal() {
 					attr, _ = bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
 				} else {
@@ -630,6 +629,16 @@ func (path *Path) SetNexthop(nexthop netip.Addr) {
 		return
 	}
 	path.nh = &Nexthops{global: nexthop}
+}
+
+// setNexthopsShared sets n as the next hops of path, without making a
+// copy. n must not be changed after this. Like SetNexthop, it leaves a
+// path with no next hop information as it is.
+func (path *Path) setNexthopsShared(n *Nexthops) {
+	if path.nh == nil {
+		return
+	}
+	path.nh = n
 }
 
 // nexthopAttr returns the attribute that carries the next hop of path: a

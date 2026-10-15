@@ -654,3 +654,58 @@ func TestNexthopAddVrfRtcPaths(t *testing.T) {
 	assert.Equal(t, wantRoutes(paths, sentRoute{family: bgp.RF_RTC_UC, viaMP: true, nexthop: netip.IPv4Unspecified()}),
 		sentRoutes(t, CreateUpdateMsgFromPaths(paths)))
 }
+
+// The next hop that UpdatePathAttrs and the next hop policy action set for
+// a peer is made once per PeerInfo and shared by the paths. A PeerInfo
+// that was not made by NewPeerInfo, or whose LocalAddress was changed
+// after that, still gets the right next hop.
+func TestNexthopSharedPerPeer(t *testing.T) {
+	global := &oc.Global{Config: oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("10.0.0.1")}}
+	n := &oc.Neighbor{}
+	n.State.PeerType = oc.PEER_TYPE_EXTERNAL
+	made := NewPeerInfo(global, n, 65200, 65000, netip.MustParseAddr("10.0.0.2"), netip.MustParseAddr("10.0.0.1"),
+		netip.MustParseAddr("10.0.0.2"), netip.MustParseAddr("10.0.0.1"))
+	literal := &PeerInfo{
+		AS:           65200,
+		LocalAS:      65000,
+		PeerType:     oc.PEER_TYPE_EXTERNAL,
+		Address:      netip.MustParseAddr("10.0.0.2"),
+		LocalAddress: netip.MustParseAddr("10.0.0.1"),
+	}
+	changed := *made
+	changed.LocalAddress = netip.MustParseAddr("10.0.0.9")
+
+	paths := receive(t, peerR1(), prefixNLRIs(t, "10.1.0.0/24", "10.2.0.0/24"), withNextHop(t, "192.0.2.1"))
+	require.Len(t, paths, 2)
+
+	a := UpdatePathAttrs(logger, global, made, paths[0])
+	b := UpdatePathAttrs(logger, global, made, paths[1])
+	assert.Equal(t, netip.MustParseAddr("10.0.0.1"), a.GetNexthop())
+	assert.Same(t, a.nh, b.nh)
+	assert.Same(t, made.localNh, a.nh)
+
+	assert.Equal(t, netip.MustParseAddr("10.0.0.1"), UpdatePathAttrs(logger, global, literal, paths[0]).GetNexthop())
+	assert.Equal(t, netip.MustParseAddr("10.0.0.9"), UpdatePathAttrs(logger, global, &changed, paths[0]).GetNexthop())
+
+	for _, tt := range []struct {
+		config oc.BgpNextHopType
+		info   *PeerInfo
+		want   string
+		shared *Nexthops
+	}{
+		{"self", made, "10.0.0.1", made.localNh},
+		{"self", literal, "10.0.0.1", nil},
+		{"peer-address", made, "10.0.0.2", made.addressNh},
+		{"peer-address", literal, "10.0.0.2", nil},
+		{"192.0.2.9", made, "192.0.2.9", nil},
+	} {
+		action, err := NewNexthopAction(tt.config)
+		require.NoError(t, err)
+		p, err := action.Apply(paths[0].Clone(false), &PolicyOptions{Info: tt.info})
+		require.NoError(t, err)
+		assert.Equal(t, netip.MustParseAddr(tt.want), p.GetNexthop(), "%s", tt.config)
+		if tt.shared != nil {
+			assert.Same(t, tt.shared, p.nh, "%s", tt.config)
+		}
+	}
+}

@@ -3430,7 +3430,9 @@ func NewAsPathPrependAction(action oc.SetAsPathPrepend) (*AsPathPrependAction, e
 }
 
 type NexthopAction struct {
-	value       netip.Addr
+	// nexthops is the address to set when the action has one. It is made
+	// once, so that Apply does not allocate.
+	nexthops    *Nexthops
 	self        bool
 	peerAddress bool
 	unchanged   bool
@@ -3444,12 +3446,12 @@ func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) (*Path, error)
 	switch {
 	case a.self:
 		if options != nil && options.Info != nil && options.Info.LocalAddress.IsValid() {
-			path.SetNexthop(options.Info.LocalAddress)
+			path.setNexthopsShared(options.Info.localAddressNexthops())
 		}
 		return path, nil
 	case a.peerAddress:
 		if options != nil && options.Info != nil && options.Info.Address.IsValid() {
-			path.SetNexthop(options.Info.Address)
+			path.setNexthopsShared(options.Info.addressNexthops())
 		}
 		return path, nil
 	case a.unchanged:
@@ -3458,7 +3460,7 @@ func (a *NexthopAction) Apply(path *Path, options *PolicyOptions) (*Path, error)
 		}
 		return path, nil
 	}
-	path.SetNexthop(a.value)
+	path.setNexthopsShared(a.nexthops)
 	return path, nil
 }
 
@@ -3471,7 +3473,7 @@ func (a *NexthopAction) ToConfig() oc.BgpNextHopType {
 	case a.unchanged:
 		return oc.BgpNextHopType("unchanged")
 	}
-	return oc.BgpNextHopType(a.value.String())
+	return oc.BgpNextHopType(a.nexthops.global.String())
 }
 
 func (a *NexthopAction) String() string {
@@ -3504,7 +3506,7 @@ func NewNexthopAction(c oc.BgpNextHopType) (*NexthopAction, error) {
 		return nil, fmt.Errorf("invalid ip address format: %w", err)
 	}
 	return &NexthopAction{
-		value: addr,
+		nexthops: &Nexthops{global: addr},
 	}, nil
 }
 

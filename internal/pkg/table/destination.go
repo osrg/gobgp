@@ -109,6 +109,32 @@ type PeerInfo struct {
 	// PeerGroup is the name of the peer group this peer belongs to. Used for
 	// informational purposes.
 	PeerGroup string
+
+	// localNh and addressNh are LocalAddress and Address as next hops.
+	// They are made once, so that setting them as the next hop of a path
+	// sent to the peer does not allocate. NewPeerInfo sets them; use
+	// localAddressNexthops and addressNexthops to read them.
+	localNh   *Nexthops
+	addressNh *Nexthops
+}
+
+// localAddressNexthops returns LocalAddress as next hops. It makes new
+// ones when info was not made by NewPeerInfo, or when LocalAddress was
+// changed after that.
+func (info *PeerInfo) localAddressNexthops() *Nexthops {
+	if n := info.localNh; n != nil && n.global == info.LocalAddress {
+		return n
+	}
+	return &Nexthops{global: info.LocalAddress}
+}
+
+// addressNexthops returns Address as next hops, in the same way as
+// localAddressNexthops.
+func (info *PeerInfo) addressNexthops() *Nexthops {
+	if n := info.addressNh; n != nil && n.global == info.Address {
+		return n
+	}
+	return &Nexthops{global: info.Address}
 }
 
 func (lhs *PeerInfo) Equal(rhs *PeerInfo) bool {
@@ -159,6 +185,8 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 		Confederation:           g.IsConfederationMember(AS),
 		RemovePrivateAs:         p.State.RemovePrivateAs,
 		PeerGroup:               p.Config.PeerGroup,
+		localNh:                 &Nexthops{global: localAddr},
+		addressNh:               &Nexthops{global: addr},
 	}
 }
 
