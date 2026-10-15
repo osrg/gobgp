@@ -211,6 +211,65 @@ func TestDeletePolicyUnknownStatement(t *testing.T) {
 	assert.Len(t, r.GetStatement("st1"), 0)
 }
 
+func TestRegularPeerPolicyDirections(t *testing.T) {
+	r := NewRoutingPolicy(logger)
+	require.NoError(t, r.Initialize())
+	c := oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{DefaultImportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE}}
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", c))
+	rt, _, err := r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_REJECT, rt)
+	rt, policies, err := r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_EXPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_NONE, rt)
+	require.Empty(t, policies)
+	c.Config.DefaultImportPolicy = oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+	c.Config.ExportPolicyList = []string{"missing"}
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", c))
+	rt, _, err = r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_ACCEPT, rt, "configuration errors retain the existing per-direction behavior")
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", oc.ApplyPolicy{}))
+	rt, policies, err = r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_NONE, rt)
+	require.Empty(t, policies)
+}
+
+func TestPolicyAssignmentConfigDefaults(t *testing.T) {
+	r := NewRoutingPolicy(logger)
+	require.NoError(t, r.Initialize())
+	check := func() {
+		t.Helper()
+		for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+			rt, _, err := r.GetPolicyAssignment(GLOBAL_RIB_NAME, dir)
+			require.NoError(t, err)
+			require.Equal(t, ROUTE_TYPE_ACCEPT, rt, "global resolves an absent assignment to accept")
+			rt, _, err = r.GetPolicyAssignment("192.0.2.1", dir)
+			require.NoError(t, err)
+			require.Equal(t, ROUTE_TYPE_NONE, rt, "regular-peer directions remain unset")
+		}
+	}
+	require.NoError(t, r.SetPeerPolicy(GLOBAL_RIB_NAME, oc.ApplyPolicy{}))
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", oc.ApplyPolicy{}))
+	check()
+	require.NoError(t, r.Reset(&oc.RoutingPolicy{}, map[string]oc.ApplyPolicy{
+		GLOBAL_RIB_NAME: {}, "192.0.2.1": {},
+	}))
+	check()
+	require.NoError(t, r.AddPolicy(&Policy{Name: "continue"}, false))
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+		ImportPolicyList: []string{"continue"}, DefaultExportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE,
+	}}))
+	rt, policies, err := r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_NONE, rt, "an implicit accept default is not stored")
+	require.Len(t, policies, 1)
+	rt, _, err = r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_EXPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_REJECT, rt)
+}
+
 func TestDeletePeerPolicy(t *testing.T) {
 	r := NewRoutingPolicy(logger)
 

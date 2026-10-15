@@ -100,6 +100,9 @@ type pathIDSet map[uint32]struct{}
 type peer struct {
 	tableId string
 	fsm     *fsm
+	// Policy IDs are updated with assignments under the server lock.
+	importPolicyID string
+	exportPolicyID string
 	// configuredConf is the neighbor configuration as the caller passed it,
 	// before SetDefaultNeighborConfigValues merged the peer group, the global
 	// configuration and the derived values into it. updatePeerGroup merges
@@ -154,6 +157,8 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, state bgp.FSMState, loc *table.Tab
 	} else {
 		peer.tableId = table.GLOBAL_RIB_NAME
 	}
+	peer.importPolicyID = peer.tableId
+	peer.exportPolicyID = peer.tableId
 	rfs, _ := oc.AfiSafis(conf.AfiSafis).ToRfList()
 	peer.adjRibIn = table.NewAdjRib(logger, rfs)
 	peer.rtmHandler = table.NewRouteTargetMembershipHandler()
@@ -189,6 +194,26 @@ func (peer *peer) routerID() netip.Addr {
 
 func (peer *peer) TableID() string {
 	return peer.tableId
+}
+
+// updatePolicyIDs resolves assignments only when they change, under the server lock.
+// A regular peer has an assignment when its policy list is non-empty or its
+// default action is explicitly set. Otherwise it uses the global assignment.
+func (peer *peer) updatePolicyIDs() {
+	peer.importPolicyID = peer.tableId
+	peer.exportPolicyID = peer.tableId
+	if peer.isRouteServerClient() {
+		return
+	}
+	id := peer.ID()
+	def, policies, _ := peer.policy.GetPolicyAssignment(id, table.POLICY_DIRECTION_IMPORT)
+	if len(policies) != 0 || def != table.ROUTE_TYPE_NONE {
+		peer.importPolicyID = id
+	}
+	def, policies, _ = peer.policy.GetPolicyAssignment(id, table.POLICY_DIRECTION_EXPORT)
+	if len(policies) != 0 || def != table.ROUTE_TYPE_NONE {
+		peer.exportPolicyID = id
+	}
 }
 
 func (peer *peer) allowAsPathLoopLocal() bool {
