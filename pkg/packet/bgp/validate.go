@@ -30,6 +30,16 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[Family]BGPAddPathMode, isEBGP bool,
 		if _, ok := seen[a.GetType()]; !ok {
 			seen[a.GetType()] = a
 			newAttrs = append(newAttrs, a)
+			// Only the NLRIs in the NLRI field use NEXT_HOP, so its
+			// value is not checked when there are none. RFC 4760 3:
+			// "An UPDATE message that carries no NLRI, other than the
+			// one encoded in the MP_REACH_NLRI attribute, SHOULD NOT
+			// carry the NEXT_HOP attribute. If such a message contains
+			// the NEXT_HOP attribute, the BGP speaker that receives the
+			// message SHOULD ignore this attribute."
+			if a.GetType() == BGP_ATTR_TYPE_NEXT_HOP && len(m.NLRI) == 0 {
+				continue
+			}
 			// check specific path attribute
 			ok, err := ValidateAttribute(a, rfs, isEBGP, isConfed, loopbackNextHopAllowed)
 			if !ok {

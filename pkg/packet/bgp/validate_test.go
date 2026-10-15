@@ -235,6 +235,55 @@ func Test_Validate_invalid_nexthop_zero(t *testing.T) {
 	assert.Equal(nexthopBytes, e.Data)
 }
 
+// The value of NEXT_HOP is checked only when the UPDATE has NLRIs in the
+// NLRI field. An UPDATE with NLRIs only in MP_REACH_NLRI does not use it.
+func Test_Validate_nexthop_without_nlri(t *testing.T) {
+	invalid, err := NewPathAttributeNextHop(netip.MustParseAddr("0.0.0.1"))
+	require.NoError(t, err)
+	rfs := map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_NONE, RF_IPv6_UC: BGP_ADD_PATH_NONE}
+
+	t.Run("MP_REACH_NLRI only", func(t *testing.T) {
+		message := bgpupdateV6().Body.(*BGPUpdate)
+		message.PathAttributes = append(message.PathAttributes, invalid)
+		res, err := ValidateUpdateMsg(message, rfs, false, false, false)
+		assert.NoError(t, err)
+		assert.True(t, res)
+	})
+
+	t.Run("withdrawn routes only", func(t *testing.T) {
+		prefix, err := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+		require.NoError(t, err)
+		message := NewBGPUpdateMessage([]PathNLRI{{NLRI: prefix}}, []PathAttributeInterface{invalid}, nil).Body.(*BGPUpdate)
+		res, err := ValidateUpdateMsg(message, rfs, false, false, false)
+		assert.NoError(t, err)
+		assert.True(t, res)
+	})
+
+	t.Run("NLRI field and MP_REACH_NLRI", func(t *testing.T) {
+		message := bgpupdate().Body.(*BGPUpdate)
+		message.PathAttributes[2] = invalid
+		v6 := bgpupdateV6().Body.(*BGPUpdate)
+		message.PathAttributes = append(message.PathAttributes, v6.PathAttributes[2])
+		res, err := ValidateUpdateMsg(message, rfs, false, false, false)
+		require.Error(t, err)
+		assert.False(t, res)
+		e := err.(*MessageError)
+		assert.Equal(t, uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
+		assert.Equal(t, ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
+	})
+
+	t.Run("NEXT_HOP twice without NLRI", func(t *testing.T) {
+		message := bgpupdateV6().Body.(*BGPUpdate)
+		message.PathAttributes = append(message.PathAttributes, invalid, invalid)
+		res, err := ValidateUpdateMsg(message, rfs, false, false, false)
+		require.Error(t, err)
+		assert.False(t, res)
+		e := err.(*MessageError)
+		assert.Equal(t, uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), e.SubTypeCode)
+		assert.Equal(t, ERROR_HANDLING_ATTRIBUTE_DISCARD, e.ErrorHandling)
+	})
+}
+
 func Test_Validate_invalid_nexthop_lo(t *testing.T) {
 	tests := []struct {
 		desc              string
