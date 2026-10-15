@@ -4259,7 +4259,10 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 			if err == nil {
 				err = setTcpAoConnectionRNext(peer.fsm.conn, tcpAoKeys)
 			}
-			if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				// this can happen if the connection was up previously, update should not fail on this
+				peer.fsm.logger.Debug("TCP-AO key update on a closed connection; new key will be used on reconnect")
+			} else if err != nil {
 				peer.fsm.lock.Unlock()
 				return needsSoftResetIn, fmt.Errorf("failed changing the TCP-AO key for peer %s: %w", addr, err)
 			}
