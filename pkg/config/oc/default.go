@@ -276,7 +276,11 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	return nil
 }
 
-// SetPeerGroupStateValues fills State fields required for table.NewPeerGroupInfo.
+// SetPeerGroupStateValues fills the State fields of pg that follow from
+// its configuration: the local and peer AS, the peer type and the route
+// reflector cluster ID.
+//
+// Deprecated: nothing in gobgp uses it. It will be removed in v5.
 func SetPeerGroupStateValues(pg *PeerGroup, g *Global) error {
 	if pg.Config.LocalAs == 0 {
 		pg.Config.LocalAs = getLocalAsForPeer(g, pg.Config.PeerAs)
