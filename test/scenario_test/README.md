@@ -85,7 +85,7 @@ $ sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
 $ sudo sysctl -w net.ipv6.conf.docker0.disable_ipv6=1
 ```
 
-`tcp_md5_test.py` needs the vrf module:
+`tcp_md5_test.py` and `tcp_ao_test.py` need the vrf module:
 
 ```shell
 $ sudo apt-get install -y linux-modules-extra-$(uname -r)
