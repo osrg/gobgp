@@ -1435,6 +1435,10 @@ func Test_ExtendedCommunitiesAttribute(t *testing.T) {
 			IsIgmpProxy: true,
 			IsMldProxy:  false,
 		}}},
+		{Extcom: &api.ExtendedCommunity_ArpNd{ArpNd: &api.ArpNdExtended{
+			IsRouter: true,
+			IsProxy:  true,
+		}}},
 	}
 
 	input := &api.ExtendedCommunitiesAttribute{

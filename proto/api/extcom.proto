@@ -150,6 +150,15 @@ message MulticastFlagsExtended {
   bool is_mld_proxy = 2;
 }
 
+// EVPN ARP/ND Extended Community (RFC 9047).
+message ArpNdExtended {
+  bool is_router = 1;
+  bool is_override = 2;
+  // Proxy flag that FRR sends; RFC 9047 does not assign this bit.
+  bool is_proxy = 3;
+  bool is_immutable = 4;
+}
+
 message UnknownExtended {
   uint32 type = 1;
   bytes value = 2;
@@ -189,6 +198,7 @@ message ExtendedCommunity {
     MUPIPv4AddressSpecificExtended mup_ipv4_address_specific = 26;
     MUPFourOctetAsSpecificExtended mup_four_octet_as_specific = 27;
     FlowSpecRedirectToIPv4Extended flow_spec_redirect_to_ipv4 = 28;
+    ArpNdExtended arp_nd = 29;
     // The IPv6 form lives in IP6ExtendedCommunitiesAttribute.
   }
 }
