@@ -1,6 +1,7 @@
 package bgp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"net"
 	"net/netip"
@@ -349,6 +350,109 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 	assert.Equal(uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
 	assert.Equal(ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
 	assert.Equal(nexthopBytes, e.Data)
+}
+
+// The next hop in MP_REACH_NLRI gets the same host address check as
+// NEXT_HOP. The FlowSpec families carry no next hop, and an unspecified IPv6
+// next hop is accepted only with a link-local one.
+func Test_Validate_invalid_mpreach_nexthop(t *testing.T) {
+	v4, err := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	require.NoError(t, err)
+	v6, err := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/32"))
+	require.NoError(t, err)
+	vpn, err := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *NewMPLSLabelStack(100), NewRouteDistinguisherTwoOctetAS(65001, 1))
+	require.NoError(t, err)
+	rfs := map[Family]BGPAddPathMode{
+		RF_IPv4_UC:  BGP_ADD_PATH_NONE,
+		RF_IPv6_UC:  BGP_ADD_PATH_NONE,
+		RF_IPv4_VPN: BGP_ADD_PATH_NONE,
+	}
+
+	tests := []struct {
+		desc            string
+		family          Family
+		nlri            NLRI
+		nexthop         string
+		linkLocal       string
+		loopbackAllowed bool
+		wantErr         bool
+	}{
+		{desc: "zero", family: RF_IPv4_UC, nlri: v4, nexthop: "0.0.0.0", wantErr: true},
+		{desc: "loopback", family: RF_IPv4_UC, nlri: v4, nexthop: "127.0.0.1", wantErr: true},
+		{desc: "loopback allowed", family: RF_IPv4_UC, nlri: v4, nexthop: "127.0.0.1", loopbackAllowed: true},
+		{desc: "class D", family: RF_IPv4_UC, nlri: v4, nexthop: "224.0.0.1", wantErr: true},
+		{desc: "class E", family: RF_IPv4_UC, nlri: v4, nexthop: "240.0.0.1", wantErr: true},
+		{desc: "host address", family: RF_IPv4_UC, nlri: v4, nexthop: "192.168.1.1"},
+		{desc: "VPN zero", family: RF_IPv4_VPN, nlri: vpn, nexthop: "0.0.0.0", wantErr: true},
+		{desc: "IPv6 loopback", family: RF_IPv6_UC, nlri: v6, nexthop: "::1", wantErr: true},
+		{desc: "IPv6 loopback allowed", family: RF_IPv6_UC, nlri: v6, nexthop: "::1", loopbackAllowed: true},
+		{desc: "IPv6 multicast", family: RF_IPv6_UC, nlri: v6, nexthop: "ff02::1", wantErr: true},
+		{desc: "IPv6 unspecified", family: RF_IPv6_UC, nlri: v6, nexthop: "::", wantErr: true},
+		{desc: "IPv6 unspecified with link-local", family: RF_IPv6_UC, nlri: v6, nexthop: "::", linkLocal: "fe80::1"},
+		{desc: "IPv6 unspecified with non link-local", family: RF_IPv6_UC, nlri: v6, nexthop: "::", linkLocal: "2001:db8::2", wantErr: true},
+		{desc: "IPv6 host address", family: RF_IPv6_UC, nlri: v6, nexthop: "2001:db8::1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			nexthops := []netip.Addr{netip.MustParseAddr(tt.nexthop)}
+			placeholder := netip.MustParseAddr("fe80::1")
+			if tt.linkLocal != "" {
+				nexthops = append(nexthops, placeholder)
+			}
+			reach, err := NewPathAttributeMpReachNLRI(tt.family, []PathNLRI{{NLRI: tt.nlri}}, nexthops...)
+			require.NoError(t, err)
+			attrs := []PathAttributeInterface{
+				NewPathAttributeOrigin(1),
+				NewPathAttributeAsPath([]AsPathParamInterface{NewAs4PathParam(2, []uint32{65001})}),
+				reach,
+			}
+			// Go through the wire so that the next hop is the decoded one.
+			buf, err := NewBGPUpdateMessage(nil, attrs, nil).Serialize()
+			require.NoError(t, err)
+			if tt.linkLocal != "" {
+				// The constructor drops a second address that is not
+				// link-local, so write the one under test on the wire.
+				from, to := placeholder.As16(), netip.MustParseAddr(tt.linkLocal).As16()
+				buf = bytes.Replace(buf, from[:], to[:], 1)
+			}
+			m, err := ParseBGPMessage(buf)
+			require.NoError(t, err)
+			message := m.Body.(*BGPUpdate)
+
+			res, err := ValidateUpdateMsg(message, rfs, true, false, tt.loopbackAllowed)
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				assert.True(t, res)
+				return
+			}
+			require.Error(t, err)
+			assert.False(t, res)
+			e := err.(*MessageError)
+			assert.Equal(t, uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+			assert.Equal(t, uint8(BGP_ERROR_SUB_OPTIONAL_ATTRIBUTE_ERROR), e.SubTypeCode)
+			assert.Equal(t, ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
+		})
+	}
+
+	t.Run("flowspec", func(t *testing.T) {
+		// RFC 8955 4: the next hop field MUST be ignored. The constructor
+		// writes a zero length next hop for FlowSpec, so build the
+		// attribute by hand.
+		prefix, err := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+		require.NoError(t, err)
+		nlri, err := NewFlowSpecUnicast(RF_FS_IPv4_UC, []FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(prefix)})
+		require.NoError(t, err)
+		reach := &PathAttributeMpReachNLRI{
+			PathAttribute: PathAttribute{Flags: PathAttrFlags[BGP_ATTR_TYPE_MP_REACH_NLRI], Type: BGP_ATTR_TYPE_MP_REACH_NLRI},
+			AFI:           AFI_IP,
+			SAFI:          SAFI_FLOW_SPEC_UNICAST,
+			Nexthop:       netip.MustParseAddr("0.0.0.0"),
+			Value:         []PathNLRI{{NLRI: nlri}},
+		}
+		res, err := ValidateAttribute(reach, map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_NONE}, true, false, false)
+		assert.NoError(t, err)
+		assert.True(t, res)
+	})
 }
 
 func Test_Validate_unrecognized_well_known(t *testing.T) {
