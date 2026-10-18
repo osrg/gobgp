@@ -112,6 +112,7 @@ type Capability struct {
 	//	*Capability_Fqdn
 	//	*Capability_SoftwareVersion
 	//	*Capability_ExtendedMessage
+	//	*Capability_PathsLimit
 	Cap           isCapability_Cap `protobuf_oneof:"cap"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -280,6 +281,15 @@ func (x *Capability) GetExtendedMessage() *ExtendedMessageCapability {
 	return nil
 }
 
+func (x *Capability) GetPathsLimit() *PathsLimitCapability {
+	if x != nil {
+		if x, ok := x.Cap.(*Capability_PathsLimit); ok {
+			return x.PathsLimit
+		}
+	}
+	return nil
+}
+
 type isCapability_Cap interface {
 	isCapability_Cap()
 }
@@ -340,6 +350,10 @@ type Capability_ExtendedMessage struct {
 	ExtendedMessage *ExtendedMessageCapability `protobuf:"bytes,14,opt,name=extended_message,json=extendedMessage,proto3,oneof"`
 }
 
+type Capability_PathsLimit struct {
+	PathsLimit *PathsLimitCapability `protobuf:"bytes,15,opt,name=paths_limit,json=pathsLimit,proto3,oneof"`
+}
+
 func (*Capability_Unknown) isCapability_Cap() {}
 
 func (*Capability_MultiProtocol) isCapability_Cap() {}
@@ -367,6 +381,8 @@ func (*Capability_Fqdn) isCapability_Cap() {}
 func (*Capability_SoftwareVersion) isCapability_Cap() {}
 
 func (*Capability_ExtendedMessage) isCapability_Cap() {}
+
+func (*Capability_PathsLimit) isCapability_Cap() {}
 
 type MultiProtocolCapability struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1147,6 +1163,105 @@ func (x *SoftwareVersionCapability) GetSoftwareVersion() string {
 	return ""
 }
 
+type PathsLimitCapabilityTuple struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Family *Family                `protobuf:"bytes,1,opt,name=family,proto3" json:"family,omitempty"`
+	// The most paths per prefix to receive; 0 is no limit.
+	Limit         uint32 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PathsLimitCapabilityTuple) Reset() {
+	*x = PathsLimitCapabilityTuple{}
+	mi := &file_api_capability_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PathsLimitCapabilityTuple) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PathsLimitCapabilityTuple) ProtoMessage() {}
+
+func (x *PathsLimitCapabilityTuple) ProtoReflect() protoreflect.Message {
+	mi := &file_api_capability_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PathsLimitCapabilityTuple.ProtoReflect.Descriptor instead.
+func (*PathsLimitCapabilityTuple) Descriptor() ([]byte, []int) {
+	return file_api_capability_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *PathsLimitCapabilityTuple) GetFamily() *Family {
+	if x != nil {
+		return x.Family
+	}
+	return nil
+}
+
+func (x *PathsLimitCapabilityTuple) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// PathsLimitCapability is the Paths-Limit capability for ADD-PATH
+// (draft-abraitis-idr-addpath-paths-limit, Capability Code 76).
+type PathsLimitCapability struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Tuples        []*PathsLimitCapabilityTuple `protobuf:"bytes,1,rep,name=tuples,proto3" json:"tuples,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PathsLimitCapability) Reset() {
+	*x = PathsLimitCapability{}
+	mi := &file_api_capability_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PathsLimitCapability) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PathsLimitCapability) ProtoMessage() {}
+
+func (x *PathsLimitCapability) ProtoReflect() protoreflect.Message {
+	mi := &file_api_capability_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PathsLimitCapability.ProtoReflect.Descriptor instead.
+func (*PathsLimitCapability) Descriptor() ([]byte, []int) {
+	return file_api_capability_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *PathsLimitCapability) GetTuples() []*PathsLimitCapabilityTuple {
+	if x != nil {
+		return x.Tuples
+	}
+	return nil
+}
+
 type UnknownCapability struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          uint32                 `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
@@ -1157,7 +1272,7 @@ type UnknownCapability struct {
 
 func (x *UnknownCapability) Reset() {
 	*x = UnknownCapability{}
-	mi := &file_api_capability_proto_msgTypes[18]
+	mi := &file_api_capability_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1169,7 +1284,7 @@ func (x *UnknownCapability) String() string {
 func (*UnknownCapability) ProtoMessage() {}
 
 func (x *UnknownCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_api_capability_proto_msgTypes[18]
+	mi := &file_api_capability_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1182,7 +1297,7 @@ func (x *UnknownCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnknownCapability.ProtoReflect.Descriptor instead.
 func (*UnknownCapability) Descriptor() ([]byte, []int) {
-	return file_api_capability_proto_rawDescGZIP(), []int{18}
+	return file_api_capability_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UnknownCapability) GetCode() uint32 {
@@ -1203,7 +1318,7 @@ var File_api_capability_proto protoreflect.FileDescriptor
 
 const file_api_capability_proto_rawDesc = "" +
 	"\n" +
-	"\x14api/capability.proto\x12\x03api\x1a\x10api/common.proto\"\x9a\b\n" +
+	"\x14api/capability.proto\x12\x03api\x1a\x10api/common.proto\"\xd8\b\n" +
 	"\n" +
 	"Capability\x122\n" +
 	"\aunknown\x18\x01 \x01(\v2\x16.api.UnknownCapabilityH\x00R\aunknown\x12E\n" +
@@ -1220,7 +1335,9 @@ const file_api_capability_proto_rawDesc = "" +
 	"\x13route_refresh_cisco\x18\v \x01(\v2 .api.RouteRefreshCiscoCapabilityH\x00R\x11routeRefreshCisco\x12)\n" +
 	"\x04fqdn\x18\f \x01(\v2\x13.api.FqdnCapabilityH\x00R\x04fqdn\x12K\n" +
 	"\x10software_version\x18\r \x01(\v2\x1e.api.SoftwareVersionCapabilityH\x00R\x0fsoftwareVersion\x12K\n" +
-	"\x10extended_message\x18\x0e \x01(\v2\x1e.api.ExtendedMessageCapabilityH\x00R\x0fextendedMessageB\x05\n" +
+	"\x10extended_message\x18\x0e \x01(\v2\x1e.api.ExtendedMessageCapabilityH\x00R\x0fextendedMessage\x12<\n" +
+	"\vpaths_limit\x18\x0f \x01(\v2\x19.api.PathsLimitCapabilityH\x00R\n" +
+	"pathsLimitB\x05\n" +
 	"\x03cap\">\n" +
 	"\x17MultiProtocolCapability\x12#\n" +
 	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\"\x18\n" +
@@ -1265,7 +1382,12 @@ const file_api_capability_proto_rawDesc = "" +
 	"\vdomain_name\x18\x02 \x01(\tR\n" +
 	"domainName\"F\n" +
 	"\x19SoftwareVersionCapability\x12)\n" +
-	"\x10software_version\x18\x01 \x01(\tR\x0fsoftwareVersion\"=\n" +
+	"\x10software_version\x18\x01 \x01(\tR\x0fsoftwareVersion\"V\n" +
+	"\x19PathsLimitCapabilityTuple\x12#\n" +
+	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\rR\x05limit\"N\n" +
+	"\x14PathsLimitCapability\x126\n" +
+	"\x06tuples\x18\x01 \x03(\v2\x1e.api.PathsLimitCapabilityTupleR\x06tuples\"=\n" +
 	"\x11UnknownCapability\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\rR\x04code\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\fR\x05valueB\"Z github.com/osrg/gobgp/v4/api;apib\x06proto3"
@@ -1283,7 +1405,7 @@ func file_api_capability_proto_rawDescGZIP() []byte {
 }
 
 var file_api_capability_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_capability_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_api_capability_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_api_capability_proto_goTypes = []any{
 	(AddPathCapabilityTuple_Mode)(0),                // 0: api.AddPathCapabilityTuple.Mode
 	(*Capability)(nil),                              // 1: api.Capability
@@ -1304,11 +1426,13 @@ var file_api_capability_proto_goTypes = []any{
 	(*RouteRefreshCiscoCapability)(nil),             // 16: api.RouteRefreshCiscoCapability
 	(*FqdnCapability)(nil),                          // 17: api.FqdnCapability
 	(*SoftwareVersionCapability)(nil),               // 18: api.SoftwareVersionCapability
-	(*UnknownCapability)(nil),                       // 19: api.UnknownCapability
-	(*Family)(nil),                                  // 20: api.Family
+	(*PathsLimitCapabilityTuple)(nil),               // 19: api.PathsLimitCapabilityTuple
+	(*PathsLimitCapability)(nil),                    // 20: api.PathsLimitCapability
+	(*UnknownCapability)(nil),                       // 21: api.UnknownCapability
+	(*Family)(nil),                                  // 22: api.Family
 }
 var file_api_capability_proto_depIdxs = []int32{
-	19, // 0: api.Capability.unknown:type_name -> api.UnknownCapability
+	21, // 0: api.Capability.unknown:type_name -> api.UnknownCapability
 	2,  // 1: api.Capability.multi_protocol:type_name -> api.MultiProtocolCapability
 	3,  // 2: api.Capability.route_refresh:type_name -> api.RouteRefreshCapability
 	5,  // 3: api.Capability.carrying_label_info:type_name -> api.CarryingLabelInfoCapability
@@ -1322,22 +1446,25 @@ var file_api_capability_proto_depIdxs = []int32{
 	17, // 11: api.Capability.fqdn:type_name -> api.FqdnCapability
 	18, // 12: api.Capability.software_version:type_name -> api.SoftwareVersionCapability
 	4,  // 13: api.Capability.extended_message:type_name -> api.ExtendedMessageCapability
-	20, // 14: api.MultiProtocolCapability.family:type_name -> api.Family
-	20, // 15: api.ExtendedNexthopCapabilityTuple.nlri_family:type_name -> api.Family
-	20, // 16: api.ExtendedNexthopCapabilityTuple.nexthop_family:type_name -> api.Family
-	6,  // 17: api.ExtendedNexthopCapability.tuples:type_name -> api.ExtendedNexthopCapabilityTuple
-	20, // 18: api.GracefulRestartCapabilityTuple.family:type_name -> api.Family
-	8,  // 19: api.GracefulRestartCapability.tuples:type_name -> api.GracefulRestartCapabilityTuple
-	20, // 20: api.AddPathCapabilityTuple.family:type_name -> api.Family
-	0,  // 21: api.AddPathCapabilityTuple.mode:type_name -> api.AddPathCapabilityTuple.Mode
-	11, // 22: api.AddPathCapability.tuples:type_name -> api.AddPathCapabilityTuple
-	20, // 23: api.LongLivedGracefulRestartCapabilityTuple.family:type_name -> api.Family
-	14, // 24: api.LongLivedGracefulRestartCapability.tuples:type_name -> api.LongLivedGracefulRestartCapabilityTuple
-	25, // [25:25] is the sub-list for method output_type
-	25, // [25:25] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	20, // 14: api.Capability.paths_limit:type_name -> api.PathsLimitCapability
+	22, // 15: api.MultiProtocolCapability.family:type_name -> api.Family
+	22, // 16: api.ExtendedNexthopCapabilityTuple.nlri_family:type_name -> api.Family
+	22, // 17: api.ExtendedNexthopCapabilityTuple.nexthop_family:type_name -> api.Family
+	6,  // 18: api.ExtendedNexthopCapability.tuples:type_name -> api.ExtendedNexthopCapabilityTuple
+	22, // 19: api.GracefulRestartCapabilityTuple.family:type_name -> api.Family
+	8,  // 20: api.GracefulRestartCapability.tuples:type_name -> api.GracefulRestartCapabilityTuple
+	22, // 21: api.AddPathCapabilityTuple.family:type_name -> api.Family
+	0,  // 22: api.AddPathCapabilityTuple.mode:type_name -> api.AddPathCapabilityTuple.Mode
+	11, // 23: api.AddPathCapability.tuples:type_name -> api.AddPathCapabilityTuple
+	22, // 24: api.LongLivedGracefulRestartCapabilityTuple.family:type_name -> api.Family
+	14, // 25: api.LongLivedGracefulRestartCapability.tuples:type_name -> api.LongLivedGracefulRestartCapabilityTuple
+	22, // 26: api.PathsLimitCapabilityTuple.family:type_name -> api.Family
+	19, // 27: api.PathsLimitCapability.tuples:type_name -> api.PathsLimitCapabilityTuple
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_api_capability_proto_init() }
@@ -1361,6 +1488,7 @@ func file_api_capability_proto_init() {
 		(*Capability_Fqdn)(nil),
 		(*Capability_SoftwareVersion)(nil),
 		(*Capability_ExtendedMessage)(nil),
+		(*Capability_PathsLimit)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1368,7 +1496,7 @@ func file_api_capability_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_capability_proto_rawDesc), len(file_api_capability_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   19,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

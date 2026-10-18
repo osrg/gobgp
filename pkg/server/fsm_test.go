@@ -3071,3 +3071,24 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 		})
 	}
 }
+
+// With ADD-PATH receive the OPEN also carries the Paths-Limit capability
+// with no limit for those families, like FRR; without ADD-PATH it does not.
+func TestCapabilitiesPathsLimit(t *testing.T) {
+	afs := []oc.AfiSafi{
+		{State: oc.AfiSafiState{Family: bgp.RF_IPv4_UC}, AddPaths: oc.AddPaths{State: oc.AddPathsState{Receive: true}}},
+		{State: oc.AfiSafiState{Family: bgp.RF_EVPN}, AddPaths: oc.AddPaths{State: oc.AddPathsState{SendMax: 2}}},
+		{State: oc.AfiSafiState{Family: bgp.RF_IPv6_UC}},
+	}
+	limits := func(afs []oc.AfiSafi) []*bgp.CapPathsLimitTuple {
+		for _, c := range capabilitiesFromConfig(&oc.Neighbor{AfiSafis: afs}) {
+			if pl, ok := c.(*bgp.CapPathsLimit); ok {
+				return pl.Tuples
+			}
+		}
+		return nil
+	}
+	require.Equal(t, []*bgp.CapPathsLimitTuple{{Family: bgp.RF_IPv4_UC, Limit: 0}}, limits(afs))
+	require.Nil(t, limits(afs[1:]), "ADD-PATH send only")
+	require.Nil(t, limits(afs[2:]), "no ADD-PATH")
+}

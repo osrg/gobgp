@@ -43,6 +43,7 @@ message Capability {
     FqdnCapability fqdn = 12;
     SoftwareVersionCapability software_version = 13;
     ExtendedMessageCapability extended_message = 14;
+    PathsLimitCapability paths_limit = 15;
   }
 }
 
@@ -123,6 +124,18 @@ message FqdnCapability {
 
 message SoftwareVersionCapability {
   string software_version = 1;
+}
+
+message PathsLimitCapabilityTuple {
+  api.Family family = 1;
+  // The most paths per prefix to receive; 0 is no limit.
+  uint32 limit = 2;
+}
+
+// PathsLimitCapability is the Paths-Limit capability for ADD-PATH
+// (draft-abraitis-idr-addpath-paths-limit, Capability Code 76).
+message PathsLimitCapability {
+  repeated PathsLimitCapabilityTuple tuples = 1;
 }
 
 message UnknownCapability {

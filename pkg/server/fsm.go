@@ -1475,7 +1475,18 @@ func capabilitiesFromConfig(pConf *oc.Neighbor) []bgp.ParameterCapabilityInterfa
 
 	// ADD-PATH Capability
 	if c := capAddPathFromConfig(pConf); c != nil {
-		caps = append(caps, capAddPathFromConfig(pConf))
+		caps = append(caps, c)
+		// Paths-Limit capability: no limit (0) for the families that
+		// receive with ADD-PATH, like FRR's default.
+		var limits []*bgp.CapPathsLimitTuple
+		for _, t := range c.(*bgp.CapAddPath).Tuples {
+			if t.Mode&bgp.BGP_ADD_PATH_RECEIVE != 0 {
+				limits = append(limits, bgp.NewCapPathsLimitTuple(t.Family, 0))
+			}
+		}
+		if len(limits) > 0 {
+			caps = append(caps, bgp.NewCapPathsLimit(limits))
+		}
 	}
 
 	return caps
