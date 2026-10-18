@@ -1214,12 +1214,86 @@ func Test_UnknownIP6Extended_RoundTrip(t *testing.T) {
 	assert.Equal(raw, serialized, "round-trip must be byte-for-byte identical")
 }
 
+// An UPDATE with an EVPN MAC/IP route and the ARP/ND Extended Community
+// (RFC 9047), as FRR sends it for a neighbor that it learned as a router.
+func Test_UpdateWithEvpnArpNdExtended(t *testing.T) {
+	raw := []byte{
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0x00, 0x69, 0x02, // length 105, UPDATE
+		0x00, 0x00, // withdrawn routes length
+		0x00, 0x52, // path attributes length 82
+		0x40, 0x01, 0x01, 0x00, // ORIGIN IGP
+		0x40, 0x02, 0x00, // AS_PATH empty
+		0x90, 0x0e, 0x00, 0x3c, // MP_REACH_NLRI, length 60
+		0x00, 0x19, 0x46, // AFI L2VPN, SAFI EVPN
+		0x04, 0x0a, 0x00, 0x00, 0x01, // next hop 10.0.0.1
+		0x00,       // reserved
+		0x02, 0x31, // MAC/IP Advertisement route, length 49
+		0x00, 0x00, 0xfd, 0xe8, 0x00, 0x00, 0x00, 0x64, // RD 65000:100
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // ESI
+		0x00, 0x00, 0x00, 0x00, // Ethernet Tag
+		0x30, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, // MAC
+		0x80, 0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // fe80::1
+		0x00, 0x27, 0x11, // label
+		0xc0, 0x10, 0x08, // EXTENDED_COMMUNITIES, length 8
+		0x06, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, // ARP/ND, Router flag
+	}
+	m, err := ParseBGPMessage(raw)
+	require.NoError(t, err)
+
+	var ec *PathAttributeExtendedCommunities
+	for _, a := range m.Body.(*BGPUpdate).PathAttributes {
+		if e, ok := a.(*PathAttributeExtendedCommunities); ok {
+			ec = e
+		}
+	}
+	require.NotNil(t, ec)
+	require.Len(t, ec.Value, 1)
+	assert.Equal(t, &ArpNdExtended{IsRouter: true}, ec.Value[0])
+
+	out, err := m.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, raw, out)
+}
+
+func Test_ArpNdExtended(t *testing.T) {
+	for _, tt := range []struct {
+		flags byte
+		want  *ArpNdExtended
+		str   string
+	}{
+		{0x00, &ArpNdExtended{}, "arp-nd: "},
+		{0x01, &ArpNdExtended{IsRouter: true}, "arp-nd: router"},
+		{0x02, &ArpNdExtended{IsOverride: true}, "arp-nd: override"},
+		{0x04, &ArpNdExtended{IsProxy: true}, "arp-nd: proxy"},
+		{0x08, &ArpNdExtended{IsImmutable: true}, "arp-nd: immutable"},
+		{0x0f, NewArpNdExtended(true, true, true, true), "arp-nd: router,override,proxy,immutable"},
+	} {
+		raw := []byte{0x06, 0x08, tt.flags, 0x00, 0x00, 0x00, 0x00, 0x00}
+		e, err := ParseExtended(raw)
+		require.NoError(t, err)
+		assert.Equal(t, tt.want, e)
+		assert.Equal(t, tt.str, e.String())
+		b, err := e.Serialize()
+		require.NoError(t, err)
+		assert.Equal(t, raw, b)
+	}
+
+	// RFC 9047: the other bits "MUST be set to zero and ignored on receipt".
+	e, err := ParseExtended([]byte{0x06, 0x08, 0xf1, 0x00, 0x00, 0x00, 0x00, 0x00})
+	require.NoError(t, err)
+	assert.Equal(t, &ArpNdExtended{IsRouter: true}, e)
+	b, err := e.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{0x06, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00}, b)
+}
+
 func Test_UnknownEvpnExtended_RoundTrip(t *testing.T) {
 	assert := assert.New(t)
 
 	// EVPN Extended Community with a Sub-Type this package does not parse
-	// (0x08, ARP/ND, RFC 9047), Router flag set.
-	raw := []byte{0x06, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00}
+	// (0x06, DF Election, RFC 8584).
+	raw := []byte{0x06, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 	e, err := ParseExtended(raw)
 	require.NoError(t, err)
