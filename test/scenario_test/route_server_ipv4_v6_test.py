@@ -45,8 +45,13 @@ class GoBGPIPv6Test(unittest.TestCase):
                             log_level=parser_option.gobgp_log_level)
         q1 = QuaggaBGPContainer(name='q1', asn=65003, router_id='192.168.0.3')
         q2 = QuaggaBGPContainer(name='q2', asn=65004, router_id='192.168.0.4')
-        q3 = QuaggaBGPContainer(name='q3', asn=65005, router_id='192.168.0.5')
-        q4 = QuaggaBGPContainer(name='q4', asn=65006, router_id='192.168.0.6')
+        # Without zebra, Quagga knows no interface and sends "::" as the
+        # IPv6 next hop. Connected routes are not redistributed, so that
+        # only the routes added below are advertised.
+        q3 = QuaggaBGPContainer(name='q3', asn=65005, router_id='192.168.0.5',
+                                zebra=True, redistribute_connected=False)
+        q4 = QuaggaBGPContainer(name='q4', asn=65006, router_id='192.168.0.6',
+                                zebra=True, redistribute_connected=False)
 
         ctns = [g1, q1, q2, q3, q4]
         v4 = [q1, q2]

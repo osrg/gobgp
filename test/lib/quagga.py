@@ -38,11 +38,14 @@ class QuaggaBGPContainer(BGPContainer):
     WAIT_FOR_BOOT = 1
     SHARED_VOLUME = '/etc/quagga'
 
-    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', bgpd_config=None, zebra=False):
+    def __init__(self, name, asn, router_id, ctn_image_name='osrg/quagga', bgpd_config=None, zebra=False,
+                 redistribute_connected=True):
         super(QuaggaBGPContainer, self).__init__(name, asn, router_id,
                                                  ctn_image_name)
         self.shared_volumes.append((self.config_dir, self.SHARED_VOLUME))
         self.zebra = zebra
+        # Only used with zebra.
+        self.redistribute_connected = redistribute_connected
 
         # bgp_config is equivalent to config.BgpConfigSet structure
         # Example:
@@ -220,7 +223,7 @@ class QuaggaBGPContainer(BGPContainer):
                 c << 'neighbor {0} activate'.format(n_addr)
                 c << 'exit-address-family'
 
-        if self.zebra:
+        if self.zebra and self.redistribute_connected:
             if version == 6:
                 c << 'address-family ipv6 unicast'
                 c << 'redistribute connected'

@@ -2,7 +2,6 @@ package bgp
 
 import (
 	"fmt"
-	"net"
 	"net/netip"
 	"slices"
 	"strconv"
@@ -99,6 +98,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 	eSubCodeBadNextHop := uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE)
 	eSubCodeUnknown := uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE)
 	eSubCodeMalformedAspath := uint8(BGP_ERROR_SUB_MALFORMED_AS_PATH)
+	eSubCodeOptAttr := uint8(BGP_ERROR_SUB_OPTIONAL_ATTRIBUTE_ERROR)
 
 	checkPrefix := func(family Family, l []PathNLRI) error {
 		if _, ok := rfs[family]; !ok {
@@ -129,6 +129,17 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 		if err := checkPrefix(NewFamily(p.AFI, p.SAFI), p.Value); err != nil {
 			return false, err
 		}
+		// The FlowSpec families carry no next hop (RFC 8955 4: the field
+		// MUST be ignored), and neither does the opaque family.
+		if p.SAFI != SAFI_FLOW_SPEC_UNICAST && p.SAFI != SAFI_FLOW_SPEC_VPN && p.SAFI != SAFI_KEY_VALUE &&
+			!validNexthop(p.Nexthop, p.LinkLocalNexthop, loopbackNextHopAllowed) {
+			eMsg := "invalid nexthop address in MP_REACH_NLRI"
+			data, _ := a.Serialize()
+			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeOptAttr, data, ERROR_HANDLING_TREAT_AS_WITHDRAW, nil, eMsg)
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
+		}
 	case *PathAttributeOrigin:
 		v := p.Value
 		if v != BGP_ORIGIN_ATTR_TYPE_IGP &&
@@ -142,23 +153,7 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			}
 		}
 	case *PathAttributeNextHop:
-
-		isZero := func(ip net.IP) bool {
-			res := ip[0] & 0xff
-			return res == 0x00
-		}
-
-		isClassDorE := func(ip net.IP) bool {
-			if ip.To4() == nil {
-				// needs to verify ipv6 too?
-				return false
-			}
-			res := ip[0] & 0xe0
-			return res == 0xe0
-		}
-		addr := net.IP(p.Value.AsSlice())
-		// check IP address represents host address
-		if !loopbackNextHopAllowed && p.Value.IsLoopback() || isZero(addr) || isClassDorE(addr) {
+		if !validNexthop(p.Value, netip.Addr{}, loopbackNextHopAllowed) {
 			eMsg := "invalid nexthop address"
 			data, _ := a.Serialize()
 			e := NewMessageErrorWithErrorHandling(eCode, eSubCodeBadNextHop, data, getErrorHandlingFromPathAttribute(p.GetType()), nil, eMsg)
@@ -214,6 +209,25 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 	}
 
 	return strongestError == nil, strongestError
+}
+
+// validNexthop reports whether addr is a valid IP host address for a next
+// hop (RFC 4271 6.3): not unspecified, not loopback unless the session is on
+// loopback, not multicast, and for IPv4 not in 0.0.0.0/8 or class E either.
+// An unspecified IPv6 addr is accepted only when linkLocal is a link-local
+// address.
+func validNexthop(addr, linkLocal netip.Addr, loopbackAllowed bool) bool {
+	if addr.Is6() && addr.IsUnspecified() {
+		return linkLocal.IsLinkLocalUnicast()
+	}
+	if addr.IsUnspecified() || addr.IsMulticast() || addr.IsLoopback() && !loopbackAllowed {
+		return false
+	}
+	if addr.Is4() {
+		b := addr.As4()
+		return b[0] != 0 && b[0]&0xe0 != 0xe0
+	}
+	return true
 }
 
 // validator for PathAttribute

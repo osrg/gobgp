@@ -2360,7 +2360,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 			remoteAddr, _ := netip.AddrFromSlice(remoteTCP.IP)
 			localTCP := fsm.conn.LocalAddr().(*net.TCPAddr)
 			localAddr, _ := netip.AddrFromSlice(localTCP.IP)
-			h.allowLoopback = remoteAddr.Is4() && localAddr.Is4() && remoteAddr.IsLoopback() && localAddr.IsLoopback()
+			h.allowLoopback = remoteAddr.IsLoopback() && localAddr.IsLoopback()
 
 			nextState, reason = h.established(ctx)
 		}
