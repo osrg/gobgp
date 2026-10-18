@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1250,6 +1251,244 @@ func BenchmarkCreateUpdateMsgFromPathsMP(b *testing.B) {
 			for b.Loop() {
 				CreateUpdateMsgFromPaths(paths)
 			}
+		})
+	}
+}
+
+// A path whose attributes leave no room for its NLRI in an UPDATE is not
+// dropped by the packer. It goes in an UPDATE of its own, which fails to
+// serialize and is logged when it is sent.
+func TestCreateUpdateMsgFromPathsAttrsTooLong(t *testing.T) {
+	communities := make([]uint32, 1100) // 4400 bytes, over 4096
+	for i := range communities {
+		communities[i] = uint32(i)
+	}
+	for _, tt := range []struct {
+		name   string
+		family bgp.Family
+		prefix string
+		nh     string
+	}{
+		{"IPv4", bgp.RF_IPv4_UC, "10.1.0.0/24", "192.0.2.1"},
+		{"IPv6", bgp.RF_IPv6_UC, "2001:db8:1::/64", "2001:db8::1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(tt.prefix))
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0),
+				bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{100})}),
+				bgp.NewPathAttributeCommunities(communities),
+			}
+			var msg *bgp.BGPMessage
+			if tt.family == bgp.RF_IPv4_UC {
+				nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(tt.nh))
+				msg = bgp.NewBGPUpdateMessage(nil, append(attrs, nh), []bgp.PathNLRI{{NLRI: nlri}})
+			} else {
+				mp, _ := bgp.NewPathAttributeMpReachNLRI(tt.family, []bgp.PathNLRI{{NLRI: nlri}}, netip.MustParseAddr(tt.nh))
+				msg = bgp.NewBGPUpdateMessage(nil, append(attrs, mp), nil)
+			}
+			paths := ProcessMessage(msg, peerR1(), time.Now(), false)
+			require.Len(t, paths, 1)
+
+			msgs := CreateUpdateMsgFromPaths(paths)
+			n := 0
+			for _, m := range msgs {
+				u := m.Body.(*bgp.BGPUpdate)
+				n += len(u.NLRI)
+				for _, a := range u.PathAttributes {
+					if mp, ok := a.(*bgp.PathAttributeMpReachNLRI); ok {
+						n += len(mp.Value)
+					}
+				}
+				_, err := m.Serialize()
+				assert.Error(t, err, "the UPDATE is too long for a peer without extended messages")
+			}
+			assert.Equal(t, 1, n, "the NLRI must not be dropped")
+		})
+	}
+}
+
+// IPv4 unicast paths with the same IPv6 next hop (RFC 5549) go in one
+// MP_REACH_NLRI.
+func TestMergeV4NLRIsWithIPv6Nexthop(t *testing.T) {
+	nlris := make([]bgp.PathNLRI, 0, 3)
+	for i := range 3 {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("10.%d.0.0/24", i)))
+		nlris = append(nlris, bgp.PathNLRI{NLRI: nlri})
+	}
+	reach, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv4_UC, nlris, netip.MustParseAddr("2001:db8::1"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{100})}),
+		reach,
+	}
+	paths := ProcessMessage(bgp.NewBGPUpdateMessage(nil, attrs, nil), peerR1(), time.Now(), false)
+	require.Len(t, paths, 3)
+
+	msgs := CreateUpdateMsgFromPaths(paths)
+	require.Len(t, msgs, 1)
+	u := msgs[0].Body.(*bgp.BGPUpdate)
+	assert.Empty(t, u.NLRI)
+	var got *bgp.PathAttributeMpReachNLRI
+	for _, a := range u.PathAttributes {
+		if mp, ok := a.(*bgp.PathAttributeMpReachNLRI); ok {
+			got = mp
+		}
+	}
+	require.NotNil(t, got)
+	assert.Equal(t, netip.MustParseAddr("2001:db8::1"), got.Nexthop)
+	assert.Len(t, got.Value, 3)
+}
+
+// The NLRIs in the NLRI field are packed by their real length, not by the
+// longest possible one.
+func TestMergeV4NLRIsByLength(t *testing.T) {
+	// 1000 /24 prefixes take 4000 bytes, which fit in one UPDATE with
+	// small attributes.
+	nlris := make([]bgp.PathNLRI, 0, 1000)
+	for i := range 1000 {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("10.%d.%d.0/24", i/256, i%256)))
+		nlris = append(nlris, bgp.PathNLRI{NLRI: nlri})
+	}
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{100})}),
+		nh,
+	}
+	paths := ProcessMessage(bgp.NewBGPUpdateMessage(nil, attrs, nlris), peerR1(), time.Now(), false)
+	require.Len(t, paths, 1000)
+
+	for _, tt := range []struct {
+		name  string
+		paths []*Path
+	}{
+		{"announce", paths},
+		{"withdraw", func() []*Path {
+			w := make([]*Path, 0, len(paths))
+			for _, p := range paths {
+				w = append(w, p.Clone(true))
+			}
+			return w
+		}()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			msgs := CreateUpdateMsgFromPaths(tt.paths)
+			require.Len(t, msgs, 1)
+			b, err := msgs[0].Serialize()
+			require.NoError(t, err)
+			assert.LessOrEqual(t, len(b), bgp.BGP_MAX_MESSAGE_LENGTH)
+		})
+	}
+}
+
+// An UPDATE that fills 4096 bytes, received from a peer without extended
+// messages, gets 14 more bytes of ORIGINATOR_ID and CLUSTER_LIST when it is
+// reflected to a route reflector client. The packer used to panic on that.
+func TestCreateUpdateMsgFromPathsReflectedFullUpdate(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("0.0.0.0/0"))
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65000})}),
+		nh,
+	}
+	used := 0
+	for _, a := range attrs {
+		used += a.Len()
+	}
+	// 4096 = 19 + 2 + 2 + attributes + 1 byte of NLRI. COMMUNITIES
+	// takes 4 bytes of header with the extended length.
+	communities := make([]uint32, (4096-19-2-2-1-used-4)/4)
+	for i := range communities {
+		communities[i] = uint32(i)
+	}
+	msg := bgp.NewBGPUpdateMessage(nil, append(attrs, bgp.NewPathAttributeCommunities(communities)), []bgp.PathNLRI{{NLRI: nlri}})
+	b, err := msg.Serialize()
+	require.NoError(t, err)
+	require.Len(t, b, bgp.BGP_MAX_MESSAGE_LENGTH)
+	msg, err = bgp.ParseBGPMessage(b)
+	require.NoError(t, err)
+
+	source := &PeerInfo{AS: 65000, LocalAS: 65000, ID: netip.MustParseAddr("10.0.0.2"), Address: netip.MustParseAddr("10.0.0.2")}
+	paths := ProcessMessage(msg, source, time.Now(), false)
+	require.Len(t, paths, 1)
+
+	global := &oc.Global{Config: oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("10.0.0.1")}}
+	client := &PeerInfo{
+		AS:                      65000,
+		LocalAS:                 65000,
+		PeerType:                oc.PEER_TYPE_INTERNAL,
+		RouteReflectorClient:    true,
+		RouteReflectorClusterID: netip.MustParseAddr("10.0.0.1"),
+		Address:                 netip.MustParseAddr("10.0.0.3"),
+		LocalAddress:            netip.MustParseAddr("10.0.0.1"),
+	}
+	msgs := CreateUpdateMsgFromPaths([]*Path{UpdatePathAttrs(logger, global, client, paths[0])})
+	require.Len(t, msgs, 1)
+	assert.Len(t, msgs[0].Body.(*bgp.BGPUpdate).NLRI, 1)
+	_, err = msgs[0].Serialize()
+	assert.Error(t, err, "too long for a peer without extended messages")
+}
+
+// The packer sizes UPDATEs by the serialized attributes, not by Len().
+// Len() comes from the Length field, which PrependAsn leaves stale when it
+// changes AS_PATH in place, so UPDATEs sized by it came out too long.
+func TestCreateUpdateMsgFromPathsAfterPrepend(t *testing.T) {
+	action, err := NewAsPathPrependAction(oc.SetAsPathPrepend{As: "65000", RepeatN: 2})
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name   string
+		family bgp.Family
+		prefix func(int) string
+	}{
+		{"IPv4 /24", bgp.RF_IPv4_UC, func(i int) string { return fmt.Sprintf("10.%d.%d.0/24", i/256, i%256) }},
+		{"IPv4 /32", bgp.RF_IPv4_UC, func(i int) string { return fmt.Sprintf("10.0.%d.%d/32", i/256, i%256) }},
+		{"IPv6 /48", bgp.RF_IPv6_UC, func(i int) string { return fmt.Sprintf("2001:db8:%x::/48", i) }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			nlris := make([]bgp.PathNLRI, 0, 1100)
+			for i := range 1100 {
+				nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(tt.prefix(i)))
+				nlris = append(nlris, bgp.PathNLRI{NLRI: nlri})
+			}
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0),
+				bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}),
+			}
+			var msg *bgp.BGPMessage
+			if tt.family == bgp.RF_IPv4_UC {
+				nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+				msg = bgp.NewBGPUpdateMessage(nil, append(attrs, nh), nlris)
+			} else {
+				reach, _ := bgp.NewPathAttributeMpReachNLRI(tt.family, nlris, netip.MustParseAddr("2001:db8::1"))
+				msg = bgp.NewBGPUpdateMessage(nil, append(attrs, reach), nil)
+			}
+			paths := ProcessMessage(msg, peerR1(), time.Now(), false)
+			require.Len(t, paths, 1100)
+
+			prepended := make([]*Path, 0, len(paths))
+			for _, p := range paths {
+				c, err := action.Apply(p.Clone(false), nil)
+				require.NoError(t, err)
+				prepended = append(prepended, c)
+			}
+
+			n := 0
+			for _, m := range CreateUpdateMsgFromPaths(prepended) {
+				_, err := m.Serialize()
+				require.NoError(t, err)
+				u := m.Body.(*bgp.BGPUpdate)
+				n += len(u.NLRI)
+				for _, a := range u.PathAttributes {
+					if mp, ok := a.(*bgp.PathAttributeMpReachNLRI); ok {
+						n += len(mp.Value)
+					}
+				}
+			}
+			assert.Equal(t, 1100, n)
 		})
 	}
 }

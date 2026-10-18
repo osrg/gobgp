@@ -665,7 +665,7 @@ func TestPathEqual(t *testing.T) {
 
 // A path hashed eagerly in ProcessMessage and an identical one hashed
 // lazily via updateHash must produce the same value, or Equal reports a
-// spurious difference and packerV4 batching splits buckets.
+// spurious difference.
 func TestPathAttrsHashConsistency(t *testing.T) {
 	teid := netip.MustParseAddr("0.0.0.100")
 	nh := netip.MustParseAddr("10.0.0.1")
