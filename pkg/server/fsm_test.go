@@ -1697,8 +1697,8 @@ func TestSendMessageloop_KillSignal(t *testing.T) {
 	// sendMessageloop should return (not hang) when it encounters the
 	// non-path message during drain or on the next outer select iteration.
 	select {
-	case <-errCh:
-		// success -- the loop exited
+	case err := <-errCh:
+		assert.NoError(t, err)
 	case <-time.After(2 * time.Second):
 		t.Fatal("sendMessageloop did not exit after non-path message")
 	}
