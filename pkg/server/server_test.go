@@ -6033,3 +6033,75 @@ func TestServeConcurrentCallsRunOnce(t *testing.T) {
 		t.Fatal("a Serve call did not return")
 	}
 }
+
+// RFC 8950 Section 4: an IPv4 or VPN-IPv4 path with an IPv6 next hop is sent
+// only to a peer that advertised the Extended Next Hop Encoding capability
+// for the family of the path.
+func TestPostFilterpathExtendedNexthop(t *testing.T) {
+	prefix := netip.MustParsePrefix("192.0.2.17/32")
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(65000, 100)
+	ipNLRI, err := bgp.NewIPAddrPrefix(prefix)
+	require.NoError(t, err)
+	labeledNLRI, err := bgp.NewLabeledIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(100))
+	require.NoError(t, err)
+	vpnNLRI, err := bgp.NewLabeledVPNIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(100), rd)
+	require.NoError(t, err)
+
+	enhe := func(tuples ...*bgp.CapExtendedNexthopTuple) map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface {
+		return map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface{
+			bgp.BGP_CAP_EXTENDED_NEXTHOP: {bgp.NewCapExtendedNexthop(tuples)},
+		}
+	}
+
+	for _, tc := range []struct {
+		family bgp.Family
+		nlri   bgp.NLRI
+		other  bgp.Family
+	}{
+		{bgp.RF_IPv4_UC, ipNLRI, bgp.RF_IPv6_UC},
+		{bgp.RF_IPv4_MC, ipNLRI, bgp.RF_IPv4_UC},
+		{bgp.RF_IPv4_MPLS, labeledNLRI, bgp.RF_IPv4_UC},
+		{bgp.RF_IPv4_VPN, vpnNLRI, bgp.RF_IPv4_UC},
+		{bgp.RF_IPv4_VPN_MC, vpnNLRI, bgp.RF_IPv4_VPN},
+	} {
+		t.Run(tc.family.String(), func(t *testing.T) {
+			s := NewBgpServer()
+			rib := table.NewTableManager(logger, []bgp.Family{tc.family}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+			peer := newPeerandInfo(t, 65000, 65001, "2001:db8::2", rib)
+			info := peer.peerInfo.Load()
+			newPath := func(nexthop string) *table.Path {
+				reach, err := bgp.NewPathAttributeMpReachNLRI(tc.family, []bgp.PathNLRI{{NLRI: tc.nlri}}, netip.MustParseAddr(nexthop))
+				require.NoError(t, err)
+				return table.NewPath(tc.family, info, bgp.PathNLRI{NLRI: tc.nlri}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), reach}, time.Now(), false)
+			}
+			v4 := newPath("192.0.2.1")
+			// An IPv4-mapped IPv6 address is sent as a 16 octet next hop,
+			// so it needs the capability too.
+			v6 := []string{"2001:db8::1", "::ffff:192.0.2.1"}
+
+			for _, c := range []struct {
+				name   string
+				capMap map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+				v6Sent bool
+			}{
+				{"no capability", nil, false},
+				{
+					"tuple for another family and next hop AFI IPv4 only",
+					enhe(bgp.NewCapExtendedNexthopTuple(tc.other, bgp.AFI_IP6), bgp.NewCapExtendedNexthopTuple(tc.family, bgp.AFI_IP)),
+					false,
+				},
+				{"tuple for the family", enhe(bgp.NewCapExtendedNexthopTuple(tc.other, bgp.AFI_IP6), bgp.NewCapExtendedNexthopTuple(tc.family, bgp.AFI_IP6)), true},
+			} {
+				peer.fsm.capMap = c.capMap
+				for _, nh := range v6 {
+					got := s.postFilterpath(peer, newPath(nh))
+					require.NotNil(t, got, c.name)
+					require.Equal(t, !c.v6Sent, got.IsWithdraw, "%s: next hop %s", c.name, nh)
+				}
+				got := s.postFilterpath(peer, v4)
+				require.NotNil(t, got, c.name)
+				require.False(t, got.IsWithdraw, "%s: IPv4 next hop", c.name)
+			}
+		})
+	}
+}
