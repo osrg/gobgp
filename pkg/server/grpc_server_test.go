@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -253,6 +254,18 @@ func attrs(attrs []bgp.PathAttributeInterface) []*api.Attribute {
 	return apiAttrs
 }
 
+// NewBgpServer starts the gRPC listener in a goroutine, so the unix socket
+// may not exist yet when it returns. A client RPC sent before that fails with
+// Unavailable.
+func waitGRPCSocket(t *testing.T, socketAddr string) {
+	t.Helper()
+	path := strings.TrimPrefix(socketAddr, "unix://")
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(path)
+		return err == nil
+	}, 10*time.Second, 10*time.Millisecond, "gRPC socket %s was not created", path)
+}
+
 //nolint:errcheck // WatchEvent won't return an error here
 func GRPCwaitState(t *testing.T, s api.GoBgpServiceClient, state api.PeerState_SessionState, expectedFamilies ...bgp.Family) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
@@ -260,7 +273,7 @@ func GRPCwaitState(t *testing.T, s api.GoBgpServiceClient, state api.PeerState_S
 	wg.Add(1)
 
 	resp, err := s.WatchEvent(watchCtx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}})
-	assert.NoError(t, err, "failed to start watch event")
+	require.NoError(t, err, "failed to start watch event")
 
 	go func() {
 		for {
@@ -329,6 +342,7 @@ func TestGRPCWatchEvent(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
+	waitGRPCSocket(t, socketAddr)
 
 	conn, err := grpc.NewClient(socketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.NoError(err)
@@ -559,12 +573,7 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 	if err != nil {
 		return
 	}
-	if !assert.Eventually(func() bool {
-		_, statErr := os.Stat(socketName + "/gobgp.sock")
-		return statErr == nil
-	}, time.Second, 10*time.Millisecond) {
-		return
-	}
+	waitGRPCSocket(t, socketAddr)
 
 	conn, err := grpc.NewClient(socketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.NoError(err)
@@ -847,6 +856,7 @@ func TestGRPCWatchEventPeerUnsetAddresses(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	waitGRPCSocket(t, socketAddr)
 
 	conn, err := grpc.NewClient(socketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
