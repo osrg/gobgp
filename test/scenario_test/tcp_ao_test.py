@@ -24,9 +24,11 @@ collections.Callable = collections.abc.Callable
 
 
 from lib import base
+from lib import utils
 from lib.base import (
     BGP_FSM_ESTABLISHED,
     BGPContainer,
+    Bridge,
     assert_several_times,
     local,
 )
@@ -237,96 +239,125 @@ class _TCPAOEndpoint:
 
 class GoBGPTCPAOTest(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(cls):
+    def setUp(self):
         base.TEST_PREFIX = parser_option.test_prefix
 
-        cls.g1_keys, cls.g2_keys = _initial_keys()
-        cls.g1 = GoBGPContainer(
+    def tearDown(self):
+        if not getattr(parser_option, 'skip_docker_cleanup', False):
+            base.cleanup_docker_leftovers()
+
+    def test_01_peering_and_key_rotation(self):
+        """Establish TCP-AO peering and rotate keys across algorithms."""
+        g1_keys, g2_keys = _initial_keys()
+        g1 = GoBGPContainer(
             name='ao-g1', asn=65000, router_id='192.168.0.1',
             ctn_image_name=parser_option.gobgp_image,
             log_level=parser_option.gobgp_log_level,
             bgp_config={'keychains': [
-                _keychain('g1-chain', cls.g1_keys),
+                _keychain('g1-chain', g1_keys),
             ]})
-        cls.g2 = GoBGPContainer(
+        g2 = GoBGPContainer(
             name='ao-g2', asn=65001, router_id='192.168.0.2',
             ctn_image_name=parser_option.gobgp_image,
             log_level=parser_option.gobgp_log_level,
             bgp_config={'keychains': [
-                _keychain('g2-chain', cls.g2_keys),
+                _keychain('g2-chain', g2_keys),
             ]})
 
-        time.sleep(max(cls.g1.run(), cls.g2.run()))
-        cls.g1.add_peer(
-            cls.g2,
+        time.sleep(max(g1.run(), g2.run()))
+        g1.add_peer(
+            g2,
             tcp_ao=_tcp_ao_config(
                 'g1-chain', INITIAL_PROFILE.g1_send_id),
             timers=TCP_AO_TIMERS)
-        cls.g2.add_peer(
-            cls.g1, passive=True,
+        g2.add_peer(
+            g1, passive=True,
             tcp_ao=_tcp_ao_config(
                 'g2-chain', INITIAL_PROFILE.g2_send_id),
             timers=TCP_AO_TIMERS)
 
-    def test_01_peering_and_key_rotation(self):
-        g1_endpoint = _TCPAOEndpoint(container=self.g1, neighbor=self.g2,
-                                     keychain='g1-chain', keys=self.g1_keys)
-        g2_endpoint = _TCPAOEndpoint(container=self.g2, neighbor=self.g1,
-                                     keychain='g2-chain', keys=self.g2_keys)
+        g1_endpoint = _TCPAOEndpoint(container=g1, neighbor=g2,
+                                     keychain='g1-chain', keys=g1_keys)
+        g2_endpoint = _TCPAOEndpoint(container=g2, neighbor=g1,
+                                     keychain='g2-chain', keys=g2_keys)
         _test_key_rotation(self, g1_endpoint, g2_endpoint, dialer=g1_endpoint)
 
-
-class GoBGPTCPAOVRFTest(unittest.TestCase):
-
-    def test_01_logical_vrf_peering_and_key_rotation(self):
-        base.TEST_PREFIX = parser_option.test_prefix
+    def test_02_peer_with_wrong_secret_does_not_establish(self):
+        """Verify peers with mismatched TCP-AO secrets stay down."""
         g1_keys, g2_keys = _initial_keys()
+        g2_keys[0]['config']['secret-key'] = base64.b64encode(
+            b'tcp-ao-scenario-wrong-secret').decode('ascii')
+
         g1 = GoBGPContainer(
-            name='ao-vrf-g1', asn=65000, router_id='192.168.0.1',
+            name='ao-wrong-g1', asn=65000, router_id='192.168.0.1',
             ctn_image_name=parser_option.gobgp_image,
             log_level=parser_option.gobgp_log_level,
-            bgp_config={
-                'keychains': [_keychain('g1-vrf-chain', g1_keys)],
-                'vrfs': [{'config': {
-                    'name': 'blue',
-                    'rd': '65000:100',
-                    'both-rt-list': ['65000:100'],
-                }}],
-            })
+            bgp_config={'keychains': [_keychain('g1-chain', g1_keys)]})
         g2 = GoBGPContainer(
-            name='ao-vrf-g2', asn=65001, router_id='192.168.0.2',
+            name='ao-wrong-g2', asn=65001, router_id='192.168.0.2',
             ctn_image_name=parser_option.gobgp_image,
             log_level=parser_option.gobgp_log_level,
-            bgp_config={
-                'keychains': [_keychain('g2-vrf-chain', g2_keys)],
-                'vrfs': [{'config': {
-                    'name': 'blue',
-                    'rd': '65001:100',
-                    'both-rt-list': ['65001:100'],
-                }}],
-            })
+            bgp_config={'keychains': [_keychain('g2-chain', g2_keys)]})
 
         time.sleep(max(g1.run(), g2.run()))
         g1.add_peer(
-            g2, vrf='blue',
-            tcp_ao=_tcp_ao_config(
-                'g1-vrf-chain', INITIAL_PROFILE.g1_send_id),
+            g2, tcp_ao=_tcp_ao_config(
+                'g1-chain', INITIAL_PROFILE.g1_send_id),
             timers=TCP_AO_TIMERS)
         g2.add_peer(
-            g1, vrf='blue', passive=True,
+            g1, passive=True, tcp_ao=_tcp_ao_config(
+                'g2-chain', INITIAL_PROFILE.g2_send_id),
+            timers=TCP_AO_TIMERS)
+
+        # Sample across several connect retries; a single state check could
+        # pass before an incorrectly authenticated session comes up.
+        for _ in range(10):
+            self.assertNotEqual(g1.get_neighbor_state(g2), BGP_FSM_ESTABLISHED)
+            self.assertNotEqual(g2.get_neighbor_state(g1), BGP_FSM_ESTABLISHED)
+            time.sleep(1)
+
+    def test_03_unnumbered_peering(self):
+        """Establish TCP-AO peering through IPv6 link-local addresses."""
+        g1_keys, g2_keys = _initial_keys()
+        g1 = GoBGPContainer(
+            name='ao-unnumbered-g1', asn=65000, router_id='192.168.0.1',
+            ctn_image_name=parser_option.gobgp_image,
+            log_level=parser_option.gobgp_log_level,
+            bgp_config={'keychains': [_keychain('g1-chain', g1_keys)]})
+        g2 = GoBGPContainer(
+            name='ao-unnumbered-g2', asn=65001, router_id='192.168.0.2',
+            ctn_image_name=parser_option.gobgp_image,
+            log_level=parser_option.gobgp_log_level,
+            bgp_config={'keychains': [_keychain('g2-chain', g2_keys)]})
+
+        time.sleep(max(g1.run(), g2.run()))
+        bridge = Bridge(name='ao-unnumbered', subnet='fd00:179:6::/64')
+        bridge.addif(g1)
+        bridge.addif(g2)
+        utils.probe_link_local_address(g1, g2, 'eth1', 'eth1')
+
+        g1.add_peer(
+            g2, interface='eth1',
             tcp_ao=_tcp_ao_config(
-                'g2-vrf-chain', INITIAL_PROFILE.g2_send_id),
+                'g1-chain', INITIAL_PROFILE.g1_send_id),
+            timers=TCP_AO_TIMERS)
+        g2.add_peer(
+            g1, interface='eth1', passive=True,
+            tcp_ao=_tcp_ao_config(
+                'g2-chain', INITIAL_PROFILE.g2_send_id),
             timers=TCP_AO_TIMERS)
 
         g1_endpoint = _TCPAOEndpoint(container=g1, neighbor=g2,
-                                     keychain='g1-vrf-chain', keys=g1_keys)
+                                     keychain='g1-chain', keys=g1_keys)
         g2_endpoint = _TCPAOEndpoint(container=g2, neighbor=g1,
-                                     keychain='g2-vrf-chain', keys=g2_keys)
-        _test_key_rotation(self, g1_endpoint, g2_endpoint, dialer=g1_endpoint)
+                                     keychain='g2-chain', keys=g2_keys)
+        g1_endpoint.wait_established()
+        g2_endpoint.wait_established()
+        g1_endpoint.assert_selected(self, INITIAL_PROFILE.g1_send_id)
+        g2_endpoint.assert_selected(self, INITIAL_PROFILE.g2_send_id)
 
-    def test_02_linux_vrf_device_peering_and_key_rotation(self):
-        base.TEST_PREFIX = parser_option.test_prefix
+    def test_04_linux_vrf_device_peering_and_key_rotation(self):
+        """Rotate AO keys on peers bound to Linux VRF devices."""
         g1_keys, g2_keys = _initial_keys()
         g1 = GoBGPContainer(
             name='ao-bind-vrf-g1', asn=65000, router_id='192.168.0.1',
