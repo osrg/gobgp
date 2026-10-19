@@ -1526,6 +1526,14 @@ func (fsm *fsm) handleOpen(fmsg *fsmMsg) (bgp.FSMState, *fsmStateReason, *bgp.BG
 			}
 			return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil), nil
 		}
+		// RFC 4271 8.2.2: a NOTIFICATION with a version error (Event 24)
+		// in OpenSent gets no answer. The connection is just dropped.
+		if m.Header.Type == bgp.BGP_MSG_NOTIFICATION {
+			body := m.Body.(*bgp.BGPNotification)
+			if body.ErrorCode == bgp.BGP_ERROR_OPEN_MESSAGE_ERROR && body.ErrorSubcode == bgp.BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER {
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmNotificationRecv, body, nil), nil
+			}
+		}
 		notif := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_FSM_ERROR, 1, nil)
 		return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmInvalidMsg, notificationBody(notif), nil), notif
 	case *bgp.MessageError:

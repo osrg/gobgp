@@ -37,6 +37,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type NotificationChannel struct {
@@ -217,6 +218,54 @@ func TestFSMHandlerOpensent_HoldTimerExpired(t *testing.T) {
 	sent, _ := bgp.ParseBGPMessage(lastMsg)
 	assert.Equal(uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
+}
+
+// RFC 4271 8.2.2: in OpenSent, a NOTIFICATION with a version error
+// (Event 24) gets no answer, and any other NOTIFICATION (Event 25) gets
+// a Finite State Machine Error.
+func TestFSMHandlerOpensent_NotificationReceived(t *testing.T) {
+	tests := []struct {
+		name       string
+		code       uint8
+		subcode    uint8
+		wantReason fsmStateReasonType
+		wantAnswer bool
+	}{
+		{"version error", bgp.BGP_ERROR_OPEN_MESSAGE_ERROR, bgp.BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER, fsmNotificationRecv, false},
+		{"other open error", bgp.BGP_ERROR_OPEN_MESSAGE_ERROR, bgp.BGP_ERROR_SUB_BAD_PEER_AS, fsmInvalidMsg, true},
+		{"cease", bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION, fsmInvalidMsg, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMockConnection()
+			p, h := makePeerAndHandler(m)
+			t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+			p.fsm.opensentHoldTime = 10
+
+			// net.Pipe writes block until the message is read.
+			go m.PushBgpMessage(bgp.NewBGPNotificationMessage(tt.code, tt.subcode, nil))
+
+			state, reason := h.opensent(t.Context())
+			require.Equal(t, bgp.BGP_FSM_IDLE, state)
+			require.Equal(t, tt.wantReason, reason.Type)
+
+			if !tt.wantAnswer {
+				require.Equal(t, tt.code, reason.BGPNotification.ErrorCode)
+				require.Equal(t, tt.subcode, reason.BGPNotification.ErrorSubcode)
+				require.Never(t, func() bool { return len(m.GetSentMessages()) > 0 },
+					100*time.Millisecond, 10*time.Millisecond)
+				return
+			}
+			require.Eventually(t, func() bool { return len(m.GetSentMessages()) > 0 },
+				time.Second, 10*time.Millisecond)
+			sent, err := bgp.ParseBGPMessage(m.GetSentMessages()[0])
+			require.NoError(t, err)
+			require.Equal(t, uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
+			n := sent.Body.(*bgp.BGPNotification)
+			require.Equal(t, uint8(bgp.BGP_ERROR_FSM_ERROR), n.ErrorCode)
+			require.Equal(t, uint8(1), n.ErrorSubcode)
+		})
+	}
 }
 
 func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
