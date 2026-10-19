@@ -1236,15 +1236,25 @@ func capabilitiesFromConfig(pConf *oc.Neighbor) []bgp.ParameterCapabilityInterfa
 		}
 	}
 
-	// Extended Nexthop Capability (Code 5)
+	// Extended Nexthop Capability (Code 5). RFC 8950 Section 4:
+	//
+	//   Since this document only concerns itself with the advertisement of
+	//   IPv4 NLRI and VPN-IPv4 NLRI with an IPv6 next hop, this specification
+	//   only allows the following values in the Capability Value field of the
+	//   Extended Next Hop Encoding capability:
+	//
+	//   *  NLRI AFI = 1 (IPv4)
+	//
+	//   *  NLRI SAFI = 1, 2, 4, 128, or 129
+	//
+	//   *  Nexthop AFI = 2 (IPv6)
 	tuples := []*bgp.CapExtendedNexthopTuple{}
 	families, _ := oc.AfiSafis(pConf.AfiSafis).ToRfList()
 	for _, family := range families {
-		if family == bgp.RF_IPv6_UC {
-			continue
+		switch family {
+		case bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv4_MPLS, bgp.RF_IPv4_VPN, bgp.RF_IPv4_VPN_MC:
+			tuples = append(tuples, bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6))
 		}
-		tuple := bgp.NewCapExtendedNexthopTuple(family, bgp.AFI_IP6)
-		tuples = append(tuples, tuple)
 	}
 	if len(tuples) != 0 {
 		caps = append(caps, bgp.NewCapExtendedNexthop(tuples))
