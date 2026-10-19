@@ -239,7 +239,7 @@ func extractNexthops(attrs []bgp.PathAttributeInterface) ([]bgp.PathAttributeInt
 		case *bgp.PathAttributeNextHop:
 			nh = &Nexthops{global: a.Value}
 		case *bgp.PathAttributeMpReachNLRI:
-			mp = &Nexthops{global: a.Nexthop, linkLocal: a.LinkLocalNexthop}
+			mp = newMpReachNexthops(a.Nexthop, a.LinkLocalNexthop)
 		default:
 			rest = append(rest, a)
 		}
@@ -320,7 +320,7 @@ func updateLinkLocalNexthop(info *PeerInfo, path *Path) {
 	// attribute, so leave it alone. 169.254.0.0/16 is not handled here.
 	onLink := globalNexthop.Is6() && !globalNexthop.Is4In6() &&
 		(globalNexthop.IsUnspecified() || globalNexthop.IsLinkLocalUnicast())
-	if !onLink && !linkLocalNexthop.IsLinkLocalUnicast() {
+	if !onLink && !linkLocalNexthop.IsValid() {
 		return
 	}
 	if path.learnedOnSameLink(info) {
@@ -581,7 +581,7 @@ func (path *Path) GetNexthop() netip.Addr {
 	// address is the only next hop we can use then. The next hops are
 	// kept as they are so that the received form is sent to the peers
 	// that share the link.
-	if n.global.IsUnspecified() && n.linkLocal.IsLinkLocalUnicast() {
+	if n.global.IsUnspecified() && n.linkLocal.IsValid() {
 		return n.linkLocal
 	}
 	return n.global
@@ -590,8 +590,23 @@ func (path *Path) GetNexthop() netip.Addr {
 // Nexthops holds the next hops of a path. global is the NEXT_HOP value or
 // the first next hop in MP_REACH_NLRI, and linkLocal is the second one in
 // MP_REACH_NLRI. An invalid netip.Addr means the next hop is absent.
+// linkLocal is either invalid or a link-local unicast address, see
+// newMpReachNexthops.
 type Nexthops struct {
 	global, linkLocal netip.Addr
+}
+
+// newMpReachNexthops returns the next hops carried in MP_REACH_NLRI. The
+// second next hop is dropped unless it is a link-local unicast address. It
+// has no use then, and it is not sent either: NewPathAttributeMpReachNLRI
+// writes the second next hop only when it is link-local. BIRD
+// (bgp_decode_next_hop_ip) and FRR (bgp_mp_reach_parse) ignore it the same
+// way.
+func newMpReachNexthops(global, linkLocal netip.Addr) *Nexthops {
+	if !linkLocal.IsLinkLocalUnicast() {
+		linkLocal = netip.Addr{}
+	}
+	return &Nexthops{global: global, linkLocal: linkLocal}
 }
 
 // list returns the valid next hops, the global one first.

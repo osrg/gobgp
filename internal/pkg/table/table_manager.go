@@ -112,7 +112,7 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 		// next hop when the peer has no global address on the link.
 		var mpNexthops *Nexthops
 		if !treatAsWithdraw {
-			mpNexthops = &Nexthops{global: reach.Nexthop, linkLocal: reach.LinkLocalNexthop}
+			mpNexthops = newMpReachNexthops(reach.Nexthop, reach.LinkLocalNexthop)
 		}
 		for _, nlri := range reach.Value {
 			p := NewPath(family, peerInfo, bgp.PathNLRI{NLRI: nlri.NLRI}, treatAsWithdraw, attrs, timestamp, false)

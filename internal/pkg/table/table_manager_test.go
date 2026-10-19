@@ -2568,10 +2568,12 @@ func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
 	globalNexthop := netip.MustParseAddr("2001:db8::1")
 	linkLocalNexthop := netip.MustParseAddr("fe80::ade0")
 	unspecified := netip.MustParseAddr("::")
+	notLinkLocal := netip.MustParseAddr("2001:db8::2")
 
 	for _, tt := range []struct {
 		name          string
 		nexthops      []netip.Addr
+		secondNexthop netip.Addr // written into the decoded attribute
 		wantNexthop   netip.Addr
 		wantLinkLocal netip.Addr
 		wantResolved  netip.Addr
@@ -2603,6 +2605,22 @@ func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
 			wantNexthop:  linkLocalNexthop,
 			wantResolved: linkLocalNexthop,
 		},
+		{
+			// The second next hop is dropped when it is not
+			// link-local.
+			name:          "global and a second address that is not link-local",
+			nexthops:      []netip.Addr{globalNexthop},
+			secondNexthop: notLinkLocal,
+			wantNexthop:   globalNexthop,
+			wantResolved:  globalNexthop,
+		},
+		{
+			name:          "unspecified global and a second address that is not link-local",
+			nexthops:      []netip.Addr{unspecified},
+			secondNexthop: notLinkLocal,
+			wantNexthop:   unspecified,
+			wantResolved:  unspecified,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv6_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
@@ -2610,6 +2628,12 @@ func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
 			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:1::/64"))
 			mpReach, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri}}, tt.nexthops...)
 			assert.NoError(t, err)
+			// NewPathAttributeMpReachNLRI writes only a link-local
+			// second next hop, so set the field as the decoder does
+			// for a 32 octet next hop.
+			if tt.secondNexthop.IsValid() {
+				mpReach.LinkLocalNexthop = tt.secondNexthop
+			}
 			attrs := []bgp.PathAttributeInterface{
 				mpReach,
 				bgp.NewPathAttributeOrigin(0),
