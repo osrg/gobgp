@@ -1941,3 +1941,28 @@ func TestRecvMessageloop_RepeatedMpUnreachAfterTreatAsWithdraw(t *testing.T) {
 		assert.Equal(uint8(bgp.BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), body.ErrorSubcode)
 	}
 }
+
+// The Extended Nexthop capability lists only the IPv4 families of RFC 8950
+// Section 4, not L2VPN EVPN or the IPv6 families.
+func TestCapabilitiesExtendedNexthopIPv4Only(t *testing.T) {
+	var afs []oc.AfiSafi
+	for _, f := range []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_EVPN, bgp.RF_IPv4_MC, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_IPv4_MPLS, bgp.RF_IPv4_VPN_MC, bgp.RF_FS_IPv4_UC} {
+		afs = append(afs, oc.AfiSafi{State: oc.AfiSafiState{Family: f}})
+	}
+	var got []bgp.Family
+	for _, c := range capabilitiesFromConfig(&oc.Neighbor{AfiSafis: afs}) {
+		if e, ok := c.(*bgp.CapExtendedNexthop); ok {
+			for _, tu := range e.Tuples {
+				require.Equal(t, uint16(bgp.AFI_IP6), tu.NexthopAFI)
+				got = append(got, bgp.NewFamily(tu.NLRIAFI, uint8(tu.NLRISAFI)))
+			}
+		}
+	}
+	require.Equal(t, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv4_MC, bgp.RF_IPv4_VPN, bgp.RF_IPv4_MPLS, bgp.RF_IPv4_VPN_MC}, got)
+
+	// Without an IPv4 family there is no capability.
+	for _, c := range capabilitiesFromConfig(&oc.Neighbor{AfiSafis: []oc.AfiSafi{{State: oc.AfiSafiState{Family: bgp.RF_EVPN}}}}) {
+		_, ok := c.(*bgp.CapExtendedNexthop)
+		require.False(t, ok, "extended nexthop for L2VPN EVPN only")
+	}
+}
