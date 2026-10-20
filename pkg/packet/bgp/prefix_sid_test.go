@@ -208,11 +208,40 @@ func TestPathAttributePrefixSIDTrailingBytes(t *testing.T) {
 		},
 		{
 			name:  "stray byte after a tlv",
-			input: []byte{0xc0, 0x28, 0x04, 0x01, 0x00, 0x00, 0xff},
+			input: []byte{0xc0, 0x28, 0x04, 0x0a, 0x00, 0x00, 0xff},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attribute, err := GetPathAttribute(tt.input)
+			assert.NoError(t, err)
+			assert.Error(t, attribute.DecodeFromBytes(tt.input))
+		})
+	}
+}
+
+func TestPathAttributePrefixSIDTLVLength(t *testing.T) {
+	// RFC 8669 Section 6: a TLV length that doesn't conform to the length
+	// constraints for the TLV makes the attribute malformed.
+	tests := []struct {
+		name  string
+		input []byte
+	}{
+		{
+			name:  "label-index length 6",
+			input: []byte{0xc0, 0x28, 0x09, 0x01, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x03, 0xe8},
 		},
 		{
-			name:  "truncated tlv value",
-			input: []byte{0xc0, 0x28, 0x05, 0x01, 0x00, 0x07, 0x00, 0x00},
+			name:  "label-index length 8",
+			input: []byte{0xc0, 0x28, 0x0b, 0x01, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xe8},
+		},
+		{
+			name:  "originator srgb without a range",
+			input: []byte{0xc0, 0x28, 0x05, 0x03, 0x00, 0x02, 0x00, 0x00},
+		},
+		{
+			name:  "originator srgb partial range",
+			input: []byte{0xc0, 0x28, 0x0a, 0x03, 0x00, 0x07, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01},
 		},
 	}
 	for _, tt := range tests {

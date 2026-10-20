@@ -158,6 +158,18 @@ func (p *PathAttributePrefixSID) DecodeFromBytes(data []byte, options ...*Marsha
 			tlv = &SRv6ServiceTLV{
 				SubTLVs: make([]PrefixSIDTLVInterface, 0),
 			}
+		case TLVTypeLavelIndex:
+			// RFC 8669 Section 3.1: Length is 7.
+			if t.Length != 7 {
+				return malformedAttrListErr("decoding failed: Prefix SID Label-Index TLV malformed")
+			}
+			tlv = &PrefixSIDUnknownTLV{}
+		case TLVTypeOriginatorSRGB:
+			// RFC 8669 Section 3.2: Length is 2 + (non-zero multiple of 6).
+			if t.Length < 8 || (t.Length-2)%6 != 0 {
+				return malformedAttrListErr("decoding failed: Prefix SID Originator SRGB TLV malformed")
+			}
+			tlv = &PrefixSIDUnknownTLV{}
 		default:
 			// RFC 8669 Section 3: unknown TLVs MUST be ignored and
 			// propagated unmodified.
