@@ -73,12 +73,12 @@ func eventuallyReceivesAfter(timeout time.Duration, s *bfdServer, peerAddress ne
 }
 
 type mockPeerState struct {
-	resetPeerCount int64
+	bfdDownCount int64
 }
 
-// ResetPeer implements peerState.
-func (m *mockPeerState) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) error {
-	atomic.AddInt64(&m.resetPeerCount, 1)
+// bfdDown implements peerState.
+func (m *mockPeerState) bfdDown(addr netip.Addr) error {
+	atomic.AddInt64(&m.bfdDownCount, 1)
 	return nil
 }
 
@@ -424,7 +424,7 @@ func Test_StateUpDown(t *testing.T) {
 	assert.NoError(err)
 }
 
-func Test_ResetPeer(t *testing.T) {
+func Test_BfdDown(t *testing.T) {
 	assert := assert.New(t)
 
 	s1, m1 := newServerWithMock(13784)
@@ -460,18 +460,18 @@ func Test_ResetPeer(t *testing.T) {
 	// Stop s2
 	s2.Stop()
 
-	// Wait for BFD peer down to reset s1's BGP peer.
+	// Wait for BFD peer down to close s1's BGP session.
 	err = eventually(6*time.Second, func() error {
-		if atomic.LoadInt64(&m1.resetPeerCount) == 1 {
+		if atomic.LoadInt64(&m1.bfdDownCount) == 1 {
 			return nil
 		}
-		return fmt.Errorf("must be: resetPeerCount == 1")
+		return fmt.Errorf("must be: bfdDownCount == 1")
 	})
 	assert.NoError(err)
 
 	s1.Stop()
 
-	assert.Equal(int64(1), atomic.LoadInt64(&m1.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&m1.bfdDownCount))
 }
 
 func Test_BgpAddDeletePeer(t *testing.T) {

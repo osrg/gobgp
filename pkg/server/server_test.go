@@ -5540,12 +5540,10 @@ func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
 	m1.Close()
 	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 
-	// Reset the peer while it is down: exactly what the BFD code does when
-	// its detect timer expires after the BGP session already ended.
+	// Reset the peer while it is down.
 	err := s.ResetPeer(context.Background(), &api.ResetPeerRequest{
-		Address:       peerAddr,
-		Communication: "BFD is down",
-		Soft:          false,
+		Address: peerAddr,
+		Soft:    false,
 	})
 	require.NoError(t, err)
 	require.Len(t, peer.fsm.notification, 1)
@@ -5561,9 +5559,8 @@ func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
 }
 
 // A hard ResetPeer against an established peer must still tear the session
-// down promptly. This is the behavior BFD relies on when it detects a failure
-// on a live session, and the drain that fixes the stale-notification bug must
-// not suppress it.
+// down promptly. The drain that fixes the stale-notification bug must not
+// suppress it.
 func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 	const (
 		asn      = 65001
@@ -5575,9 +5572,8 @@ func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 
 	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
 	err := s.ResetPeer(context.Background(), &api.ResetPeerRequest{
-		Address:       peerAddr,
-		Communication: "BFD is down",
-		Soft:          false,
+		Address: peerAddr,
+		Soft:    false,
 	})
 	require.NoError(t, err)
 	w.Wait(t, 10*time.Second)
@@ -5588,6 +5584,56 @@ func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 			n.ErrorCode == bgp.BGP_ERROR_CEASE &&
 			n.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET
 	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// When BFD goes down on a live session, the server sends Cease/BFD Down
+// (RFC 9384), not Cease/Administrative Reset.
+func TestBfdDownEstablishedSendsNotification(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+	require.NoError(t, s.bfdDown(netip.MustParseAddr(peerAddr)))
+	w.Wait(t, 10*time.Second)
+
+	require.Eventually(t, func() bool {
+		n := sentNotification(m1)
+		return n != nil &&
+			n.ErrorCode == bgp.BGP_ERROR_CEASE &&
+			n.ErrorSubcode == bgp.BGP_ERROR_SUB_BFD_DOWN &&
+			len(n.Data) == 0
+	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// BFD can go down after the BGP session already ended. The NOTIFICATION it
+// queues must not tear down the next session.
+// https://github.com/osrg/gobgp/issues/3561
+func TestBfdDownWhileDownDoesNotResetNextSession(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+
+	m1.Close()
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
+
+	require.NoError(t, s.bfdDown(netip.MustParseAddr(peerAddr)))
+	require.Len(t, peer.fsm.notification, 1)
+
+	m2 := establishSession(t, s, peer, asn, peerAddr)
+
+	require.Never(t, func() bool {
+		return peer.State() != bgp.BGP_FSM_ESTABLISHED || sentNotification(m2) != nil
+	}, time.Second, 10*time.Millisecond)
+	require.Empty(t, peer.fsm.notification)
 }
 
 func TestListPolicyOriginCondition(t *testing.T) {

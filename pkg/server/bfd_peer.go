@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -571,7 +570,7 @@ func (p *bfdPeer) expiry() {
 
 	p.stats.expired.Add(1)
 
-	p.resetPeer()
+	p.bfdDown()
 	p.setStateDown()
 }
 
@@ -588,17 +587,13 @@ func (p *bfdPeer) remoteDown() {
 		slog.String("Peer", p.peerAddress.String()),
 	)
 
-	p.resetPeer()
+	p.bfdDown()
 	p.setStateDown()
 }
 
-func (p *bfdPeer) resetPeer() {
-	if err := p.peerState.ResetPeer(context.Background(), &api.ResetPeerRequest{
-		Address:       p.peerAddress.String(),
-		Communication: "BFD is down",
-		Soft:          false,
-	}); err != nil {
-		p.logger.Warn("ResetPeer failed",
+func (p *bfdPeer) bfdDown() {
+	if err := p.peerState.bfdDown(p.peerAddress); err != nil {
+		p.logger.Warn("failed to close BGP session on BFD down",
 			slog.String("Topic", "bfd"),
 			slog.String("Peer", p.peerAddress.String()),
 			slog.String("Err", err.Error()),

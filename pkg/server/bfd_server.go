@@ -42,7 +42,9 @@ type bfdPeerState struct {
 }
 
 type peerState interface {
-	ResetPeer(ctx context.Context, r *api.ResetPeerRequest) error
+	// bfdDown closes the BGP session with the peer at addr because the
+	// BFD session went down.
+	bfdDown(addr netip.Addr) error
 }
 
 type bfdServer struct {

@@ -166,8 +166,9 @@ timers. Enabling BFD only on one side is not enough to bring the BFD session up.
 
 When BFD is enabled for a neighbor, GoBGP creates a BFD peer for the neighbor
 address. If the BFD session expires, or if the remote side signals `DOWN`,
-GoBGP performs a hard reset of the corresponding BGP peer with the communication
-string `BFD is down`.
+GoBGP closes the BGP session with the peer. It sends a NOTIFICATION with the
+error code Cease and the subcode BFD Down (RFC 9384). If the BGP session is not
+established, nothing is sent.
 
 Changing BFD configuration through `UpdatePeer` is applied at runtime:
 

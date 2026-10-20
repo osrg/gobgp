@@ -212,7 +212,7 @@ func Test_RxPacketRemoteDownResetsPeer(t *testing.T) {
 	})
 
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, api.BfdSessionState(p.state.Load()))
-	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
 func Test_RxPacketRFCStateTransitions(t *testing.T) {
@@ -622,7 +622,7 @@ func Test_RxPacketZeroYourDiscriminatorForeignRemoteDiscarded(t *testing.T) {
 	})
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_UP, p.sessionState())
 	assert.Equal(uint32(12345), p.yourDiscriminator)
-	assert.Equal(int64(0), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
 	assert.Equal(uint64(1), p.stats.invalidDiscriminator.Load())
 
 	// The bound remote system may still omit Your Discriminator when it
@@ -634,7 +634,7 @@ func Test_RxPacketZeroYourDiscriminatorForeignRemoteDiscarded(t *testing.T) {
 		DetectTimeMultiplier: 3,
 	})
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
-	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
 func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
@@ -650,7 +650,7 @@ func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
 	p.setStateDown()
 	p.expiry()
 
-	assert.Equal(int64(0), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
 // Test_JitteredTxInterval pins RFC 5880 Section 6.8.7: the transmit interval
@@ -1060,7 +1060,7 @@ func Test_StateChangeTransmitsAtOnce(t *testing.T) {
 	rx(bfd.StateDown)
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
 	assert.Equal(before+3, txAttempts(p))
-	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
 // txAttempts counts every periodic transmission attempt, including the drops made
@@ -1425,7 +1425,7 @@ func Test_ExpiryRefloorsTxPacing(t *testing.T) {
 
 	// No more packets: expiry takes the session Down.
 	waitState(t, p, api.BfdSessionState_BFD_SESSION_STATE_DOWN)
-	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
 
 	// setStateDown stores the state before it sends the Down packet, so give the
 	// loop goroutine a moment to get that send counted.

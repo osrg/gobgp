@@ -4457,6 +4457,16 @@ func (s *BgpServer) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) erro
 	}, true)
 }
 
+// bfdDown implements peerState. RFC 9384 Section 3 says: "When a BGP
+// connection is terminated due to a BFD session going into the Down state,
+// the BGP speaker SHOULD send a NOTIFICATION message with the error code
+// "Cease" and the error subcode "BFD Down"."
+func (s *BgpServer) bfdDown(addr netip.Addr) error {
+	return s.mgmtOperation(func() error {
+		return s.sendNotification("BFD down", addr.String(), bgp.BGP_ERROR_SUB_BFD_DOWN, nil)
+	}, true)
+}
+
 func (s *BgpServer) setAdminState(addr, communication string, state adminState) error {
 	peers, err := s.addrToPeers(addr)
 	if err != nil {
