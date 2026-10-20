@@ -77,7 +77,7 @@ type mockPeerState struct {
 }
 
 // bfdDown implements peerState.
-func (m *mockPeerState) bfdDown(addr netip.Addr) error {
+func (m *mockPeerState) bfdDown(ctx context.Context, addr netip.Addr) error {
 	atomic.AddInt64(&m.bfdDownCount, 1)
 	return nil
 }

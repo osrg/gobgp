@@ -344,6 +344,37 @@ func (s *BgpServer) startDeferralTimer(peer *peer, d time.Duration) {
 	peer.fsm.lock.Unlock()
 }
 
+// mgmtOperationWithContext permits cancellation while queueing or waiting for
+// management. Recheck under shared.mu so canceled queued work has no effect.
+// Cancellation cannot roll back an operation that has already started.
+func (s *BgpServer) mgmtOperationWithContext(ctx context.Context, f func() error, checkActive bool) error {
+	ch := make(chan error, 1)
+	op := &mgmtOp{
+		f: func() error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return f()
+		},
+		errCh: ch, checkActive: checkActive, timestamp: time.Now(),
+	}
+	select {
+	case s.mgmtCh <- op:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.closeCh:
+		return fmt.Errorf("server stopped")
+	}
+	select {
+	case err := <-ch:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.closeCh:
+		return fmt.Errorf("server stopped")
+	}
+}
+
 func (s *BgpServer) startFsmHandler(peer *peer) {
 	callback := func(e *fsmMsg) {
 		s.handleFSMMessage(peer, e)
@@ -4487,8 +4518,8 @@ func (s *BgpServer) ResetPeer(ctx context.Context, r *api.ResetPeerRequest) erro
 // connection is terminated due to a BFD session going into the Down state,
 // the BGP speaker SHOULD send a NOTIFICATION message with the error code
 // "Cease" and the error subcode "BFD Down"."
-func (s *BgpServer) bfdDown(addr netip.Addr) error {
-	return s.mgmtOperation(func() error {
+func (s *BgpServer) bfdDown(ctx context.Context, addr netip.Addr) error {
+	return s.mgmtOperationWithContext(ctx, func() error {
 		return s.sendNotification("BFD down", addr.String(), bgp.BGP_ERROR_SUB_BFD_DOWN, nil)
 	}, true)
 }
