@@ -2505,7 +2505,7 @@ func TestDynamicNeighborBfd(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 
 	// peer group with BFD enabled; dynamic neighbors inherit this config.
 	g := &oc.PeerGroup{
@@ -2543,7 +2543,7 @@ func TestDynamicNeighborBfd(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	m := &oc.Neighbor{
 		Config: oc.NeighborConfig{
