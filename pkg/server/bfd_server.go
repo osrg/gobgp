@@ -34,6 +34,7 @@ type bfdEventPeerUpdate struct {
 	config        oc.BfdConfig
 	localAddress  netip.Addr
 	bindInterface string
+	done          chan struct{}
 }
 
 type bfdPeerState struct {
@@ -44,7 +45,7 @@ type bfdPeerState struct {
 type peerState interface {
 	// bfdDown closes the BGP session with the peer at addr because the
 	// BFD session went down.
-	bfdDown(addr netip.Addr) error
+	bfdDown(ctx context.Context, addr netip.Addr) error
 }
 
 type bfdServer struct {
@@ -132,12 +133,18 @@ func (s *bfdServer) addPeer(ctx context.Context, peerAddress netip.Addr, config 
 		return nil
 	}
 
+	done := make(chan struct{})
 	select {
-	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: true, peerAddress: peerAddress, config: config, localAddress: localAddress, bindInterface: bindInterface}:
-		if s.stopped.Load() {
-			return errors.New("bfd server stopped")
-		}
-
+	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: true, peerAddress: peerAddress, config: config, localAddress: localAddress, bindInterface: bindInterface, done: done}:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.eventShutdown:
+		return errors.New("bfd server stopped")
+	}
+	// Replacement must finish retiring the old session before the caller can
+	// release the BGP lock and allow queued management operations to execute.
+	select {
+	case <-done:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -151,12 +158,18 @@ func (s *bfdServer) DeletePeer(ctx context.Context, peerAddress netip.Addr) erro
 		return errors.New("bfd server stopped")
 	}
 
+	done := make(chan struct{})
 	select {
-	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: false, peerAddress: peerAddress}:
-		if s.stopped.Load() {
-			return errors.New("bfd server stopped")
-		}
-
+	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: false, peerAddress: peerAddress, done: done}:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.eventShutdown:
+		return errors.New("bfd server stopped")
+	}
+	// Retirement includes cancellation of any pending BFD-down operation. Do not
+	// let a new session start while an operation belonging to the old one is still live.
+	select {
+	case <-done:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -215,6 +228,9 @@ func (s *bfdServer) loop() {
 				s.addBfdPeer(ev.peerAddress, ev.config, ev.localAddress, ev.bindInterface)
 			} else {
 				s.deleteBfdPeer(ev.peerAddress)
+			}
+			if ev.done != nil {
+				close(ev.done)
 			}
 
 			s.eventStartStop.Reset(time.Second)
@@ -301,16 +317,21 @@ func (s *bfdServer) stop() {
 
 func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string) {
 	s.peersMutex.RLock()
-	_, ok := s.peers[peerAddress]
+	existing, ok := s.peers[peerAddress]
 	s.peersMutex.RUnlock()
 
 	if ok {
-		s.logger.Debug("BFD peer already exist",
-			slog.String("Topic", "bfd"),
-			slog.String("Peer", peerAddress.String()),
-		)
+		if existing.localAddress == localAddress && existing.bindInterface == bindInterface {
+			s.logger.Debug("BFD peer already exist",
+				slog.String("Topic", "bfd"),
+				slog.String("Peer", peerAddress.String()),
+			)
 
-		return
+			return
+		}
+		// A changed source or interface replaces the session; retirement cancels
+		// its pending BFD-down operation so it cannot affect the replacement.
+		s.deleteBfdPeer(peerAddress)
 	}
 
 	bfdPeer := newBfdPeer(s.peerState, s.logger, peerAddress, config, localAddress, bindInterface)

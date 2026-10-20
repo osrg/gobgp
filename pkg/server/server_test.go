@@ -5741,7 +5741,7 @@ func TestBfdDownEstablishedSendsNotification(t *testing.T) {
 	m1 := establishSession(t, s, peer, asn, peerAddr)
 
 	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
-	require.NoError(t, s.bfdDown(netip.MustParseAddr(peerAddr)))
+	require.NoError(t, s.bfdDown(context.Background(), netip.MustParseAddr(peerAddr)))
 	w.Wait(t, 10*time.Second)
 
 	require.Eventually(t, func() bool {
@@ -5768,7 +5768,7 @@ func TestBfdDownWhileDownDoesNotResetNextSession(t *testing.T) {
 	m1.Close()
 	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 
-	require.NoError(t, s.bfdDown(netip.MustParseAddr(peerAddr)))
+	require.NoError(t, s.bfdDown(context.Background(), netip.MustParseAddr(peerAddr)))
 	require.Len(t, peer.fsm.notification, 1)
 
 	m2 := establishSession(t, s, peer, asn, peerAddr)
