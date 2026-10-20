@@ -18,8 +18,10 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"log/slog"
 	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -76,5 +78,80 @@ func TestROAManagerDisableDeletesROAsByServerKey(t *testing.T) {
 
 	if records, _ := rt.Info(bgp.RF_IPv4_UC); records[serverKey] != 0 {
 		t.Fatalf("expected ROAs for %q to be deleted, got %d", serverKey, records[serverKey])
+	}
+}
+
+func TestROAManagerResetQueryReplacesROAs(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		_, _ = io.Copy(io.Discard, c)
+	}()
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	rt := table.NewROATable(slog.Default())
+	serverKey := net.JoinHostPort("192.0.2.1", "323")
+	client := &roaClient{host: serverKey, conn: conn.(*net.TCPConn)}
+	m := &roaManager{
+		clientMap: map[string]*roaClient{serverKey: client},
+		table:     rt,
+		logger:    slog.Default(),
+	}
+	recv := func(msg rtr.RTRMessage) {
+		data, err := msg.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.handleRTRMsg(client, &client.state, data)
+	}
+	announce := func(prefix string) {
+		recv(rtr.NewRTRIPPrefix(netip.MustParseAddr(prefix), 24, 24, 65000, 1))
+	}
+	records := func() uint32 {
+		r, _ := rt.Info(bgp.RF_IPv4_UC)
+		return r[serverKey]
+	}
+
+	// The Reset Query sent when the session comes up.
+	if err := client.softReset(); err != nil {
+		t.Fatal(err)
+	}
+	recv(rtr.NewRTRCacheResponse(1))
+	announce("10.0.0.0")
+	announce("10.0.1.0")
+	recv(rtr.NewRTREndOfData(1, 1))
+	if got := records(); got != 2 {
+		t.Fatalf("expected 2 ROAs after the first Reset Query, got %d", got)
+	}
+
+	// The cache cannot answer a Serial Query and sends Cache Reset.
+	// 10.0.1.0/24 was removed in the meantime, so the answer to the
+	// Reset Query no longer has it.
+	recv(rtr.NewRTRCacheReset())
+	recv(rtr.NewRTRCacheResponse(1))
+	announce("10.0.0.0")
+	recv(rtr.NewRTREndOfData(1, 5))
+	if got := records(); got != 1 {
+		t.Fatalf("expected 1 ROA after a Reset Query in the same session, got %d", got)
+	}
+
+	// The answer to a Serial Query is incremental.
+	recv(rtr.NewRTRCacheResponse(1))
+	announce("10.0.2.0")
+	recv(rtr.NewRTREndOfData(1, 6))
+	if got := records(); got != 2 {
+		t.Fatalf("expected 2 ROAs after a Serial Query, got %d", got)
 	}
 }
