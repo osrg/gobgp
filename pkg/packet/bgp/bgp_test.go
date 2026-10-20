@@ -1388,6 +1388,28 @@ func Test_NotificationErrorCode(t *testing.T) {
 	t.Log(NewNotificationErrorCode(BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR+1, 0).String())
 }
 
+func Test_NotificationErrorCodeCease(t *testing.T) {
+	assert := assert.New(t)
+
+	// IANA "BGP Cease NOTIFICATION message subcodes": 9 is Hard Reset
+	// (RFC 8538) and 10 is BFD Down (RFC 9384).
+	assert.Equal(9, BGP_ERROR_SUB_HARD_RESET)
+	assert.Equal(10, BGP_ERROR_SUB_BFD_DOWN)
+
+	tests := []struct {
+		subcode uint8
+		want    string
+	}{
+		{BGP_ERROR_SUB_OUT_OF_RESOURCES, "code 6(cease) subcode 8(out of resources)"},
+		{BGP_ERROR_SUB_HARD_RESET, "code 6(cease) subcode 9(hard reset)"},
+		{BGP_ERROR_SUB_BFD_DOWN, "code 6(cease) subcode 10(bfd down)"},
+		{BGP_ERROR_SUB_BFD_DOWN + 1, "code 6(cease) subcode 11(undefined)"},
+	}
+	for _, tt := range tests {
+		assert.Equal(tt.want, NewNotificationErrorCode(BGP_ERROR_CEASE, tt.subcode).String())
+	}
+}
+
 func Test_FlowSpecNlriVPN(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)

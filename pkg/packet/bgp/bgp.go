@@ -11966,6 +11966,7 @@ const (
 	BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION
 	BGP_ERROR_SUB_OUT_OF_RESOURCES
 	BGP_ERROR_SUB_HARD_RESET // RFC8538
+	BGP_ERROR_SUB_BFD_DOWN   // RFC9384
 )
 
 // Constants for BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN and BGP_ERROR_SUB_ADMINISTRATIVE_RESET
@@ -12050,6 +12051,8 @@ func (c NotificationErrorCode) String() string {
 			"other configuration change",
 			"connection collision resolution",
 			"out of resources",
+			"hard reset",
+			"bfd down",
 		}
 	case BGP_ERROR_ROUTE_REFRESH_MESSAGE_ERROR:
 		codeStr = "route refresh"
