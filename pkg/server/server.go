@@ -1787,7 +1787,8 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	// Guard against the TOCTOU window between the RUnlock and write-Lock in
 	// handleFSMMessage: only delete if the map still holds this exact peer
 	key := netip.MustParseAddr(peer.ID())
-	if s.neighborMap[key] == peer {
+	ownsNeighbor := s.neighborMap[key] == peer
+	if ownsNeighbor {
 		delete(s.neighborMap, key)
 		s.rebuildLocalClusterIDs()
 		// Drop the policy assignment of this peer as well. Only a route server
@@ -1796,8 +1797,8 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 		s.policy.DeletePeerPolicy(peer.ID())
 	}
 	// deregister BFD here for both static peers (deleted) and dynamic peers (stopped on session loss);
-	// DeletePeer is a no-op for a peer without BFD, so this only errors if the BFD server is stopped.
-	if s.bfdServer != nil {
+	// Do not retire BFD belonging to a replacement neighbor after an old FSM stops.
+	if s.bfdServer != nil && ownsNeighbor {
 		if err := s.bfdServer.DeletePeer(context.Background(), key); err != nil {
 			s.logger.Warn("failed to delete BFD peer",
 				slog.String("Topic", "Peer"),
