@@ -4980,6 +4980,177 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 		"Peer should still be ESTABLISHED after timers")
 }
 
+// startServerForRTCPeer starts a server with no peer. The peer state waiters
+// look at every peer, so the RTC tests below keep the server to one peer.
+func startServerForRTCPeer(t *testing.T, asn uint32) *BgpServer {
+	t.Helper()
+
+	ctx := context.Background()
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        asn,
+			RouterId:   "192.168.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+	})
+	return s
+}
+
+func hasDeferralTimer(peer *peer) bool {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	return peer.deferralCancel != nil
+}
+
+// addRTCPeer adds a passive peer with RTC and IPv4 VPN, and the given RTC
+// deferral time.
+func addRTCPeer(t *testing.T, s *BgpServer, asn uint32, peerAddr string, deferralTime uint16) *peer {
+	t.Helper()
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				PassiveMode: true,
+			},
+		},
+		AfiSafis: []oc.AfiSafi{
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_RTC,
+					Enabled:     true,
+				},
+				RouteTargetMembership: oc.RouteTargetMembership{
+					Config: oc.RouteTargetMembershipConfig{
+						DeferralTime: deferralTime,
+					},
+				},
+			},
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST,
+					Enabled:     true,
+				},
+			},
+		},
+	}
+
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ACTIVE)
+	err := s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+	w.Wait(t, 10*time.Second)
+
+	peer := s.neighborMap[netip.MustParseAddr(peerAddr)]
+	require.NotNil(t, peer)
+	return peer
+}
+
+// establishRTCSession drives the passive RTC peer to ESTABLISHED over a new
+// MockConnection and returns it.
+func establishRTCSession(t *testing.T, s *BgpServer, peer *peer, asn uint32, peerAddr string) *MockConnection {
+	t.Helper()
+
+	m := NewMockConnection()
+	m.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { m.Close() })
+
+	peer.fsm.connCh <- m
+	openMsg, err := bgp.NewBGPOpenMessage(uint16(asn), 90, netip.MustParseAddr(peerAddr),
+		[]bgp.OptionParameterInterface{
+			bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
+				bgp.NewCapMultiProtocol(bgp.RF_RTC_UC),
+				bgp.NewCapMultiProtocol(bgp.RF_IPv4_VPN),
+			}),
+		})
+	require.NoError(t, err)
+	m.PushBgpMessage(openMsg)
+	m.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
+
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, 10*time.Second, bgp.RF_RTC_UC, bgp.RF_IPv4_VPN)
+	return m
+}
+
+// The deferral timer of a session is stopped when the session ends, and it
+// does not touch the next session.
+func TestDeferralTimerStoppedOnSessionDown(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s := startServerForRTCPeer(t, asn)
+	peer := addRTCPeer(t, s, asn, peerAddr, 30)
+	m := establishRTCSession(t, s, peer, asn, peerAddr)
+
+	require.True(t, peer.getRtcEORWait())
+	require.True(t, hasDeferralTimer(peer))
+
+	m.Close()
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
+	require.False(t, hasDeferralTimer(peer))
+
+	// A timer that expired but was stopped before its function ran does
+	// nothing. handleFSMMessage stops the timer under the read lock, so the
+	// queued function cannot run before that. Hold the read lock in the same
+	// way, let the timer expire and queue its function, then stop it.
+	establishRTCSession(t, s, peer, asn, peerAddr)
+	require.True(t, peer.getRtcEORWait())
+	s.shared.mu.RLock()
+	s.startDeferralTimer(peer, 0)
+	time.Sleep(100 * time.Millisecond)
+	peer.stopDeferralTimer()
+	s.shared.mu.RUnlock()
+	require.Never(t, func() bool {
+		return !peer.getRtcEORWait()
+	}, 500*time.Millisecond, 10*time.Millisecond)
+
+	// A timer that is not stopped sends the held routes.
+	s.startDeferralTimer(peer, 0)
+	require.Eventually(t, func() bool {
+		return !peer.getRtcEORWait()
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+// The deferral timer of a deleted peer does not touch a new peer with the same
+// address. It used to look the peer up by address when it expired, so it
+// ended the RTC EOR wait of the new peer.
+func TestDeferralTimerOfDeletedPeer(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s := startServerForRTCPeer(t, asn)
+	old := addRTCPeer(t, s, asn, peerAddr, 1)
+	establishRTCSession(t, s, old, asn, peerAddr)
+
+	require.NoError(t, s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: peerAddr}))
+
+	peer := addRTCPeer(t, s, asn, peerAddr, 30)
+	require.NotSame(t, old, peer)
+	establishRTCSession(t, s, peer, asn, peerAddr)
+	require.True(t, peer.getRtcEORWait())
+
+	// The timer of the old peer expires 1 second after its session was
+	// established. It must not run on the new peer, nor on the old peer:
+	// the FSM of the old peer has stopped.
+	require.True(t, old.getRtcEORWait())
+	require.Never(t, func() bool {
+		return !peer.getRtcEORWait() || !old.getRtcEORWait()
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 func TestStartBgp_RouterIdValidation(t *testing.T) {
 	tests := []struct {
 		name      string

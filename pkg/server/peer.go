@@ -16,6 +16,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -131,6 +132,9 @@ type peer struct {
 	rtmHandler *table.RouteTargetMembershipHandler
 	// Route refresh in progress, during an established session or route refresh, this need to be atomic to avoid out of order updates
 	routeRefreshInProgress sync.RWMutex
+	// deferralCancel stops the deferral timer of the current session.
+	// Protected by fsm.lock.
+	deferralCancel context.CancelFunc
 }
 
 // cloneNeighborConfig copies a neighbor configuration deeply enough to be
@@ -580,6 +584,17 @@ func (peer *peer) llgrRestartTimerExpired(family bgp.Family) bool {
 
 func (peer *peer) markLLGRStale(fs []bgp.Family) []*table.Path {
 	return peer.adjRibIn.MarkLLGRStaleOrDrop(fs)
+}
+
+// stopDeferralTimer stops the deferral timer that startDeferralTimer started
+// for the current session, if there is one.
+func (peer *peer) stopDeferralTimer() {
+	peer.fsm.lock.Lock()
+	if peer.deferralCancel != nil {
+		peer.deferralCancel()
+		peer.deferralCancel = nil
+	}
+	peer.fsm.lock.Unlock()
 }
 
 func (peer *peer) stopPeerRestarting() {

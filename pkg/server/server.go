@@ -311,6 +311,39 @@ func (s *BgpServer) mgmtOperation(f func() error, checkActive bool) error {
 	}
 }
 
+// startDeferralTimer starts the deferral timer of the session that has just
+// reached Established. When the timer expires, the routes held back for the
+// deferral are sent to the peer. The timer is stopped when the session ends
+// (stopDeferralTimer) and when the peer is deleted: its context derives from
+// the context of the FSM, which stopNeighbor cancels.
+func (s *BgpServer) startDeferralTimer(peer *peer, d time.Duration) {
+	ctx, cancel := context.WithCancel(peer.fsm.h.ctx)
+	t := time.AfterFunc(d, func() {
+		if ctx.Err() != nil {
+			return
+		}
+		//nolint: errcheck // ignore error
+		s.mgmtOperation(func() error {
+			// The timer may expire just before it is stopped. Then this
+			// function is already queued, so check again.
+			if ctx.Err() != nil {
+				return nil
+			}
+			s.softResetOutPeer(peer, bgp.Family(0), true)
+			return nil
+		}, false)
+	})
+	peer.fsm.lock.Lock()
+	if peer.deferralCancel != nil {
+		peer.deferralCancel()
+	}
+	peer.deferralCancel = func() {
+		cancel()
+		t.Stop()
+	}
+	peer.fsm.lock.Unlock()
+}
+
 func (s *BgpServer) startFsmHandler(peer *peer) {
 	callback := func(e *fsmMsg) {
 		s.handleFSMMessage(peer, e)
@@ -1966,26 +1999,6 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				peer.fsm.gConf.Config.RouterId, conf.Transport.State.RemoteAddress, conf.Transport.State.LocalAddress)
 			peer.peerInfo.Store(peerInfo)
 
-			neighborAddress := conf.State.NeighborAddress
-			deferralExpiredFunc := func(family bgp.Family, deferralTime time.Duration) func() {
-				//nolint: errcheck // ignore error
-				return func() {
-					s.mgmtOperation(func() error {
-						conf := peer.fsm.pConf.ReadOnly()
-						downtime := conf.Timers.State.Downtime
-						if time.Since(time.Unix(downtime, 0)) < deferralTime {
-							s.logger.Debug("soft reset skipped because downtime is less than deferral time",
-								slog.String("Topic", "Peer"),
-								slog.String("Key", peer.ID()),
-								slog.String("Family", family.String()),
-								slog.Any("Duration", deferralTime),
-								slog.Any("Downtime", downtime))
-							return nil
-						}
-						return s.softResetOut(neighborAddress.String(), family, true)
-					}, false)
-				}
-			}
 			notLocalRestarting := !conf.GracefulRestart.State.LocalRestarting
 			if notLocalRestarting {
 				// When graceful-restart cap (which means intention
@@ -2007,8 +2020,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 							sendfsmOutgoingMsg(peer, paths)
 						}
 					})
-					t := c.RouteTargetMembership.Config.DeferralTime
-					time.AfterFunc(time.Second*time.Duration(t), deferralExpiredFunc(bgp.Family(0), time.Second*time.Duration(t)))
+					s.startDeferralTimer(peer, time.Second*time.Duration(c.RouteTargetMembership.Config.DeferralTime))
 				} else {
 					s.getBestFromLocalCallback(peer, peer.negotiatedRFList(), true, true, func(paths []*table.Path, filtered []*table.Path) {
 						if len(paths) > 0 {
@@ -2067,10 +2079,11 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					conf := peer.fsm.pConf.ReadOnly()
 					deferral := conf.GracefulRestart.Config.DeferralTime
 					peer.fsm.logger.Debug("Now syncing, suppress sending updates. start deferral timer", slog.Any("Duration", deferral))
-					time.AfterFunc(time.Second*time.Duration(deferral), deferralExpiredFunc(bgp.Family(0), time.Second*time.Duration(deferral)))
+					s.startDeferralTimer(peer, time.Second*time.Duration(deferral))
 				}
 			}
 		} else if oldState == bgp.BGP_FSM_ESTABLISHED {
+			peer.stopDeferralTimer()
 			peer.fsm.lock.Lock()
 			conf := peer.fsm.pConf.ReadCopy()
 			conf.Timers.State.Downtime = time.Now().Unix()
@@ -3057,78 +3070,82 @@ func (s *BgpServer) softResetOut(addr string, family bgp.Family, deferral bool) 
 		return err
 	}
 	for _, peer := range peers {
-		notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
-		if notEstablished {
-			continue
-		}
-		families := familiesForSoftreset(peer, family)
-
-		if deferral {
-			conf := peer.fsm.pConf.ReadOnly()
-			c := conf.GetAfiSafi(bgp.RF_RTC_UC)
-			restarting := conf.GracefulRestart.State.LocalRestarting
-			if restarting {
-				if family == bgp.Family(0) {
-					families = peer.configuredRFlist()
-				}
-				peer.fsm.lock.Lock()
-				conf := peer.fsm.pConf.ReadCopy()
-				conf.GracefulRestart.State.LocalRestarting = false
-				peer.fsm.pConf.Update(&conf)
-				peer.fsm.lock.Unlock()
-				peer.fsm.logger.Debug("deferral timer expired", slog.Any("Families", families))
-			} else if peer.IsFamilyEnabled(bgp.RF_RTC_UC) && !c.MpGracefulRestart.State.EndOfRibReceived {
-				peer.setRtcEORWait(false)
-				peer.fsm.logger.Debug("route-target deferral timer expired", slog.Any("Families", families))
-				if family == bgp.Family(0) {
-					families = make([]bgp.Family, 0, len(peer.negotiatedRFList())-1)
-					for _, f := range peer.negotiatedRFList() {
-						if f != bgp.RF_RTC_UC {
-							families = append(families, f)
-						}
-					}
-				}
-			} else {
-				continue
-			}
-		}
-
-		s.getBestFromLocalCallback(peer, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
-			if len(filtered) > 0 && !deferral {
-				// withdraw paths that export policy now rejects
-				withdrawals := make([]*table.Path, 0, len(filtered))
-				for _, path := range filtered {
-					if path == nil || path.IsEOR() {
-						continue
-					}
-					if !peer.IsFamilyEnabled(path.GetFamily()) {
-						continue
-					}
-					if !peer.hasPathAlreadyBeenSent(path) {
-						continue
-					}
-					withdrawals = append(withdrawals, path.Clone(true))
-				}
-				paths = append(withdrawals, paths...)
-			}
-			if len(paths) > 0 {
-				if deferral {
-					paths = func() []*table.Path {
-						l := make([]*table.Path, 0, len(paths))
-						for _, p := range paths {
-							if !p.IsWithdraw {
-								l = append(l, p)
-							}
-						}
-						return l
-					}()
-				}
-				peer.updateRoutes(paths...)
-				sendfsmOutgoingMsg(peer, paths)
-			}
-		})
+		s.softResetOutPeer(peer, family, deferral)
 	}
 	return nil
+}
+
+func (s *BgpServer) softResetOutPeer(peer *peer, family bgp.Family, deferral bool) {
+	notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
+	if notEstablished {
+		return
+	}
+	families := familiesForSoftreset(peer, family)
+
+	if deferral {
+		conf := peer.fsm.pConf.ReadOnly()
+		c := conf.GetAfiSafi(bgp.RF_RTC_UC)
+		restarting := conf.GracefulRestart.State.LocalRestarting
+		if restarting {
+			if family == bgp.Family(0) {
+				families = peer.configuredRFlist()
+			}
+			peer.fsm.lock.Lock()
+			conf := peer.fsm.pConf.ReadCopy()
+			conf.GracefulRestart.State.LocalRestarting = false
+			peer.fsm.pConf.Update(&conf)
+			peer.fsm.lock.Unlock()
+			peer.fsm.logger.Debug("deferral timer expired", slog.Any("Families", families))
+		} else if peer.IsFamilyEnabled(bgp.RF_RTC_UC) && !c.MpGracefulRestart.State.EndOfRibReceived {
+			peer.setRtcEORWait(false)
+			peer.fsm.logger.Debug("route-target deferral timer expired", slog.Any("Families", families))
+			if family == bgp.Family(0) {
+				families = make([]bgp.Family, 0, len(peer.negotiatedRFList())-1)
+				for _, f := range peer.negotiatedRFList() {
+					if f != bgp.RF_RTC_UC {
+						families = append(families, f)
+					}
+				}
+			}
+		} else {
+			return
+		}
+	}
+
+	s.getBestFromLocalCallback(peer, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
+		if len(filtered) > 0 && !deferral {
+			// withdraw paths that export policy now rejects
+			withdrawals := make([]*table.Path, 0, len(filtered))
+			for _, path := range filtered {
+				if path == nil || path.IsEOR() {
+					continue
+				}
+				if !peer.IsFamilyEnabled(path.GetFamily()) {
+					continue
+				}
+				if !peer.hasPathAlreadyBeenSent(path) {
+					continue
+				}
+				withdrawals = append(withdrawals, path.Clone(true))
+			}
+			paths = append(withdrawals, paths...)
+		}
+		if len(paths) > 0 {
+			if deferral {
+				paths = func() []*table.Path {
+					l := make([]*table.Path, 0, len(paths))
+					for _, p := range paths {
+						if !p.IsWithdraw {
+							l = append(l, p)
+						}
+					}
+					return l
+				}()
+			}
+			peer.updateRoutes(paths...)
+			sendfsmOutgoingMsg(peer, paths)
+		}
+	})
 }
 
 func (s *BgpServer) sResetIn(addr string, family bgp.Family) error {
