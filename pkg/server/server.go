@@ -3912,6 +3912,14 @@ func apiBfdSessionStateToOC(state api.BfdSessionState) oc.BfdSessionState {
 	}
 }
 
+// bfdBindInterface preserves the creation path when updating a session.
+func (s *BgpServer) bfdBindInterface(conf *oc.Neighbor) string {
+	if isDynamicNeighborConf(conf) {
+		return s.bgpConfig.Global.Config.BindToDevice
+	}
+	return conf.Transport.Config.BindInterface
+}
+
 func (s *BgpServer) updateBfdPeer(
 	addr string,
 	oldConfig, newConfig oc.BfdConfig,
@@ -4367,7 +4375,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 				addr,
 				original.Bfd.Config, c.Bfd.Config,
 				c.Transport.Config.LocalAddress,
-				original.Transport.Config.BindInterface, c.Transport.Config.BindInterface,
+				s.bfdBindInterface(original), s.bfdBindInterface(c),
 			)
 		}
 		if isLimit {
