@@ -19,7 +19,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/netip"
 	"runtime"
 	"slices"
@@ -2680,7 +2679,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 	assert.NoError(t, err)
 
-	timer := time.NewTimer(5 * time.Second)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
 			assert.True(collect, peer.GracefulRestart.PeerRestarting)
@@ -2689,43 +2687,17 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			}
 		})
 	}, time.Second, 10*time.Millisecond)
-	<-timer.C
 
-	// Create dummy session which does NOT send BGP OPEN message in order to
-	// cause Graceful Restart timer expired.
-	var conn net.Conn
-
-	conn, err = net.Dial("tcp", "127.0.0.1:10179")
-	require.NoError(t, err)
-	defer conn.Close()
-
-	// this seems to take around 22 seconds... need to address this whole thing
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	done := make(chan struct{})
-	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
-	for {
+	// s2 does not come back, so the restart timer (2 seconds) expires. Then
+	// LLGR takes over from GR.
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
-			if peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE {
-				// After expiration of GR timer, expect for LLGR to take place
-				for _, af := range peer.AfiSafis {
-					assert.False(t, af.MpGracefulRestart.State.Running)
-					assert.True(t, af.LongLivedGracefulRestart.State.Running)
-				}
-
-				close(done)
+			for _, af := range peer.AfiSafis {
+				assert.False(collect, af.MpGracefulRestart.State.Running)
+				assert.True(collect, af.LongLivedGracefulRestart.State.Running)
 			}
 		})
-
-		select {
-		case <-done:
-			return
-		case <-ctx.Done():
-			t.Fatalf("failed to enter IDLE state in the deadline")
-			return
-		}
-	}
+	}, 10*time.Second, 10*time.Millisecond)
 }
 
 func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
@@ -5805,6 +5777,50 @@ func TestBfdDownWhileDownDoesNotResetNextSession(t *testing.T) {
 		return peer.State() != bgp.BGP_FSM_ESTABLISHED || sentNotification(m2) != nil
 	}, time.Second, 10*time.Millisecond)
 	require.Empty(t, peer.fsm.notification)
+}
+
+// The idle hold time backs off like the start timer of FRR. A NOTIFICATION
+// doubles it, and a session that reaches Established sets it back to 1
+// second.
+func TestIdleHoldTimeBackoff(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+
+	// idleTime ends the session with end and returns how long the peer
+	// stays in Idle. The peer is passive, so it waits in Active after Idle.
+	idleTime := func(m *MockConnection, end func(*MockConnection)) time.Duration {
+		t.Helper()
+		idle := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+		active := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ACTIVE)
+		end(m)
+		idle.Wait(t, 10*time.Second)
+		start := time.Now()
+		active.Wait(t, 10*time.Second)
+		return time.Since(start)
+	}
+	notify := func(m *MockConnection) {
+		m.PushBgpMessage(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE, nil))
+	}
+	closeConn := func(m *MockConnection) {
+		m.Close()
+	}
+
+	// The NOTIFICATION from the peer doubles the initial 1 second.
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+	d := idleTime(m1, notify)
+	require.GreaterOrEqual(t, d, 1500*time.Millisecond)
+	require.Less(t, d, 4*time.Second)
+
+	// Established sets it back to 1 second, and a closed TCP connection
+	// does not double it.
+	m2 := establishSession(t, s, peer, asn, peerAddr)
+	d = idleTime(m2, closeConn)
+	require.GreaterOrEqual(t, d, 500*time.Millisecond)
+	require.Less(t, d, 1500*time.Millisecond)
 }
 
 func TestListPolicyOriginCondition(t *testing.T) {

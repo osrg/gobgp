@@ -167,7 +167,12 @@ type fsmOutgoingMsg struct {
 
 const (
 	holdtimeOpensent = 240
-	holdtimeIdle     = 5
+
+	// The idle hold time backs off like the start timer of FRR: it starts
+	// at 1 second, doubles each time a session ends with a NOTIFICATION,
+	// and goes back to 1 second when a session reaches Established.
+	idleHoldTimeInitial = 1
+	idleHoldTimeMax     = 120
 )
 
 type adminState int32
@@ -476,7 +481,8 @@ type fsm struct {
 
 	// only loop goroutine accesses; no lock required
 	outgoingConnMgr   *outgoingConnManager
-	idleHoldTime      float64
+	idleHoldTime      float64 // for the current or next Idle state
+	idleHoldBackoff   float64
 	opensentHoldTime  float64 // imutable
 	twoByteAsTrans    bool
 	isEBGP            bool
@@ -612,6 +618,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 		outgoingCh:               channels.NewInfiniteChannel(),
 		connCh:                   make(chan net.Conn, 1),
 		opensentHoldTime:         float64(holdtimeOpensent),
+		idleHoldBackoff:          idleHoldTimeInitial,
 		adminStateCh:             make(chan adminStateOperation, 1),
 		capMap:                   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		gracefulRestartTimer:     time.NewTimer(time.Hour),
@@ -831,13 +838,6 @@ func (fsm *fsm) sendNotification(conn net.Conn, msg *bgp.BGPMessage) error {
 			slog.Int("Subcode", int(body.ErrorSubcode)),
 			slog.String("Communicated-Reason", communication),
 			slog.Any("Data", rest))
-
-		if body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET {
-			fsm.lock.Lock()
-			conf := fsm.pConf.ReadOnly()
-			fsm.idleHoldTime = conf.Timers.Config.IdleHoldTimeAfterReset
-			fsm.lock.Unlock()
-		}
 	} else {
 		fsm.logger.Info("sent notification",
 			slog.String("State", fsm.state.String()),
@@ -883,6 +883,29 @@ type fsmHandler struct {
 	callback      fsmCallback
 }
 
+// nextIdleHoldTime returns the idle hold time of the Idle state that the
+// session enters for reason, and the new backoff value. backoff is the
+// current backoff value, and afterReset is idle-hold-time-after-reset.
+func nextIdleHoldTime(backoff, afterReset float64, reason *fsmStateReason) (float64, float64) {
+	switch reason.Type {
+	case fsmAdminDown:
+		// The session stays in Idle until the admin state goes up. Then
+		// it starts again like a new session.
+		return idleHoldTimeInitial, idleHoldTimeInitial
+	case fsmNotificationSent:
+		if n := reason.BGPNotification; n != nil && n.ErrorCode == bgp.BGP_ERROR_CEASE && n.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET {
+			// ResetPeer
+			return afterReset, idleHoldTimeInitial
+		}
+		fallthrough
+	case fsmNotificationRecv, fsmHardReset, fsmHoldTimerExpired, fsmInvalidMsg, fsmBadPeerAS:
+		backoff = min(backoff*2, idleHoldTimeMax)
+	}
+	// The other reasons, for example a closed TCP connection, keep the
+	// current value.
+	return backoff, backoff
+}
+
 func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 
@@ -909,7 +932,6 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 		case <-idleHoldTimer.C:
 			if fsm.adminState.Load() == adminStateUp {
 				fsm.logger.Debug("IdleHoldTimer expired", slog.String("State", fsm.state.String()), slog.Int("Duration", int(fsm.idleHoldTime)))
-				fsm.idleHoldTime = holdtimeIdle
 				return bgp.BGP_FSM_ACTIVE, newfsmStateReason(fsmIdleTimerExpired, nil, nil)
 			} else {
 				fsm.logger.Debug("IdleHoldTimer expired, but stay at idle because the admin state is DOWN", slog.String("State", fsm.state.String()))
@@ -2250,6 +2272,14 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 
 		if ctx.Err() != nil {
 			break
+		}
+
+		switch nextState {
+		case bgp.BGP_FSM_IDLE:
+			conf := fsm.pConf.ReadOnly()
+			fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, reason)
+		case bgp.BGP_FSM_ESTABLISHED:
+			fsm.idleHoldBackoff = idleHoldTimeInitial
 		}
 
 		h.fsm.stateChange(nextState, reason)

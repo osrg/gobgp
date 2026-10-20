@@ -1966,3 +1966,42 @@ func TestCapabilitiesExtendedNexthopIPv4Only(t *testing.T) {
 		require.False(t, ok, "extended nexthop for L2VPN EVPN only")
 	}
 }
+
+func TestNextIdleHoldTime(t *testing.T) {
+	cease := func(subcode uint8) *bgp.BGPNotification {
+		return &bgp.BGPNotification{ErrorCode: bgp.BGP_ERROR_CEASE, ErrorSubcode: subcode}
+	}
+	holdTimerExpired := &bgp.BGPNotification{ErrorCode: bgp.BGP_ERROR_HOLD_TIMER_EXPIRED}
+
+	const afterReset = 30
+
+	tests := []struct {
+		name        string
+		backoff     float64
+		reason      *fsmStateReason
+		wantHold    float64
+		wantBackoff float64
+	}{
+		{"notification sent doubles", 1, newfsmStateReason(fsmNotificationSent, cease(bgp.BGP_ERROR_SUB_BFD_DOWN), nil), 2, 2},
+		{"notification received doubles", 2, newfsmStateReason(fsmNotificationRecv, cease(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET), nil), 4, 4},
+		{"hard reset received doubles", 1, newfsmStateReason(fsmHardReset, cease(bgp.BGP_ERROR_SUB_HARD_RESET), nil), 2, 2},
+		{"hold timer expired doubles", 4, newfsmStateReason(fsmHoldTimerExpired, holdTimerExpired, nil), 8, 8},
+		{"invalid message doubles", 8, newfsmStateReason(fsmInvalidMsg, nil, nil), 16, 16},
+		{"bad peer AS doubles", 16, newfsmStateReason(fsmBadPeerAS, nil, nil), 32, 32},
+		{"doubling stops at the maximum", 64, newfsmStateReason(fsmNotificationRecv, cease(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN), nil), idleHoldTimeMax, idleHoldTimeMax},
+		{"maximum stays", idleHoldTimeMax, newfsmStateReason(fsmNotificationSent, holdTimerExpired, nil), idleHoldTimeMax, idleHoldTimeMax},
+		{"reset uses idle-hold-time-after-reset", 16, newfsmStateReason(fsmNotificationSent, cease(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET), nil), afterReset, idleHoldTimeInitial},
+		{"admin down goes back to the initial value", 16, newfsmStateReason(fsmAdminDown, nil, nil), idleHoldTimeInitial, idleHoldTimeInitial},
+		{"read failure keeps the value", 4, newfsmStateReason(fsmReadFailed, nil, nil), 4, 4},
+		{"write failure keeps the value", 4, newfsmStateReason(fsmWriteFailed, nil, nil), 4, 4},
+		{"graceful restart keeps the value", 4, newfsmStateReason(fsmGracefulRestart, nil, nil), 4, 4},
+		{"restart timer expiry keeps the value", 4, newfsmStateReason(fsmRestartTimerExpired, nil, nil), 4, 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hold, backoff := nextIdleHoldTime(tt.backoff, afterReset, tt.reason)
+			assert.Equal(t, tt.wantHold, hold)
+			assert.Equal(t, tt.wantBackoff, backoff)
+		})
+	}
+}
