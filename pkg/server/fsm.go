@@ -1685,29 +1685,37 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
 			return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil)
 		case result := <-fsm.outgoingConnCh:
-			incomingConn := fsm.conn
-			fsm.conn = result.conn
+			// The peer's OPEN arrived on our own connection, while the
+			// incoming connection waits for the peer's OPEN. RFC 4271
+			// Section 6.8 says: "A BGP speaker MAY also examine
+			// connections in an OpenSent state if it knows the BGP
+			// Identifier of the peer by means outside of the protocol."
+			// Read literally, an OPEN on the other connection is not a
+			// means outside of the protocol. We still use it, like FRR
+			// does: both connections are with the same peer, so its BGP
+			// Identifier is known. Resolve the collision now.
+			if !fsm.resolveCollision(result.open.Body.(*bgp.BGPOpen), fsm.conn, result.conn) {
+				// The incoming connection is kept. Stay in OpenSent
+				// and wait for the peer's OPEN on it.
+				continue
+			}
+			// resolveCollision closed the incoming connection. Its recv
+			// goroutine ends with a read error; drop what it reported.
+			wg.Wait()
+			select {
+			case <-recvChan:
+			default:
+			}
+			select {
+			case <-reasonCh:
+			default:
+			}
+
 			fsm.lock.Lock()
+			fsm.conn = result.conn
 			fsm.recvOpen = result.open
 			fsm.lock.Unlock()
 
-			var e *fsmMsg
-			select {
-			case e = <-recvChan:
-			default:
-			}
-			if e != nil {
-				nextState, _, _ := fsm.handleOpen(e)
-				if nextState == bgp.BGP_FSM_OPENCONFIRM {
-					// collision detected
-					if !fsm.resolveCollision(result.open.Body.(*bgp.BGPOpen), incomingConn, result.conn) {
-						fsm.conn = incomingConn
-						fsm.lock.Lock()
-						fsm.recvOpen = e.MsgData.(*bgp.BGPMessage)
-						fsm.lock.Unlock()
-					}
-				}
-			}
 			b, _ := bgp.NewBGPKeepAliveMessage().Serialize()
 			fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			if _, err := fsm.conn.Write(b); err != nil {

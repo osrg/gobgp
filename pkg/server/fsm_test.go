@@ -2158,3 +2158,78 @@ func TestFSMHandlerActive_StopsManagerWithOutgoingConn(t *testing.T) {
 	require.NotNil(t, p.fsm.outgoingConnMgr)
 	require.Error(t, p.fsm.outgoingConnMgr.ctx.Err())
 }
+
+// In OpenSent on the incoming connection, the peer's OPEN arrives on our own
+// connection before the one on the incoming connection. opensent() used to
+// switch to our connection without resolving the collision: the incoming
+// connection was neither closed nor used, and opensent() did not return
+// until the peer sent something on it.
+// https://github.com/osrg/gobgp/issues/3751
+func TestFSMHandlerOpensent_OutgoingOpenFirst(t *testing.T) {
+	tests := []struct {
+		name         string
+		localID      string
+		remoteID     string
+		wantOutgoing bool
+	}{
+		{"local ID is higher", "10.0.0.9", "10.0.0.1", true},
+		{"remote ID is higher", "10.0.0.1", "10.0.0.9", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			incoming := NewMockConnection()
+			outgoing := NewMockConnection()
+			p, h := makePeerAndHandler(incoming)
+			t.Cleanup(func() {
+				cleanPeerAndHandler(p, h)
+				incoming.Close()
+				outgoing.Close()
+			})
+			p.fsm.opensentHoldTime = 10
+			p.fsm.gConf.Config.RouterId = netip.MustParseAddr(tt.localID)
+			// The manager that sent the connection has returned.
+			p.fsm.outgoingConnMgr = &outgoingConnManager{fsm: p.fsm}
+			p.fsm.outgoingConnMgr.state.Store(bgp.BGP_FSM_OPENSENT)
+
+			open, err := bgp.NewBGPOpenMessage(65002, 90, netip.MustParseAddr(tt.remoteID), nil)
+			require.NoError(t, err)
+			p.fsm.outgoingConnCh <- outgoingConn{conn: outgoing, open: open}
+
+			type result struct {
+				state  bgp.FSMState
+				reason *fsmStateReason
+			}
+			done := make(chan result, 1)
+			go func() {
+				state, reason := h.opensent(t.Context())
+				done <- result{state, reason}
+			}()
+
+			if tt.wantOutgoing {
+				requireCollisionCease(t, sentMessage(t, incoming, 0))
+				msg := sentMessage(t, outgoing, 0)
+				require.Equal(t, uint8(bgp.BGP_MSG_KEEPALIVE), msg.Header.Type)
+			} else {
+				requireCollisionCease(t, sentMessage(t, outgoing, 0))
+				// Still in OpenSent: the OPEN on the incoming
+				// connection moves it to OpenConfirm.
+				go incoming.PushBgpMessage(open)
+				msg := sentMessage(t, incoming, 0)
+				require.Equal(t, uint8(bgp.BGP_MSG_KEEPALIVE), msg.Header.Type)
+			}
+
+			select {
+			case r := <-done:
+				require.Equal(t, bgp.BGP_FSM_OPENCONFIRM, r.state)
+			case <-time.After(5 * time.Second):
+				t.Fatal("the FSM state function did not return")
+			}
+			if tt.wantOutgoing {
+				require.Same(t, outgoing, p.fsm.conn)
+				require.Same(t, open, p.fsm.recvOpen)
+			} else {
+				require.Same(t, incoming, p.fsm.conn)
+			}
+		})
+	}
+}
