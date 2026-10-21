@@ -2005,3 +2005,47 @@ func TestNextIdleHoldTime(t *testing.T) {
 		})
 	}
 }
+
+// TestRecvMessageloop_DiscardsAs4AttrsFromNewSpeaker verifies that AS4_PATH
+// and AS4_AGGREGATOR received on a session where both sides use four-octet AS
+// numbers are discarded instead of being merged into AS_PATH and AGGREGATOR
+// (RFC 6793 Section 4.1).
+func TestRecvMessageloop_DiscardsAs4AttrsFromNewSpeaker(t *testing.T) {
+	assert := assert.New(t)
+
+	raw := buildUpdate([]byte{
+		0x40, 0x01, 0x01, 0x00, // ORIGIN: IGP
+		0x40, 0x02, 0x0a, 0x02, 0x02, 0x00, 0x00, 0xfd, 0xe9, 0x00, 0x00, 0xfd, 0xea, // AS_PATH: 65001 65002
+		0x40, 0x03, 0x04, 0x0a, 0x00, 0x00, 0x01, // NEXT_HOP: 10.0.0.1
+		0xc0, 0x07, 0x08, 0x00, 0x00, 0xfd, 0xe9, 0x0a, 0x00, 0x00, 0x01, // AGGREGATOR: 65001 10.0.0.1
+		0xc0, 0x11, 0x06, 0x02, 0x01, 0x00, 0x00, 0xfd, 0xeb, // AS4_PATH: 65003
+		0xc0, 0x12, 0x08, 0x00, 0x00, 0xfd, 0xed, 0x0a, 0x00, 0x00, 0x02, // AS4_AGGREGATOR: 65005 10.0.0.2
+	}, []byte{0x18, 0xc0, 0xa8, 0x01}) // 192.168.1.0/24
+
+	fmsg, n := recvUpdate(t, raw)
+	assert.Nil(n)
+	if !assert.NotNil(fmsg) {
+		return
+	}
+	assert.Equal(bgp.ERROR_HANDLING_NONE, fmsg.handling)
+	body := fmsg.MsgData.(*bgp.BGPMessage).Body.(*bgp.BGPUpdate)
+	var asPath *bgp.PathAttributeAsPath
+	var aggregator *bgp.PathAttributeAggregator
+	for _, a := range body.PathAttributes {
+		switch a := a.(type) {
+		case *bgp.PathAttributeAsPath:
+			asPath = a
+		case *bgp.PathAttributeAggregator:
+			aggregator = a
+		case *bgp.PathAttributeAs4Path, *bgp.PathAttributeAs4Aggregator:
+			t.Errorf("%s was not discarded", a.GetType())
+		}
+	}
+	if assert.NotNil(asPath) && assert.Len(asPath.Value, 1) {
+		assert.Equal([]uint32{65001, 65002}, asPath.Value[0].GetAS())
+	}
+	if assert.NotNil(aggregator) {
+		assert.Equal(uint32(65001), aggregator.Value.AS)
+		assert.Equal(netip.MustParseAddr("10.0.0.1"), aggregator.Value.Address)
+	}
+}

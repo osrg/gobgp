@@ -2023,6 +2023,9 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 						}
 					}
 
+					if !h.fsm.twoByteAsTrans {
+						table.DiscardAs4Attrs(body)
+					}
 					table.UpdatePathAttrs4ByteAs(h.fsm.logger, body)
 
 					if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
