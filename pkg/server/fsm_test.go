@@ -2338,3 +2338,45 @@ func TestOutgoingConnManager_StopWithNotification(t *testing.T) {
 	requireCollisionCease(t, readMessage(t, conn))
 	requireCollisionCease(t, sentMessage(t, left, 0))
 }
+
+// When the session goes to Idle, a manager that is still connecting is
+// stopped: in Idle we make no connection to the peer.
+func TestOutgoingConnManager_KeepForIdle_Connecting(t *testing.T) {
+	ocm, _ := startManagerToListener(t)
+
+	require.False(t, ocm.keepForIdle())
+	require.Error(t, ocm.ctx.Err())
+}
+
+// A manager that sent its OPEN is kept when the session goes to Idle.
+func TestOutgoingConnManager_KeepForIdle_OpenSent(t *testing.T) {
+	ocm, l := startManagerToListener(t)
+
+	conn, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), readMessage(t, conn).Header.Type)
+
+	require.True(t, ocm.keepForIdle())
+	require.NoError(t, ocm.ctx.Err())
+}
+
+// A connection that the manager left in outgoingConnCh is kept when the
+// session goes to Idle.
+func TestOutgoingConnManager_KeepForIdle_ConnInChannel(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel() // the manager has returned
+	ocm := &outgoingConnManager{ctx: ctx, cancel: cancel, fsm: p.fsm}
+
+	outgoing := NewMockConnection()
+	t.Cleanup(func() { outgoing.Close() })
+	open, err := bgp.NewBGPOpenMessage(65002, 90, netip.MustParseAddr("10.0.0.1"), nil)
+	require.NoError(t, err)
+	p.fsm.outgoingConnCh <- outgoingConn{conn: outgoing, open: open}
+
+	require.True(t, ocm.keepForIdle())
+}

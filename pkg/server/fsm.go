@@ -426,6 +426,28 @@ func (ocm *outgoingConnManager) stop(notif *bgp.BGPMessage) {
 	}
 }
 
+// keepForIdle is called when the session goes to Idle. It stops the manager,
+// unless the manager has a connection on which it sent its OPEN, or one that
+// it left in fsm.outgoingConnCh. Returns true if it has such a connection.
+func (ocm *outgoingConnManager) keepForIdle() bool {
+	ch := ocm.fsm.outgoingConnCh
+	if len(ch) > 0 {
+		return true
+	}
+	if ocm.ctx.Err() != nil {
+		// The manager has returned. If it returned after it sent a
+		// connection, the connection is in the channel now.
+		return len(ch) > 0
+	}
+	// Take the manager over like opensent() does, so that a manager that
+	// sent its OPEN is never stopped here.
+	if ocm.state.CompareAndSwap(bgp.BGP_FSM_CONNECT, bgp.BGP_FSM_IDLE) {
+		ocm.stop(nil)
+		return false
+	}
+	return ocm.state.Load() == bgp.BGP_FSM_OPENSENT
+}
+
 type pConfAccess struct {
 	conf atomic.Pointer[oc.Neighbor]
 }
@@ -2366,8 +2388,17 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 
 		switch nextState {
 		case bgp.BGP_FSM_IDLE:
-			conf := fsm.pConf.ReadOnly()
-			fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, reason)
+			if fsm.outgoingConnMgr != nil && fsm.outgoingConnMgr.keepForIdle() {
+				// Our own connection is still in progress, so only the
+				// other connection failed. Leave Idle at once, so that
+				// active() takes our connection, and keep the backoff.
+				// Otherwise keepForIdle() stopped the manager: in Idle
+				// we make no connection to the peer.
+				fsm.idleHoldTime = 0
+			} else {
+				conf := fsm.pConf.ReadOnly()
+				fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, reason)
+			}
 		case bgp.BGP_FSM_ESTABLISHED:
 			fsm.idleHoldBackoff = idleHoldTimeInitial
 			// The manager may still run: it sent its OPEN before the

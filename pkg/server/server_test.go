@@ -5146,6 +5146,76 @@ func TestOutgoingConnClosedOnEstablished(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
 }
 
+// The peer closes the incoming connection with Cease/Connection Collision
+// Resolution before it sends its OPEN there, and sends its OPEN on our
+// connection instead. The session used to wait in Idle for the idle hold
+// time before it took our connection. Now it leaves Idle at once.
+// https://github.com/osrg/gobgp/issues/3751
+func TestIdleLeftAtOnceWithOutgoingConn(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "127.0.0.1"
+	)
+
+	s := startServerForRTCPeer(t, asn)
+
+	l, err := net.Listen("tcp", net.JoinHostPort(peerAddr, "0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				RemotePort: uint16(l.Addr().(*net.TCPAddr).Port),
+			},
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+	peer := s.neighborMap[netip.MustParseAddr(peerAddr)]
+	require.NotNil(t, peer)
+
+	// The manager connects and sends its OPEN. Do not answer it yet.
+	out, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { out.Close() })
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), readMessage(t, out).Header.Type)
+
+	// The peer's own connection gets Cease/7 as the first message.
+	in := NewMockConnection()
+	in.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { in.Close() })
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+	peer.fsm.connCh <- in
+	go in.PushBgpMessage(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION, nil))
+	w.Wait(t, 10*time.Second)
+
+	// The peer's OPEN on our connection is answered at once, not after
+	// the idle hold time (2 seconds here).
+	open, err := bgp.NewBGPOpenMessage(asn, 90, netip.MustParseAddr("10.0.0.1"), nil)
+	require.NoError(t, err)
+	b, err := open.Serialize()
+	require.NoError(t, err)
+	start := time.Now()
+	_, err = out.Write(b)
+	require.NoError(t, err)
+	require.Equal(t, uint8(bgp.BGP_MSG_KEEPALIVE), readMessage(t, out).Header.Type)
+	require.Less(t, time.Since(start), time.Second)
+
+	w = newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ESTABLISHED)
+	b, err = bgp.NewBGPKeepAliveMessage().Serialize()
+	require.NoError(t, err)
+	_, err = out.Write(b)
+	require.NoError(t, err)
+	w.Wait(t, 10*time.Second)
+}
+
 // The deferral timer of a deleted peer does not touch a new peer with the same
 // address. It used to look the peer up by address when it expired, so it
 // ended the RTC EOR wait of the new peer.
