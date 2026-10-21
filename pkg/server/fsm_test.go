@@ -2052,3 +2052,109 @@ func TestResolveCollision(t *testing.T) {
 		})
 	}
 }
+
+// sentMessage waits for the n-th message sent on m and returns it.
+func sentMessage(t *testing.T, m *MockConnection, n int) *bgp.BGPMessage {
+	t.Helper()
+	require.Eventually(t, func() bool { return len(m.GetSentMessages()) > n },
+		time.Second, 10*time.Millisecond)
+	msg, err := bgp.ParseBGPMessage(m.GetSentMessages()[n])
+	require.NoError(t, err)
+	return msg
+}
+
+func requireCollisionCease(t *testing.T, msg *bgp.BGPMessage) {
+	t.Helper()
+	require.Equal(t, uint8(bgp.BGP_MSG_NOTIFICATION), msg.Header.Type)
+	n := msg.Body.(*bgp.BGPNotification)
+	require.Equal(t, uint8(bgp.BGP_ERROR_CEASE), n.ErrorCode)
+	require.Equal(t, uint8(bgp.BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION), n.ErrorSubcode)
+}
+
+// In OpenConfirm on the incoming connection, the peer's OPEN arrives on our
+// own connection. RFC 4271 Section 6.8 requires the collision to be
+// resolved then. openconfirm() used to ignore the outgoing connection, so
+// the session went to Idle when the peer closed the incoming one.
+// https://github.com/osrg/gobgp/issues/3741
+func TestFSMHandlerOpenconfirm_Collision(t *testing.T) {
+	tests := []struct {
+		name         string
+		localID      string
+		remoteID     string
+		wantOutgoing bool
+	}{
+		{"local ID is higher", "10.0.0.9", "10.0.0.1", true},
+		{"remote ID is higher", "10.0.0.1", "10.0.0.9", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			incoming := NewMockConnection()
+			outgoing := NewMockConnection()
+			p, h := makePeerAndHandler(incoming)
+			t.Cleanup(func() {
+				cleanPeerAndHandler(p, h)
+				incoming.Close()
+				outgoing.Close()
+			})
+			p.fsm.gConf.Config.RouterId = netip.MustParseAddr(tt.localID)
+
+			open, err := bgp.NewBGPOpenMessage(65002, 90, netip.MustParseAddr(tt.remoteID), nil)
+			require.NoError(t, err)
+			p.fsm.outgoingConnCh <- outgoingConn{conn: outgoing, open: open}
+
+			type result struct {
+				state  bgp.FSMState
+				reason *fsmStateReason
+			}
+			done := make(chan result, 1)
+			go func() {
+				state, reason := h.openconfirm(t.Context())
+				done <- result{state, reason}
+			}()
+
+			loser, winner := outgoing, incoming
+			if tt.wantOutgoing {
+				loser, winner = incoming, outgoing
+			}
+			requireCollisionCease(t, sentMessage(t, loser, 0))
+			if tt.wantOutgoing {
+				// openconfirm() answers the OPEN on our connection.
+				msg := sentMessage(t, winner, 0)
+				require.Equal(t, uint8(bgp.BGP_MSG_KEEPALIVE), msg.Header.Type)
+			}
+
+			go winner.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
+			select {
+			case r := <-done:
+				require.Equal(t, bgp.BGP_FSM_ESTABLISHED, r.state)
+			case <-time.After(5 * time.Second):
+				t.Fatal("the FSM state function did not return")
+			}
+			require.Same(t, winner, p.fsm.conn)
+			if tt.wantOutgoing {
+				require.Same(t, open, p.fsm.recvOpen)
+			}
+		})
+	}
+}
+
+// active() can start a new outgoing connection manager and then take the
+// connection that the previous manager left. The new manager must not keep
+// running: it would open another connection to the peer.
+func TestFSMHandlerActive_StopsManagerWithOutgoingConn(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	outgoing := NewMockConnection()
+	t.Cleanup(func() { outgoing.Close() })
+	open, err := bgp.NewBGPOpenMessage(65002, 90, netip.MustParseAddr("10.0.0.1"), nil)
+	require.NoError(t, err)
+	p.fsm.outgoingConnCh <- outgoingConn{conn: outgoing, open: open}
+
+	state, _ := h.active(t.Context())
+	require.Equal(t, bgp.BGP_FSM_OPENCONFIRM, state)
+	require.Same(t, outgoing, p.fsm.conn)
+	require.NotNil(t, p.fsm.outgoingConnMgr)
+	require.Error(t, p.fsm.outgoingConnMgr.ctx.Err())
+}

@@ -1113,6 +1113,15 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				fsm.recvOpen = result.open
 				fsm.lock.Unlock()
 
+				// The manager that sent this connection has returned, but
+				// this function may have started a new one above, when it
+				// found the old one done. The session now uses our own
+				// connection, so another outgoing connection is not
+				// needed. openconfirm() relies on this: an outgoing
+				// connection that it receives always collides with an
+				// incoming one.
+				fsm.outgoingConnMgr.stop()
+
 				return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil)
 			}
 		case <-fsm.gracefulRestartTimer.C:
@@ -1767,18 +1776,16 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 		fsm.conn.SetReadDeadline(time.Time{})
 	}()
 
-	fsm.lock.Lock()
-	var holdTimer *time.Timer
-	conf := fsm.pConf.ReadCopy()
-	if conf.Timers.State.NegotiatedHoldTime == 0 {
-		holdTimer = &time.Timer{}
-	} else {
+	newHoldTimer := func() *time.Timer {
+		conf := fsm.pConf.ReadOnly()
+		if conf.Timers.State.NegotiatedHoldTime == 0 {
+			return &time.Timer{}
+		}
 		// RFC 4271 P.65
 		// sets the HoldTimer according to the negotiated value
-		holdTimer = time.NewTimer(time.Second * time.Duration(conf.Timers.State.NegotiatedHoldTime))
+		return time.NewTimer(time.Second * time.Duration(conf.Timers.State.NegotiatedHoldTime))
 	}
-	fsm.pConf.Update(&conf)
-	fsm.lock.Unlock()
+	holdTimer := newHoldTimer()
 
 	for {
 		select {
@@ -1791,6 +1798,46 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			}
 			conn.Close()
 			fsm.logger.Warn("Closed an accepted connection", slog.String("State", fsm.state.String()))
+		case result := <-fsm.outgoingConnCh:
+			// The peer's OPEN arrived on our own connection while the
+			// incoming connection is in OpenConfirm. RFC 4271 Section 6.8
+			// says: "Upon receipt of an OPEN message, the local system
+			// MUST examine all of its connections that are in the
+			// OpenConfirm state."
+			if !fsm.resolveCollision(result.open.Body.(*bgp.BGPOpen), fsm.conn, result.conn) {
+				continue
+			}
+			// resolveCollision closed the incoming connection. Its recv
+			// goroutine ends with a read error; drop what it reported.
+			wg.Wait()
+			select {
+			case <-recvChan:
+			default:
+			}
+			select {
+			case <-reasonCh:
+			default:
+			}
+
+			fsm.lock.Lock()
+			fsm.conn = result.conn
+			fsm.recvOpen = result.open
+			fsm.lock.Unlock()
+
+			b, _ := bgp.NewBGPKeepAliveMessage().Serialize()
+			fsm.conn.SetWriteDeadline(time.Now().Add(time.Second))
+			if _, err := fsm.conn.Write(b); err != nil {
+				fsm.conn.Close()
+				fsm.logger.Warn("failed to send keepalive on outgoing connection", slog.String("Error", err.Error()))
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
+			}
+			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
+
+			wg.Add(1)
+			go h.recvMessage(ctx, fsm.conn, recvChan, reasonCh, wg)
+			// The old hold timer is not stopped. Its channel is no longer
+			// read, and the timer for hold time zero cannot be stopped.
+			holdTimer = newHoldTimer()
 		case <-fsm.gracefulRestartTimer.C:
 			conf := fsm.pConf.ReadOnly()
 			restarting := conf.GracefulRestart.State.PeerRestarting
