@@ -270,6 +270,11 @@ type outgoingConnManager struct {
 	wg     sync.WaitGroup
 	fsm    *fsm
 	state  fsmState
+	// notif closes a connection on which the OPEN was sent, when the
+	// manager is stopped. nil means just close it. stop() sets it before
+	// it cancels ctx. It is atomic because ctx can also be canceled by its
+	// parent.
+	notif atomic.Pointer[bgp.BGPMessage]
 }
 
 func newOutGoingConnManager(ctx context.Context, fsm *fsm) *outgoingConnManager {
@@ -360,8 +365,12 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 			case <-ocm.ctx.Done():
 				holdTimer.Stop()
 				conn.SetReadDeadline(time.Now())
-				conn.Close()
 				wg.Wait()
+				if notif := ocm.notif.Load(); notif != nil {
+					_ = fsm.sendNotification(conn, notif)
+				} else {
+					conn.Close()
+				}
 				return
 			case reason := <-reasonCh:
 				holdTimer.Stop()
@@ -396,14 +405,21 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 	}
 }
 
-func (ocm *outgoingConnManager) stop() {
+// stop stops the manager. A connection on which the OPEN was sent is closed
+// with notif, or just closed if notif is nil.
+func (ocm *outgoingConnManager) stop(notif *bgp.BGPMessage) {
+	ocm.notif.Store(notif)
 	ocm.cancel()
 	ocm.wg.Wait()
 	// drain
 	for {
 		select {
 		case c := <-ocm.fsm.outgoingConnCh:
-			c.conn.Close()
+			if notif != nil {
+				_ = ocm.fsm.sendNotification(c.conn, notif)
+			} else {
+				c.conn.Close()
+			}
 		default:
 			return
 		}
@@ -1136,7 +1152,7 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				// needed. openconfirm() relies on this: an outgoing
 				// connection that it receives always collides with an
 				// incoming one.
-				fsm.outgoingConnMgr.stop()
+				fsm.outgoingConnMgr.stop(nil)
 
 				return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil)
 			}
@@ -1696,7 +1712,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 			// Stop trying to connect, unless the manager has moved to
 			// OpenSent to send its OPEN (see outgoingConnManager.run()).
 			if fsm.outgoingConnMgr.state.CompareAndSwap(bgp.BGP_FSM_CONNECT, bgp.BGP_FSM_IDLE) {
-				fsm.outgoingConnMgr.stop()
+				fsm.outgoingConnMgr.stop(nil)
 			}
 
 			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
@@ -2340,7 +2356,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 		switch reason.Type {
 		case fsmAdminDown, fsmGracefulRestart:
 			if fsm.outgoingConnMgr != nil {
-				fsm.outgoingConnMgr.stop()
+				fsm.outgoingConnMgr.stop(nil)
 			}
 		}
 
@@ -2354,6 +2370,17 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 			fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, reason)
 		case bgp.BGP_FSM_ESTABLISHED:
 			fsm.idleHoldBackoff = idleHoldTimeInitial
+			// The manager may still run: it sent its OPEN before the
+			// incoming connection got the peer's OPEN, so opensent() did
+			// not stop it. Stop it now, or it opens connections to the
+			// peer while the session is established. RFC 4271 Section 6.8
+			// says: "Unless allowed via configuration, a connection
+			// collision with an existing BGP connection that is in the
+			// Established state causes closing of the newly created
+			// connection."
+			if fsm.outgoingConnMgr != nil {
+				fsm.outgoingConnMgr.stop(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION, nil))
+			}
 		}
 
 		h.fsm.stateChange(nextState, reason)

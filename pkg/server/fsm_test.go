@@ -2256,7 +2256,7 @@ func startManagerToListener(t *testing.T) (*outgoingConnManager, net.Listener) {
 	p.fsm.pConf.Update(&conf)
 
 	ocm := newOutGoingConnManager(t.Context(), p.fsm)
-	t.Cleanup(ocm.stop)
+	t.Cleanup(func() { ocm.stop(nil) })
 	return ocm, l
 }
 
@@ -2302,4 +2302,39 @@ func TestOutgoingConnManager_StoppedBeforeOpen(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 
 	ocm.wg.Wait()
+}
+
+// readMessage reads one BGP message from conn.
+func readMessage(t *testing.T, conn net.Conn) *bgp.BGPMessage {
+	t.Helper()
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+	hdr, err := readAll(conn, bgp.BGP_HEADER_LENGTH)
+	require.NoError(t, err)
+	body, err := readAll(conn, int(binary.BigEndian.Uint16(hdr[16:18]))-bgp.BGP_HEADER_LENGTH)
+	require.NoError(t, err)
+	msg, err := bgp.ParseBGPMessage(append(hdr, body...))
+	require.NoError(t, err)
+	return msg
+}
+
+// A manager stopped with a NOTIFICATION sends it on the connection on which
+// it sent its OPEN, and on a connection that it left in outgoingConnCh.
+func TestOutgoingConnManager_StopWithNotification(t *testing.T) {
+	ocm, l := startManagerToListener(t)
+
+	conn, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), readMessage(t, conn).Header.Type)
+
+	left := NewMockConnection()
+	t.Cleanup(func() { left.Close() })
+	open, err := bgp.NewBGPOpenMessage(65002, 90, netip.MustParseAddr("10.0.0.1"), nil)
+	require.NoError(t, err)
+	ocm.fsm.outgoingConnCh <- outgoingConn{conn: left, open: open}
+
+	ocm.stop(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION, nil))
+
+	requireCollisionCease(t, readMessage(t, conn))
+	requireCollisionCease(t, sentMessage(t, left, 0))
 }

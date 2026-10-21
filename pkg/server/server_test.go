@@ -19,7 +19,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/netip"
+	"os"
 	"runtime"
 	"slices"
 	"strconv"
@@ -5092,6 +5094,56 @@ func TestDeferralTimerStoppedOnSessionDown(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return !peer.getRtcEORWait()
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+// The outgoing connection manager sent its OPEN, but the session is
+// established on the incoming connection first. The manager used to keep
+// running: it connected again and again while the session was established.
+// Now its connection is closed with Cease/Connection Collision Resolution.
+func TestOutgoingConnClosedOnEstablished(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "127.0.0.1"
+	)
+
+	s := startServerForRTCPeer(t, asn)
+
+	l, err := net.Listen("tcp", net.JoinHostPort(peerAddr, "0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				RemotePort: uint16(l.Addr().(*net.TCPAddr).Port),
+			},
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+	peer := s.neighborMap[netip.MustParseAddr(peerAddr)]
+	require.NotNil(t, peer)
+
+	// The manager connects and sends its OPEN. Do not answer it.
+	out, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { out.Close() })
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), readMessage(t, out).Header.Type)
+
+	establishSession(t, s, peer, asn, peerAddr)
+
+	requireCollisionCease(t, readMessage(t, out))
+
+	// The manager does not connect again.
+	require.NoError(t, l.(*net.TCPListener).SetDeadline(time.Now().Add(3*time.Second)))
+	_, err = l.Accept()
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
 }
 
 // The deferral timer of a deleted peer does not touch a new peer with the same
