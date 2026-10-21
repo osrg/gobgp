@@ -217,6 +217,10 @@ func (s *fsmState) Store(state bgp.FSMState) {
 	s.val.Store(int32(state))
 }
 
+func (s *fsmState) CompareAndSwap(old, new bgp.FSMState) bool {
+	return s.val.CompareAndSwap(int32(old), int32(new))
+}
+
 type adminStateRaw struct {
 	val atomic.Int32
 }
@@ -299,6 +303,9 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 	var conn net.Conn
 	for {
 		switch ocm.state.Load() {
+		case bgp.BGP_FSM_IDLE:
+			// opensent() took the manager over to stop it.
+			return
 		case bgp.BGP_FSM_CONNECT:
 			conn = ocm.fsm.h.connectLoop(ocm.ctx)
 			if ocm.ctx.Err() != nil {
@@ -306,6 +313,15 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 				if conn != nil {
 					conn.Close()
 				}
+				return
+			}
+			// Move to OpenSent before the OPEN goes out. opensent()
+			// stops the manager only while it is in Connect, with the
+			// same compare-and-swap. So the manager is never stopped
+			// after it sent its OPEN: the peer may keep this connection
+			// when it resolves a collision.
+			if !ocm.state.CompareAndSwap(bgp.BGP_FSM_CONNECT, bgp.BGP_FSM_OPENSENT) {
+				conn.Close()
 				return
 			}
 
@@ -320,11 +336,11 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 			conn.SetWriteDeadline(time.Now().Add(time.Second))
 			if _, err := conn.Write(b); err != nil {
 				conn.Close()
+				ocm.state.Store(bgp.BGP_FSM_CONNECT)
 				continue
 			}
 			fsm.bgpMessageStateUpdate(bgp.BGP_MSG_OPEN, false)
 			fsm.logger.Debug("outgoing connection established")
-			ocm.state.Store(bgp.BGP_FSM_OPENSENT)
 		case bgp.BGP_FSM_OPENSENT:
 			recvCh := make(chan *fsmMsg, 1)
 			reasonCh := make(chan fsmStateReason, 1)
@@ -1677,8 +1693,9 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				fsm.conn.Close()
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
 			}
-			// stop to try to connect.
-			if fsm.outgoingConnMgr.state.Load() == bgp.BGP_FSM_CONNECT {
+			// Stop trying to connect, unless the manager has moved to
+			// OpenSent to send its OPEN (see outgoingConnManager.run()).
+			if fsm.outgoingConnMgr.state.CompareAndSwap(bgp.BGP_FSM_CONNECT, bgp.BGP_FSM_IDLE) {
 				fsm.outgoingConnMgr.stop()
 			}
 

@@ -2233,3 +2233,73 @@ func TestFSMHandlerOpensent_OutgoingOpenFirst(t *testing.T) {
 		})
 	}
 }
+
+// startManagerToListener starts an outgoing connection manager that
+// connects to a local listener, and returns both.
+func startManagerToListener(t *testing.T) (*outgoingConnManager, net.Listener) {
+	t.Helper()
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+	p.fsm.gConf.Config.RouterId = netip.MustParseAddr("10.0.0.9")
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Config.LocalAs = 65001
+	conf.Timers.Config.HoldTime = 90
+	conf.State.NeighborAddress = netip.MustParseAddr("127.0.0.1")
+	conf.Transport.Config.RemotePort = uint16(l.Addr().(*net.TCPAddr).Port)
+	conf.Transport.Config.LocalAddress = netip.MustParseAddr("127.0.0.1")
+	p.fsm.pConf.Update(&conf)
+
+	ocm := newOutGoingConnManager(t.Context(), p.fsm)
+	t.Cleanup(ocm.stop)
+	return ocm, l
+}
+
+// The manager moves to OpenSent before its OPEN goes out. opensent() used
+// to read the state as Connect between the OPEN and the state change, and
+// stopped the manager, which closed a connection that the peer may keep.
+// https://github.com/osrg/gobgp/issues/3751
+func TestOutgoingConnManager_OpenSentBeforeOpen(t *testing.T) {
+	ocm, l := startManagerToListener(t)
+
+	conn, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+	msg, err := readAll(conn, bgp.BGP_HEADER_LENGTH)
+	require.NoError(t, err)
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), msg[18])
+
+	require.Equal(t, bgp.BGP_FSM_OPENSENT, ocm.state.Load())
+	require.False(t, ocm.state.CompareAndSwap(bgp.BGP_FSM_CONNECT, bgp.BGP_FSM_IDLE))
+}
+
+// When opensent() takes the manager over while it is connecting, the
+// manager closes the new connection without sending its OPEN.
+func TestOutgoingConnManager_StoppedBeforeOpen(t *testing.T) {
+	ocm, l := startManagerToListener(t)
+
+	// connectLoop() waits at least 1.5 seconds before it connects. Take
+	// the manager over while it waits there, so that it connects after
+	// that. Taken over before connectLoop(), it returns without
+	// connecting.
+	time.Sleep(500 * time.Millisecond)
+	require.True(t, ocm.state.CompareAndSwap(bgp.BGP_FSM_CONNECT, bgp.BGP_FSM_IDLE))
+
+	require.NoError(t, l.(*net.TCPListener).SetDeadline(time.Now().Add(5*time.Second)))
+	conn, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+	buf := make([]byte, bgp.BGP_HEADER_LENGTH)
+	n, err := conn.Read(buf)
+	require.Equal(t, 0, n)
+	require.ErrorIs(t, err, io.EOF)
+
+	ocm.wg.Wait()
+}
