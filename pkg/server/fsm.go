@@ -504,8 +504,8 @@ func (fsm *fsm) tryReceiveOutgoingConn() (outgoingConn, bool) {
 	}
 }
 
-// resolveCollision resolves connection collision according to RFC 4271 Section 6.8
-// and RFC 6286 Section 2.3.
+// isDominant compares the BGP Identifiers for connection collision according
+// to RFC 4271 Section 6.8 and RFC 6286 Section 2.3.
 // Returns true if active connection should be used, false if passive connection should be used.
 func (fsm *fsm) isDominant(open *bgp.BGPOpen) bool {
 	fsm.lock.Lock()
@@ -526,6 +526,24 @@ func (fsm *fsm) isDominant(open *bgp.BGPOpen) bool {
 		return true
 	}
 
+	return false
+}
+
+// resolveCollision decides which of the two colliding connections is kept.
+// open is the OPEN message from the peer. The connection that is not kept is
+// closed with Cease/Connection Collision Resolution. RFC 4271 Section 6.8
+// says: "Closing the BGP connection (that results from the collision
+// resolution procedure) is accomplished by sending the NOTIFICATION message
+// with the Error Code Cease." Returns true if the outgoing connection is kept.
+func (fsm *fsm) resolveCollision(open *bgp.BGPOpen, incoming, outgoing net.Conn) bool {
+	notif := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION, nil)
+	if fsm.isDominant(open) {
+		fsm.logger.Debug("collision detected: dominant on active side, close the incoming connection")
+		_ = fsm.sendNotification(incoming, notif)
+		return true
+	}
+	fsm.logger.Debug("collision detected: dominant on passive side, close the outgoing connection")
+	_ = fsm.sendNotification(outgoing, notif)
 	return false
 }
 
@@ -1636,19 +1654,11 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 
 			if outConn, ok := fsm.tryReceiveOutgoingConn(); ok {
 				// collision detected
-				isDominant := fsm.isDominant(m.Body.(*bgp.BGPOpen))
-				if isDominant {
-					// close the incoming connection
-					fsm.logger.Debug("collision detected: dominant on active side, close the incoming connection")
-					fsm.conn.Close()
+				if fsm.resolveCollision(m.Body.(*bgp.BGPOpen), fsm.conn, outConn.conn) {
 					fsm.conn = outConn.conn
 					fsm.lock.Lock()
 					fsm.recvOpen = outConn.open
 					fsm.lock.Unlock()
-				} else {
-					// close the outgoing connection
-					fsm.logger.Debug("collision detected: dominant on passive side, close the outgoing connection")
-					outConn.conn.Close()
 				}
 			}
 
@@ -1681,15 +1691,7 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 				nextState, _, _ := fsm.handleOpen(e)
 				if nextState == bgp.BGP_FSM_OPENCONFIRM {
 					// collision detected
-					isDominant := fsm.isDominant(result.open.Body.(*bgp.BGPOpen))
-					if isDominant {
-						// close the incoming connection
-						fsm.logger.Debug("collision detected: dominant on active side, close the incoming connection")
-						incomingConn.Close()
-					} else {
-						// close the outgoing connection
-						fsm.logger.Debug("collision detected: dominant on passive side, close the outgoing connection")
-						result.conn.Close()
+					if !fsm.resolveCollision(result.open.Body.(*bgp.BGPOpen), incomingConn, result.conn) {
 						fsm.conn = incomingConn
 						fsm.lock.Lock()
 						fsm.recvOpen = e.MsgData.(*bgp.BGPMessage)

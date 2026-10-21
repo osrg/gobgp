@@ -2005,3 +2005,50 @@ func TestNextIdleHoldTime(t *testing.T) {
 		})
 	}
 }
+
+// The connection that loses a collision is closed with Cease/Connection
+// Collision Resolution (RFC 4271 Section 6.8), and the other one gets
+// nothing.
+func TestResolveCollision(t *testing.T) {
+	tests := []struct {
+		name         string
+		localID      string
+		remoteID     string
+		wantOutgoing bool
+	}{
+		{"local ID is higher", "10.0.0.9", "10.0.0.1", true},
+		{"remote ID is higher", "10.0.0.1", "10.0.0.9", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			incoming := NewMockConnection()
+			outgoing := NewMockConnection()
+			p, h := makePeerAndHandler(incoming)
+			t.Cleanup(func() {
+				cleanPeerAndHandler(p, h)
+				outgoing.Close()
+			})
+			p.fsm.gConf.Config.RouterId = netip.MustParseAddr(tt.localID)
+
+			open, err := bgp.NewBGPOpenMessage(65002, 90, netip.MustParseAddr(tt.remoteID), nil)
+			require.NoError(t, err)
+
+			keepOutgoing := p.fsm.resolveCollision(open.Body.(*bgp.BGPOpen), incoming, outgoing)
+			require.Equal(t, tt.wantOutgoing, keepOutgoing)
+
+			loser, winner := outgoing, incoming
+			if tt.wantOutgoing {
+				loser, winner = incoming, outgoing
+			}
+			require.Eventually(t, func() bool { return len(loser.GetSentMessages()) > 0 },
+				time.Second, 10*time.Millisecond)
+			sent, err := bgp.ParseBGPMessage(loser.GetSentMessages()[0])
+			require.NoError(t, err)
+			require.Equal(t, uint8(bgp.BGP_MSG_NOTIFICATION), sent.Header.Type)
+			n := sent.Body.(*bgp.BGPNotification)
+			require.Equal(t, uint8(bgp.BGP_ERROR_CEASE), n.ErrorCode)
+			require.Equal(t, uint8(bgp.BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION), n.ErrorSubcode)
+			require.Empty(t, winner.GetSentMessages())
+		})
+	}
+}
