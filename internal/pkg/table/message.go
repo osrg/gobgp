@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"reflect"
+	"slices"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/segmentio/fasthash/fnv1a"
@@ -91,6 +92,19 @@ func UpdatePathAttrs2ByteAs(msg *bgp.BGPUpdate) {
 	if mkAs4 {
 		msg.PathAttributes = append(msg.PathAttributes, bgp.NewPathAttributeAs4Path(as4Params))
 	}
+}
+
+// DiscardAs4Attrs removes AS4_PATH and AS4_AGGREGATOR from an UPDATE
+// received from a NEW BGP speaker. RFC 6793 Section 4.1 says they MUST NOT be
+// carried between NEW BGP speakers and MUST be discarded when received.
+func DiscardAs4Attrs(msg *bgp.BGPUpdate) {
+	msg.PathAttributes = slices.DeleteFunc(msg.PathAttributes, func(attr bgp.PathAttributeInterface) bool {
+		switch attr.(type) {
+		case *bgp.PathAttributeAs4Path, *bgp.PathAttributeAs4Aggregator:
+			return true
+		}
+		return false
+	})
 }
 
 func UpdatePathAttrs4ByteAs(logger *slog.Logger, msg *bgp.BGPUpdate) {
