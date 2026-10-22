@@ -864,8 +864,12 @@ func TestGRPCWatchEventPeerUnsetAddresses(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	stream, err := client.WatchEvent(ctx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}})
-	require.NoError(t, err)
+	// The server may not be listening yet: try again until it is.
+	var stream api.GoBgpService_WatchEventClient
+	require.Eventually(t, func() bool {
+		stream, err = client.WatchEvent(ctx, &api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}})
+		return err == nil
+	}, 10*time.Second, 50*time.Millisecond)
 
 	// 192.0.2.1 is TEST-NET-1, so the session never comes up and the peer
 	// has no remote router ID.
