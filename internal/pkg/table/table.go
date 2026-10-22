@@ -52,6 +52,13 @@ func addrPrefixOnlySerialize(nlri bgp.NLRI) []byte {
 		copy(b[8:], T.Prefix.Addr().AsSlice())
 		b[8+byteLen] = uint8(T.Prefix.Bits())
 		return b
+	case *bgp.LsAddrPrefix:
+		// As in tableKey, a BGP-LS NLRI is told apart by its full
+		// serialized form: String omits fields (the OSPF area of a node)
+		// that make two NLRIs different destinations.
+		if serialized, err := T.Serialize(); err == nil {
+			return serialized
+		}
 	}
 	return []byte(nlri.String())
 }
@@ -76,7 +83,12 @@ type TableSelectOption struct {
 	MultiPath      bool
 }
 
-func tableKey(nlri bgp.NLRI) addrPrefixKey {
+// tableKey is the key a destination is stored under. It is a variable so that
+// a test can force destinations into one bucket and check how the RIB tells
+// them apart.
+var tableKey = defaultTableKey
+
+func defaultTableKey(nlri bgp.NLRI) addrPrefixKey {
 	h := fnv1a.Init64
 	switch T := nlri.(type) {
 	case *bgp.IPAddrPrefix:
