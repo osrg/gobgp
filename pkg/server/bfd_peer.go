@@ -488,8 +488,17 @@ func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
 
 	switch h.State {
 	case bfd.StateAdminDown:
+		// RFC 5882 Sections 3.2 and 4.2: AdminDown means the remote system took
+		// the session down administratively, not that the path failed. BGP has
+		// its own liveness detection, so the BGP session is left alone; only the
+		// BFD session goes Down.
 		if p.sessionState() != api.BfdSessionState_BFD_SESSION_STATE_DOWN {
-			p.remoteDown()
+			p.logger.Info("Remote peer signaled BFD admin down",
+				slog.String("Topic", "bfd"),
+				slog.String("Peer", p.peerAddress.String()),
+			)
+
+			p.setStateDown()
 		}
 	case bfd.StateDown:
 		switch p.sessionState() {

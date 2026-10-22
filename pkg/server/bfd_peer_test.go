@@ -217,6 +217,43 @@ func Test_RxPacketRemoteDownResetsPeer(t *testing.T) {
 	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
+func Test_RxPacketRemoteAdminDownKeepsPeer(t *testing.T) {
+	for _, state := range []api.BfdSessionState{
+		api.BfdSessionState_BFD_SESSION_STATE_UP,
+		api.BfdSessionState_BFD_SESSION_STATE_INIT,
+	} {
+		t.Run(state.String(), func(t *testing.T) {
+			assert := assert.New(t)
+
+			ps := &mockPeerState{}
+			p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+				Port:                     13784,
+				Enabled:                  true,
+				DetectionMultiplier:      5,
+				RequiredMinimumReceive:   200000,
+				DesiredMinimumTxInterval: 200000,
+			}, "")
+			defer p.Stop()
+
+			p.state.Store(int32(state))
+			p.yourDiscriminator = 67890
+
+			// RFC 5882 Sections 3.2 and 4.2: the BFD session goes Down, but
+			// AdminDown is not a path failure, so the BGP peer is not reset.
+			p.rxPacket(&bfd.BFDHeader{
+				State:                bfd.StateAdminDown,
+				MyDiscriminator:      67890,
+				YourDiscriminator:    p.myDiscriminator,
+				DetectTimeMultiplier: 5,
+			})
+
+			assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+			assert.Equal(uint32(0), p.yourDiscriminator)
+			assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
+		})
+	}
+}
+
 func Test_RxPacketRFCStateTransitions(t *testing.T) {
 	assert := assert.New(t)
 
