@@ -5246,28 +5246,106 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 	return p
 }
 
+// WatchEventMessageCallbacks holds the callbacks WatchEvent calls, all of them
+// from one goroutine, one at a time and in the order of the events.
 type WatchEventMessageCallbacks struct {
 	OnPathUpdate func([]*apiutil.Path, time.Time)
 	OnBestPath   func([]*apiutil.Path, time.Time)
 	OnPathEor    func(*apiutil.Path, time.Time)
 	OnPeerUpdate func(*apiutil.WatchEventMessage_PeerEvent, time.Time)
+	// OnError is called at most once, from a goroutine of its own and
+	// possibly while another callback is running and blocked (it does not
+	// wait for it), when the server ends the watch on its own. The errors
+	// that end a watch, the terminal errors, are:
+	//
+	//   - ErrWatchQueueFull: the queue limit (WatchQueueLimit) was reached.
+	//
+	// Events may have been lost: a client that needs a consistent view
+	// watches again with the current table. Use errors.Is to tell them
+	// apart. The error WatchEvent itself returns (ErrWatchInvalid) is
+	// reported by its return value, not here, and a watch that never started
+	// has no OnError.
+	//
+	// A cancelled context ends the watch too, but is not a failure: nothing
+	// is reported for it. The failure of the watcher and the cancellation of
+	// the context are observed by one select, which picks either when both
+	// are ready: a failure that races with a cancellation may go unreported,
+	// or be reported after the context was cancelled. A client that cancels
+	// does not depend on OnError.
+	//
+	// The end of the watch is not the end of its callbacks. When OnError is
+	// called, or the context is cancelled, the server queues nothing more
+	// for the watcher and releases the watcher and its queue without
+	// waiting for a callback to return, and admits no further callback. A callback admitted just before, and the one
+	// blocked in, may still run or finish after OnError or after the
+	// cancellation: the resources the callbacks use must stay valid until
+	// they have returned.
+	OnError func(error)
 }
 
+// ErrWatchQueueFull is the error a watch ends with when more events are
+// waiting for its client than its queue limit allows (WatchQueueLimit). It
+// is a terminal error: see WatchEventMessageCallbacks.OnError.
+var ErrWatchQueueFull = errors.New("watch event queue full")
+
+// ErrWatchInvalid is the error WatchEvent returns when its options are
+// invalid: no events to watch, a negative queue limit.
+var ErrWatchInvalid = errors.New("invalid watch options")
+
+// WatchEvent calls the callbacks for the events the options subscribe to,
+// until ctx is cancelled or the server ends the watch (see OnError). It
+// returns once the watch is registered, with an error wrapping ErrWatchInvalid
+// when it is refused, and leaves nothing running then.
 func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageCallbacks, opts ...WatchOption) error {
 	if len(opts) == 0 {
-		return fmt.Errorf("no events to watch")
+		return fmt.Errorf("%w: no events to watch", ErrWatchInvalid)
 	}
 	w, err := s.watch(opts...)
 	if err != nil {
 		return err
 	}
 
+	// The end of the watch is handled apart from the goroutine that runs
+	// the callbacks, which a client that stopped reading can block
+	// indefinitely: the failure of the watcher is reported, and a
+	// cancellation releases the watcher, while that goroutine is still
+	// blocked in a callback.
+	go func() {
+		select {
+		case <-w.Done():
+			if callbacks.OnError != nil {
+				callbacks.OnError(w.Err())
+			}
+		case <-ctx.Done():
+			// Deregister the watcher and free its queue now, without
+			// waiting for a callback to return.
+			// The select may pick this case while the watcher has just
+			// failed: a failure that races with the cancellation may
+			// then go unreported (see WatchEventMessageCallbacks.OnError).
+			w.cancel()
+		}
+	}()
+
 	go func() {
 		defer w.Stop()
+		if w.opts.callbacksDoneHook != nil {
+			defer w.opts.callbacksDoneHook()
+		}
 
 		for {
 			select {
-			case ev := <-w.Event():
+			case ev, ok := <-w.Event():
+				// The channel is closed once the watcher was stopped: by
+				// a failure, or by the cancellation of the watch.
+				if !ok {
+					return
+				}
+				// select may pick this event while Done is ready too: a
+				// failed watcher admits no delivery (see deliver), so do not
+				// convert the event.
+				if w.failed.Load() {
+					return
+				}
 				switch msg := ev.(type) {
 				case *watchEventUpdate:
 					if callbacks.OnPathUpdate != nil {
@@ -5275,26 +5353,31 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 						for i, path := range msg.PathList {
 							paths[i] = toPathApiUtil(path)
 						}
-						callbacks.OnPathUpdate(paths, msg.Timestamp)
+						if !w.deliver(func() { callbacks.OnPathUpdate(paths, msg.Timestamp) }) {
+							return
+						}
 					}
 
 				case *watchEventBestPath:
 					if callbacks.OnBestPath != nil {
-						callback := func(paths []*table.Path) {
-							p := make([]*apiutil.Path, len(paths))
-							for i, path := range paths {
-								p[i] = toPathApiUtil(path)
-							}
-							callbacks.OnBestPath(p, msg.Timestamp)
+						paths := locRIBPathsForBMP(msg)
+						p := make([]*apiutil.Path, len(paths))
+						for i, path := range paths {
+							p[i] = toPathApiUtil(path)
 						}
-						callback(locRIBPathsForBMP(msg))
+						if !w.deliver(func() { callbacks.OnBestPath(p, msg.Timestamp) }) {
+							return
+						}
 					}
 
 				case *watchEventEor:
 					if callbacks.OnPathEor != nil {
 						eor := table.NewEOR(msg.Family)
 						eor.SetSource(msg.PeerInfo)
-						callbacks.OnPathEor(toPathApiUtil(eor), msg.Timestamp)
+						path := toPathApiUtil(eor)
+						if !w.deliver(func() { callbacks.OnPathEor(path, msg.Timestamp) }) {
+							return
+						}
 					}
 
 				case *watchEventPeer:
@@ -5311,7 +5394,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 
 						disconnectReason, disconnectMessage := convertFSMStateReasonToAPI(msg.StateReason)
 
-						callbacks.OnPeerUpdate(&apiutil.WatchEventMessage_PeerEvent{
+						peerEvent := &apiutil.WatchEventMessage_PeerEvent{
 							Type: msg.Type,
 							Peer: apiutil.Peer{
 								Conf: apiutil.PeerConf{
@@ -5340,9 +5423,14 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 									RemotePort:   uint32(msg.PeerPort),
 								},
 							},
-						}, msg.Timestamp)
+						}
+						if !w.deliver(func() { callbacks.OnPeerUpdate(peerEvent, msg.Timestamp) }) {
+							return
+						}
 					}
 				}
+			case <-w.Done():
+				return
 			case <-ctx.Done():
 				return
 			}
@@ -5492,6 +5580,7 @@ type watchEventEor struct {
 
 type watchOptions struct {
 	bestPath         bool
+	queueLimit       int
 	preUpdate        bool
 	preUpdateFilter  func(w watchEvent) bool
 	postUpdate       bool
@@ -5506,9 +5595,17 @@ type watchOptions struct {
 	initEor        bool
 	eor            bool
 
-	// stopDrainHook is a test hook that runs when Stop starts draining the
-	// queue.
+	// Test hooks: stopDrainHook runs when Stop starts draining the queue.
 	stopDrainHook func()
+	// beforeDeliverHook runs before the admission of each delivery to the
+	// client's callbacks, after what it receives has been converted;
+	// admittedHook after it was admitted and before the callback is called.
+	beforeDeliverHook func()
+	admittedHook      func()
+	// callbacksDoneHook runs when the goroutine that calls the callbacks
+	// of WatchEvent returns, before it stops the watcher: the signal that
+	// no callback is, or will be, admitted any more.
+	callbacksDoneHook func()
 }
 
 type WatchOption func(*watchOptions)
@@ -5519,6 +5616,28 @@ func WatchBestPath(current bool) WatchOption {
 		if current {
 			o.initBest = true
 		}
+	}
+}
+
+// WatchQueueLimit bounds the number of events queued for the watcher and
+// not yet taken by its client. The limit is strict: the check and the
+// enqueue of an event are one step, so concurrent notifications cannot exceed
+// it. When a notification would, the watcher fails with ErrWatchQueueFull
+// instead of queueing it: it takes no further event and its client gets the
+// error (OnError). Every event counts, the initial ones included, whatever
+// the number of paths it carries: it bounds events, not memory, since one
+// event may carry one path or a whole table. The events the queue already
+// handed over to the goroutine that runs the callbacks (up to eight, in its
+// buffer, and the one being delivered) are no longer queued and are not
+// counted. Zero, the default, is no limit; a negative limit is refused
+// (ErrWatchInvalid).
+//
+// A failed watcher admits no new delivery to the callbacks of WatchEvent,
+// but one admitted before the failure may still run after OnError (see
+// WatchEventMessageCallbacks.OnError).
+func WatchQueueLimit(events int) WatchOption {
+	return func(o *watchOptions) {
+		o.queueLimit = events
 	}
 }
 
@@ -5611,6 +5730,22 @@ type watcher struct {
 	ch     *channels.InfiniteChannel
 	s      *BgpServer
 	stop   sync.Once
+	// queueMu makes the check of the queue limit and the enqueue of an
+	// event one step: notifiers run concurrently (they hold watcherMu for
+	// reading). admitted counts the events queued, handed those the loop
+	// goroutine handed over to the consumer: the queue holds the
+	// difference.
+	queueMu  sync.Mutex
+	admitted atomic.Int64
+	handed   atomic.Int64
+	// failed is set once the watcher takes no further event; done is
+	// closed then and err says why.
+	failed   atomic.Bool
+	failOnce sync.Once
+	// deliverMu orders the check of failed before a delivery with fail.
+	deliverMu sync.Mutex
+	done      chan struct{}
+	err       error
 	// filters are used for notifyWatcher by using the filter for the given watchEvent,
 	// call notify method for skipping filtering.
 	filters map[watchEventType]func(w watchEvent) bool
@@ -5620,8 +5755,83 @@ func (w *watcher) Event() <-chan watchEvent {
 	return w.realCh
 }
 
+// notify queues the event. With a queue limit, the limit is strict: the
+// check and the enqueue are one step under queueMu, so that concurrent
+// notifiers cannot admit more events than the limit allows. An event that
+// would exceed it fails the watcher (ErrWatchQueueFull) and is not queued.
 func (w *watcher) notify(v watchEvent) {
+	w.queueMu.Lock()
+	defer w.queueMu.Unlock()
+	if w.failed.Load() {
+		return
+	}
+	if limit := w.opts.queueLimit; limit > 0 && w.admitted.Load()-w.handed.Load() >= int64(limit) {
+		w.fail(fmt.Errorf("%w: %d events queued", ErrWatchQueueFull, limit))
+		return
+	}
+	w.admitted.Add(1)
 	w.ch.In() <- v
+}
+
+// deliver calls call, a callback of the client, unless the watcher failed.
+// The check of failed, under deliverMu, immediately before every delivery
+// and after what the callback receives has been converted, is the admission
+// of the delivery, and fail sets failed under the same lock: fail stops new
+// admissions, and that is all it does. A delivery admitted before fail may
+// start or finish after it, and after OnError; with the one goroutine that
+// runs the callbacks, at most one is pending. OnError never waits for it, so
+// that a client blocked in a callback still learns of the failure, and does
+// not mean the callbacks are done. It returns false when the delivery was
+// refused.
+func (w *watcher) deliver(call func()) bool {
+	if w.opts.beforeDeliverHook != nil {
+		w.opts.beforeDeliverHook()
+	}
+	w.deliverMu.Lock()
+	failed := w.failed.Load()
+	w.deliverMu.Unlock()
+	if failed {
+		return false
+	}
+	if w.opts.admittedHook != nil {
+		w.opts.admittedHook()
+	}
+	call()
+	return true
+}
+
+// fail makes the watcher take no further event and tells its client why.
+func (w *watcher) fail(err error) {
+	w.failOnce.Do(func() {
+		w.err = err
+		w.deliverMu.Lock()
+		w.failed.Store(true)
+		w.deliverMu.Unlock()
+		close(w.done)
+		// Deregister apart from whoever failed the watcher (it holds
+		// watcherMu) and from the callback goroutine, which a consumer
+		// that does not return from its callback blocks: the watcher
+		// and its queue go now.
+		go w.Stop()
+	})
+}
+
+// cancel ends the watcher because its client no longer wants events: it takes
+// no further event, and is stopped at once. Unlike a failure it is not
+// reported.
+func (w *watcher) cancel() {
+	w.fail(context.Canceled)
+}
+
+// Done is closed when the watcher failed (Err says why).
+func (w *watcher) Done() <-chan struct{} {
+	return w.done
+}
+
+// Err is the reason the watcher failed, once Done is closed.
+func (w *watcher) Err() error {
+	<-w.done
+	return w.err
 }
 
 func (w *watcher) loop() {
@@ -5630,6 +5840,7 @@ func (w *watcher) loop() {
 			break
 		}
 		w.realCh <- ev.(watchEvent)
+		w.handed.Add(1)
 	}
 	close(w.realCh)
 }
@@ -5654,7 +5865,6 @@ func (w *watcher) Stop() {
 			}
 		}
 		w.s.watcherMu.Unlock()
-
 		if w.opts.stopDrainHook != nil {
 			w.opts.stopDrainHook()
 		}
@@ -5692,14 +5902,21 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 	err := s.mgmtOperation(func() error {
 		w = &watcher{
 			s:       s,
-			realCh:  make(chan watchEvent, 8),
-			ch:      channels.NewInfiniteChannel(),
 			filters: make(map[watchEventType]func(w watchEvent) bool),
+			done:    make(chan struct{}),
 		}
 
 		for _, opt := range opts {
 			opt(&w.opts)
 		}
+
+		// Validate before anything is started or held: a refused watch
+		// leaves nothing behind.
+		if w.opts.queueLimit < 0 {
+			return fmt.Errorf("%w: the queue limit is %d, it cannot be negative", ErrWatchInvalid, w.opts.queueLimit)
+		}
+		w.realCh = make(chan watchEvent, 8)
+		w.ch = channels.NewInfiniteChannel()
 
 		s.watcherMu.Lock()
 		defer s.watcherMu.Unlock()

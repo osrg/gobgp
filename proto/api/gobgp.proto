@@ -155,6 +155,21 @@ message WatchEventRequest {
 
   // Max number of paths to include in a single message. 0 for unlimited.
   uint32 batch_size = 3;
+
+  // Max number of events the server queues for this client while it is
+  // not reading them. When an event would exceed it, the server ends the
+  // stream with RESOURCE_EXHAUSTED instead of queueing it: events were
+  // lost, and the client watches again (with init) to resynchronize. Every
+  // event counts, the initial ones included. It bounds events, not memory:
+  // one event may carry one path or a whole table. The limit is strict, and
+  // the events the server already handed over to the goroutine that sends
+  // (up to nine) are not counted. 0 for unlimited. A value that does not
+  // fit an int on the server (above 2147483647 on a 32-bit platform) is
+  // INVALID_ARGUMENT. Messages already sent or buffered when the server ends
+  // the stream may still reach the client after it: the client
+  // resynchronizes on the terminal status, not on the last message it
+  // received.
+  uint32 max_queued_events = 4;
 }
 
 message WatchEventResponse {

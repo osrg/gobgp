@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -28,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -358,7 +360,7 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 	return send()
 }
 
-func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time)) error {
+func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time), onError func(error)) error {
 	opts := make([]WatchOption, 0)
 	if r.GetPeer() != nil {
 		opts = append(opts, WatchPeer())
@@ -382,10 +384,18 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 	if len(opts) == 0 {
 		return status.Errorf(codes.InvalidArgument, "no events to watch")
 	}
+	if r.MaxQueuedEvents > 0 {
+		limit, err := watchQueueLimit(r.MaxQueuedEvents, math.MaxInt)
+		if err != nil {
+			return err
+		}
+		opts = append(opts, WatchQueueLimit(limit))
+	}
 	simpleSend := func(paths []*api.Path, when time.Time) {
 		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}}, when)
 	}
 	err := s.bgpServer.WatchEvent(ctx, WatchEventMessageCallbacks{
+		OnError: onError,
 		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time) {
 			paths := make([]*api.Path, 0, r.BatchSize)
 			for _, path := range pathList {
@@ -457,23 +467,81 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 		},
 	}, opts...)
 	if err != nil {
-		return status.Errorf(codes.Aborted, "failed to watch event: %v", err)
+		return watchRegistrationStatus(err)
 	}
 	return status.Error(codes.OK, "watch event started")
 }
 
+// watchQueueLimit converts max_queued_events of a WatchEventRequest into the
+// queue limit of the watch. A value that an int cannot represent (maxInt is
+// the largest int: math.MaxInt, which is smaller than a uint32 on 32-bit
+// platforms) is refused: it would wrap to a negative limit, or to a small
+// one, and the watch would be unbounded, or fail at once.
+func watchQueueLimit(v uint32, maxInt int64) (int, error) {
+	if int64(v) > maxInt {
+		return 0, status.Errorf(codes.InvalidArgument, "max_queued_events %d is more than the largest limit, %d", v, maxInt)
+	}
+	return int(v), nil
+}
+
+// watchRegistrationStatus converts the error WatchEvent returns when the
+// watch is refused into a status: InvalidArgument for options that are
+// invalid; anything else is Unavailable: the watch could not be registered
+// because the server is stopped.
+func watchRegistrationStatus(err error) error {
+	code := codes.Unavailable
+	if errors.Is(err, ErrWatchInvalid) {
+		code = codes.InvalidArgument
+	}
+	return status.Errorf(code, "failed to watch event: %v", err)
+}
+
+// watchTerminalStatus converts the error that ended an established watch
+// into the terminal status of the stream: ResourceExhausted when the queue
+// limit was reached, Aborted when the subscription was otherwise
+// invalidated. Events were lost in both cases.
+func watchTerminalStatus(err error) error {
+	code := codes.Aborted
+	if errors.Is(err, ErrWatchQueueFull) {
+		code = codes.ResourceExhausted
+	}
+	return status.Errorf(code, "%v: events were lost, watch again to resynchronize", err)
+}
+
 func (s *server) WatchEvent(r *api.WatchEventRequest, stream api.GoBgpService_WatchEventServer) error {
 	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
+	var watchErr atomic.Pointer[error]
 	err := s.watchEvent(ctx, r, func(rsp *api.WatchEventResponse, _ time.Time) {
+		// A watcher that failed admits no new delivery (see
+		// watcher.deliver), but one admitted before may still reach this
+		// function, and a Send started after the handler returned can
+		// still be delivered: grpc-go returns from the handler before it
+		// writes the status. A client must accept messages in flight and
+		// resynchronize on the terminal error, not take the end of the
+		// handler for the end of the data.
+		if ctx.Err() != nil {
+			return
+		}
 		if err := stream.Send(rsp); err != nil {
 			cancel()
 			return
 		}
+	}, func(err error) {
+		// Called apart from the goroutine that sends: that one may be
+		// blocked in Send by a client that stopped reading. Returning
+		// from this handler ends the stream, which ends that Send with an
+		// error; the watch then stops and releases what it holds.
+		watchErr.Store(&err)
+		cancel()
 	})
 	if err != nil {
 		return err
 	}
 	<-ctx.Done()
+	if p := watchErr.Load(); p != nil {
+		return watchTerminalStatus(*p)
+	}
 	return nil
 }
 

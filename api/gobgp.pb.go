@@ -1830,9 +1830,23 @@ type WatchEventRequest struct {
 	Peer  *WatchEventRequest_Peer  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
 	Table *WatchEventRequest_Table `protobuf:"bytes,2,opt,name=table,proto3" json:"table,omitempty"`
 	// Max number of paths to include in a single message. 0 for unlimited.
-	BatchSize     uint32 `protobuf:"varint,3,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	BatchSize uint32 `protobuf:"varint,3,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
+	// Max number of events the server queues for this client while it is
+	// not reading them. When an event would exceed it, the server ends the
+	// stream with RESOURCE_EXHAUSTED instead of queueing it: events were
+	// lost, and the client watches again (with init) to resynchronize. Every
+	// event counts, the initial ones included. It bounds events, not memory:
+	// one event may carry one path or a whole table. The limit is strict, and
+	// the events the server already handed over to the goroutine that sends
+	// (up to nine) are not counted. 0 for unlimited. A value that does not
+	// fit an int on the server (above 2147483647 on a 32-bit platform) is
+	// INVALID_ARGUMENT. Messages already sent or buffered when the server ends
+	// the stream may still reach the client after it: the client
+	// resynchronizes on the terminal status, not on the last message it
+	// received.
+	MaxQueuedEvents uint32 `protobuf:"varint,4,opt,name=max_queued_events,json=maxQueuedEvents,proto3" json:"max_queued_events,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *WatchEventRequest) Reset() {
@@ -1882,6 +1896,13 @@ func (x *WatchEventRequest) GetTable() *WatchEventRequest_Table {
 func (x *WatchEventRequest) GetBatchSize() uint32 {
 	if x != nil {
 		return x.BatchSize
+	}
+	return 0
+}
+
+func (x *WatchEventRequest) GetMaxQueuedEvents() uint32 {
+	if x != nil {
+		return x.MaxQueuedEvents
 	}
 	return 0
 }
@@ -13958,12 +13979,13 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0fStopBgpResponse\"\x0f\n" +
 	"\rGetBgpRequest\"5\n" +
 	"\x0eGetBgpResponse\x12#\n" +
-	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\xe8\x03\n" +
+	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\x94\x04\n" +
 	"\x11WatchEventRequest\x12/\n" +
 	"\x04peer\x18\x01 \x01(\v2\x1b.api.WatchEventRequest.PeerR\x04peer\x122\n" +
 	"\x05table\x18\x02 \x01(\v2\x1c.api.WatchEventRequest.TableR\x05table\x12\x1d\n" +
 	"\n" +
-	"batch_size\x18\x03 \x01(\rR\tbatchSize\x1a\x06\n" +
+	"batch_size\x18\x03 \x01(\rR\tbatchSize\x12*\n" +
+	"\x11max_queued_events\x18\x04 \x01(\rR\x0fmaxQueuedEvents\x1a\x06\n" +
 	"\x04Peer\x1a\xc6\x02\n" +
 	"\x05Table\x12=\n" +
 	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\xfd\x01\n" +
