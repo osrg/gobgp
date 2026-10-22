@@ -317,6 +317,32 @@ func TestWatcherStopAfterServerStops(t *testing.T) {
 	}
 }
 
+// TestWatcherStopDoesNotWaitForTheServerLock checks that stopping a watcher
+// does not need the server lock. handleFSMMessage takes that lock for every
+// message a peer sends, so a Stop that drains the watcher's queue under it
+// stalls every session's receive loop.
+func TestWatcherStopDoesNotWaitForTheServerLock(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	w, err := s.watch(WatchPeer())
+	require.NoError(t, err)
+
+	s.shared.mu.RLock()
+	done := make(chan struct{})
+	go func() {
+		w.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Error("Stop waits for the server lock")
+	}
+	s.shared.mu.RUnlock()
+	<-done
+}
+
 // TestWatchAfterServerStopsReturnsError verifies that watch cannot register a
 // watcher once the server loop has exited. Callers must get an error instead of
 // a nil watcher, which they would otherwise dereference.
