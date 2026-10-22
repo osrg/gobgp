@@ -144,6 +144,7 @@ func Test_NewBfdPeerLocalAddressAndBindInterface(t *testing.T) {
 		oc.BfdConfig{Enabled: true},
 		localAddress,
 		"eth0",
+		randomBFDMyDiscriminator(),
 	)
 	defer p.Stop()
 

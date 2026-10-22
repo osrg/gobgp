@@ -97,8 +97,15 @@ type bfdServer struct {
 	listeners       []*bfdListener
 	listenInterface string
 
+	// peers and discrs index the same sessions, by peer address and by
+	// local discriminator. Both are protected by peersMutex.
 	peersMutex sync.RWMutex
 	peers      map[netip.Addr]*bfdPeer
+	discrs     map[uint32]*bfdPeer
+
+	// randomDiscriminator returns a random nonzero discriminator. Tests
+	// replace it.
+	randomDiscriminator func() uint32
 
 	eventStartStop  *time.Ticker
 	eventConfig     chan *oc.BfdConfig
@@ -120,7 +127,9 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 		peerState: ps,
 		logger:    logger,
 
-		peers: make(map[netip.Addr]*bfdPeer),
+		peers:               make(map[netip.Addr]*bfdPeer),
+		discrs:              make(map[uint32]*bfdPeer),
+		randomDiscriminator: randomBFDMyDiscriminator,
 
 		listeners: newBfdListeners(),
 
@@ -501,7 +510,7 @@ func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, loca
 		s.deleteBfdPeer(peerAddress)
 	}
 
-	bfdPeer := newBfdPeer(s.peerState, s.logger, peerAddress, config, localAddress, bindInterface)
+	bfdPeer := newBfdPeer(s.peerState, s.logger, peerAddress, config, localAddress, bindInterface, s.newDiscriminator())
 	if bfdPeer != nil {
 		s.logger.Info("Insert BFD peer",
 			slog.String("Topic", "bfd"),
@@ -510,7 +519,26 @@ func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, loca
 
 		s.peersMutex.Lock()
 		s.peers[peerAddress] = bfdPeer
+		s.discrs[bfdPeer.myDiscriminator] = bfdPeer
 		s.peersMutex.Unlock()
+	}
+}
+
+// newDiscriminator returns a random local discriminator that no session
+// uses. RFC 5880 Section 6.8.1 says bfd.LocalDiscr "MUST be unique across
+// all BFD sessions on this system, and nonzero. It SHOULD be set to a
+// random (but still unique) value to improve security." Only the loop
+// goroutine adds sessions, so the value stays unused until it is
+// inserted.
+func (s *bfdServer) newDiscriminator() uint32 {
+	s.peersMutex.RLock()
+	defer s.peersMutex.RUnlock()
+
+	for {
+		d := s.randomDiscriminator()
+		if _, ok := s.discrs[d]; !ok {
+			return d
+		}
 	}
 }
 
@@ -530,6 +558,7 @@ func (s *bfdServer) deleteBfdPeer(peerAddress netip.Addr) {
 
 	s.peersMutex.Lock()
 	delete(s.peers, peerAddress)
+	delete(s.discrs, peer.myDiscriminator)
 	s.peersMutex.Unlock()
 	peer.Stop()
 
@@ -586,6 +615,7 @@ func (s *bfdServer) shutdown() {
 	for address, peer := range s.peers {
 		peers = append(peers, peer)
 		delete(s.peers, address)
+		delete(s.discrs, peer.myDiscriminator)
 	}
 	s.peersMutex.Unlock()
 
@@ -632,27 +662,58 @@ func (s *bfdServer) serverLoop(read func([]byte) (int, bfdRxInfo, error), stop <
 }
 
 func (s *bfdServer) rxPacket(info bfdRxInfo, packet *bfd.BFDHeader) {
-	addr := info.src.Addr()
-
-	s.peersMutex.RLock()
-	peer, ok := s.peers[addr]
-	s.peersMutex.RUnlock()
-
-	if !ok {
+	peer := s.lookupPeer(info, packet)
+	if peer == nil {
 		s.logger.Debug("Unknown BFD peer",
 			slog.String("Topic", "bfd"),
-			slog.Any("Peer", addr),
+			slog.Any("Peer", info.src.Addr()),
+			slog.Uint64("YourDiscriminator", uint64(packet.YourDiscriminator)),
 		)
 
 		s.stats.unknownPeer.Add(1)
 		return
 	}
 
-	ok = peer.Rx(packet)
-	if !ok {
+	if !peer.Rx(packet) {
 		s.stats.rxDrop.Add(1)
 		return
 	}
 
 	s.stats.rxPacket.Add(1)
+}
+
+// lookupPeer finds the session of a received packet as RFC 5880 Section
+// 6.8.6 describes:
+//
+//	If the Your Discriminator field is nonzero, it MUST be used to
+//	select the session with which this BFD packet is associated. If
+//	no session is found, the packet MUST be discarded.
+//
+// The source address is not checked in that case. For a point-to-point
+// link, RFC 5881 Section 6 says that subsequent packets "MUST be
+// demultiplexed solely by the Your Discriminator field (as is always the
+// case). This allows the source address to change if necessary."
+//
+// With a zero Your Discriminator, the session is selected by the peer
+// address. The destination address must also match the local address
+// when both are known. The session itself discards a zero Your
+// Discriminator in a state other than Down or AdminDown.
+func (s *bfdServer) lookupPeer(info bfdRxInfo, packet *bfd.BFDHeader) *bfdPeer {
+	s.peersMutex.RLock()
+	defer s.peersMutex.RUnlock()
+
+	if packet.YourDiscriminator != 0 {
+		return s.discrs[packet.YourDiscriminator]
+	}
+
+	peer, ok := s.peers[info.src.Addr()]
+	if !ok {
+		return nil
+	}
+	local := peer.localAddress.WithZone("").Unmap()
+	dst := info.dst.WithZone("").Unmap()
+	if local.IsValid() && !local.IsUnspecified() && dst.IsValid() && local != dst {
+		return nil
+	}
+	return peer
 }

@@ -15,6 +15,7 @@ import (
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
+	"github.com/osrg/gobgp/v4/pkg/packet/bfd"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -564,6 +565,108 @@ func Test_BfdServerListenerFailureIsIndependent(t *testing.T) {
 	s.stop()
 	assert.Nil(t, udp4.conn)
 	assert.Nil(t, udp6.conn)
+}
+
+func Test_BfdServerNewDiscriminatorSkipsUsed(t *testing.T) {
+	values := []uint32{5, 5, 7}
+	s := &bfdServer{
+		discrs: map[uint32]*bfdPeer{5: {}},
+		randomDiscriminator: func() uint32 {
+			v := values[0]
+			values = values[1:]
+			return v
+		},
+	}
+
+	assert.Equal(t, uint32(7), s.newDiscriminator())
+	assert.Empty(t, values)
+}
+
+func Test_BfdServerLookupPeer(t *testing.T) {
+	v4 := &bfdPeer{
+		peerAddress:     netip.MustParseAddr("192.0.2.2"),
+		localAddress:    netip.MustParseAddr("192.0.2.1"),
+		myDiscriminator: 100,
+	}
+	ll := &bfdPeer{
+		peerAddress:     netip.MustParseAddr("fe80::2%eth0"),
+		localAddress:    netip.MustParseAddr("fe80::1%eth0"),
+		myDiscriminator: 200,
+	}
+	noLocal := &bfdPeer{
+		peerAddress:     netip.MustParseAddr("192.0.2.3"),
+		localAddress:    netip.IPv4Unspecified(),
+		myDiscriminator: 300,
+	}
+	s := &bfdServer{
+		peers:  map[netip.Addr]*bfdPeer{},
+		discrs: map[uint32]*bfdPeer{},
+	}
+	for _, p := range []*bfdPeer{v4, ll, noLocal} {
+		s.peers[p.peerAddress] = p
+		s.discrs[p.myDiscriminator] = p
+	}
+
+	rx := func(src, dst string) bfdRxInfo {
+		info := bfdRxInfo{
+			src: netip.AddrPortFrom(netip.MustParseAddr(src), 49152),
+			ttl: 255,
+		}
+		if dst != "" {
+			info.dst = netip.MustParseAddr(dst)
+		}
+		return info
+	}
+
+	for _, tt := range []struct {
+		name string
+		info bfdRxInfo
+		your uint32
+		want *bfdPeer
+	}{
+		{"discriminator", rx("192.0.2.2", "192.0.2.1"), 100, v4},
+		{"discriminator from another source", rx("198.51.100.1", "192.0.2.1"), 100, v4},
+		{"discriminator to another destination", rx("192.0.2.2", "192.0.2.9"), 100, v4},
+		{"unknown discriminator", rx("192.0.2.2", "192.0.2.1"), 999, nil},
+		{"zero, address match", rx("192.0.2.2", "192.0.2.1"), 0, v4},
+		{"zero, unknown source", rx("198.51.100.1", "192.0.2.1"), 0, nil},
+		{"zero, other destination", rx("192.0.2.2", "192.0.2.9"), 0, nil},
+		{"zero, destination unknown", rx("192.0.2.2", ""), 0, v4},
+		{"zero, local address unspecified", rx("192.0.2.3", "192.0.2.9"), 0, noLocal},
+		{"zero, link-local", rx("fe80::2%eth0", "fe80::1"), 0, ll},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := s.lookupPeer(tt.info, &bfd.BFDHeader{YourDiscriminator: tt.your})
+			assert.Same(t, tt.want, got)
+		})
+	}
+}
+
+func Test_BfdServerRxPacketUnknownDiscriminator(t *testing.T) {
+	s := newServer(13787)
+	defer s.Stop()
+	require.NoError(t, addPeer(s, 23787))
+
+	s.peersMutex.RLock()
+	peer := s.peers[netip.MustParseAddr("127.0.0.1")]
+	s.peersMutex.RUnlock()
+	require.NotNil(t, peer)
+	unknown := peer.myDiscriminator + 1
+	if unknown == 0 {
+		unknown = 1
+	}
+
+	s.rxPacket(bfdRxInfo{
+		src: netip.MustParseAddrPort("127.0.0.1:49152"),
+		ttl: 255,
+	}, &bfd.BFDHeader{
+		State:                bfd.StateUp,
+		DetectTimeMultiplier: 3,
+		MyDiscriminator:      1,
+		YourDiscriminator:    unknown,
+	})
+	assert.Equal(t, uint64(1), s.stats.unknownPeer.Load())
+	assert.Equal(t, uint64(0), s.stats.rxPacket.Load())
 }
 
 func Test_BfdDown(t *testing.T) {

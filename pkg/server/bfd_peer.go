@@ -114,10 +114,12 @@ type bfdPeer struct {
 }
 
 func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig, bindInterface string) *bfdPeer {
-	return newBfdPeer(ps, logger, peerAddress, config, netip.Addr{}, bindInterface)
+	return newBfdPeer(ps, logger, peerAddress, config, netip.Addr{}, bindInterface, randomBFDMyDiscriminator())
 }
 
-func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string) *bfdPeer {
+// newBfdPeer creates a session. myDiscriminator must be nonzero and must not
+// be used by any other session; see bfdServer.newDiscriminator.
+func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string, myDiscriminator uint32) *bfdPeer {
 	peerPort := int(config.Port)
 	if peerPort == 0 {
 		peerPort = BfdServerPort
@@ -131,7 +133,7 @@ func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, confi
 		localAddress:  localAddress,
 		bindInterface: bindInterface,
 
-		myDiscriminator: randomBFDMyDiscriminator(),
+		myDiscriminator: myDiscriminator,
 		multiplier:      defaultMultiplier,
 		rxInterval:      defaultRxInterval,
 		txInterval:      defaultTxInterval,
