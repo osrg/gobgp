@@ -6251,6 +6251,11 @@ func sentNotification(m *MockConnection) *bgp.BGPNotification {
 // tore it down moments later, which looped forever against peers that destroy
 // their BFD session when BGP goes down.
 // https://github.com/osrg/gobgp/issues/3561
+//
+// The FSM now handles the reset in Active: the peer goes to Idle for
+// idle-hold-time-after-reset, and nothing of the reset is left for the next
+// session.
+// https://github.com/osrg/gobgp/issues/3740
 func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
 	const (
 		asn      = 65001
@@ -6258,6 +6263,9 @@ func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
 	)
 
 	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	conf := peer.fsm.pConf.ReadCopy()
+	conf.Timers.Config.IdleHoldTimeAfterReset = 1
+	peer.fsm.pConf.Update(&conf)
 	m1 := establishSession(t, s, peer, asn, peerAddr)
 
 	// Bring the session down and wait until the peer settles in ACTIVE.
@@ -6265,21 +6273,25 @@ func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
 	m1.Close()
 	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 
-	// Reset the peer while it is down.
+	// Reset the peer while it is down. It goes to Idle and back to Active
+	// after idle-hold-time-after-reset.
+	idle := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
 	err := s.ResetPeer(context.Background(), &api.ResetPeerRequest{
 		Address: peerAddr,
 		Soft:    false,
 	})
 	require.NoError(t, err)
-	require.Len(t, peer.fsm.notification, 1)
+	idle.Wait(t, 10*time.Second)
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 
 	m2 := establishSession(t, s, peer, asn, peerAddr)
 
-	// The stale reset must not reach the new session: it must stay
+	// The reset must not reach the new session: it must stay
 	// established, with no NOTIFICATION on its connection.
 	require.Never(t, func() bool {
 		return peer.State() != bgp.BGP_FSM_ESTABLISHED || sentNotification(m2) != nil
 	}, time.Second, 10*time.Millisecond)
+	require.Empty(t, peer.fsm.resetCh)
 	require.Empty(t, peer.fsm.notification)
 }
 

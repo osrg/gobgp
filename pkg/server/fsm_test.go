@@ -1990,7 +1990,9 @@ func TestNextIdleHoldTime(t *testing.T) {
 		{"bad peer AS doubles", 16, newfsmStateReason(fsmBadPeerAS, nil, nil), 32, 32},
 		{"doubling stops at the maximum", 64, newfsmStateReason(fsmNotificationRecv, cease(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN), nil), idleHoldTimeMax, idleHoldTimeMax},
 		{"maximum stays", idleHoldTimeMax, newfsmStateReason(fsmNotificationSent, holdTimerExpired, nil), idleHoldTimeMax, idleHoldTimeMax},
-		{"reset uses idle-hold-time-after-reset", 16, newfsmStateReason(fsmNotificationSent, cease(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET), nil), afterReset, idleHoldTimeInitial},
+		{"reset uses idle-hold-time-after-reset", 16, newfsmStateReason(fsmAdminReset, cease(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET), nil), afterReset, idleHoldTimeInitial},
+		{"reset sent as hard reset uses idle-hold-time-after-reset", 16, newfsmStateReason(fsmAdminReset, cease(bgp.BGP_ERROR_SUB_HARD_RESET), nil), afterReset, idleHoldTimeInitial},
+		{"reset without a session uses idle-hold-time-after-reset", 16, newfsmStateReason(fsmAdminReset, nil, nil), afterReset, idleHoldTimeInitial},
 		{"admin down goes back to the initial value", 16, newfsmStateReason(fsmAdminDown, nil, nil), idleHoldTimeInitial, idleHoldTimeInitial},
 		{"read failure keeps the value", 4, newfsmStateReason(fsmReadFailed, nil, nil), 4, 4},
 		{"write failure keeps the value", 4, newfsmStateReason(fsmWriteFailed, nil, nil), 4, 4},
@@ -2442,5 +2444,112 @@ func TestRecvMessageloop_DiscardsAs4AttrsFromNewSpeaker(t *testing.T) {
 	if assert.NotNil(aggregator) {
 		assert.Equal(uint32(65001), aggregator.Value.AS)
 		assert.Equal(netip.MustParseAddr("10.0.0.1"), aggregator.Value.Address)
+	}
+}
+
+func requireAdminResetCease(t *testing.T, msg *bgp.BGPMessage) {
+	t.Helper()
+	require.Equal(t, uint8(bgp.BGP_MSG_NOTIFICATION), msg.Header.Type)
+	n := msg.Body.(*bgp.BGPNotification)
+	require.Equal(t, uint8(bgp.BGP_ERROR_CEASE), n.ErrorCode)
+	require.Equal(t, uint8(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET), n.ErrorSubcode)
+}
+
+// ResetPeer in Idle restarts the idle hold timer with
+// idle-hold-time-after-reset and resets the backoff.
+// https://github.com/osrg/gobgp/issues/3740
+func TestFSMHandlerIdle_Reset(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Timers.Config.IdleHoldTimeAfterReset = 1
+	p.fsm.pConf.Update(&conf)
+	p.fsm.idleHoldTime = 64
+	p.fsm.idleHoldBackoff = 64
+
+	p.reset(nil)
+	start := time.Now()
+	state, reason := h.idle(t.Context())
+	require.Equal(t, bgp.BGP_FSM_ACTIVE, state)
+	require.Equal(t, fsmIdleTimerExpired, reason.Type)
+	require.Less(t, time.Since(start), 5*time.Second)
+	require.Equal(t, float64(1), p.fsm.idleHoldTime)
+	require.Equal(t, float64(idleHoldTimeInitial), p.fsm.idleHoldBackoff)
+}
+
+// ResetPeer in Idle is ignored while the peer is administratively down.
+func TestFSMHandlerIdle_ResetWhileAdminDown(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Timers.Config.IdleHoldTimeAfterReset = 30
+	p.fsm.pConf.Update(&conf)
+	p.fsm.adminState.Store(adminStateDown)
+	p.fsm.idleHoldTime = 1
+	p.fsm.idleHoldBackoff = 1
+
+	p.reset(nil)
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	state, _ := h.idle(ctx)
+	require.Equal(t, bgp.FSMState(-1), state)
+	require.Empty(t, p.fsm.resetCh)
+	require.Equal(t, float64(1), p.fsm.idleHoldTime)
+}
+
+// ResetPeer in Active goes to Idle. The connection of the manager, on which
+// the OPEN was sent, is closed with Cease/Administrative Reset.
+func TestFSMHandlerActive_Reset(t *testing.T) {
+	ocm, l := startManagerToListener(t, 0)
+	fsm := ocm.fsm
+	fsm.outgoingConnMgr = ocm
+
+	conn, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), readMessage(t, conn).Header.Type)
+	require.Eventually(t, func() bool { return ocm.state.Load() == bgp.BGP_FSM_OPENSENT },
+		time.Second, 10*time.Millisecond)
+
+	fsm.resetCh <- nil
+	state, reason := fsm.h.active(t.Context())
+	require.Equal(t, bgp.BGP_FSM_IDLE, state)
+	require.Equal(t, fsmAdminReset, reason.Type)
+	require.Nil(t, reason.BGPNotification)
+	require.Error(t, ocm.ctx.Err())
+	requireAdminResetCease(t, readMessage(t, conn))
+}
+
+// ResetPeer in OpenSent and OpenConfirm sends Cease/Administrative Reset
+// and goes to Idle.
+func TestFSMHandler_ResetBeforeEstablished(t *testing.T) {
+	tests := []struct {
+		name  string
+		state func(*fsmHandler, context.Context) (bgp.FSMState, *fsmStateReason)
+	}{
+		{"opensent", (*fsmHandler).opensent},
+		{"openconfirm", (*fsmHandler).openconfirm},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMockConnection()
+			p, h := makePeerAndHandler(m)
+			t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+			p.fsm.opensentHoldTime = 10
+			conf := p.fsm.pConf.ReadCopy()
+			conf.Timers.Config.KeepaliveInterval = 10
+			p.fsm.pConf.Update(&conf)
+
+			p.reset(nil)
+			state, reason := tt.state(h, t.Context())
+			require.Equal(t, bgp.BGP_FSM_IDLE, state)
+			require.Equal(t, fsmAdminReset, reason.Type)
+			require.Equal(t, uint8(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET), reason.BGPNotification.ErrorSubcode)
+			requireAdminResetCease(t, sentMessage(t, m, 0))
+		})
 	}
 }

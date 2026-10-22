@@ -92,6 +92,9 @@ const (
 	fsmHardReset
 	fsmDeConfigured
 	fsmBadPeerAS
+	// ResetPeer. BGPNotification is the NOTIFICATION sent to the peer, or
+	// nil if the session had no connection to send it on.
+	fsmAdminReset
 )
 
 type fsmStateReason struct {
@@ -164,6 +167,11 @@ func (r fsmStateReason) String() string {
 		return "hard-reset"
 	case fsmBadPeerAS:
 		return "bad-peer-as"
+	case fsmAdminReset:
+		if n := r.BGPNotification; n != nil {
+			return fmt.Sprintf("notification-sent %s", bgp.NewNotificationErrorCode(n.ErrorCode, n.ErrorSubcode).String())
+		}
+		return "admin-reset"
 	default:
 		return "unknown"
 	}
@@ -435,6 +443,19 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn, delay time.Duration)
 	}
 }
 
+// adminResetNotification returns the NOTIFICATION that ResetPeer sends.
+func adminResetNotification(communication []byte) *bgp.BGPMessage {
+	return bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, communication)
+}
+
+// stopOutgoingConnMgr stops the outgoing connection manager, if any. A
+// connection on which it sent its OPEN is closed with notif.
+func (fsm *fsm) stopOutgoingConnMgr(notif *bgp.BGPMessage) {
+	if fsm.outgoingConnMgr != nil {
+		fsm.outgoingConnMgr.stop(notif)
+	}
+}
+
 // stop stops the manager. A connection on which the OPEN was sent is closed
 // with notif, or just closed if notif is nil.
 func (ocm *outgoingConnManager) stop(notif *bgp.BGPMessage) {
@@ -548,6 +569,7 @@ type fsm struct {
 	outgoingCh               *channels.InfiniteChannel
 	notification             chan *bgp.BGPMessage
 	deconfiguredNotification chan *bgp.BGPMessage
+	resetCh                  chan []byte // ResetPeer, with the communication
 	connCh                   chan net.Conn
 	adminState               adminStateRaw
 	adminStateCh             chan adminStateOperation
@@ -726,6 +748,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 		gracefulRestartTimer:     time.NewTimer(time.Hour),
 		notification:             make(chan *bgp.BGPMessage, 1),
 		deconfiguredNotification: make(chan *bgp.BGPMessage, 1),
+		resetCh:                  make(chan []byte, 1),
 		outgoingConnCh:           make(chan outgoingConn, 1),
 		logger:                   logger,
 	}
@@ -994,13 +1017,9 @@ func nextIdleHoldTime(backoff, afterReset float64, reason *fsmStateReason) (floa
 		// The session stays in Idle until the admin state goes up. Then
 		// it starts again like a new session.
 		return idleHoldTimeInitial, idleHoldTimeInitial
-	case fsmNotificationSent:
-		if n := reason.BGPNotification; n != nil && n.ErrorCode == bgp.BGP_ERROR_CEASE && n.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET {
-			// ResetPeer
-			return afterReset, idleHoldTimeInitial
-		}
-		fallthrough
-	case fsmNotificationRecv, fsmHardReset, fsmHoldTimerExpired, fsmInvalidMsg, fsmBadPeerAS:
+	case fsmAdminReset:
+		return afterReset, idleHoldTimeInitial
+	case fsmNotificationSent, fsmNotificationRecv, fsmHardReset, fsmHoldTimerExpired, fsmInvalidMsg, fsmBadPeerAS:
 		backoff = min(backoff*2, idleHoldTimeMax)
 	}
 	// The other reasons, for example a closed TCP connection, keep the
@@ -1039,6 +1058,14 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 				fsm.logger.Debug("IdleHoldTimer expired, but stay at idle because the admin state is DOWN", slog.String("State", fsm.state.String()))
 			}
 
+		case <-fsm.resetCh:
+			// ResetPeer. Like FRR, ignore it while the peer is
+			// administratively down.
+			if fsm.adminState.Load() == adminStateUp {
+				conf := fsm.pConf.ReadOnly()
+				fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, newfsmStateReason(fsmAdminReset, nil, nil))
+				idleHoldTimer.Reset(time.Second * time.Duration(fsm.idleHoldTime))
+			}
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
 			if err == nil {
@@ -1216,6 +1243,11 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				fsm.logger.Warn("graceful restart timer expired", slog.String("State", fsm.state.String()))
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
 			}
+		case communication := <-fsm.resetCh:
+			// ResetPeer. There is no connection to send the
+			// NOTIFICATION on, except the one of the manager.
+			fsm.stopOutgoingConnMgr(adminResetNotification(communication))
+			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminReset, nil, nil)
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
 			if err == nil {
@@ -1818,6 +1850,11 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
 			_ = fsm.sendNotification(fsm.conn, m)
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, notificationBody(m), nil)
+		case communication := <-fsm.resetCh:
+			m := adminResetNotification(communication)
+			_ = fsm.sendNotification(fsm.conn, m)
+			fsm.stopOutgoingConnMgr(m)
+			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminReset, notificationBody(m), nil)
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
 			if err == nil {
@@ -1974,6 +2011,11 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
 			_ = fsm.sendNotification(fsm.conn, m)
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, notificationBody(m), nil)
+		case communication := <-fsm.resetCh:
+			m := adminResetNotification(communication)
+			_ = fsm.sendNotification(fsm.conn, m)
+			fsm.stopOutgoingConnMgr(m)
+			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminReset, notificationBody(m), nil)
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
 			if err == nil {
@@ -2349,6 +2391,10 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			if conf.Timers.State.NegotiatedHoldTime != 0 {
 				holdTimer.Reset(time.Second * time.Duration(conf.Timers.State.NegotiatedHoldTime))
 			}
+		case communication := <-fsm.resetCh:
+			m := convertNotification(adminResetNotification(communication))
+			_ = fsm.sendNotification(fsm.conn, m)
+			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminReset, notificationBody(m), nil)
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
 			if err == nil {
