@@ -2235,8 +2235,8 @@ func TestFSMHandlerOpensent_OutgoingOpenFirst(t *testing.T) {
 }
 
 // startManagerToListener starts an outgoing connection manager that
-// connects to a local listener, and returns both.
-func startManagerToListener(t *testing.T) (*outgoingConnManager, net.Listener) {
+// connects to a local listener after delay, and returns both.
+func startManagerToListener(t *testing.T, delay time.Duration) (*outgoingConnManager, net.Listener) {
 	t.Helper()
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -2255,7 +2255,7 @@ func startManagerToListener(t *testing.T) (*outgoingConnManager, net.Listener) {
 	conf.Transport.Config.LocalAddress = netip.MustParseAddr("127.0.0.1")
 	p.fsm.pConf.Update(&conf)
 
-	ocm := newOutGoingConnManager(t.Context(), p.fsm)
+	ocm := newOutGoingConnManager(t.Context(), p.fsm, delay)
 	t.Cleanup(func() { ocm.stop(nil) })
 	return ocm, l
 }
@@ -2265,7 +2265,7 @@ func startManagerToListener(t *testing.T) (*outgoingConnManager, net.Listener) {
 // stopped the manager, which closed a connection that the peer may keep.
 // https://github.com/osrg/gobgp/issues/3751
 func TestOutgoingConnManager_OpenSentBeforeOpen(t *testing.T) {
-	ocm, l := startManagerToListener(t)
+	ocm, l := startManagerToListener(t, 0)
 
 	conn, err := l.Accept()
 	require.NoError(t, err)
@@ -2282,12 +2282,11 @@ func TestOutgoingConnManager_OpenSentBeforeOpen(t *testing.T) {
 // When opensent() takes the manager over while it is connecting, the
 // manager closes the new connection without sending its OPEN.
 func TestOutgoingConnManager_StoppedBeforeOpen(t *testing.T) {
-	ocm, l := startManagerToListener(t)
+	ocm, l := startManagerToListener(t, 2*time.Second)
 
-	// connectLoop() waits at least 1.5 seconds before it connects. Take
-	// the manager over while it waits there, so that it connects after
-	// that. Taken over before connectLoop(), it returns without
-	// connecting.
+	// connectLoop() waits 2 seconds before it connects. Take the manager
+	// over while it waits there, so that it connects after that. Taken
+	// over before connectLoop(), it returns without connecting.
 	time.Sleep(500 * time.Millisecond)
 	require.True(t, ocm.state.CompareAndSwap(bgp.BGP_FSM_CONNECT, bgp.BGP_FSM_IDLE))
 
@@ -2302,6 +2301,27 @@ func TestOutgoingConnManager_StoppedBeforeOpen(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 
 	ocm.wg.Wait()
+}
+
+// The delay given to the manager is used only for its first connection.
+// When that connection fails, the manager waits the retry delay before it
+// connects again.
+func TestOutgoingConnManager_RetryDelay(t *testing.T) {
+	_, l := startManagerToListener(t, 0)
+
+	require.NoError(t, l.(*net.TCPListener).SetDeadline(time.Now().Add(5*time.Second)))
+	conn, err := l.Accept()
+	require.NoError(t, err)
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), readMessage(t, conn).Header.Type)
+
+	start := time.Now()
+	conn.Close()
+
+	conn, err = l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	// connectRetryDelay(minConnectRetryInterval) is at least 0.75 * 2s.
+	require.GreaterOrEqual(t, time.Since(start), 1500*time.Millisecond)
 }
 
 // readMessage reads one BGP message from conn.
@@ -2320,7 +2340,7 @@ func readMessage(t *testing.T, conn net.Conn) *bgp.BGPMessage {
 // A manager stopped with a NOTIFICATION sends it on the connection on which
 // it sent its OPEN, and on a connection that it left in outgoingConnCh.
 func TestOutgoingConnManager_StopWithNotification(t *testing.T) {
-	ocm, l := startManagerToListener(t)
+	ocm, l := startManagerToListener(t, 0)
 
 	conn, err := l.Accept()
 	require.NoError(t, err)
@@ -2342,7 +2362,7 @@ func TestOutgoingConnManager_StopWithNotification(t *testing.T) {
 // When the session goes to Idle, a manager that is still connecting is
 // stopped: in Idle we make no connection to the peer.
 func TestOutgoingConnManager_KeepForIdle_Connecting(t *testing.T) {
-	ocm, _ := startManagerToListener(t)
+	ocm, _ := startManagerToListener(t, time.Minute)
 
 	require.False(t, ocm.keepForIdle())
 	require.Error(t, ocm.ctx.Err())
@@ -2350,7 +2370,7 @@ func TestOutgoingConnManager_KeepForIdle_Connecting(t *testing.T) {
 
 // A manager that sent its OPEN is kept when the session goes to Idle.
 func TestOutgoingConnManager_KeepForIdle_OpenSent(t *testing.T) {
-	ocm, l := startManagerToListener(t)
+	ocm, l := startManagerToListener(t, 0)
 
 	conn, err := l.Accept()
 	require.NoError(t, err)

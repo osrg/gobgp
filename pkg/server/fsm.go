@@ -45,7 +45,32 @@ import (
 
 const (
 	minConnectRetryInterval = 2
+
+	// The first connection attempt after the FSM leaves Idle waits a
+	// random time in [0, firstConnectDelayMax). In RFC 4271 Section 8.2.2,
+	// on a start event in the Idle state, the local system "initiates a
+	// TCP connection to the other BGP peer". The RFC does not ask for a
+	// wait there, and FRR connects at once. We still wait a little: when
+	// a session goes down, both sides leave Idle at about the same time,
+	// and connections made at the same time collide. Only the random part
+	// of the wait makes the two sides connect at different times.
+	firstConnectDelayMax = time.Second
 )
+
+// firstConnectDelay returns the wait before the first connection attempt
+// after the FSM leaves Idle.
+func firstConnectDelay() time.Duration {
+	return time.Duration(rand.Float64() * float64(firstConnectDelayMax))
+}
+
+// connectRetryDelay returns the wait before the next connection attempt.
+// RFC 4271 Section 10 says: "The suggested default amount of jitter SHALL
+// be determined by multiplying the base value of the appropriate timer by
+// a random factor, which is uniformly distributed in the range from 0.75
+// to 1.0."
+func connectRetryDelay(interval int) time.Duration {
+	return time.Duration((0.75 + rand.Float64()*0.25) * float64(interval) * float64(time.Second))
+}
 
 type fsmStateReasonType uint8
 
@@ -277,7 +302,9 @@ type outgoingConnManager struct {
 	notif atomic.Pointer[bgp.BGPMessage]
 }
 
-func newOutGoingConnManager(ctx context.Context, fsm *fsm) *outgoingConnManager {
+// newOutGoingConnManager starts a manager that connects to the peer after
+// delay.
+func newOutGoingConnManager(ctx context.Context, fsm *fsm, delay time.Duration) *outgoingConnManager {
 	cctx, cancel := context.WithCancel(ctx)
 	ocm := &outgoingConnManager{
 		ctx:    cctx,
@@ -286,12 +313,12 @@ func newOutGoingConnManager(ctx context.Context, fsm *fsm) *outgoingConnManager 
 	}
 	ocm.state.Store(bgp.BGP_FSM_CONNECT)
 	ocm.wg.Add(1)
-	go ocm.run(fsm.outgoingConnCh)
+	go ocm.run(fsm.outgoingConnCh, delay)
 
 	return ocm
 }
 
-func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
+func (ocm *outgoingConnManager) run(ch chan<- outgoingConn, delay time.Duration) {
 	defer func() {
 		ocm.wg.Done()
 		ocm.cancel()
@@ -312,7 +339,10 @@ func (ocm *outgoingConnManager) run(ch chan<- outgoingConn) {
 			// opensent() took the manager over to stop it.
 			return
 		case bgp.BGP_FSM_CONNECT:
-			conn = ocm.fsm.h.connectLoop(ocm.ctx)
+			conn = ocm.fsm.h.connectLoop(ocm.ctx, delay)
+			// We come back here only when this connection failed, so
+			// the next attempt is a retry.
+			delay = connectRetryDelay(minConnectRetryInterval)
 			if ocm.ctx.Err() != nil {
 				// right after connectLoop() returns a connection, the context may be canceled.
 				if conn != nil {
@@ -1026,7 +1056,9 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	}
 }
 
-func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
+// connectLoop connects to the peer after delay, and retries until it
+// succeeds or ctx is canceled.
+func (h *fsmHandler) connectLoop(ctx context.Context, delay time.Duration) net.Conn {
 	fsm := h.fsm
 
 	retryInterval, addr, port, password, ttl, ttlMin, mss, localAddress, localPort, bindInterface, tos := func() (int, netip.Addr, int, string, uint8, uint8, uint16, string, int, string, uint8) {
@@ -1058,9 +1090,8 @@ func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 		return tick, addr, port, password, ttl, ttlMin, conf.Transport.Config.TcpMss, conf.Transport.Config.LocalAddress.String(), int(conf.Transport.Config.LocalPort), conf.Transport.Config.BindInterface, tos
 	}()
 
-	tick := minConnectRetryInterval
 	for {
-		timer := time.NewTimer(time.Duration((0.75+rand.Float64()*0.25)*float64(tick)*1000) * time.Millisecond)
+		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
 			fsm.logger.Debug("stop connect loop")
@@ -1113,7 +1144,7 @@ func (h *fsmHandler) connectLoop(ctx context.Context) net.Conn {
 				fsm.logger.Debug("failed to connect", slog.String("Error", err.Error()))
 			}
 		}
-		tick = retryInterval
+		delay = connectRetryDelay(retryInterval)
 	}
 }
 
@@ -1122,7 +1153,7 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 
 	if fsm.outgoingConnMgr == nil || fsm.outgoingConnMgr.ctx.Err() != nil {
 		fsm.logger.Info("starting outgoing connection manager")
-		fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm)
+		fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm, firstConnectDelay())
 	}
 
 	for {
@@ -1159,7 +1190,7 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				result.conn.Close()
 				fsm.logger.Warn("failed to send keepalive on outgoing connection", slog.String("Error", err.Error()))
 				// the manager was stopped, restart it
-				fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm)
+				fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm, connectRetryDelay(minConnectRetryInterval))
 			} else {
 				fsm.bgpMessageStateUpdate(bgp.BGP_MSG_KEEPALIVE, false)
 				fsm.lock.Lock()
