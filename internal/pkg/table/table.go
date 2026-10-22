@@ -52,6 +52,13 @@ func addrPrefixOnlySerialize(nlri bgp.NLRI) []byte {
 		copy(b[8:], T.Prefix.Addr().AsSlice())
 		b[8+byteLen] = uint8(T.Prefix.Bits())
 		return b
+	case *bgp.LsAddrPrefix:
+		// As in tableKey, a BGP-LS NLRI is told apart by its full
+		// serialized form: String omits fields (the OSPF area of a node)
+		// that make two NLRIs different destinations.
+		if serialized, err := T.Serialize(); err == nil {
+			return serialized
+		}
 	}
 	return []byte(nlri.String())
 }

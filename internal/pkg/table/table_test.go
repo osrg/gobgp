@@ -242,6 +242,52 @@ func TestTableDestinationsCollision(t *testing.T) {
 	assert.Equal(t, 1, ipv4t.Info().NumCollision)
 }
 
+// lsNodeOfArea is a BGP-LS node NLRI of the OSPF protocol whose descriptor
+// carries the given area, which NLRI.String omits.
+func lsNodeOfArea(t *testing.T, area byte) bgp.NLRI {
+	t.Helper()
+	nlri, err := bgp.NLRIFromSlice(bgp.RF_LS, []byte{
+		0x00, 0x01, 0x00, 0x25,
+		0x03,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x18,
+		0x02, 0x00, 0x00, 0x04, 0x00, 0x00, 0xfd, 0xe8,
+		0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, area,
+		0x02, 0x03, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x01,
+	})
+	require.NoError(t, err)
+	return nlri
+}
+
+// TestTableKeepsBgpLsNodesOfTwoAreasApart puts two BGP-LS nodes that differ
+// only in their OSPF area under one hash key, as a collision of the 64-bit
+// keys would, and checks that the RIB, which then tells destinations apart by
+// AddrPrefixOnlyCompare, keeps them as two.
+func TestTableKeepsBgpLsNodesOfTwoAreasApart(t *testing.T) {
+	a, b := lsNodeOfArea(t, 1), lsNodeOfArea(t, 2)
+	require.Equal(t, a.String(), b.String())
+	assert.NotZero(t, AddrPrefixOnlyCompare(a, b))
+
+	tbl := NewTable(logger, bgp.RF_LS)
+	shard := tbl.destinations.getShardForInsert(a)
+	shard.mu.Lock()
+	shard.put(tableKey(a), []*destination{newDestination(b, 0)})
+	shard.mu.Unlock()
+
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}
+	src := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("192.0.2.1"), ID: netip.MustParseAddr("192.0.2.1")}
+	path := NewPath(bgp.RF_LS, src, bgp.PathNLRI{NLRI: a}, false, attrs, time.Now(), false)
+	require.NotNil(t, tbl.update(path, oc.RouteSelectionOptionsConfig{}))
+
+	assert.Len(t, tbl.GetDestinations(), 2, "two nodes of different areas became one destination")
+	da := tbl.GetDestination(a)
+	require.NotNil(t, da)
+	assert.Zero(t, AddrPrefixOnlyCompare(da.GetNlri(), a))
+	assert.Equal(t, 1, tbl.Info().NumCollision)
+}
+
 func TestTableSetDestinations(t *testing.T) {
 	peerT := TableCreatePeer()
 	pathT := TableCreatePath(peerT)
