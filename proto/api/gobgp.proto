@@ -153,7 +153,14 @@ message WatchEventRequest {
   }
   Table table = 2;
 
-  // Max number of paths to include in a single message. 0 for unlimited.
+  // Max number of paths to include in a single message, up to one more: a
+  // message is sent when it holds more than batch_size paths, so each
+  // message but the last of an event carries batch_size + 1 paths, and the
+  // last one carries the rest, which may be none (an event of an exact
+  // multiple of batch_size + 1 paths ends with an empty message). The
+  // incremental conversion applies to TYPE_BEST events. 0 for unlimited:
+  // every event is then one message, which the server holds whole in memory
+  // while it builds it (an initial table included).
   uint32 batch_size = 3;
 
   // Max number of events the server queues for this client while it is
@@ -186,6 +193,18 @@ message WatchEventResponse {
 
   message TableEvent {
     repeated Path paths = 2;
+    // When the server produced the event: for TYPE_BEST, the time of the
+    // best path change, or of the initial table; for TYPE_ADJIN, the time
+    // the update was received, or of the initial table; for TYPE_POST_POLICY,
+    // the time the path was received for an announcement, at a resolution of
+    // one second, and the time of the event for a withdrawal or the initial
+    // table; for TYPE_EOR, the time the End-of-RIB was received, or of the
+    // initial table. Every message of one event carries the same time. It is
+    // neither a sequence number nor a snapshot barrier: two events may carry
+    // the same time, an event may carry an earlier time than the one before
+    // it, and the time of an initial table does not say which changes it
+    // includes. The order of the messages is the order of the stream.
+    google.protobuf.Timestamp timestamp = 3;
   }
 
   oneof event {

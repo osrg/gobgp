@@ -392,8 +392,17 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 		opts = append(opts, WatchQueueLimit(limit))
 	}
 	simpleSend := func(paths []*api.Path, when time.Time) {
-		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}}, when)
+		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{
+			Paths:     paths,
+			Timestamp: tspb.New(when),
+		}}}, when)
 	}
+	// The paths of one best path event arrive in batches; the messages are
+	// cut by batch_size across them exactly as for a whole event: every
+	// message holds batch_size + 1 paths but the event's last one, which
+	// holds the rest. With batch_size 0 an event is one message, so the whole
+	// event (an initial table too) is held here converted until it is sent.
+	bestPaths := make([]*api.Path, 0, batchCapacity(r.BatchSize))
 	err := s.bgpServer.WatchEvent(ctx, WatchEventMessageCallbacks{
 		OnError: onError,
 		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time) {
@@ -407,16 +416,18 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 			}
 			simpleSend(paths, timestamp)
 		},
-		OnBestPath: func(pathList []*apiutil.Path, timestamp time.Time) {
-			pl := make([]*api.Path, 0, r.BatchSize)
+		OnBestPathBatch: func(pathList []*apiutil.Path, timestamp time.Time, last bool) {
 			for _, path := range pathList {
-				pl = append(pl, toPathApi(path, false, false, false))
-				if r.BatchSize > 0 && len(pl) > int(r.BatchSize) {
-					simpleSend(pl, timestamp)
-					pl = make([]*api.Path, 0, r.BatchSize)
+				bestPaths = append(bestPaths, toPathApi(path, false, false, false))
+				if r.BatchSize > 0 && uint64(len(bestPaths)) > uint64(r.BatchSize) {
+					simpleSend(bestPaths, timestamp)
+					bestPaths = make([]*api.Path, 0, batchCapacity(r.BatchSize))
 				}
 			}
-			simpleSend(pl, timestamp)
+			if last {
+				simpleSend(bestPaths, timestamp)
+				bestPaths = make([]*api.Path, 0, batchCapacity(r.BatchSize))
+			}
 		},
 		OnPathEor: func(path *apiutil.Path, timestamp time.Time) {
 			p := toPathApi(path, false, false, false)
@@ -482,6 +493,13 @@ func watchQueueLimit(v uint32, maxInt int64) (int, error) {
 		return 0, status.Errorf(codes.InvalidArgument, "max_queued_events %d is more than the largest limit, %d", v, maxInt)
 	}
 	return int(v), nil
+}
+
+// batchCapacity is the capacity to reserve for a batch of batchSize paths:
+// the batch size comes from the client, so the reservation is capped.
+func batchCapacity(batchSize uint32) int {
+	const maxReserved = 1 << 12
+	return int(min(batchSize, maxReserved))
 }
 
 // watchRegistrationStatus converts the error WatchEvent returns when the

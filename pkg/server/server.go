@@ -934,6 +934,10 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 		// Note: If best path selection disabled, no best path to notify.
 		return
 	}
+	if !anyPath(best, multipath, multipathUpdate, multipathWithdraw) {
+		// Nothing changed for any destination: there is nothing to tell.
+		return
+	}
 	m := make(map[uint32]bool)
 	clonedM := make([][]*table.Path, len(multipath))
 	for i, pathList := range multipath {
@@ -959,6 +963,36 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 		w.Vrf = m
 	}
 	s.notifyWatcher(watchEventTypeBestPath, w)
+}
+
+func anyPath(best []*table.Path, multipath [][]*table.Path, multipathUpdate []*table.Path, multipathWithdraw []*table.Path) bool {
+	for _, l := range [][]*table.Path{best, multipathUpdate, multipathWithdraw} {
+		for _, p := range l {
+			if p != nil {
+				return true
+			}
+		}
+	}
+	for _, l := range multipath {
+		for _, p := range l {
+			if p != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// watchEnded reports whether the watch was cancelled or its watcher failed.
+func watchEnded(ctx context.Context, w *watcher) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	case <-w.Done():
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
@@ -1073,6 +1107,18 @@ func (s *BgpServer) notifyPrePolicyUpdateWatcher(peer *peer, pathList []*table.P
 	s.notifyWatcher(watchEventTypePreUpdate, ev)
 }
 
+// postPolicyTimestamp is the time of a post-policy event about the path: the
+// time the path was received for an announcement, which is what a subscriber
+// measures lag against, and the time of the event for a withdrawal, since the
+// timestamp of the path a withdrawal made internally (a peer going down)
+// replaces is the age of the announcement.
+func postPolicyTimestamp(path *table.Path) time.Time {
+	if path.IsWithdraw {
+		return time.Now()
+	}
+	return path.GetTimestamp()
+}
+
 func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.Path) {
 	if !s.isWatched(watchEventTypePostUpdate) || peer == nil {
 		return
@@ -1094,7 +1140,7 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 		LocalAddress: conf.Transport.State.LocalAddress,
 		PeerID:       conf.State.RemoteRouterId,
 		FourBytesAs:  y,
-		Timestamp:    cloned[0].GetTimestamp(),
+		Timestamp:    postPolicyTimestamp(cloned[0]),
 		PostPolicy:   true,
 		PathList:     cloned,
 		Neighbor:     n,
@@ -2198,8 +2244,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					}
 					peerInfo := *peer.peerInfo.Load()
 					ev := &watchEventEor{
-						Family:   f,
-						PeerInfo: &peerInfo,
+						Family:    f,
+						PeerInfo:  &peerInfo,
+						Timestamp: e.timestamp,
 					}
 					s.notifyWatcher(watchEventTypeEor, ev)
 					peer.fsm.lock.Lock()
@@ -5246,13 +5293,62 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 	return p
 }
 
+// sendBestPathBatches passes the paths of one best path event to
+// OnBestPathBatch, converting them batch by batch. It returns false when the
+// watch was cancelled, or its watcher failed, before the event was complete.
+func sendBestPathBatches(ctx context.Context, w *watcher, msg *watchEventBestPath, callbacks WatchEventMessageCallbacks) bool {
+	size := callbacks.BestPathBatchSize
+	if size <= 0 {
+		size = DefaultBestPathBatchSize
+	}
+	batch := make([]*apiutil.Path, 0, size)
+	add := func(paths []*table.Path) bool {
+		for _, path := range paths {
+			// A full batch waits for the next path, so that the event's
+			// last call carries at least one path when it has any.
+			if len(batch) == size {
+				if !w.deliver(func() { callbacks.OnBestPathBatch(batch, msg.Timestamp, false) }) {
+					return false
+				}
+				batch = make([]*apiutil.Path, 0, size)
+				if watchEnded(ctx, w) {
+					return false
+				}
+			}
+			batch = append(batch, toPathApiUtil(path))
+		}
+		return true
+	}
+	if !add(locRIBPathsForBMP(msg)) {
+		return false
+	}
+	return w.deliver(func() { callbacks.OnBestPathBatch(batch, msg.Timestamp, true) })
+}
+
 // WatchEventMessageCallbacks holds the callbacks WatchEvent calls, all of them
-// from one goroutine, one at a time and in the order of the events.
+// from one goroutine, one at a time and in the order of the events. Every
+// callback receives the time of its event, which is neither a sequence number
+// nor a barrier: see WatchEvent.
 type WatchEventMessageCallbacks struct {
 	OnPathUpdate func([]*apiutil.Path, time.Time)
 	OnBestPath   func([]*apiutil.Path, time.Time)
 	OnPathEor    func(*apiutil.Path, time.Time)
 	OnPeerUpdate func(*apiutil.WatchEventMessage_PeerEvent, time.Time)
+	// OnBestPathBatch, when set, takes precedence over OnBestPath, which is
+	// then not called. The paths of one best path event are converted and
+	// passed in batches of at most BestPathBatchSize paths
+	// (DefaultBestPathBatchSize when it is zero or less), in order; last is
+	// set on the event's final call. A batch is full before the next path
+	// is added to it, so the final call carries at least one path when the
+	// event has any; an event with no path, an empty initial table, is one
+	// call with none and last set. The initial table is converted batch by
+	// batch instead of whole, and the conversion stops between batches
+	// when the watch ends.
+	//
+	// The incremental conversion covers the best path events only
+	// (WatchBestPath): the other callbacks get their paths converted whole.
+	OnBestPathBatch   func(paths []*apiutil.Path, ts time.Time, last bool)
+	BestPathBatchSize int
 	// OnError is called at most once, from a goroutine of its own and
 	// possibly while another callback is running and blocked (it does not
 	// wait for it), when the server ends the watch on its own. The errors
@@ -5283,6 +5379,10 @@ type WatchEventMessageCallbacks struct {
 	OnError func(error)
 }
 
+// DefaultBestPathBatchSize is the batch size of OnBestPathBatch when
+// WatchEventMessageCallbacks.BestPathBatchSize is not set.
+const DefaultBestPathBatchSize = 1000
+
 // ErrWatchQueueFull is the error a watch ends with when more events are
 // waiting for its client than its queue limit allows (WatchQueueLimit). It
 // is a terminal error: see WatchEventMessageCallbacks.OnError.
@@ -5296,6 +5396,29 @@ var ErrWatchInvalid = errors.New("invalid watch options")
 // until ctx is cancelled or the server ends the watch (see OnError). It
 // returns once the watch is registered, with an error wrapping ErrWatchInvalid
 // when it is refused, and leaves nothing running then.
+//
+// Every callback receives the time of its event:
+//
+//   - best path events (OnBestPath, OnBestPathBatch): the time the server
+//     notified the change of the best path, or the time it took the initial
+//     table;
+//   - pre-policy updates (OnPathUpdate for WatchUpdate): the time the update
+//     was received, and the time of the event for the initial table;
+//   - post-policy updates (WatchPostUpdate): for an announcement, the time
+//     the path was received, which the path holds with a resolution of one
+//     second (the sub-second part is zero); for a withdrawal and for the
+//     initial table, the time of the event;
+//   - End-of-RIB (OnPathEor): the time the message was received, and the
+//     time of the event for the initial ones;
+//   - peer events (OnPeerUpdate): the time of the event.
+//
+// The time is neither a sequence number nor a snapshot barrier. Two events
+// may carry the same time, and the time of an event may be earlier than that
+// of the one delivered before it (a post-policy announcement carries when its
+// path was received, which may precede other events). The order of the events
+// is the order of the delivery, and the time of an initial table does not say
+// which changes it includes: a change delivered after it is not necessarily
+// newer than the table. Do not order, deduplicate or resynchronize with it.
 func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageCallbacks, opts ...WatchOption) error {
 	if len(opts) == 0 {
 		return fmt.Errorf("%w: no events to watch", ErrWatchInvalid)
@@ -5359,14 +5482,20 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 					}
 
 				case *watchEventBestPath:
-					if callbacks.OnBestPath != nil {
-						paths := locRIBPathsForBMP(msg)
-						p := make([]*apiutil.Path, len(paths))
-						for i, path := range paths {
-							p[i] = toPathApiUtil(path)
-						}
-						if !w.deliver(func() { callbacks.OnBestPath(p, msg.Timestamp) }) {
+					if callbacks.OnBestPathBatch != nil {
+						if !sendBestPathBatches(ctx, w, msg, callbacks) {
 							return
+						}
+					} else {
+						paths := locRIBPathsForBMP(msg)
+						if callbacks.OnBestPath != nil {
+							p := make([]*apiutil.Path, len(paths))
+							for i, path := range paths {
+								p[i] = toPathApiUtil(path)
+							}
+							if !w.deliver(func() { callbacks.OnBestPath(p, msg.Timestamp) }) {
+								return
+							}
 						}
 					}
 
@@ -6000,6 +6129,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 						PostPolicy:   false,
 						Neighbor:     configNeighbor,
 						PathList:     peer.adjRibIn.PathList([]bgp.Family{rf}, false),
+						Timestamp:    time.Now(),
 					}
 					w.notify(update)
 
@@ -6048,6 +6178,7 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 						Neighbor:    configNeighbor,
 						PathList:    paths,
 						Init:        true,
+						Timestamp:   time.Now(),
 					}
 					if w.opts.postUpdateFilter != nil && !w.opts.postUpdateFilter(ev) {
 						continue
