@@ -169,6 +169,7 @@ jobs:
       - run: |
           python test/scenario_test/ci-scripts/build_embedded_go.py docs/sources/lib.md
           python test/scenario_test/ci-scripts/build_embedded_go.py docs/sources/bgp-ls.md
+          python test/scenario_test/ci-scripts/build_embedded_go.py docs/sources/grpc-client.md
 
   lintdoc:
     name: lintdoc

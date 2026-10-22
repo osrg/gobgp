@@ -7,6 +7,7 @@ This page explains how to manage GoBGP with your favorite language. You can use 
 - [Prerequisite](#prerequisite)
 - [Python](#python)
 - [C++](#c)
+- [Watching the Best Paths](#watching-the-best-paths)
 
 ## Prerequisite
 
@@ -164,4 +165,190 @@ See if the route was added to the global rib.
 $ gobgp g r
    Network              Next Hop             AS_PATH              Age        Attrs
 *> 10.0.0.0/24          1.1.1.1                                   00:13:26   [{Origin: i} {Communities: 0:100}]
+```
+
+## Watching the Best Paths
+
+`WatchEvent` streams the changes of the best paths, preceded by the best paths
+the server holds when the stream starts (`init`), and can filter them with a
+policy defined with `AddPolicy`. The native Go interface offers the same
+subscription, and the same semantics: see [GoBGP as a Go Native BGP
+library](lib.md#watching-the-best-paths).
+
+The request:
+
+- `table.filters`: a filter of type `TYPE_BEST`, with `init` set for the initial
+  table and `policy` set to the name of the policy. A policy is valid only with
+  `TYPE_BEST`, in a single `TYPE_BEST` filter, and not with `use_multiple_paths`.
+  It is evaluated when the best path of a destination changes; a change to
+  what it reads applies to the destinations whose best path changes after
+  it.
+- `batch_size`: a message is sent when it holds more than `batch_size` paths, so
+  every message of an event but the last carries `batch_size + 1` paths, and the
+  last one the rest, possibly none: an event with an exact multiple of
+  `batch_size + 1` paths ends with an empty message. The last message of an
+  event is the first one that carries no more than `batch_size` paths. With `0`
+  every event is one message, held whole in memory by the server.
+- `max_queued_events`: the events the server queues for a client that is slow to
+  read. The limit is strict and counts events, not memory; `0` is no limit.
+
+Every table message carries the `timestamp` of its event, the same for all its
+messages: the time of the best path change or of the initial table. It is
+neither a sequence number nor a snapshot barrier: see the table in the [Go
+documentation](lib.md#timestamps).
+
+The stream ends with a status. Events were lost in the cases below, and the
+client watches again, with `init`, to resynchronize:
+
+| Code | Meaning |
+|------|---------|
+| `RESOURCE_EXHAUSTED` | `max_queued_events` was reached |
+| `ABORTED` | The subscription was invalidated: the policy was removed or replaced by a reload, or a destination could not be identified |
+
+A request the server refuses fails with `INVALID_ARGUMENT` (no events, a policy
+with a filter other than `TYPE_BEST`, two `TYPE_BEST` filters with a policy, a
+`max_queued_events` that does not fit an int on the server), `NOT_FOUND` (the
+policy does not exist) or `FAILED_PRECONDITION` (the policy with
+`use_multiple_paths`). Messages already sent or buffered when the server ends
+the stream may still reach the client after it: the client resynchronizes on the
+status, not on the last message it received.
+
+### Go
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+
+	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+)
+
+const batchSize = 500
+
+// watch rebuilds the table of the best paths the policy accepts and returns
+// the status that ended the stream. A table starts when the stream starts
+// and replaces the previous one when its initial table is complete.
+func watch(ctx context.Context, client api.GoBgpServiceClient, policy string, table map[string]*api.Path) (map[string]*api.Path, error) {
+	stream, err := client.WatchEvent(ctx, &api.WatchEventRequest{
+		Table: &api.WatchEventRequest_Table{Filters: []*api.WatchEventRequest_Table_Filter{{
+			Type:   api.WatchEventRequest_Table_Filter_TYPE_BEST,
+			Init:   true,
+			Policy: policy,
+		}}},
+		BatchSize:       batchSize,
+		MaxQueuedEvents: 10000,
+	})
+	if err != nil {
+		return table, err
+	}
+	fresh := map[string]*api.Path{}
+	initial := true
+	for {
+		m, err := stream.Recv()
+		if err != nil {
+			return table, err
+		}
+		ev := m.GetTable()
+		if ev == nil {
+			continue
+		}
+		t := table
+		if initial {
+			t = fresh
+		}
+		for _, p := range ev.GetPaths() {
+			nlri, err := apiutil.UnmarshalNLRI(apiutil.ToFamily(p.GetFamily()), p.GetNlri())
+			if err != nil {
+				return table, err
+			}
+			if p.GetIsWithdraw() {
+				delete(t, nlri.String())
+			} else {
+				t[nlri.String()] = p
+			}
+		}
+		// The last message of an event carries no more than batchSize paths.
+		if initial && len(ev.GetPaths()) <= batchSize {
+			table, initial = fresh, false
+			log.Printf("initial table of %d paths, event time %s", len(table), ev.GetTimestamp().AsTime())
+		}
+	}
+}
+
+func main() {
+	conn, err := grpc.NewClient("127.0.0.1:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+	client := api.NewGoBgpServiceClient(conn)
+
+	ctx := context.Background()
+	var table map[string]*api.Path
+	for {
+		table, err = watch(ctx, client, "tagged", table)
+		switch status.Code(err) {
+		case codes.ResourceExhausted, codes.Aborted:
+			// Events were lost: watch again.
+			log.Printf("watching again: %v", err)
+			time.Sleep(time.Second)
+		default:
+			// A request that is refused (InvalidArgument, NotFound,
+			// FailedPrecondition), or a failure of the connection.
+			log.Fatal(err)
+		}
+	}
+}
+```
+
+### Python
+
+After [generating the interface](#generating-interface), the same request in
+Python:
+
+```python
+import grpc
+import gobgp_pb2
+import gobgp_pb2_grpc
+
+BATCH_SIZE = 500
+
+
+def watch(stub, policy):
+    request = gobgp_pb2.WatchEventRequest(
+        table=gobgp_pb2.WatchEventRequest.Table(
+            filters=[
+                gobgp_pb2.WatchEventRequest.Table.Filter(
+                    type=gobgp_pb2.WatchEventRequest.Table.Filter.TYPE_BEST,
+                    init=True,
+                    policy=policy,
+                )
+            ]
+        ),
+        batch_size=BATCH_SIZE,
+        max_queued_events=10000,
+    )
+    try:
+        for message in stub.WatchEvent(request):
+            paths = message.table.paths
+            # The last message of an event carries no more than BATCH_SIZE paths.
+            print(len(paths), message.table.timestamp.ToDatetime())
+    except grpc.RpcError as e:
+        if e.code() in (grpc.StatusCode.RESOURCE_EXHAUSTED, grpc.StatusCode.ABORTED):
+            # Events were lost: watch again.
+            return
+        raise
+
+
+with grpc.insecure_channel("127.0.0.1:50051") as channel:
+    watch(gobgp_pb2_grpc.GoBgpServiceStub(channel), "tagged")
 ```
