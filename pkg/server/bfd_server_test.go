@@ -669,6 +669,128 @@ func Test_BfdServerRxPacketUnknownDiscriminator(t *testing.T) {
 	assert.Equal(t, uint64(0), s.stats.rxPacket.Load())
 }
 
+func Test_BfdServerRxPacketTTL(t *testing.T) {
+	s := newServer(13788)
+	defer s.Stop()
+	require.NoError(t, addPeer(s, 23788))
+
+	s.peersMutex.RLock()
+	peer := s.peers[netip.MustParseAddr("127.0.0.1")]
+	s.peersMutex.RUnlock()
+	require.NotNil(t, peer)
+
+	delivered := func() uint64 {
+		return s.stats.rxPacket.Load() + s.stats.rxDrop.Load()
+	}
+	for _, tt := range []struct {
+		ttl       int
+		discarded bool
+	}{
+		{254, true},
+		{64, true},
+		{0, true}, // the socket reports the TTL, but the packet came without it
+		{255, false},
+		{-1, false}, // the socket can't report the TTL
+	} {
+		t.Run(fmt.Sprintf("TTL %d", tt.ttl), func(t *testing.T) {
+			invalid, ok := peer.stats.invalidTTL.Load(), delivered()
+			s.rxPacket(bfdRxInfo{
+				src: netip.MustParseAddrPort("127.0.0.1:49152"),
+				ttl: tt.ttl,
+			}, &bfd.BFDHeader{
+				State:                bfd.StateDown,
+				DetectTimeMultiplier: 3,
+				MyDiscriminator:      1,
+				YourDiscriminator:    peer.myDiscriminator,
+			})
+			if tt.discarded {
+				assert.Equal(t, invalid+1, peer.stats.invalidTTL.Load())
+				assert.Equal(t, ok, delivered())
+			} else {
+				assert.Equal(t, invalid, peer.stats.invalidTTL.Load())
+				assert.Equal(t, ok+1, delivered())
+			}
+		})
+	}
+}
+
+// Test_BfdServerDiscardsWrongTTL sends real packets, as in issue #3738:
+// a packet with TTL 64 must not reach the session, one with 255 must.
+func Test_BfdServerDiscardsWrongTTL(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("TTL checked on Linux only")
+	}
+
+	for _, tt := range []struct {
+		name    string
+		network string
+		address string
+		port    uint16
+	}{
+		{"IPv4", "udp4", "127.0.0.1", 13789},
+		{"IPv6", "udp6", "::1", 13790},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if !canListenUDP(tt.network, net.JoinHostPort(tt.address, "0")) {
+				t.Skipf("%s is not available", tt.address)
+			}
+			peerAddress := netip.MustParseAddr(tt.address)
+
+			s := newServer(tt.port)
+			defer s.Stop()
+			require.NoError(t, s.AddPeer(context.Background(), peerAddress, oc.BfdConfig{
+				Port:                     tt.port + 10000,
+				Enabled:                  true,
+				DetectionMultiplier:      5,
+				RequiredMinimumReceive:   200000,
+				DesiredMinimumTxInterval: 200000,
+			}, ""))
+			s.peersMutex.RLock()
+			peer := s.peers[peerAddress]
+			s.peersMutex.RUnlock()
+			require.NotNil(t, peer)
+
+			send := func(ttl int) {
+				t.Helper()
+				conn, err := net.DialUDP(tt.network, nil, &net.UDPAddr{IP: peerAddress.AsSlice(), Port: int(tt.port)})
+				require.NoError(t, err)
+				defer conn.Close()
+				require.NoError(t, netutils.SetUDPTTLSockopt(conn, ttl))
+				b, err := (&bfd.BFDHeader{
+					Version:               1,
+					State:                 bfd.StateDown,
+					DetectTimeMultiplier:  3,
+					MyDiscriminator:       1,
+					DesiredMinTxInterval:  1000000,
+					RequiredMinRxInterval: 1000000,
+				}).MarshalBinary()
+				require.NoError(t, err)
+				_, err = conn.Write(b)
+				require.NoError(t, err)
+			}
+
+			// The listeners open on the next tick of the server loop, so
+			// send until the packet is seen.
+			require.NoError(t, eventually(3*time.Second, func() error {
+				send(64)
+				if peer.stats.invalidTTL.Load() == 0 {
+					return fmt.Errorf("TTL 64 packet not discarded yet")
+				}
+				return nil
+			}))
+			assert.Equal(t, uint64(0), s.stats.rxPacket.Load()+s.stats.rxDrop.Load())
+
+			require.NoError(t, eventually(3*time.Second, func() error {
+				send(255)
+				if s.stats.rxPacket.Load()+s.stats.rxDrop.Load() == 0 {
+					return fmt.Errorf("TTL 255 packet not received yet")
+				}
+				return nil
+			}))
+		})
+	}
+}
+
 func Test_BfdDown(t *testing.T) {
 	assert := assert.New(t)
 

@@ -23,6 +23,10 @@ const (
 	bfdSourcePortMin = 49152
 	bfdSourcePortMax = 65535
 
+	// TTL or Hop Limit of sent and received BFD Control packets. See
+	// startClient and bfdServer.rxPacket for the RFC text.
+	bfdTTL = 255
+
 	// Some default values
 	defaultMultiplier = 3
 	defaultRxInterval = 1000 * time.Millisecond
@@ -42,6 +46,7 @@ type bfdPeerStats struct {
 	txError              atomic.Uint64
 	invalidDiscriminator atomic.Uint64
 	invalidMultiplier    atomic.Uint64
+	invalidTTL           atomic.Uint64
 	expired              atomic.Uint64
 }
 
@@ -335,7 +340,7 @@ func (p *bfdPeer) startClient() {
 	//   If BFD authentication is not in use on a session, all BFD Control
 	//   packets for the session MUST be sent with a Time to Live (TTL) or Hop
 	//   Limit value of 255
-	err = netutils.SetUDPTTLSockopt(p.udpClient, 255)
+	err = netutils.SetUDPTTLSockopt(p.udpClient, bfdTTL)
 	if err != nil {
 		p.logger.Error("Can't set TTL to 255",
 			slog.String("Topic", "bfd"),

@@ -29,6 +29,9 @@ Supported behavior:
   otherwise, for static and dynamic neighbors alike, from the local address of
   the established BGP TCP connection;
 - outgoing BFD packets sent with TTL/Hop Limit `255`;
+- received BFD packets discarded unless their TTL/Hop Limit is `255`
+  (RFC 5881 Section 5). The check is skipped on a platform where the socket
+  can't report the TTL;
 - BFD states `DOWN`, `INIT`, `UP`, and `ADMIN_DOWN`;
 - transmission slows to at least one second while the session is not `UP`
   (RFC 5880 Section 6.8.3);
@@ -271,6 +274,7 @@ If the BFD session does not come up:
   neighbor address;
 - verify that UDP `3784` is reachable in both directions;
 - verify that the remote system accepts source ports from `49152..65535`;
+- verify that the remote system sends BFD packets with TTL/Hop Limit `255`;
 - verify that the neighbor transport `local-address`, when configured, exists on
   the host and is compatible with `bind-interface`;
 - avoid setting a non-default `port` unless the remote peer is known to listen

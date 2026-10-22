@@ -50,7 +50,8 @@ type bfdRxInfo struct {
 	// ifIndex is the index of the interface the packet came in on. 0 if
 	// unknown.
 	ifIndex int
-	// ttl is the TTL or Hop Limit of the packet. -1 if unknown.
+	// ttl is the TTL or Hop Limit of the packet. -1 if the socket can't
+	// report it. 0 if the socket reports it but the packet came without it.
 	ttl int
 	// mhop is true when the packet came in on the multihop port.
 	mhop bool
@@ -412,6 +413,11 @@ func (s *bfdServer) ipv4Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, 
 			return 0, bfdRxInfo{}, err
 		}
 		info := newBfdRxInfo(src)
+		if ttlOK {
+			// Every packet should carry the value. One without it
+			// gets 0, so the TTL check discards it.
+			info.ttl = 0
+		}
 		if cm != nil {
 			if ttlOK {
 				info.ttl = cm.TTL
@@ -438,6 +444,11 @@ func (s *bfdServer) ipv6Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, 
 			return 0, bfdRxInfo{}, err
 		}
 		info := newBfdRxInfo(src)
+		if ttlOK {
+			// Every packet should carry the value. One without it
+			// gets 0, so the TTL check discards it.
+			info.ttl = 0
+		}
 		if cm != nil {
 			if ttlOK {
 				info.ttl = cm.HopLimit
@@ -671,6 +682,22 @@ func (s *bfdServer) rxPacket(info bfdRxInfo, packet *bfd.BFDHeader) {
 		)
 
 		s.stats.unknownPeer.Add(1)
+		return
+	}
+
+	// RFC 5881 Section 5: "All received BFD Control packets that are
+	// demultiplexed to the session MUST be discarded if the received TTL
+	// or Hop Limit is not equal to 255." GoBGP does not support BFD
+	// authentication, so this applies to every session. A socket that
+	// can't report the TTL gives -1, and the check is skipped.
+	if info.ttl != -1 && info.ttl != bfdTTL {
+		s.logger.Debug("Invalid TTL",
+			slog.String("Topic", "bfd"),
+			slog.String("Peer", peer.peerAddress.String()),
+			slog.Int("TTL", info.ttl),
+		)
+
+		peer.stats.invalidTTL.Add(1)
 		return
 	}
 
