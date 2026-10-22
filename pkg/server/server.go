@@ -929,6 +929,11 @@ func (s *BgpServer) setPathVrfIdMap(paths []*table.Path, m map[uint32]bool) {
 
 // Note: the destination would be the same for all the paths passed here
 // The wather (only zapi) needs a unique list of vrf IDs
+//
+// A watcher that filters its events with a policy gets its own event, built
+// from the paths before they are cloned. The caller holds the server lock
+// (shared.mu), for reading at least, and the propagation lock of the
+// destination, so the changes of one destination are notified in order.
 func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.Path, multipathUpdate []*table.Path, multipathWithdraw []*table.Path) {
 	if s.globalRib.DisableBestPathSelection() {
 		// Note: If best path selection disabled, no best path to notify.
@@ -938,6 +943,46 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 		// Nothing changed for any destination: there is nothing to tell.
 		return
 	}
+	now := time.Now()
+	var shared *watchEventBestPath
+	s.watcherMu.RLock()
+	defer s.watcherMu.RUnlock()
+	for _, w := range s.watcherMap[watchEventTypeBestPath] {
+		if w.opts.notifyBestHook != nil {
+			w.opts.notifyBestHook()
+		}
+		if w.opts.bestPathPolicy != "" {
+			if ev := s.filterBestPath(w, best, now); ev != nil {
+				w.notify(ev)
+			}
+			continue
+		}
+		if shared == nil {
+			shared = s.newBestPathEvent(best, multipath, multipathUpdate, multipathWithdraw, now)
+		}
+		w.notify(shared)
+	}
+}
+
+func anyPath(best []*table.Path, multipath [][]*table.Path, multipathUpdate []*table.Path, multipathWithdraw []*table.Path) bool {
+	for _, l := range [][]*table.Path{best, multipathUpdate, multipathWithdraw} {
+		for _, p := range l {
+			if p != nil {
+				return true
+			}
+		}
+	}
+	for _, l := range multipath {
+		for _, p := range l {
+			if p != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (s *BgpServer) newBestPathEvent(best []*table.Path, multipath [][]*table.Path, multipathUpdate []*table.Path, multipathWithdraw []*table.Path, now time.Time) *watchEventBestPath {
 	m := make(map[uint32]bool)
 	clonedM := make([][]*table.Path, len(multipath))
 	for i, pathList := range multipath {
@@ -957,30 +1002,162 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 		MultiPathList:    clonedM,
 		UpdatePathList:   clonedU,
 		WithdrawPathList: clonedW,
-		Timestamp:        time.Now(),
+		Timestamp:        now,
 	}
 	if len(m) > 0 {
 		w.Vrf = m
 	}
-	s.notifyWatcher(watchEventTypeBestPath, w)
+	return w
 }
 
-func anyPath(best []*table.Path, multipath [][]*table.Path, multipathUpdate []*table.Path, multipathWithdraw []*table.Path) bool {
-	for _, l := range [][]*table.Path{best, multipathUpdate, multipathWithdraw} {
-		for _, p := range l {
-			if p != nil {
-				return true
+// watchMatch reports whether the watcher's policy accepts the path. The
+// caller holds the server lock (shared.mu), for reading at least: the policy
+// may read the ROA table, which has no lock of its own. A policy that is no
+// longer the one the watcher subscribed with (a reload removed or replaced
+// it) fails the watcher: nothing it would now receive could be trusted to be
+// complete.
+func (s *BgpServer) watchMatch(w *watcher, path *table.Path) bool {
+	match, current := s.policy.MatchWatchPolicy(w.policy, path, &table.PolicyOptions{
+		Validate: s.roaTable.Validate,
+	})
+	if !current {
+		w.fail(fmt.Errorf("%w: %s", ErrWatchPolicyRemoved, w.opts.bestPathPolicy))
+	}
+	return match
+}
+
+// filterBestPath builds the best path event of a watcher that filters with a
+// policy. A best path the policy accepts is sent and remembered as announced
+// for its destination. When the destination is withdrawn, or its new best
+// path is not accepted, the path announced for it, if any, is withdrawn: the
+// withdrawal follows what the watcher was sent, never a new evaluation of the
+// old path, whose verdict may have changed since (a ROA, a defined set).
+// Returns nil when nothing is left.
+func (s *BgpServer) filterBestPath(w *watcher, best []*table.Path, now time.Time) *watchEventBestPath {
+	var out []*table.Path
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, b := range best {
+		if b == nil {
+			continue
+		}
+		if w.released || w.failed.Load() {
+			// A failed watcher takes no further event: do not evaluate
+			// the policy nor change what is remembered for it.
+			return nil
+		}
+		st, ok, err := w.pending.Get(b)
+		if err != nil {
+			w.failDestination(err)
+			return nil
+		}
+		if ok && st == initPending {
+			// The initial table has not evaluated this destination yet:
+			// it leaves it to the events that follow it.
+			if err := w.pending.Set(b, initTouched); err != nil {
+				w.failDestination(err)
+				return nil
 			}
 		}
-	}
-	for _, l := range multipath {
-		for _, p := range l {
-			if p != nil {
-				return true
+		if !b.IsWithdraw && s.watchMatch(w, b) {
+			if err := w.announced.Set(b, b); err != nil {
+				w.failDestination(err)
+				return nil
 			}
+			out = append(out, b.Clone(false))
+			continue
+		}
+		a, ok, err := w.announced.Get(b)
+		if err != nil {
+			w.failDestination(err)
+			return nil
+		}
+		if ok {
+			if err := w.announced.Delete(b); err != nil {
+				w.failDestination(err)
+				return nil
+			}
+			out = append(out, a.Clone(true))
 		}
 	}
-	return false
+	if len(out) == 0 {
+		return nil
+	}
+	ev := &watchEventBestPath{PathList: out, Timestamp: now}
+	m := make(map[uint32]bool)
+	s.setPathVrfIdMap(out, m)
+	if len(m) > 0 {
+		ev.Vrf = m
+	}
+	return ev
+}
+
+// watchInitChunk is the number of paths of a watcher's initial table that
+// are evaluated with its policy under one hold of the server lock.
+const watchInitChunk = 1024
+
+// filterInitialBestPaths evaluates the initial table of a watcher that
+// filters with a policy, in chunks, each under the server lock for reading
+// (the policy may read the ROA table) and never across a callback. The paths
+// accepted are remembered as announced and passed to emit chunk by chunk.
+// A destination whose best path changed before its chunk was evaluated is left
+// out: the change's own event, queued after this one, tells it. Returns false
+// when the watch was cancelled or failed before the table was complete.
+func (s *BgpServer) filterInitialBestPaths(ctx context.Context, w *watcher, paths []*table.Path, emit func([]*table.Path) bool) bool {
+	defer w.endInit()
+	for start := 0; start < len(paths); start += watchInitChunk {
+		if w.opts.initChunkHook != nil {
+			w.opts.initChunkHook()
+		}
+		if watchEnded(ctx, w) {
+			return false
+		}
+		chunk := paths[start:min(start+watchInitChunk, len(paths))]
+		var accepted []*table.Path
+		s.shared.mu.RLock()
+		w.mu.Lock()
+		ended := false
+		for _, p := range chunk {
+			if w.opts.initPathHook != nil {
+				w.opts.initPathHook()
+			}
+			// Stop evaluating as soon as the watch ends, not at the end of
+			// the chunk: a stopped watcher has released what it remembered.
+			if w.released || watchEnded(ctx, w) {
+				ended = true
+				break
+			}
+			st, _, err := w.pending.Get(p)
+			if err == nil {
+				err = w.pending.Delete(p)
+			}
+			if err != nil {
+				w.failDestination(err)
+				ended = true
+				break
+			}
+			if st == initTouched {
+				continue
+			}
+			if s.watchMatch(w, p) {
+				if err := w.announced.Set(p, p); err != nil {
+					w.failDestination(err)
+					ended = true
+					break
+				}
+				accepted = append(accepted, p)
+			}
+		}
+		w.mu.Unlock()
+		s.shared.mu.RUnlock()
+		if ended {
+			return false
+		}
+		if len(accepted) > 0 && !emit(accepted) {
+			return false
+		}
+	}
+	return !watchEnded(ctx, w)
 }
 
 // watchEnded reports whether the watch was cancelled or its watcher failed.
@@ -1468,6 +1645,13 @@ func (s *BgpServer) dropAdjRIBIn(peer *peer, families []bgp.Family) {
 	s.propagateUpdate(peer, dropped)
 }
 
+// propagateUpdate installs the paths and propagates the changes. Each path is
+// processed under the propagation lock of its own destination, so the changes
+// to one destination reach the watchers and the peers in the order they were
+// made. That guarantee covers the destination of the incoming path: an update
+// that also changes another destination (EVPN MAC Mobility withdraws the local
+// path of the MAC elsewhere, see TableManager.Update) is not ordered against
+// the other updates of that destination yet.
 func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 	rs := peer != nil && peer.isRouteServerClient()
 	vrf := false
@@ -2575,8 +2759,24 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 		for _, peer := range s.neighborMap {
 			peer.updatePolicyIDs()
 		}
+		s.failReplacedWatchPolicies()
 		return nil
 	}, false)
+}
+
+// failReplacedWatchPolicies fails the watchers whose best path policy a
+// reload removed or replaced, as soon as the reload completes rather than
+// at their next event: a policy deleted and defined again under the same
+// name is a new policy, and the paths it accepts may differ from those the
+// watcher was sent.
+func (s *BgpServer) failReplacedWatchPolicies() {
+	s.watcherMu.RLock()
+	defer s.watcherMu.RUnlock()
+	for _, w := range s.watcherMap[watchEventTypeBestPath] {
+		if w.policy != nil && !s.policy.IsWatchPolicyCurrent(w.policy) {
+			w.fail(fmt.Errorf("%w: %s", ErrWatchPolicyRemoved, w.opts.bestPathPolicy))
+		}
+	}
 }
 
 // EVPN MAC MOBILITY HANDLING
@@ -2991,6 +3191,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		if err := s.policy.Initialize(); err != nil {
 			return err
 		}
+		s.failReplacedWatchPolicies()
 		s.bgpConfig.Global = *c
 		if s.bfdServer != nil {
 			s.bfdServer.listenInterface = g.BindToDevice
@@ -5296,7 +5497,7 @@ func toPathApiUtil(path *table.Path) *apiutil.Path {
 // sendBestPathBatches passes the paths of one best path event to
 // OnBestPathBatch, converting them batch by batch. It returns false when the
 // watch was cancelled, or its watcher failed, before the event was complete.
-func sendBestPathBatches(ctx context.Context, w *watcher, msg *watchEventBestPath, callbacks WatchEventMessageCallbacks) bool {
+func (s *BgpServer) sendBestPathBatches(ctx context.Context, w *watcher, msg *watchEventBestPath, callbacks WatchEventMessageCallbacks) bool {
 	size := callbacks.BestPathBatchSize
 	if size <= 0 {
 		size = DefaultBestPathBatchSize
@@ -5319,7 +5520,11 @@ func sendBestPathBatches(ctx context.Context, w *watcher, msg *watchEventBestPat
 		}
 		return true
 	}
-	if !add(locRIBPathsForBMP(msg)) {
+	if msg.Init && w.policy != nil {
+		if !s.filterInitialBestPaths(ctx, w, locRIBPathsForBMP(msg), add) {
+			return false
+		}
+	} else if !add(locRIBPathsForBMP(msg)) {
 		return false
 	}
 	return w.deliver(func() { callbacks.OnBestPathBatch(batch, msg.Timestamp, true) })
@@ -5354,13 +5559,17 @@ type WatchEventMessageCallbacks struct {
 	// wait for it), when the server ends the watch on its own. The errors
 	// that end a watch, the terminal errors, are:
 	//
-	//   - ErrWatchQueueFull: the queue limit (WatchQueueLimit) was reached.
+	//   - ErrWatchQueueFull: the queue limit (WatchQueueLimit) was reached;
+	//   - ErrWatchPolicyRemoved: the policy of the watcher
+	//     (WatchBestPathPolicy) was removed or replaced by a reload;
+	//   - ErrWatchDestination: the watcher could not tell which destination
+	//     a best path belongs to.
 	//
 	// Events may have been lost: a client that needs a consistent view
 	// watches again with the current table. Use errors.Is to tell them
-	// apart. The error WatchEvent itself returns (ErrWatchInvalid) is
-	// reported by its return value, not here, and a watch that never started
-	// has no OnError.
+	// apart. The errors WatchEvent itself returns (ErrWatchInvalid,
+	// ErrWatchPolicyNotFound, ErrWatchIncompatible) are reported by its
+	// return value, not here, and a watch that never started has no OnError.
 	//
 	// A cancelled context ends the watch too, but is not a failure: nothing
 	// is reported for it. The failure of the watcher and the cancellation of
@@ -5371,8 +5580,9 @@ type WatchEventMessageCallbacks struct {
 	//
 	// The end of the watch is not the end of its callbacks. When OnError is
 	// called, or the context is cancelled, the server queues nothing more
-	// for the watcher and releases the watcher and its queue without
-	// waiting for a callback to return, and admits no further callback. A callback admitted just before, and the one
+	// for the watcher and releases the watcher, its queue, its state and
+	// its policy without waiting for a callback to return, and admits no
+	// further callback. A callback admitted just before, and the one
 	// blocked in, may still run or finish after OnError or after the
 	// cancellation: the resources the callbacks use must stay valid until
 	// they have returned.
@@ -5388,14 +5598,40 @@ const DefaultBestPathBatchSize = 1000
 // is a terminal error: see WatchEventMessageCallbacks.OnError.
 var ErrWatchQueueFull = errors.New("watch event queue full")
 
+// ErrWatchDestination is the error a watch ends with when it cannot tell
+// which destination a best path belongs to (a path without an NLRI, or a
+// BGP-LS NLRI that cannot be serialized), so that it cannot keep track of
+// what it sent. Events may have been lost: a client that needs the table
+// watches again. It is a terminal error: see
+// WatchEventMessageCallbacks.OnError.
+var ErrWatchDestination = errors.New("watch cannot identify a destination")
+
+// ErrWatchPolicyRemoved is the error a watch ends with when the policy it
+// filters with was removed or replaced by a reload (SetPolicies, a
+// configuration reload): its client watches again to have the whole table
+// evaluated with the current policy. It is a terminal error: see
+// WatchEventMessageCallbacks.OnError.
+var ErrWatchPolicyRemoved = errors.New("watch policy removed")
+
 // ErrWatchInvalid is the error WatchEvent returns when its options are
-// invalid: no events to watch, a negative queue limit.
+// invalid or cannot be combined: no events to watch, a negative queue limit,
+// a best path policy without WatchBestPath.
 var ErrWatchInvalid = errors.New("invalid watch options")
+
+// ErrWatchPolicyNotFound is the error WatchEvent returns when the policy of
+// WatchBestPathPolicy does not exist.
+var ErrWatchPolicyNotFound = errors.New("watch policy not found")
+
+// ErrWatchIncompatible is the error WatchEvent returns when the options are
+// valid but the configuration of the server cannot support them: a best path
+// policy with multiple paths (use-multiple-paths).
+var ErrWatchIncompatible = errors.New("watch incompatible with the configuration")
 
 // WatchEvent calls the callbacks for the events the options subscribe to,
 // until ctx is cancelled or the server ends the watch (see OnError). It
-// returns once the watch is registered, with an error wrapping ErrWatchInvalid
-// when it is refused, and leaves nothing running then.
+// returns once the watch is registered, with an error wrapping ErrWatchInvalid,
+// ErrWatchPolicyNotFound or ErrWatchIncompatible when it is refused, and
+// leaves nothing running then.
 //
 // Every callback receives the time of its event:
 //
@@ -5440,8 +5676,8 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 				callbacks.OnError(w.Err())
 			}
 		case <-ctx.Done():
-			// Deregister the watcher and free its queue now, without
-			// waiting for a callback to return.
+			// Deregister the watcher and free its queue, its state and
+			// its policy now, without waiting for a callback to return.
 			// The select may pick this case while the watcher has just
 			// failed: a failure that races with the cancellation may
 			// then go unreported (see WatchEventMessageCallbacks.OnError).
@@ -5483,11 +5719,21 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 
 				case *watchEventBestPath:
 					if callbacks.OnBestPathBatch != nil {
-						if !sendBestPathBatches(ctx, w, msg, callbacks) {
+						if !s.sendBestPathBatches(ctx, w, msg, callbacks) {
 							return
 						}
 					} else {
 						paths := locRIBPathsForBMP(msg)
+						if msg.Init && w.policy != nil {
+							var accepted []*table.Path
+							if !s.filterInitialBestPaths(ctx, w, paths, func(c []*table.Path) bool {
+								accepted = append(accepted, c...)
+								return true
+							}) {
+								return
+							}
+							paths = accepted
+						}
 						if callbacks.OnBestPath != nil {
 							p := make([]*apiutil.Path, len(paths))
 							for i, path := range paths {
@@ -5665,6 +5911,9 @@ type watchEventBestPath struct {
 	WithdrawPathList []*table.Path
 	Vrf              map[uint32]bool
 	Timestamp        time.Time
+	// Init is set on the initial table of a watcher (WatchBestPath with
+	// current set): its paths are the live best paths, not filtered.
+	Init bool
 }
 
 func locRIBPathsForBMP(msg *watchEventBestPath) []*table.Path {
@@ -5709,6 +5958,7 @@ type watchEventEor struct {
 
 type watchOptions struct {
 	bestPath         bool
+	bestPathPolicy   string
 	queueLimit       int
 	preUpdate        bool
 	preUpdateFilter  func(w watchEvent) bool
@@ -5724,13 +5974,23 @@ type watchOptions struct {
 	initEor        bool
 	eor            bool
 
-	// Test hooks: stopDrainHook runs when Stop starts draining the queue.
+	// Test hooks: initChunkHook runs before each chunk of the initial
+	// table is evaluated with the watcher's policy, stopDrainHook when Stop
+	// starts draining the queue.
+	initChunkHook func()
 	stopDrainHook func()
+	// initPathHook runs before each path of a chunk is evaluated, under
+	// the locks the chunk holds.
+	initPathHook func()
 	// beforeDeliverHook runs before the admission of each delivery to the
 	// client's callbacks, after what it receives has been converted;
 	// admittedHook after it was admitted and before the callback is called.
 	beforeDeliverHook func()
 	admittedHook      func()
+	// notifyBestHook runs when a best path change reaches the watcher,
+	// under the locks the notification holds, before the change is
+	// filtered or queued.
+	notifyBestHook func()
 	// callbacksDoneHook runs when the goroutine that calls the callbacks
 	// of WatchEvent returns, before it stops the watcher: the signal that
 	// no callback is, or will be, admitted any more.
@@ -5745,6 +6005,53 @@ func WatchBestPath(current bool) WatchOption {
 		if current {
 			o.initBest = true
 		}
+	}
+}
+
+// WatchBestPathPolicy filters the best path events of the watcher with the
+// named policy definition (AddPolicy): a path is delivered when the policy
+// accepts it, evaluated as when the policy is applied to a route, with the
+// path left unchanged. It applies to the initial table and to every change.
+//
+// The policy is evaluated when the best path of a destination changes,
+// with the state it reads at that moment (defined sets, the ROA table). The
+// server remembers, by destination, the path it sent the watcher; when that
+// destination is withdrawn, or its new best path is not accepted, the
+// watcher gets a withdrawal of the path it was sent, whatever the policy
+// would now say of it. A change to the state the policy reads (a defined
+// set, a statement, a ROA) applies to the destinations whose best path
+// changes after it; a destination whose best path does not change keeps
+// its earlier verdict, and a watcher that needs every destination evaluated
+// again subscribes again with the current table.
+//
+// The policy sees the best path as the Loc-RIB holds it, with no export
+// context: there is no peer the path is sent to, so a neighbor condition
+// matches the peer the path was received from (the source of the path, and
+// no address for a local path), and the actions that read the sending peer
+// (next-hop self, next-hop peer-address, next-hop unchanged, a prepend on a
+// confederation) find none and leave the path as it is. Since the result of
+// the modification actions is discarded, only the verdict, accept or not,
+// matters, and a later statement sees the modifications of the earlier ones
+// the policy could apply. This is the cleaner of the two alternatives:
+// rejecting the policies that mention such conditions or actions would
+// refuse policies that are valid and give a well defined verdict here.
+//
+// The policy cannot be deleted while a watcher uses it. A reload
+// (SetPolicies) that removes it, or replaces it with a new definition of
+// the same name, fails the watcher with ErrWatchPolicyRemoved. References
+// are counted by policy: stopping one of several watchers of a policy
+// leaves it protected for the others.
+//
+// The server holds one entry per destination the watcher was sent and not
+// withdrawn, and, while the initial table is being evaluated, one per
+// destination that changed meanwhile. It requires WatchBestPath
+// (ErrWatchInvalid) and is not supported with multiple paths
+// (use-multiple-paths, ErrWatchIncompatible), whose events carry path sets
+// this filter does not track. A policy that does not exist is
+// ErrWatchPolicyNotFound.
+func WatchBestPathPolicy(name string) WatchOption {
+	return func(o *watchOptions) {
+		o.bestPathPolicy = name
 	}
 }
 
@@ -5853,12 +6160,39 @@ func watchRecvMessage() WatchOption {
 	}
 }
 
+// initState is the state of a destination of the initial table that has not
+// been evaluated yet.
+type initState uint8
+
+const (
+	initPending initState = iota
+	initTouched
+)
+
 type watcher struct {
 	opts   watchOptions
 	realCh chan watchEvent
 	ch     *channels.InfiniteChannel
 	s      *BgpServer
 	stop   sync.Once
+	// policy is the best path policy (WatchBestPathPolicy) the watcher
+	// holds a reference on, released by Stop; nil without one.
+	policy *table.Policy
+	// mu guards announced and pending, taken after the server lock and
+	// the destination's propagation lock, before the policy lock.
+	mu sync.Mutex
+	// announced is, by destination, the best path the watcher was last
+	// sent and not withdrawn since: one entry per destination the policy
+	// accepted. A withdrawal is built from it.
+	announced *table.DestMap[*table.Path]
+	// released is set by Stop, which drops announced and pending.
+	released bool
+	// pending is set while the initial table is being evaluated: the
+	// destinations of the table not evaluated yet, marked initTouched when
+	// their best path changed since the table was taken, which the
+	// initial table then leaves to the events that follow it. It never
+	// holds more than the table did, whatever changes meanwhile.
+	pending *table.DestMap[initState]
 	// queueMu makes the check of the queue limit and the enqueue of an
 	// event one step: notifiers run concurrently (they hold watcherMu for
 	// reading). admitted counts the events queued, handed those the loop
@@ -5929,6 +6263,19 @@ func (w *watcher) deliver(call func()) bool {
 	return true
 }
 
+// failDestination fails the watcher because a destination could not be
+// identified.
+func (w *watcher) failDestination(err error) {
+	w.fail(fmt.Errorf("%w: %v", ErrWatchDestination, err))
+}
+
+// endInit marks the initial table as evaluated.
+func (w *watcher) endInit() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.pending = nil
+}
+
 // fail makes the watcher take no further event and tells its client why.
 func (w *watcher) fail(err error) {
 	w.failOnce.Do(func() {
@@ -5939,8 +6286,8 @@ func (w *watcher) fail(err error) {
 		close(w.done)
 		// Deregister apart from whoever failed the watcher (it holds
 		// watcherMu) and from the callback goroutine, which a consumer
-		// that does not return from its callback blocks: the watcher
-		// and its queue go now.
+		// that does not return from its callback blocks: the watcher,
+		// its queue and its policy reference go now.
 		go w.Stop()
 	})
 }
@@ -5994,6 +6341,17 @@ func (w *watcher) Stop() {
 			}
 		}
 		w.s.watcherMu.Unlock()
+		// Nothing notifies the watcher any more: what it remembered for
+		// its policy goes now, not when the callback goroutine returns.
+		w.mu.Lock()
+		w.released = true
+		w.announced = nil
+		w.pending = nil
+		w.mu.Unlock()
+		if w.policy != nil {
+			w.s.policy.ReleaseWatchPolicy(w.policy)
+		}
+
 		if w.opts.stopDrainHook != nil {
 			w.opts.stopDrainHook()
 		}
@@ -6044,6 +6402,20 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 		if w.opts.queueLimit < 0 {
 			return fmt.Errorf("%w: the queue limit is %d, it cannot be negative", ErrWatchInvalid, w.opts.queueLimit)
 		}
+		if w.opts.bestPathPolicy != "" {
+			if !w.opts.bestPath {
+				return fmt.Errorf("%w: a best path policy needs the best path events", ErrWatchInvalid)
+			}
+			if s.globalRib.UseMultiplePathsEnabled() {
+				return fmt.Errorf("%w: a best path policy is not supported with multiple paths", ErrWatchIncompatible)
+			}
+			p, ok := s.policy.AcquireWatchPolicy(w.opts.bestPathPolicy)
+			if !ok {
+				return fmt.Errorf("%w: %s", ErrWatchPolicyNotFound, w.opts.bestPathPolicy)
+			}
+			w.policy = p
+			w.announced = table.NewDestMap[*table.Path](0)
+		}
 		w.realCh = make(chan watchEvent, 8)
 		w.ch = channels.NewInfiniteChannel()
 
@@ -6073,10 +6445,21 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 		}
 
 		if w.opts.initBest && s.active() == nil {
+			paths := s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, nil)
+			if w.policy != nil {
+				w.pending = table.NewDestMap[initState](len(paths))
+				for _, p := range paths {
+					if err := w.pending.Set(p, initPending); err != nil {
+						w.failDestination(err)
+						break
+					}
+				}
+			}
 			w.notify(&watchEventBestPath{
-				PathList:      s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, nil),
+				PathList:      paths,
 				MultiPathList: s.globalRib.GetBestMultiPathList(table.GLOBAL_RIB_NAME, nil),
 				Timestamp:     time.Now(),
+				Init:          true,
 			})
 		}
 		if w.opts.initEor && s.active() == nil {

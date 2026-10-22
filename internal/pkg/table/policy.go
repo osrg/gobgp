@@ -4022,8 +4022,13 @@ type RoutingPolicy struct {
 	policyMap     map[string]*Policy
 	statementMap  map[string]*Statement
 	assignmentMap map[string]*Assignment
-	mu            sync.RWMutex
-	logger        *slog.Logger
+	// watchRefs counts the watchers that filter their events with a
+	// policy, by policy: a policy defined again under the name of one
+	// that is in use is another policy, whose references are its own. A
+	// policy in use by a watcher cannot be deleted.
+	watchRefs map[*Policy]int
+	mu        sync.RWMutex
+	logger    *slog.Logger
 }
 
 func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) *Path {
@@ -4610,6 +4615,10 @@ func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool) (err error) 
 			err = fmt.Errorf("can't delete. policy %s is in use", name)
 			return err
 		}
+		if n := r.watchRefs[y]; n > 0 {
+			err = fmt.Errorf("can't delete. policy %s is in use by %d watcher(s)", name, n)
+			return err
+		}
 		r.logger.Debug("delete policy",
 			slog.String("Topic", "Policy"),
 			slog.String("Key", name))
@@ -4865,8 +4874,69 @@ func NewRoutingPolicy(logger *slog.Logger) *RoutingPolicy {
 		policyMap:     make(map[string]*Policy),
 		statementMap:  make(map[string]*Statement),
 		assignmentMap: make(map[string]*Assignment),
+		watchRefs:     make(map[*Policy]int),
 		logger:        logger,
 	}
+}
+
+// AcquireWatchPolicy records that a watcher filters its events with the
+// named policy and returns the policy, which identifies it for the
+// watcher: a reload that removes the policy, or replaces it with a new
+// definition of the same name, makes it no longer current (see
+// MatchWatchPolicy). It returns false if the policy does not exist. Every
+// successful call must be paired with ReleaseWatchPolicy on the policy it
+// returned. The references are counted by policy, not by name, so that the
+// release of a watcher that outlived a reload does not touch the
+// references of the policy that replaced its own.
+func (r *RoutingPolicy) AcquireWatchPolicy(name string) (*Policy, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.policyMap[name]
+	if !ok {
+		return nil, false
+	}
+	r.watchRefs[p]++
+	return p, true
+}
+
+// ReleaseWatchPolicy undoes AcquireWatchPolicy.
+func (r *RoutingPolicy) ReleaseWatchPolicy(p *Policy) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.watchRefs[p] <= 1 {
+		delete(r.watchRefs, p)
+		return
+	}
+	r.watchRefs[p]--
+}
+
+// IsWatchPolicyCurrent reports whether p, returned by AcquireWatchPolicy,
+// is still the policy of its name.
+func (r *RoutingPolicy) IsWatchPolicyCurrent(p *Policy) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.policyMap[p.Name] == p
+}
+
+// MatchWatchPolicy reports whether p, returned by AcquireWatchPolicy,
+// accepts the path: its statements are evaluated in order exactly as when
+// the policy is applied to a route, and the path matches when the result is
+// accept. A policy whose statements all fall through (no route action
+// taken) or that rejects the path does not match. Modification actions are
+// evaluated, since a later statement may depend on them, but their result is
+// discarded: the path itself is never changed. current is false, and match
+// with it, when p is no longer the policy of its name.
+//
+// options.Validate, when set, reads state the caller must hold stable for the
+// call (the server's ROA table, under the server lock).
+func (r *RoutingPolicy) MatchWatchPolicy(p *Policy, path *Path, options *PolicyOptions) (match, current bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.policyMap[p.Name] != p {
+		return false, false
+	}
+	result, _ := p.Apply(r.logger, path, options)
+	return result == ROUTE_TYPE_ACCEPT, true
 }
 
 func CanImportToVrf(v *Vrf, path *Path) bool {

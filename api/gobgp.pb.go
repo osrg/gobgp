@@ -1850,7 +1850,9 @@ type WatchEventRequest struct {
 	// INVALID_ARGUMENT. Messages already sent or buffered when the server ends
 	// the stream may still reach the client after it: the client
 	// resynchronizes on the terminal status, not on the last message it
-	// received.
+	// received. The status is RESOURCE_EXHAUSTED when the limit was reached,
+	// and ABORTED when the subscription was invalidated (the policy was
+	// removed or replaced, a destination could not be identified).
 	MaxQueuedEvents uint32 `protobuf:"varint,4,opt,name=max_queued_events,json=maxQueuedEvents,proto3" json:"max_queued_events,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -13654,11 +13656,31 @@ func (x *WatchEventRequest_Table) GetFilters() []*WatchEventRequest_Table_Filter
 }
 
 type WatchEventRequest_Table_Filter struct {
-	state         protoimpl.MessageState              `protogen:"open.v1"`
-	Type          WatchEventRequest_Table_Filter_Type `protobuf:"varint,1,opt,name=type,proto3,enum=api.WatchEventRequest_Table_Filter_Type" json:"type,omitempty"`
-	Init          bool                                `protobuf:"varint,2,opt,name=init,proto3" json:"init,omitempty"`
-	PeerAddress   string                              `protobuf:"bytes,3,opt,name=peer_address,json=peerAddress,proto3" json:"peer_address,omitempty"`
-	PeerGroup     string                              `protobuf:"bytes,4,opt,name=peer_group,json=peerGroup,proto3" json:"peer_group,omitempty"`
+	state       protoimpl.MessageState              `protogen:"open.v1"`
+	Type        WatchEventRequest_Table_Filter_Type `protobuf:"varint,1,opt,name=type,proto3,enum=api.WatchEventRequest_Table_Filter_Type" json:"type,omitempty"`
+	Init        bool                                `protobuf:"varint,2,opt,name=init,proto3" json:"init,omitempty"`
+	PeerAddress string                              `protobuf:"bytes,3,opt,name=peer_address,json=peerAddress,proto3" json:"peer_address,omitempty"`
+	PeerGroup   string                              `protobuf:"bytes,4,opt,name=peer_group,json=peerGroup,proto3" json:"peer_group,omitempty"`
+	// Name of a policy definition (AddPolicy) that filters the best paths
+	// of a TYPE_BEST filter: a path is sent when the policy accepts it,
+	// evaluated as when the policy is applied to a route, and the path is
+	// sent unchanged. It applies to the initial table and to every change,
+	// evaluated when a destination's best path changes. When a destination
+	// that was sent is withdrawn, or its new best path is not accepted, a
+	// withdrawal of the path that was sent follows. A change to what the
+	// policy reads (a defined set, a ROA) applies to the destinations whose
+	// best path changes after it; watch again to have them all evaluated.
+	// The policy cannot be deleted while it is in use, and a reload that
+	// removes or replaces it ends the stream with ABORTED. The policy is
+	// evaluated with no export context: a neighbor condition matches the
+	// peer the path was received from, and the actions that read the peer
+	// the path is sent to (next-hop self, next-hop peer-address) leave the
+	// path as it is. Only the verdict, accept or not, matters. A policy
+	// that does not exist is NOT_FOUND, one used with use_multiple_paths
+	// is FAILED_PRECONDITION, and one with a filter type other than
+	// TYPE_BEST, or in more than a single TYPE_BEST filter, is
+	// INVALID_ARGUMENT.
+	Policy        string `protobuf:"bytes,5,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -13717,6 +13739,13 @@ func (x *WatchEventRequest_Table_Filter) GetPeerAddress() string {
 func (x *WatchEventRequest_Table_Filter) GetPeerGroup() string {
 	if x != nil {
 		return x.PeerGroup
+	}
+	return ""
+}
+
+func (x *WatchEventRequest_Table_Filter) GetPolicy() string {
+	if x != nil {
+		return x.Policy
 	}
 	return ""
 }
@@ -14005,22 +14034,23 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x0fStopBgpResponse\"\x0f\n" +
 	"\rGetBgpRequest\"5\n" +
 	"\x0eGetBgpResponse\x12#\n" +
-	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\x94\x04\n" +
+	"\x06global\x18\x01 \x01(\v2\v.api.GlobalR\x06global\"\xac\x04\n" +
 	"\x11WatchEventRequest\x12/\n" +
 	"\x04peer\x18\x01 \x01(\v2\x1b.api.WatchEventRequest.PeerR\x04peer\x122\n" +
 	"\x05table\x18\x02 \x01(\v2\x1c.api.WatchEventRequest.TableR\x05table\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\x03 \x01(\rR\tbatchSize\x12*\n" +
 	"\x11max_queued_events\x18\x04 \x01(\rR\x0fmaxQueuedEvents\x1a\x06\n" +
-	"\x04Peer\x1a\xc6\x02\n" +
+	"\x04Peer\x1a\xde\x02\n" +
 	"\x05Table\x12=\n" +
-	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\xfd\x01\n" +
+	"\afilters\x18\x01 \x03(\v2#.api.WatchEventRequest.Table.FilterR\afilters\x1a\x95\x02\n" +
 	"\x06Filter\x12<\n" +
 	"\x04type\x18\x01 \x01(\x0e2(.api.WatchEventRequest.Table.Filter.TypeR\x04type\x12\x12\n" +
 	"\x04init\x18\x02 \x01(\bR\x04init\x12!\n" +
 	"\fpeer_address\x18\x03 \x01(\tR\vpeerAddress\x12\x1d\n" +
 	"\n" +
-	"peer_group\x18\x04 \x01(\tR\tpeerGroup\"_\n" +
+	"peer_group\x18\x04 \x01(\tR\tpeerGroup\x12\x16\n" +
+	"\x06policy\x18\x05 \x01(\tR\x06policy\"_\n" +
 	"\x04Type\x12\x14\n" +
 	"\x10TYPE_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tTYPE_BEST\x10\x01\x12\x0e\n" +

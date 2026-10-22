@@ -362,6 +362,22 @@ func (s *server) ListPath(r *api.ListPathRequest, stream api.GoBgpService_ListPa
 
 func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn func(*api.WatchEventResponse, time.Time), onError func(error)) error {
 	opts := make([]WatchOption, 0)
+	if t := r.GetTable(); t != nil {
+		// The best path events of a watch are filtered by one policy at
+		// most: a second TYPE_BEST filter could only override the first.
+		best, policies := 0, 0
+		for _, filter := range t.Filters {
+			if filter.Type == api.WatchEventRequest_Table_Filter_TYPE_BEST {
+				best++
+			}
+			if filter.Policy != "" {
+				policies++
+			}
+		}
+		if policies > 0 && best > 1 {
+			return status.Errorf(codes.InvalidArgument, "a policy filter must be the only %s filter", api.WatchEventRequest_Table_Filter_TYPE_BEST)
+		}
+	}
 	if r.GetPeer() != nil {
 		opts = append(opts, WatchPeer())
 	}
@@ -370,6 +386,9 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 			switch filter.Type {
 			case api.WatchEventRequest_Table_Filter_TYPE_BEST:
 				opts = append(opts, WatchBestPath(filter.Init))
+				if filter.Policy != "" {
+					opts = append(opts, WatchBestPathPolicy(filter.Policy))
+				}
 			case api.WatchEventRequest_Table_Filter_TYPE_ADJIN:
 				opts = append(opts, WatchUpdate(filter.Init, filter.PeerAddress, filter.PeerGroup))
 			case api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY:
@@ -378,6 +397,9 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 				opts = append(opts, WatchEor(filter.Init))
 			default:
 				return status.Errorf(codes.InvalidArgument, "unknown filter type %s", filter.Type)
+			}
+			if filter.Policy != "" && filter.Type != api.WatchEventRequest_Table_Filter_TYPE_BEST {
+				return status.Errorf(codes.InvalidArgument, "a policy filters only the best path events, not %s", filter.Type)
 			}
 		}
 	}
@@ -504,20 +526,28 @@ func batchCapacity(batchSize uint32) int {
 
 // watchRegistrationStatus converts the error WatchEvent returns when the
 // watch is refused into a status: InvalidArgument for options that are
-// invalid; anything else is Unavailable: the watch could not be registered
-// because the server is stopped.
+// invalid or cannot be combined, NotFound for a policy that does not exist,
+// FailedPrecondition for a configuration that cannot support the watch
+// (multiple paths); anything else is Unavailable: the watch could not be
+// registered because the server is stopped.
 func watchRegistrationStatus(err error) error {
 	code := codes.Unavailable
-	if errors.Is(err, ErrWatchInvalid) {
+	switch {
+	case errors.Is(err, ErrWatchInvalid):
 		code = codes.InvalidArgument
+	case errors.Is(err, ErrWatchPolicyNotFound):
+		code = codes.NotFound
+	case errors.Is(err, ErrWatchIncompatible):
+		code = codes.FailedPrecondition
 	}
 	return status.Errorf(code, "failed to watch event: %v", err)
 }
 
 // watchTerminalStatus converts the error that ended an established watch
 // into the terminal status of the stream: ResourceExhausted when the queue
-// limit was reached, Aborted when the subscription was otherwise
-// invalidated. Events were lost in both cases.
+// limit was reached, Aborted when the subscription was invalidated (the
+// policy was removed or replaced, a destination could not be identified).
+// Events were lost in all cases.
 func watchTerminalStatus(err error) error {
 	code := codes.Aborted
 	if errors.Is(err, ErrWatchQueueFull) {

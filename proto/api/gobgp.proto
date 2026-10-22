@@ -148,6 +148,26 @@ message WatchEventRequest {
       bool init = 2;
       string peer_address = 3;
       string peer_group = 4;
+      // Name of a policy definition (AddPolicy) that filters the best paths
+      // of a TYPE_BEST filter: a path is sent when the policy accepts it,
+      // evaluated as when the policy is applied to a route, and the path is
+      // sent unchanged. It applies to the initial table and to every change,
+      // evaluated when a destination's best path changes. When a destination
+      // that was sent is withdrawn, or its new best path is not accepted, a
+      // withdrawal of the path that was sent follows. A change to what the
+      // policy reads (a defined set, a ROA) applies to the destinations whose
+      // best path changes after it; watch again to have them all evaluated.
+      // The policy cannot be deleted while it is in use, and a reload that
+      // removes or replaces it ends the stream with ABORTED. The policy is
+      // evaluated with no export context: a neighbor condition matches the
+      // peer the path was received from, and the actions that read the peer
+      // the path is sent to (next-hop self, next-hop peer-address) leave the
+      // path as it is. Only the verdict, accept or not, matters. A policy
+      // that does not exist is NOT_FOUND, one used with use_multiple_paths
+      // is FAILED_PRECONDITION, and one with a filter type other than
+      // TYPE_BEST, or in more than a single TYPE_BEST filter, is
+      // INVALID_ARGUMENT.
+      string policy = 5;
     }
     repeated Filter filters = 1;
   }
@@ -175,7 +195,9 @@ message WatchEventRequest {
   // INVALID_ARGUMENT. Messages already sent or buffered when the server ends
   // the stream may still reach the client after it: the client
   // resynchronizes on the terminal status, not on the last message it
-  // received.
+  // received. The status is RESOURCE_EXHAUSTED when the limit was reached,
+  // and ABORTED when the subscription was invalidated (the policy was
+  // removed or replaced, a destination could not be identified).
   uint32 max_queued_events = 4;
 }
 
