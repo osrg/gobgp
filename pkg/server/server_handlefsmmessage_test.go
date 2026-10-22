@@ -2507,69 +2507,56 @@ func TestHandleFSMMessage_EORDropsStalePerFamily(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
+	// Build the peer without its FSM goroutine, like the tests above. The
+	// test sets the state to Established below. A running FSM goroutine
+	// that starts after that would see Established with no connection.
 	peerAddr := netip.MustParseAddr("10.0.0.1")
-	afiSafi := func(afi api.Family_Afi) *api.AfiSafi {
-		return &api.AfiSafi{
-			Config: &api.AfiSafiConfig{
-				Family:  &api.Family{Afi: afi, Safi: api.Family_SAFI_UNICAST},
-				Enabled: true,
-			},
-			MpGracefulRestart: &api.MpGracefulRestart{
-				Config: &api.MpGracefulRestartConfig{Enabled: true},
-			},
-		}
-	}
-	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
-		Peer: &api.Peer{
-			Conf: &api.PeerConf{
-				NeighborAddress: peerAddr.String(),
-				PeerAsn:         65001,
-				AdminDown:       true,
-			},
-			GracefulRestart: &api.GracefulRestart{
-				Enabled:     true,
-				RestartTime: 120,
-			},
-			AfiSafis: []*api.AfiSafi{
-				afiSafi(api.Family_AFI_IP),
-				afiSafi(api.Family_AFI_IP6),
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	var p *peer
+	p := newPeerandInfo(t, 65000, 65001, peerAddr.String(), s.globalRib)
 	err = s.mgmtOperation(func() error {
-		p = s.neighborMap[peerAddr]
+		s.neighborMap[peerAddr] = p
 		return nil
 	}, true)
 	require.NoError(t, err)
-	require.NotNil(t, p)
+	t.Cleanup(func() {
+		err := s.mgmtOperation(func() error {
+			delete(s.neighborMap, peerAddr)
+			return nil
+		}, false)
+		require.NoError(t, err)
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
 
 	// The session is established again after a graceful restart of the peer.
 	// Both families were preserved and both still wait for their End-of-RIB
 	// marker.
+	afiSafi := func(name oc.AfiSafiType, family bgp.Family) oc.AfiSafi {
+		var a oc.AfiSafi
+		a.Config.AfiSafiName = name
+		a.Config.Enabled = true
+		a.State.Family = family
+		a.MpGracefulRestart.Config.Enabled = true
+		a.MpGracefulRestart.State.Enabled = true
+		a.MpGracefulRestart.State.Received = true
+		return a
+	}
 	p.fsm.lock.Lock()
 	conf := p.fsm.pConf.ReadCopy()
 	conf.State.SessionState = "established"
 	conf.Timers.State.Uptime = time.Now().Add(-time.Minute).Unix()
+	conf.GracefulRestart.Config.Enabled = true
+	conf.GracefulRestart.Config.RestartTime = 120
 	conf.GracefulRestart.State.Enabled = true
 	conf.GracefulRestart.State.PeerRestarting = true
-	for i := range conf.AfiSafis {
-		conf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
-		conf.AfiSafis[i].MpGracefulRestart.State.Received = true
-		conf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
+	conf.AfiSafis = []oc.AfiSafi{
+		afiSafi(oc.AFI_SAFI_TYPE_IPV4_UNICAST, bgp.RF_IPv4_UC),
+		afiSafi(oc.AFI_SAFI_TYPE_IPV6_UNICAST, bgp.RF_IPv6_UC),
 	}
 	p.fsm.pConf.Update(&conf)
-	gConf := p.fsm.gConf
 	p.fsm.lock.Unlock()
 	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
-
-	localAddr := netip.MustParseAddr("1.1.1.1")
-	p.peerInfo.Store(table.NewPeerInfo(gConf, p.fsm.pConf.ReadOnly(), 65001, 65000,
-		peerAddr, localAddr, peerAddr, localAddr))
+	// newPeer built the Adj-RIB-In from the families it was given.
+	p.adjRibIn = table.NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
 
 	// One stale route per family.
 	v4, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
