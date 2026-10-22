@@ -13,6 +13,7 @@ import (
 	"time"
 
 	api "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
@@ -435,6 +436,134 @@ func Test_StateUpDown(t *testing.T) {
 	// Check state
 	err = eventuallyCheckState(2*time.Second, s1, netip.MustParseAddr("127.0.0.1"), api.BfdSessionState_BFD_SESSION_STATE_DOWN)
 	assert.NoError(err)
+}
+
+func Test_StateUpDownIPv6(t *testing.T) {
+	if !canListenUDP("udp6", "[::1]:0") {
+		t.Skip("IPv6 loopback is not available")
+	}
+
+	assert := assert.New(t)
+	peerAddress := netip.MustParseAddr("::1")
+	config := func(port uint16) oc.BfdConfig {
+		return oc.BfdConfig{
+			Port:                     port,
+			Enabled:                  true,
+			DetectionMultiplier:      5,
+			RequiredMinimumReceive:   200000,
+			DesiredMinimumTxInterval: 200000,
+		}
+	}
+
+	s1 := newServer(13786)
+	defer s1.Stop()
+	s2 := newServer(23786)
+	defer s2.Stop()
+
+	assert.NoError(s1.AddPeer(context.Background(), peerAddress, config(23786), ""))
+	assert.NoError(s2.AddPeer(context.Background(), peerAddress, config(13786), ""))
+
+	assert.NoError(eventuallyCheckState(6*time.Second, s1, peerAddress, api.BfdSessionState_BFD_SESSION_STATE_UP))
+	assert.NoError(eventuallyCheckState(6*time.Second, s2, peerAddress, api.BfdSessionState_BFD_SESSION_STATE_UP))
+}
+
+func canListenUDP(network, address string) bool {
+	conn, err := net.ListenPacket(network, address)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+func Test_BfdServerRxInfo(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("ancillary data checked on Linux only")
+	}
+	lo, err := net.InterfaceByName("lo")
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name    string
+		network string
+		address string
+	}{
+		{"IPv4", "udp4", "127.0.0.1"},
+		{"IPv6", "udp6", "::1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			conn, err := net.ListenUDP(tt.network, &net.UDPAddr{IP: net.ParseIP(tt.address)})
+			if err != nil {
+				t.Skipf("can't listen on %s: %v", tt.address, err)
+			}
+			defer conn.Close()
+
+			s := &bfdServer{logger: slog.Default()}
+			read := s.ipv4Reader(conn)
+			if tt.network == "udp6" {
+				read = s.ipv6Reader(conn)
+			}
+
+			sender, err := net.DialUDP(tt.network, nil, conn.LocalAddr().(*net.UDPAddr))
+			require.NoError(t, err)
+			defer sender.Close()
+			require.NoError(t, netutils.SetUDPTTLSockopt(sender, 200))
+			_, err = sender.Write([]byte{1})
+			require.NoError(t, err)
+
+			require.NoError(t, conn.SetReadDeadline(time.Now().Add(2*time.Second)))
+			n, info, err := read(make([]byte, 64))
+			require.NoError(t, err)
+
+			assert.Equal(t, 1, n)
+			assert.Equal(t, sender.LocalAddr().(*net.UDPAddr).AddrPort(), info.src)
+			assert.Equal(t, netip.MustParseAddr(tt.address), info.dst)
+			assert.Equal(t, lo.Index, info.ifIndex)
+			assert.Equal(t, 200, info.ttl)
+			assert.False(t, info.mhop)
+		})
+	}
+}
+
+// Test_BfdServerListenerFailureIsIndependent checks that a receive socket
+// that can't be opened does not keep the other one closed, and that the
+// next start() opens it once the port is free.
+func Test_BfdServerListenerFailureIsIndependent(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("relies on Linux SO_REUSEADDR semantics for a bind conflict")
+	}
+
+	// Without SO_REUSEADDR, this socket makes the server's IPv6 bind fail.
+	occupier, err := net.ListenPacket("udp6", "[::]:0")
+	if err != nil {
+		t.Skipf("IPv6 is not available: %v", err)
+	}
+	port := occupier.LocalAddr().(*net.UDPAddr).Port
+
+	// Build the server directly, without the loop goroutine, so start()
+	// and stop() run only when the test calls them.
+	s := &bfdServer{
+		logger:    slog.Default(),
+		peers:     make(map[netip.Addr]*bfdPeer),
+		listeners: newBfdListeners(),
+		config:    &oc.BfdConfig{Port: uint16(port)},
+	}
+	udp4, udp6 := s.listeners[0], s.listeners[1]
+
+	assert.False(t, s.start())
+	assert.NotNil(t, udp4.conn)
+	assert.Nil(t, udp6.conn)
+	assert.True(t, udp6.failed)
+
+	require.NoError(t, occupier.Close())
+	assert.True(t, s.start())
+	assert.NotNil(t, udp4.conn)
+	assert.NotNil(t, udp6.conn)
+	assert.False(t, udp6.failed)
+
+	s.stop()
+	assert.Nil(t, udp4.conn)
+	assert.Nil(t, udp6.conn)
 }
 
 func Test_BfdDown(t *testing.T) {

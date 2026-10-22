@@ -18,6 +18,8 @@ import (
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bfd"
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
 type bfdServerStats struct {
@@ -37,6 +39,44 @@ type bfdEventPeerUpdate struct {
 	done          chan struct{}
 }
 
+// bfdRxInfo describes how a BFD control packet was received. Fields read
+// from ancillary data are left at their unknown value when the platform
+// does not report them.
+type bfdRxInfo struct {
+	// src is the source of the packet. A link-local address keeps its zone.
+	src netip.AddrPort
+	// dst is the destination address of the packet. Invalid if unknown.
+	dst netip.Addr
+	// ifIndex is the index of the interface the packet came in on. 0 if
+	// unknown.
+	ifIndex int
+	// ttl is the TTL or Hop Limit of the packet. -1 if unknown.
+	ttl int
+	// mhop is true when the packet came in on the multihop port.
+	mhop bool
+}
+
+// bfdListener is one receive socket of the BFD server: one address family
+// on one UDP port. IPv4 and IPv6 use separate sockets so that each one
+// reports the TTL or Hop Limit through its own ancillary data.
+type bfdListener struct {
+	network string // "udp4" or "udp6"
+
+	conn *net.UDPConn
+	read func(b []byte) (int, bfdRxInfo, error)
+
+	// failed is true when the last attempt to open the socket failed.
+	// Only the first failure in a row is logged at Error level.
+	failed bool
+}
+
+func newBfdListeners() []*bfdListener {
+	return []*bfdListener{
+		{network: "udp4"},
+		{network: "udp6"},
+	}
+}
+
 type bfdPeerState struct {
 	peerAddress netip.Addr
 	state       api.BfdPeerState
@@ -54,7 +94,7 @@ type bfdServer struct {
 
 	config *oc.BfdConfig
 
-	udpServer       *net.UDPConn
+	listeners       []*bfdListener
 	listenInterface string
 
 	peersMutex sync.RWMutex
@@ -81,6 +121,8 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 		logger:    logger,
 
 		peers: make(map[netip.Addr]*bfdPeer),
+
+		listeners: newBfdListeners(),
 
 		eventStartStop:  time.NewTicker(time.Second),
 		eventConfig:     make(chan *oc.BfdConfig, 1),
@@ -241,20 +283,25 @@ func (s *bfdServer) loop() {
 	}
 }
 
+// start opens the receive sockets that are not open yet. It returns true
+// when all of them are open. A socket that cannot be opened does not stop
+// the others; the caller retries it later.
 func (s *bfdServer) start() bool {
-	if s.udpServer == nil {
-		s.startServer()
-	}
-
-	return s.udpServer != nil
-}
-
-func (s *bfdServer) startServer() {
 	if s.config == nil {
 		// BFD server not configured
-		return
+		return false
 	}
 
+	ok := true
+	for _, l := range s.listeners {
+		if l.conn == nil && !s.startListener(l) {
+			ok = false
+		}
+	}
+	return ok
+}
+
+func (s *bfdServer) startListener(l *bfdListener) bool {
 	addressString := ":" + strconv.FormatUint(uint64(s.config.Port), 10)
 
 	var lc net.ListenConfig
@@ -269,46 +316,166 @@ func (s *bfdServer) startServer() {
 		return netutils.SetReuseAddrSockopt(sc)
 	}
 
-	l, err := lc.ListenPacket(context.Background(), "udp", addressString)
+	pc, err := lc.ListenPacket(context.Background(), l.network, addressString)
 	if err != nil {
-		s.logger.Error("Can't listen UDP",
-			slog.String("Topic", "bfd"),
-			slog.String("Address", addressString),
-			slog.Any("Error", err),
-		)
-		return
+		s.listenFailed(l, "Can't listen UDP", addressString, err)
+		return false
 	}
 
-	var ok bool
-	s.udpServer, ok = l.(*net.UDPConn)
+	conn, ok := pc.(*net.UDPConn)
 	if !ok {
-		s.logger.Error("Unexpected connection listener",
-			slog.String("Topic", "bfd"),
-			slog.String("Address", addressString),
-			slog.Any("Error", err),
-		)
-		return
+		_ = pc.Close()
+		s.listenFailed(l, "Unexpected connection listener", addressString, nil)
+		return false
+	}
+
+	l.conn = conn
+	l.failed = false
+	if l.network == "udp4" {
+		l.read = s.ipv4Reader(conn)
+	} else {
+		l.read = s.ipv6Reader(conn)
 	}
 
 	s.logger.Info("BFD server is started",
 		slog.String("Topic", "bfd"),
+		slog.String("Network", l.network),
 		slog.String("Address", addressString),
 	)
 
-	s.serverStop = make(chan struct{})
+	if s.serverStop == nil {
+		s.serverStop = make(chan struct{})
+	}
 	s.serverWait.Add(1)
-	go s.serverLoop()
+	go s.serverLoop(l.read, s.serverStop)
+	return true
+}
+
+// listenFailed logs a failure to open a receive socket. A host without
+// IPv6 fails the same way on every retry, so only the first failure in a
+// row is logged at Error level.
+func (s *bfdServer) listenFailed(l *bfdListener, msg, address string, err error) {
+	level := slog.LevelError
+	if l.failed {
+		level = slog.LevelDebug
+	}
+	l.failed = true
+
+	attrs := []slog.Attr{
+		slog.String("Topic", "bfd"),
+		slog.String("Network", l.network),
+		slog.String("Address", address),
+	}
+	if err != nil {
+		attrs = append(attrs, slog.Any("Error", err))
+	}
+	s.logger.LogAttrs(context.Background(), level, msg, attrs...)
+}
+
+// setControlMessage enables one kind of ancillary data on a receive socket.
+// A failure only leaves the matching bfdRxInfo field unknown, so it is
+// logged and the socket is used anyway.
+func (s *bfdServer) setControlMessage(network, what string, set func() error) bool {
+	if err := set(); err != nil {
+		s.logger.Warn("Can't enable ancillary data on BFD socket",
+			slog.String("Topic", "bfd"),
+			slog.String("Network", network),
+			slog.String("Data", what),
+			slog.Any("Error", err),
+		)
+		return false
+	}
+	return true
+}
+
+func (s *bfdServer) ipv4Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, error) {
+	pc := ipv4.NewPacketConn(conn)
+	ttlOK := s.setControlMessage("udp4", "TTL", func() error {
+		return pc.SetControlMessage(ipv4.FlagTTL, true)
+	})
+	s.setControlMessage("udp4", "destination and interface", func() error {
+		return pc.SetControlMessage(ipv4.FlagDst|ipv4.FlagInterface, true)
+	})
+
+	return func(b []byte) (int, bfdRxInfo, error) {
+		n, cm, src, err := pc.ReadFrom(b)
+		if err != nil {
+			return 0, bfdRxInfo{}, err
+		}
+		info := newBfdRxInfo(src)
+		if cm != nil {
+			if ttlOK {
+				info.ttl = cm.TTL
+			}
+			info.dst = ipToAddr(cm.Dst)
+			info.ifIndex = cm.IfIndex
+		}
+		return n, info, nil
+	}
+}
+
+func (s *bfdServer) ipv6Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, error) {
+	pc := ipv6.NewPacketConn(conn)
+	ttlOK := s.setControlMessage("udp6", "Hop Limit", func() error {
+		return pc.SetControlMessage(ipv6.FlagHopLimit, true)
+	})
+	s.setControlMessage("udp6", "destination and interface", func() error {
+		return pc.SetControlMessage(ipv6.FlagDst|ipv6.FlagInterface, true)
+	})
+
+	return func(b []byte) (int, bfdRxInfo, error) {
+		n, cm, src, err := pc.ReadFrom(b)
+		if err != nil {
+			return 0, bfdRxInfo{}, err
+		}
+		info := newBfdRxInfo(src)
+		if cm != nil {
+			if ttlOK {
+				info.ttl = cm.HopLimit
+			}
+			info.dst = ipToAddr(cm.Dst)
+			info.ifIndex = cm.IfIndex
+		}
+		return n, info, nil
+	}
+}
+
+func newBfdRxInfo(src net.Addr) bfdRxInfo {
+	info := bfdRxInfo{ttl: -1}
+	if u, ok := src.(*net.UDPAddr); ok {
+		// A udp4 socket reports the source as a 16-byte IPv4-mapped address.
+		ap := u.AddrPort()
+		info.src = netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+	}
+	return info
+}
+
+func ipToAddr(ip net.IP) netip.Addr {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return netip.Addr{}
+	}
+	return addr.Unmap()
 }
 
 func (s *bfdServer) stop() {
-	if s.udpServer == nil {
+	if s.serverStop == nil {
 		return
 	}
 
 	close(s.serverStop)
-	s.udpServer.Close()
+	for _, l := range s.listeners {
+		if l.conn != nil {
+			l.conn.Close()
+		}
+	}
 	s.serverWait.Wait()
-	s.udpServer = nil
+	for _, l := range s.listeners {
+		l.conn = nil
+		l.read = nil
+		l.failed = false
+	}
+	s.serverStop = nil
 
 	s.logger.Info("BFD server is stopped",
 		slog.String("Topic", "bfd"),
@@ -430,16 +597,16 @@ func (s *bfdServer) shutdown() {
 	s.eventStartStop.Stop()
 }
 
-func (s *bfdServer) serverLoop() {
+func (s *bfdServer) serverLoop(read func([]byte) (int, bfdRxInfo, error), stop <-chan struct{}) {
 	defer s.serverWait.Done()
 
 	// buffer size must be more than BFD Control Packet size
 	buffer := make([]byte, 4096)
 	for {
-		length, address, err := s.udpServer.ReadFromUDP(buffer)
+		length, info, err := read(buffer)
 		if err != nil {
 			select {
-			case <-s.serverStop:
+			case <-stop:
 				return
 			default:
 				s.stats.rxError.Add(1)
@@ -460,12 +627,12 @@ func (s *bfdServer) serverLoop() {
 			continue
 		}
 
-		s.rxPacket(address, bfdPacket)
+		s.rxPacket(info, bfdPacket)
 	}
 }
 
-func (s *bfdServer) rxPacket(address *net.UDPAddr, packet *bfd.BFDHeader) {
-	addr := address.AddrPort().Addr().Unmap()
+func (s *bfdServer) rxPacket(info bfdRxInfo, packet *bfd.BFDHeader) {
+	addr := info.src.Addr()
 
 	s.peersMutex.RLock()
 	peer, ok := s.peers[addr]
