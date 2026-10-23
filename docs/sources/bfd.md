@@ -36,6 +36,9 @@ Supported behavior:
   discarded if their TTL/Hop Limit is below a minimum (see
   [Multihop](#multihop)). The check is skipped on a platform where the socket
   can't report the TTL;
+- received BFD packets discarded if the version is not `1`, or if the
+  Multipoint (M) or Authentication Present (A) bit is set (RFC 5880 Section
+  6.8.6). GoBGP does not support BFD authentication;
 - BFD states `DOWN`, `INIT`, `UP`, and `ADMIN_DOWN`;
 - transmission slows to at least one second while the session is not `UP`
   (RFC 5880 Section 6.8.3);

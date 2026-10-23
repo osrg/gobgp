@@ -664,6 +664,7 @@ func Test_BfdServerRxPacketUnknownDiscriminator(t *testing.T) {
 		src: netip.MustParseAddrPort("127.0.0.1:49152"),
 		ttl: 255,
 	}, &bfd.BFDHeader{
+		Version:              1,
 		State:                bfd.StateUp,
 		DetectTimeMultiplier: 3,
 		MyDiscriminator:      1,
@@ -702,6 +703,7 @@ func Test_BfdServerRxPacketTTL(t *testing.T) {
 				src: netip.MustParseAddrPort("127.0.0.1:49152"),
 				ttl: tt.ttl,
 			}, &bfd.BFDHeader{
+				Version:              1,
 				State:                bfd.StateDown,
 				DetectTimeMultiplier: 3,
 				MyDiscriminator:      1,
@@ -712,6 +714,55 @@ func Test_BfdServerRxPacketTTL(t *testing.T) {
 				assert.Equal(t, ok, delivered())
 			} else {
 				assert.Equal(t, invalid, peer.stats.invalidTTL.Load())
+				assert.Equal(t, ok+1, delivered())
+			}
+		})
+	}
+}
+
+func Test_BfdServerRxPacketInvalid(t *testing.T) {
+	s := newServer(13792)
+	defer s.Stop()
+	require.NoError(t, addPeer(s, 23792))
+
+	s.peersMutex.RLock()
+	peer := s.peers[netip.MustParseAddr("127.0.0.1")]
+	s.peersMutex.RUnlock()
+	require.NotNil(t, peer)
+
+	delivered := func() uint64 {
+		return s.stats.rxPacket.Load() + s.stats.rxDrop.Load()
+	}
+	for _, tt := range []struct {
+		name      string
+		change    func(*bfd.BFDHeader)
+		discarded bool
+	}{
+		{"valid", func(*bfd.BFDHeader) {}, false},
+		{"version 0", func(h *bfd.BFDHeader) { h.Version = 0 }, true},
+		{"version 2", func(h *bfd.BFDHeader) { h.Version = 2 }, true},
+		{"Multipoint", func(h *bfd.BFDHeader) { h.Multipoint = true }, true},
+		{"Authentication Present", func(h *bfd.BFDHeader) { h.AuthPresent = true }, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			invalid, ok := s.stats.invalidPacket.Load(), delivered()
+			h := &bfd.BFDHeader{
+				Version:              1,
+				State:                bfd.StateDown,
+				DetectTimeMultiplier: 3,
+				MyDiscriminator:      1,
+				YourDiscriminator:    peer.myDiscriminator,
+			}
+			tt.change(h)
+			s.rxPacket(bfdRxInfo{
+				src: netip.MustParseAddrPort("127.0.0.1:49152"),
+				ttl: 255,
+			}, h)
+			if tt.discarded {
+				assert.Equal(t, invalid+1, s.stats.invalidPacket.Load())
+				assert.Equal(t, ok, delivered())
+			} else {
+				assert.Equal(t, invalid, s.stats.invalidPacket.Load())
 				assert.Equal(t, ok+1, delivered())
 			}
 		})

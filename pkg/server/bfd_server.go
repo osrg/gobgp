@@ -693,6 +693,17 @@ func (s *bfdServer) serverLoop(read func([]byte) (int, bfdRxInfo, error), stop <
 }
 
 func (s *bfdServer) rxPacket(info bfdRxInfo, packet *bfd.BFDHeader) {
+	if reason := invalidPacketReason(packet); reason != "" {
+		s.logger.Debug("Invalid packet",
+			slog.String("Topic", "bfd"),
+			slog.Any("Peer", info.src.Addr()),
+			slog.String("Reason", reason),
+		)
+
+		s.stats.invalidPacket.Add(1)
+		return
+	}
+
 	peer := s.lookupPeer(info, packet)
 	if peer == nil {
 		s.logger.Debug("Unknown BFD peer",
@@ -722,6 +733,35 @@ func (s *bfdServer) rxPacket(info bfdRxInfo, packet *bfd.BFDHeader) {
 	}
 
 	s.stats.rxPacket.Add(1)
+}
+
+// invalidPacketReason returns why a received packet must be discarded
+// before a session is looked up, or "" if it need not be. RFC 5880 Section
+// 6.8.6 says:
+//
+//	If the version number is not correct (1), the packet MUST be
+//	discarded.
+//
+//	If the Multipoint (M) bit is nonzero, the packet MUST be
+//	discarded.
+//
+//	If the A bit is set and no authentication is in use (bfd.AuthType
+//	is zero), the packet MUST be discarded.
+//
+// GoBGP does not support BFD authentication, so no session uses it. The A
+// bit check therefore does not depend on the session, and is done here
+// with the others. The length is checked when the packet is parsed. The
+// Detect Mult and My Discriminator checks are done by the session.
+func invalidPacketReason(packet *bfd.BFDHeader) string {
+	switch {
+	case packet.Version != 1:
+		return "version is not 1"
+	case packet.Multipoint:
+		return "Multipoint bit is set"
+	case packet.AuthPresent:
+		return "Authentication Present bit is set"
+	}
+	return ""
 }
 
 // validTTL checks the TTL or Hop Limit of a received packet of the

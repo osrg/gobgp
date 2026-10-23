@@ -156,3 +156,41 @@ func Test_MarshalBinaryInvalidDiagnostic(t *testing.T) {
 	_, err := packet.MarshalBinary()
 	assert.ErrorIs(err, ErrInvalidDiagnostic)
 }
+
+func Test_Flags(t *testing.T) {
+	assert := assert.New(t)
+
+	packet := &BFDHeader{
+		Version:                 1,
+		State:                   StateUp,
+		ControlPlaneIndependent: true,
+		AuthPresent:             true,
+		Demand:                  true,
+		Multipoint:              true,
+		DetectTimeMultiplier:    3,
+	}
+	b, err := packet.MarshalBinary()
+	assert.NoError(err)
+	// Sta (2 bits), P, F, C, A, D, M
+	assert.Equal(byte(0xcf), b[1])
+
+	got := &BFDHeader{}
+	assert.NoError(got.UnmarshalBinary(b))
+	assert.Equal(packet, got)
+
+	for _, f := range []struct {
+		bit byte
+		get func(*BFDHeader) bool
+	}{
+		{0x08, func(h *BFDHeader) bool { return h.ControlPlaneIndependent }},
+		{0x04, func(h *BFDHeader) bool { return h.AuthPresent }},
+		{0x02, func(h *BFDHeader) bool { return h.Demand }},
+		{0x01, func(h *BFDHeader) bool { return h.Multipoint }},
+	} {
+		b[1] = byte(StateUp)<<6 | f.bit
+		got := &BFDHeader{}
+		assert.NoError(got.UnmarshalBinary(b))
+		assert.True(f.get(got), "bit 0x%02x", f.bit)
+		assert.False(got.Poll || got.Final)
+	}
+}
