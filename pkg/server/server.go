@@ -1837,6 +1837,37 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	s.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, oldState, e)
 }
 
+// dropNotPreservedStaleRoutes removes the stale routes that the peer did not
+// preserve, when the session is established again after a graceful restart
+// of the peer. See notPreservedFamilies(). If no stale routes are kept, the
+// restart is over: the peer may not send End-of-RIB markers.
+func (s *BgpServer) dropNotPreservedStaleRoutes(peer *peer) {
+	if !peer.fsm.pConf.ReadOnly().GracefulRestart.State.PeerRestarting {
+		return
+	}
+	drop, kept := peer.notPreservedFamilies()
+	if len(drop) > 0 {
+		peer.fsm.lock.Lock()
+		conf := peer.fsm.pConf.ReadCopy()
+		for i, a := range conf.AfiSafis {
+			if slices.Contains(drop, a.State.Family) {
+				conf.AfiSafis[i].MpGracefulRestart.State.Running = false
+			}
+		}
+		peer.fsm.pConf.Update(&conf)
+		peer.fsm.lock.Unlock()
+
+		pathList := peer.adjRibIn.DropStale(drop)
+		peer.fsm.logger.Debug("withdraw stale routes not preserved",
+			slog.Any("Families", drop),
+			slog.Int("Numbers", len(pathList)))
+		s.propagateUpdate(peer, pathList)
+	}
+	if !kept {
+		peer.stopPeerRestarting()
+	}
+}
+
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 	needStopNeighbor := false
 	var oldState bgp.FSMState
@@ -2034,6 +2065,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				conf.State.RemoteRouterId,
 				peer.fsm.gConf.Config.RouterId, conf.Transport.State.RemoteAddress, conf.Transport.State.LocalAddress)
 			peer.peerInfo.Store(peerInfo)
+			s.dropNotPreservedStaleRoutes(peer)
 
 			notLocalRestarting := !conf.GracefulRestart.State.LocalRestarting
 			if notLocalRestarting {
