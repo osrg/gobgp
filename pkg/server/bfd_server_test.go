@@ -1022,37 +1022,24 @@ func Test_BfdDown(t *testing.T) {
 
 	// Establishment is now paced at up to one second per handshake step (RFC 5880
 	// Section 6.8.3's not-Up floor), so wait for Up instead of assuming a fixed sleep
-	// covers it. Reaching Up also matters for the wait below: while not yet Up, both
-	// sides advertise the floored (slow) interval, which inflates the detection time
-	// (Section 6.8.4) that governs how long the peer below takes to notice s2 is gone.
+	// covers it. Both sides must be Up: s2 needs s1's discriminator to send AdminDown
+	// below, and s1 must be Up for its move to Down to show anything.
 	err = eventuallyCheckState(6*time.Second, s1, netip.MustParseAddr("127.0.0.1"), api.BfdSessionState_BFD_SESSION_STATE_UP)
 	assert.NoError(err)
 	err = eventuallyCheckState(6*time.Second, s2, netip.MustParseAddr("127.0.0.1"), api.BfdSessionState_BFD_SESSION_STATE_UP)
 	assert.NoError(err)
 
-	// s1 learns s2's restored 200ms interval only from s2's first Up packet, which is
-	// paced (up to 200ms away). Wait for it so the detection time below is the Up
-	// 5 x 200ms, not the not-Up 5 x 1s.
-	state, err := s1.GetPeerState(netip.MustParseAddr("127.0.0.1"))
-	assert.NoError(err)
-	err = eventuallyReceivesAfter(2*time.Second, s1, netip.MustParseAddr("127.0.0.1"), state.state.BfdAsync.ReceivedPackets)
-	assert.NoError(err)
-
-	// Stop s2
+	// Stop s2. It sends AdminDown (RFC 5880 Section 6.8.16), so s1 takes its
+	// session Down without closing the BGP session (RFC 5882 Section 4.2). An
+	// expired detection time still closes it; see Test_ExpiryRefloorsTxPacing.
 	s2.Stop()
 
-	// Wait for BFD peer down to close s1's BGP session.
-	err = eventually(6*time.Second, func() error {
-		if atomic.LoadInt64(&m1.bfdDownCount) == 1 {
-			return nil
-		}
-		return fmt.Errorf("must be: bfdDownCount == 1")
-	})
+	err = eventuallyCheckState(2*time.Second, s1, netip.MustParseAddr("127.0.0.1"), api.BfdSessionState_BFD_SESSION_STATE_DOWN)
 	assert.NoError(err)
 
 	s1.Stop()
 
-	assert.Equal(int64(1), atomic.LoadInt64(&m1.bfdDownCount))
+	assert.Equal(int64(0), atomic.LoadInt64(&m1.bfdDownCount))
 }
 
 func Test_BgpAddDeletePeer(t *testing.T) {

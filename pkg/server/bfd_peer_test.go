@@ -834,6 +834,91 @@ func Test_TxPacketSlowWhileDown(t *testing.T) {
 	assert.GreaterOrEqual(arrivals[1].Sub(arrivals[0]), 700*time.Millisecond)
 }
 
+// readUntil reads packets from conn until one is in the given state, and fails the
+// test if none arrives in time. The peer only dials its UDP client after its 1s
+// start ticker fires, so the first packet can take that long.
+func readUntil(t *testing.T, conn net.PacketConn, state bfd.StateType) bfd.BFDHeader {
+	t.Helper()
+	assert.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+	buf := make([]byte, 64)
+	for {
+		n, _, err := conn.ReadFrom(buf)
+		if err != nil {
+			t.Fatalf("waiting for a packet in state %s: %v", state, err)
+		}
+		var h bfd.BFDHeader
+		assert.NoError(t, h.UnmarshalBinary(buf[:n]))
+		if h.State == state {
+			return h
+		}
+	}
+}
+
+// Test_ShutdownSendsAdminDown checks RFC 5880 Section 6.8.16 on the wire: removing
+// a session the remote is bound to sends an AdminDown packet with Diag 7
+// (Administratively Down), so the remote does not take it for a path failure. The
+// BGP peer is not reset.
+func Test_ShutdownSendsAdminDown(t *testing.T) {
+	assert := assert.New(t)
+
+	conn, err := net.ListenPacket("udp", "127.0.0.1:14701")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer conn.Close()
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     14701,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   200000,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+	defer p.Stop()
+
+	bringUp(t, p, 200000)
+	// An Up packet on the wire means the UDP client is dialed.
+	readUntil(t, conn, bfd.StateUp)
+
+	p.Stop()
+
+	h := readUntil(t, conn, bfd.StateAdminDown)
+	assert.Equal(bfd.DiagnosticAdministrativelyDown, h.Diagnostic)
+	assert.Equal(p.myDiscriminator, h.MyDiscriminator)
+	assert.Equal(uint32(111), h.YourDiscriminator)
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_ADMIN_DOWN, p.sessionState())
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
+}
+
+// Test_ShutdownWithoutRemoteSendsNothing checks that removing a session no remote
+// is bound to sends no AdminDown: there is no remote session to tell.
+func Test_ShutdownWithoutRemoteSendsNothing(t *testing.T) {
+	assert := assert.New(t)
+
+	conn, err := net.ListenPacket("udp", "127.0.0.1:14702")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer conn.Close()
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:    14702,
+		Enabled: true,
+	}, "")
+	defer p.Stop()
+
+	// A Down packet on the wire means the UDP client is dialed.
+	readUntil(t, conn, bfd.StateDown)
+	sent := p.stats.txPacket.Load()
+
+	p.Stop()
+
+	assert.Equal(sent, p.stats.txPacket.Load())
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+}
+
 // Test_PollReplyNeverSetsPollAndFinalTogether pins RFC 5880 Section 6.5: "A BFD Control packet
 // MUST NOT have both the Poll (P) and Final (F) bits set." The immediate reply rxPacket sends
 // for a received Poll sets Final and clears Poll.
