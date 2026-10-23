@@ -261,8 +261,13 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 		n.RouteReflector.State.RouteReflectorClusterId = clusterId
 	}
 	if n.Bfd.Config.Port == 0 {
-		// RFC 5881: BFD control packets port
-		n.Bfd.Config.Port = 3784
+		if n.Bfd.Config.Multihop {
+			// RFC 5883: multihop BFD control packets port
+			n.Bfd.Config.Port = 4784
+		} else {
+			// RFC 5881: BFD control packets port
+			n.Bfd.Config.Port = 3784
+		}
 	}
 	if n.Bfd.Config.DetectionMultiplier == 0 {
 		n.Bfd.Config.DetectionMultiplier = 3

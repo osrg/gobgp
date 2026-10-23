@@ -141,6 +141,11 @@ func Test_NewBfdConfigFromAPIStructRejectsOverflow(t *testing.T) {
 	assert.True(config.Enabled)
 	assert.Equal(uint16(BfdServerPort), config.Port)
 	assert.Equal(uint8(3), config.DetectionMultiplier)
+	assert.False(config.Multihop)
+
+	config, err = newBfdConfigFromAPIStruct(&api.BfdPeerConfig{Enabled: true, Multihop: true})
+	assert.NoError(err)
+	assert.True(config.Multihop)
 }
 
 func newServer(port uint16) *bfdServer {

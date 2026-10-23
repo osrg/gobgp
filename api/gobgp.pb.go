@@ -12716,6 +12716,7 @@ type BfdPeerConfig struct {
 	DesiredMinimumTxInterval uint32                 `protobuf:"varint,3,opt,name=desired_minimum_tx_interval,json=desiredMinimumTxInterval,proto3" json:"desired_minimum_tx_interval,omitempty"`
 	RequiredMinimumReceive   uint32                 `protobuf:"varint,4,opt,name=required_minimum_receive,json=requiredMinimumReceive,proto3" json:"required_minimum_receive,omitempty"`
 	DetectionMultiplier      uint32                 `protobuf:"varint,5,opt,name=detection_multiplier,json=detectionMultiplier,proto3" json:"detection_multiplier,omitempty"`
+	Multihop                 bool                   `protobuf:"varint,6,opt,name=multihop,proto3" json:"multihop,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -12783,6 +12784,13 @@ func (x *BfdPeerConfig) GetDetectionMultiplier() uint32 {
 		return x.DetectionMultiplier
 	}
 	return 0
+}
+
+func (x *BfdPeerConfig) GetMultihop() bool {
+	if x != nil {
+		return x.Multihop
+	}
+	return false
 }
 
 type BfdState struct {
@@ -14885,13 +14893,14 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x16remote_diagnostic_code\x18\b \x01(\x0e2\x16.api.BfdDiagnosticCodeR\x14remoteDiagnosticCode\x12E\n" +
 	"\x1fremote_minimum_receive_interval\x18\t \x01(\rR\x1cremoteMinimumReceiveInterval\x122\n" +
 	"\tbfd_async\x18\n" +
-	" \x01(\v2\x15.api.BfdAsyncCountersR\bbfdAsync\"\xe9\x01\n" +
+	" \x01(\v2\x15.api.BfdAsyncCountersR\bbfdAsync\"\x85\x02\n" +
 	"\rBfdPeerConfig\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12=\n" +
 	"\x1bdesired_minimum_tx_interval\x18\x03 \x01(\rR\x18desiredMinimumTxInterval\x128\n" +
 	"\x18required_minimum_receive\x18\x04 \x01(\rR\x16requiredMinimumReceive\x121\n" +
-	"\x14detection_multiplier\x18\x05 \x01(\rR\x13detectionMultiplier\"\xc9\x01\n" +
+	"\x14detection_multiplier\x18\x05 \x01(\rR\x13detectionMultiplier\x12\x1a\n" +
+	"\bmultihop\x18\x06 \x01(\bR\bmultihop\"\xc9\x01\n" +
 	"\bBfdState\x12'\n" +
 	"\x0freceived_packet\x18\x01 \x01(\x04R\x0ereceivedPacket\x12#\n" +
 	"\rreceived_drop\x18\x02 \x01(\x04R\freceivedDrop\x12%\n" +

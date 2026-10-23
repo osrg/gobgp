@@ -427,3 +427,38 @@ func TestOverwriteNeighborConfigWithPeerGroupKeepsConfiguredZeroPeerAs(t *testin
 
 	assert.Equal(t, uint32(0), n.Config.PeerAs)
 }
+
+func TestSetDefaultNeighborConfigValuesBfdPort(t *testing.T) {
+	g := &Global{Config: GlobalConfig{As: 65000}}
+	for _, tt := range []struct {
+		name      string
+		neighbor  BfdConfig
+		peerGroup *BfdConfig
+		want      uint16
+	}{
+		{"single-hop", BfdConfig{Enabled: true}, nil, 3784},
+		{"multihop", BfdConfig{Enabled: true, Multihop: true}, nil, 4784},
+		{"multihop with a port", BfdConfig{Enabled: true, Multihop: true, Port: 5000}, nil, 5000},
+		{"multihop from the peer group", BfdConfig{}, &BfdConfig{Enabled: true, Multihop: true}, 4784},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			n := &Neighbor{
+				Config: NeighborConfig{
+					NeighborAddress: netip.MustParseAddr(testNeighborAddress),
+					PeerAs:          65001,
+				},
+				Bfd: Bfd{Config: tt.neighbor},
+			}
+			var pg *PeerGroup
+			if tt.peerGroup != nil {
+				pg = &PeerGroup{
+					Config: PeerGroupConfig{PeerGroupName: "pg", PeerAs: 65001},
+					Bfd:    Bfd{Config: *tt.peerGroup},
+				}
+				n.Config.PeerGroup = "pg"
+			}
+			require.NoError(t, SetDefaultNeighborConfigValues(n, pg, g))
+			assert.Equal(t, tt.want, n.Bfd.Config.Port)
+		})
+	}
+}

@@ -920,6 +920,7 @@ func newBfdConfigFromAPIStruct(a *api.BfdPeerConfig) (oc.BfdConfig, error) {
 	return oc.BfdConfig{
 		Enabled:                  a.Enabled,
 		Port:                     uint16(a.Port),
+		Multihop:                 a.Multihop,
 		DesiredMinimumTxInterval: a.DesiredMinimumTxInterval,
 		RequiredMinimumReceive:   a.RequiredMinimumReceive,
 		DetectionMultiplier:      uint8(a.DetectionMultiplier),
