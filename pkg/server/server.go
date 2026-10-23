@@ -1473,9 +1473,14 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			// ORIGINATOR_ID and CLUSTER_LIST go with it. RFC 7606 7.9 and
 			// 7.10 discard both when an external neighbor sends them, and
 			// we would otherwise act on them when reflecting the route.
+			//
+			// RFC 8097 2: "By default, implementations MUST drop the origin
+			// validation state extended community if received from an
+			// External BGP (EBGP) peer, without processing it further."
 			if peer != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
 				path.RemoveLocalPref()
 				path.RemoveReflectionAttrs()
+				path.RemoveOriginValidationState()
 			}
 
 			policyOptions := &table.PolicyOptions{
