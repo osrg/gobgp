@@ -44,7 +44,8 @@ Supported behavior:
   (RFC 5880 Section 6.8.3);
 - transmission paced by the peer's advertised `Required Min RX Interval`:
   GoBGP never sends faster than the larger of its own interval and the peer's
-  (RFC 5880 Section 6.8.7);
+  (RFC 5880 Section 6.8.7). If the peer advertises zero, GoBGP sends no
+  periodic packets, only the ones for a state change or a reply to a Poll;
 - Poll Sequence initiation when the transmit interval changes, and
   termination on a received Final, plus an immediate reply to a received
   Poll;
@@ -61,8 +62,7 @@ Current scope and limitations:
   configured intervals, apart from the one-second floor while the session is
   not `UP`, and never renegotiates them at runtime beyond that floor. It
   derives its detection time from the peer's advertised
-  `Desired Min TX Interval` (RFC 5880 6.8.4). A peer advertising a zero
-  `Required Min RX Interval` does not stop transmissions.
+  `Desired Min TX Interval` (RFC 5880 6.8.4).
 
 ## Configuration
 

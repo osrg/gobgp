@@ -13,6 +13,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bfd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_NewBfdPeer(t *testing.T) {
@@ -927,21 +928,27 @@ func Test_TxPacketPollBitAndFastRestoreOnUp(t *testing.T) {
 	// collected, even on a slow test runner. The peer's own configured multiplier is
 	// still 5; that value only goes out on the wire, and this test does not check it.
 
+	// The injected packets carry a Required Min RX Interval of 1 microsecond,
+	// so the configured 200ms interval paces the transmission. A zero would
+	// stop periodic transmission (RFC 5880 Section 6.8.7).
+
 	// Down -> Init.
 	rxWait(t, p, &bfd.BFDHeader{
-		State:                bfd.StateDown,
-		MyDiscriminator:      111,
-		YourDiscriminator:    p.myDiscriminator,
-		DetectTimeMultiplier: 20,
+		State:                 bfd.StateDown,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DetectTimeMultiplier:  20,
+		RequiredMinRxInterval: 1,
 	})
 
 	// Init -> Up: restores the configured 200ms interval and starts a Poll Sequence
 	// (no Final is ever injected in this test, so the sequence stays in flight).
 	rxWait(t, p, &bfd.BFDHeader{
-		State:                bfd.StateInit,
-		MyDiscriminator:      111,
-		YourDiscriminator:    p.myDiscriminator,
-		DetectTimeMultiplier: 20,
+		State:                 bfd.StateInit,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DetectTimeMultiplier:  20,
+		RequiredMinRxInterval: 1,
 	})
 
 	// Collect the first three Up packets, skipping any pre-Up packets still in flight.
@@ -1479,4 +1486,78 @@ func Test_ExpiryRefloorsTxPacing(t *testing.T) {
 
 	p.Stop()
 	assert.Equal(time.Second, p.desiredMinTx)
+}
+
+// Test_TxStopsWhenRemoteMinRxIsZero pins RFC 5880 Section 6.8.7: "A system
+// MUST NOT periodically transmit BFD Control packets if
+// bfd.RemoteMinRxInterval is zero." A packet sent at a state change still
+// goes out, and a later nonzero value starts periodic transmission again.
+func Test_TxStopsWhenRemoteMinRxIsZero(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:14703")
+	require.NoError(t, err)
+	defer conn.Close()
+
+	p := NewBfdPeer(&mockPeerState{}, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     14703,
+		Enabled:                  true,
+		DetectionMultiplier:      5,
+		RequiredMinimumReceive:   200000,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+	defer p.Stop()
+
+	buf := make([]byte, 64)
+	read := func(timeout time.Duration) (*bfd.BFDHeader, bool) {
+		t.Helper()
+		require.NoError(t, conn.SetReadDeadline(time.Now().Add(timeout)))
+		n, _, err := conn.ReadFrom(buf)
+		if err != nil {
+			return nil, false
+		}
+		h := &bfd.BFDHeader{}
+		require.NoError(t, h.UnmarshalBinary(buf[:n]))
+		return h, true
+	}
+
+	// Wait for the first periodic packet, so the UDP client is dialed.
+	_, ok := read(3 * time.Second)
+	require.True(t, ok)
+
+	// Down -> Init with a zero Required Min RX Interval. The Init packet of
+	// the state change is sent, then nothing. The detection time is 20 x
+	// 200ms = 4s, longer than the wait below.
+	rxWait(t, p, &bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      111,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 20,
+	})
+	for {
+		h, ok := read(time.Second)
+		require.True(t, ok, "no packet at the state change")
+		if h.State == bfd.StateInit {
+			break
+		}
+	}
+	// Without the stop, the one-second not-Up interval sends two or three
+	// packets in this time.
+	h, ok := read(2500 * time.Millisecond)
+	require.False(t, ok, "periodic packet sent: %+v", h)
+
+	// Init -> Up with a nonzero value: periodic transmission starts again.
+	rxWait(t, p, &bfd.BFDHeader{
+		State:                 bfd.StateInit,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DetectTimeMultiplier:  20,
+		RequiredMinRxInterval: 1,
+	})
+	up := 0
+	deadline := time.Now().Add(2 * time.Second)
+	for up < 3 && time.Now().Before(deadline) {
+		if h, ok := read(time.Until(deadline)); ok && h.State == bfd.StateUp {
+			up++
+		}
+	}
+	require.Equal(t, 3, up)
 }

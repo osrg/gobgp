@@ -149,11 +149,8 @@ func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, confi
 		rxInterval:      defaultRxInterval,
 		txInterval:      defaultTxInterval,
 		// RFC 5880 Section 6.8.1: bfd.RemoteMinRxInterval MUST be initialized
-		// to 1. Not the Go zero value: Section 6.8.7 reserves zero to mean the
-		// peer wants no periodic packets, which this implementation does not
-		// support. The distinction is currently inert -- desiredMinTx is always
-		// at least 1 microsecond -- but keeps the variable faithful to the RFC
-		// so zero can later be given its Section 6.8.7 meaning.
+		// to 1. Not the Go zero value: zero stops periodic transmission (see
+		// armTx).
 		remoteMinRxInterval: time.Microsecond,
 
 		eventStart:    time.NewTicker(time.Second),
@@ -411,7 +408,17 @@ func (p *bfdPeer) effectiveTxInterval() time.Duration {
 // design that starves, because that anchor never advances. Go 1.23+ timer
 // semantics mean Reset discards any expiry already pending, so an overdue
 // receive landing on a fire cannot produce two packets.
+//
+// RFC 5880 Section 6.8.7: "A system MUST NOT periodically transmit BFD
+// Control packets if bfd.RemoteMinRxInterval is zero." The timer is then
+// stopped. A packet sent at a state change, or a Final sent in reply to a
+// Poll, is not periodic and still goes out. A later packet with a nonzero
+// value starts the timer again.
 func (p *bfdPeer) armTx() {
+	if p.remoteMinRxInterval == 0 {
+		p.eventTx.Stop()
+		return
+	}
 	remaining := time.Until(p.lastTx.Add(p.jitteredTxInterval()))
 	if remaining <= 0 {
 		p.tx()
@@ -471,10 +478,9 @@ func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
 	p.expiryInterval = time.Duration(h.DetectTimeMultiplier) * negotiatedRx
 
 	// RFC 5880 Section 6.8.6: "Set bfd.RemoteMinRxInterval to the value of
-	// Required Min RX Interval." A received zero is stored verbatim; this
-	// implementation deliberately does not implement Section 6.8.7's meaning for
-	// zero (stop periodic transmission). The timer is re-armed once at the end
-	// of this function, after the state machine has run.
+	// Required Min RX Interval." A zero stops periodic transmission (see
+	// armTx). The timer is re-armed once at the end of this function, after
+	// the state machine has run.
 	p.remoteMinRxInterval = time.Duration(h.RequiredMinRxInterval) * time.Microsecond
 
 	// RFC 5880 Section 6.8.6: "If a Poll Sequence is being transmitted by the local
@@ -575,7 +581,12 @@ func (p *bfdPeer) jitteredTxInterval() time.Duration {
 func (p *bfdPeer) tx() {
 	p.lastTx = time.Now()
 	p.drawTxJitter()
-	p.eventTx.Reset(p.jitteredTxInterval())
+	if p.remoteMinRxInterval == 0 {
+		// No periodic packets (see armTx).
+		p.eventTx.Stop()
+	} else {
+		p.eventTx.Reset(p.jitteredTxInterval())
+	}
 
 	switch p.sessionState() {
 	case api.BfdSessionState_BFD_SESSION_STATE_UP:
