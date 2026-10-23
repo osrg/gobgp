@@ -5555,6 +5555,10 @@ type watchOptions struct {
 	recvMessage    bool
 	initEor        bool
 	eor            bool
+
+	// stopDrainHook is a test hook that runs when Stop starts draining the
+	// queue.
+	stopDrainHook func()
 }
 
 type WatchOption func(*watchOptions)
@@ -5680,35 +5684,36 @@ func (w *watcher) loop() {
 	close(w.realCh)
 }
 
+// Stop unregisters the watcher and frees its queue. It does not take the
+// server lock: no notification reaches a watcher once it is unregistered,
+// since every notifier holds watcherMu while it notifies, so the queue can
+// be drained by the goroutine that stops the watcher. A long queue then
+// costs that goroutine, not every peer's receive loop waiting behind a
+// management operation.
 func (w *watcher) Stop() {
-	cleanup := func() error {
-		w.stop.Do(func() {
-			w.s.watcherMu.Lock()
-			for k, l := range w.s.watcherMap {
-				for i, v := range l {
-					if w == v {
-						w.s.watcherMap[k] = append(l[:i], l[i+1:]...)
-						break
-					}
+	w.stop.Do(func() {
+		w.s.watcherMu.Lock()
+		for k, l := range w.s.watcherMap {
+			for i, v := range l {
+				if w == v {
+					// Delete clears the vacated element, which would
+					// otherwise keep the watcher reachable.
+					w.s.watcherMap[k] = slices.Delete(l, i, i+1)
+					break
 				}
 			}
-			w.s.watcherMu.Unlock()
+		}
+		w.s.watcherMu.Unlock()
 
-			cleanInfiniteChannel(w.ch)
-			// the loop function goroutine might be blocked for
-			// writing to realCh. make sure it finishes.
-			for range w.realCh {
-			}
-		})
-
-		return nil
-	}
-
-	if err := w.s.mgmtOperation(cleanup, false); err != nil {
-		// Serve has stopped, so there is no management loop left to serialize cleanup.
-		// No new watcher notifications can be produced after the server has stopped.
-		_ = cleanup()
-	}
+		if w.opts.stopDrainHook != nil {
+			w.opts.stopDrainHook()
+		}
+		cleanInfiniteChannel(w.ch)
+		// the loop function goroutine might be blocked for
+		// writing to realCh. make sure it finishes.
+		for range w.realCh {
+		}
+	})
 }
 
 func (s *BgpServer) isWatched(typ watchEventType) bool {
