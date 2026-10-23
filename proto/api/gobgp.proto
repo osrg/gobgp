@@ -171,6 +171,11 @@ message WatchEventResponse {
 
   message TableEvent {
     repeated Path paths = 2;
+    // The time the server recorded for the event. A consumer can compare it
+    // with its own clock to tell how late it reads. It is unset when the
+    // server has no time for the event, as in the initial snapshot of a filter
+    // with init.
+    google.protobuf.Timestamp timestamp = 3;
   }
 
   oneof event {

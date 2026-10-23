@@ -19,7 +19,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -1039,6 +1041,68 @@ func TestGRPCListPolicyAndListStatementAgree(t *testing.T) {
 	for _, st := range policies[0].Statements {
 		if st.Name == "empty-replace" {
 			assert.Equal(t, api.CommunityAction_TYPE_REPLACE, st.GetActions().GetCommunity().GetType())
+		}
+	}
+}
+
+// A consumer of WatchEvent has to be able to tell how late it reads, so every
+// table event carries the time of the event, and the event cannot come from
+// the future.
+func TestGRPCWatchEventTableTimestamp(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	defer s.Stop()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 1, RouterId: "1.1.1.1", ListenPort: -1},
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type received struct {
+		resp *api.WatchEventResponse
+		at   time.Time
+	}
+	ch := make(chan received, 16)
+	// watchEvent registers the watcher and returns, with a status that says
+	// the watch started.
+	err := (&server{bgpServer: s, shared: s.shared}).watchEvent(ctx, &api.WatchEventRequest{
+		Table: &api.WatchEventRequest_Table{
+			Filters: []*api.WatchEventRequest_Table_Filter{
+				{Type: api.WatchEventRequest_Table_Filter_TYPE_BEST},
+			},
+		},
+	}, func(resp *api.WatchEventResponse, _ time.Time) {
+		ch <- received{resp: resp, at: time.Now()}
+	})
+	require.Equal(t, codes.OK, status.Code(err))
+
+	before := time.Now()
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	for _, prefix := range []string{"10.1.0.0/24", "10.2.0.0/24"} {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		require.NoError(t, err)
+		_, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{{
+			Family: bgp.RF_IPv4_UC,
+			Nlri:   nlri,
+			Attrs:  []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh},
+		}}})
+		require.NoError(t, err)
+	}
+
+	for range 2 {
+		select {
+		case r := <-ch:
+			tbl := r.resp.GetTable()
+			require.NotNil(t, tbl)
+			require.NotEmpty(t, tbl.Paths)
+			require.NotNil(t, tbl.Timestamp, "a table event carries its time")
+			require.NoError(t, tbl.Timestamp.CheckValid())
+			ts := tbl.Timestamp.AsTime()
+			require.False(t, ts.Before(before), "the event is older than the update: %s", ts)
+			require.False(t, ts.After(r.at), "the event is after its receipt: %s > %s", ts, r.at)
+		case <-time.After(5 * time.Second):
+			t.Fatal("no table event")
 		}
 	}
 }
