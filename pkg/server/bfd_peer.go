@@ -617,7 +617,12 @@ func (p *bfdPeer) expiry() {
 
 	p.stats.expired.Add(1)
 
-	p.bfdDown()
+	// RFC 5882 Section 4.2: a client acts on a transition from Up to Down. A
+	// session that expires in Init never came up, so there is no path failure
+	// to report to BGP.
+	if p.sessionState() == api.BfdSessionState_BFD_SESSION_STATE_UP {
+		p.bfdDown()
+	}
 	// RFC 5880 Section 6.8.4: "the local system MUST set bfd.SessionState to
 	// Down and bfd.LocalDiag to 1 (Control Detection Time Expired)."
 	p.setStateDown(bfd.DiagnosticControlDetectionTimeExpired)

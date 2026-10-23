@@ -37,6 +37,8 @@ func TestBFDQueuedDownRetirement(t *testing.T) {
 				}
 			}()
 			require.True(t, p.Rx(&bfd.BFDHeader{State: bfd.StateDown, MyDiscriminator: 1, DetectTimeMultiplier: 1, DesiredMinTxInterval: 1000}))
+			// Bring the session Up: only an Up session that expires resets BGP.
+			rxOffer(t, p, &bfd.BFDHeader{State: bfd.StateInit, MyDiscriminator: 1, YourDiscriminator: p.myDiscriminator, DetectTimeMultiplier: 1, DesiredMinTxInterval: 1000})
 			var op *mgmtOp
 			select {
 			case op = <-s.mgmtCh:
@@ -120,6 +122,8 @@ func TestBFDAddAcknowledgesRetirement(t *testing.T) {
 		s.shared.mu.Unlock()
 	}()
 	require.True(t, p.Rx(&bfd.BFDHeader{State: bfd.StateDown, MyDiscriminator: 1, DetectTimeMultiplier: 1, DesiredMinTxInterval: 1000}))
+	// Bring the session Up: only an Up session that expires resets BGP.
+	rxOffer(t, p, &bfd.BFDHeader{State: bfd.StateInit, MyDiscriminator: 1, YourDiscriminator: p.myDiscriminator, DetectTimeMultiplier: 1, DesiredMinTxInterval: 1000})
 	var op *mgmtOp
 	select {
 	case op = <-s.mgmtCh:
