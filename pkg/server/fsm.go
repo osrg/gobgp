@@ -875,6 +875,23 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 		}
 		conf.Timers.State.KeepaliveInterval = keepalive
 
+		// The negotiated graceful restart State below comes from the
+		// OPEN of this session. Clear the values of the previous
+		// session first. Otherwise a peer that no longer advertises
+		// graceful restart, or no longer advertises it for a family,
+		// is still handled as if it did.
+		conf.GracefulRestart.State.Enabled = false
+		conf.GracefulRestart.State.PeerRestartTime = 0
+		conf.GracefulRestart.State.NotificationEnabled = false
+		conf.GracefulRestart.State.LongLivedEnabled = false
+		for i := range conf.AfiSafis {
+			conf.AfiSafis[i].MpGracefulRestart.State.Enabled = false
+			conf.AfiSafis[i].MpGracefulRestart.State.Received = false
+			conf.AfiSafis[i].LongLivedGracefulRestart.State.Enabled = false
+			conf.AfiSafis[i].LongLivedGracefulRestart.State.Received = false
+			conf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTime = 0
+		}
+
 		gr, ok := fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]
 		if conf.GracefulRestart.Config.Enabled && ok {
 			state := &conf.GracefulRestart.State
