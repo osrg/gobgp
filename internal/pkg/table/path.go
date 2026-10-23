@@ -1251,6 +1251,21 @@ func (path *Path) RemoveReflectionAttrs() {
 	}
 }
 
+// RemoveOriginValidationState removes the origin validation state extended
+// community (RFC 8097).
+func (path *Path) RemoveOriginValidationState() {
+	exts := path.GetExtCommunities()
+	if !slices.ContainsFunc(exts, isOriginValidationState) {
+		return
+	}
+	path.SetExtCommunities(slices.DeleteFunc(slices.Clone(exts), isOriginValidationState), true)
+}
+
+func isOriginValidationState(ec bgp.ExtendedCommunityInterface) bool {
+	_, ok := ec.(*bgp.ValidationExtended)
+	return ok
+}
+
 func (path *Path) GetOriginatorID() netip.Addr {
 	if attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_ORIGINATOR_ID); attr != nil {
 		return attr.(*bgp.PathAttributeOriginatorId).Value

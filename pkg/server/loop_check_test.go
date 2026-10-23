@@ -291,3 +291,79 @@ func TestExternalPeerReflectionAttrsDiscarded(t *testing.T) {
 		})
 	}
 }
+
+func TestExternalPeerOriginValidationStateDiscarded(t *testing.T) {
+	const (
+		localAS  = uint32(65000)
+		prefix   = "10.0.0.0/24"
+		routerID = "192.0.2.254"
+	)
+
+	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65001, 100, true)
+	for _, tc := range []struct {
+		name string
+		as   uint32
+		want []bgp.ExtendedCommunityInterface
+	}{
+		// RFC 8097 2: dropped by default when received from an EBGP peer.
+		{name: "external", as: 65001, want: []bgp.ExtendedCommunityInterface{rt}},
+		{name: "internal", as: localAS, want: []bgp.ExtendedCommunityInterface{bgp.NewValidationExtended(bgp.VALIDATION_STATE_VALID), rt}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := NewBgpServer()
+			go s.Serve()
+			require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{Global: &api.Global{
+				Asn: localAS, RouterId: routerID, ListenPort: -1,
+			}}))
+			t.Cleanup(s.Stop)
+
+			p := newPeerandInfo(t, localAS, tc.as, "192.0.2.1", s.globalRib)
+			// Without it, the missing ORIGINATOR_ID of the route matches.
+			p.fsm.gConf.Config.RouterId = netip.MustParseAddr(routerID)
+			require.NoError(t, s.mgmtOperation(func() error {
+				p.policy = s.policy
+				p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+				s.neighborMap[netip.MustParseAddr(p.ID())] = p
+				return nil
+			}, true))
+			t.Cleanup(func() {
+				require.NoError(t, s.mgmtOperation(func() error {
+					delete(s.neighborMap, netip.MustParseAddr(p.ID()))
+					return nil
+				}, false))
+				cleanInfiniteChannel(p.fsm.outgoingCh)
+			})
+
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+			require.NoError(t, err)
+			nexthop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+			require.NoError(t, err)
+			var asPath []bgp.AsPathParamInterface
+			if tc.as != localAS {
+				asPath = []bgp.AsPathParamInterface{bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{tc.as})}
+			}
+			s.handleFSMMessage(p, &fsmMsg{
+				MsgType: fsmMsgBGPMessage,
+				MsgData: bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{
+					bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+					bgp.NewPathAttributeAsPath(asPath),
+					nexthop,
+					bgp.NewPathAttributeLocalPref(100),
+					bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{
+						bgp.NewValidationExtended(bgp.VALIDATION_STATE_VALID), rt,
+					}),
+				}, []bgp.PathNLRI{{NLRI: nlri}}),
+				timestamp: time.Now(),
+			})
+
+			var paths []*table.Path
+			require.NoError(t, s.mgmtOperation(func() error {
+				paths = s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC})
+				return nil
+			}, true))
+			require.Len(t, paths, 1)
+			assert.Equal(t, tc.want, paths[0].GetExtCommunities())
+		})
+	}
+}
