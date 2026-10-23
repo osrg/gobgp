@@ -2553,3 +2553,154 @@ func TestFSMHandler_ResetBeforeEstablished(t *testing.T) {
 		})
 	}
 }
+
+// grAfiSafi returns an AfiSafi with graceful restart and long-lived graceful
+// restart configured.
+func grAfiSafi(name oc.AfiSafiType, family bgp.Family) oc.AfiSafi {
+	var a oc.AfiSafi
+	a.Config.AfiSafiName = name
+	a.Config.Enabled = true
+	a.State.Family = family
+	a.MpGracefulRestart.Config.Enabled = true
+	a.LongLivedGracefulRestart.Config.Enabled = true
+	a.LongLivedGracefulRestart.Config.RestartTime = 3600
+	return a
+}
+
+// grOpen returns an OPEN for ipv4-unicast and ipv6-unicast with caps.
+func grOpen(t *testing.T, caps ...bgp.ParameterCapabilityInterface) *bgp.BGPMessage {
+	t.Helper()
+	caps = append(caps,
+		bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC),
+		bgp.NewCapMultiProtocol(bgp.RF_IPv6_UC),
+		bgp.NewCapFourOctetASNumber(65001))
+	m, err := bgp.NewBGPOpenMessage(65001, 90, netip.MustParseAddr("10.0.0.1"),
+		[]bgp.OptionParameterInterface{bgp.NewOptionParameterCapability(caps)})
+	require.NoError(t, err)
+	return m
+}
+
+// grFirstSession sets up a peer whose first session negotiated graceful
+// restart with the N bit and long-lived graceful restart, for ipv4-unicast
+// and ipv6-unicast. The session has ended, and the FSM is in Idle.
+func grFirstSession(t *testing.T) (*peer, *fsmHandler, *MockConnection) {
+	t.Helper()
+	m := NewMockConnection()
+	m.SetRemoteAddr("10.0.0.1")
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Config.PeerAs = 65001
+	conf.Config.LocalAs = 65000
+	conf.Timers.Config.HoldTime = 90
+	conf.GracefulRestart.Config.Enabled = true
+	conf.GracefulRestart.Config.NotificationEnabled = true
+	conf.GracefulRestart.Config.LongLivedEnabled = true
+	conf.AfiSafis = []oc.AfiSafi{
+		grAfiSafi(oc.AFI_SAFI_TYPE_IPV4_UNICAST, bgp.RF_IPv4_UC),
+		grAfiSafi(oc.AFI_SAFI_TYPE_IPV6_UNICAST, bgp.RF_IPv6_UC),
+	}
+	p.fsm.pConf.Update(&conf)
+
+	p.fsm.recvOpen = grOpen(t,
+		bgp.NewCapGracefulRestart(false, true, 120, []*bgp.CapGracefulRestartTuple{
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+		}),
+		bgp.NewCapLongLivedGracefulRestart([]*bgp.CapLongLivedGracefulRestartTuple{
+			bgp.NewCapLongLivedGracefulRestartTuple(bgp.RF_IPv4_UC, true, 3600),
+			bgp.NewCapLongLivedGracefulRestartTuple(bgp.RF_IPv6_UC, true, 3600),
+		}))
+	p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
+
+	s := p.fsm.pConf.ReadOnly()
+	require.True(t, s.GracefulRestart.State.Enabled)
+	require.True(t, s.GracefulRestart.State.NotificationEnabled)
+	require.True(t, s.GracefulRestart.State.LongLivedEnabled)
+	for _, a := range s.AfiSafis {
+		require.True(t, a.MpGracefulRestart.State.Received)
+		require.True(t, a.LongLivedGracefulRestart.State.Received)
+	}
+
+	p.fsm.stateChange(bgp.BGP_FSM_IDLE, newfsmStateReason(fsmReadFailed, nil, nil))
+	return p, h, m
+}
+
+// The next session has no graceful restart capability. Nothing of the
+// negotiated graceful restart State of the first session is kept.
+func TestFSMStateChange_GracefulRestartCapabilityRemoved(t *testing.T) {
+	p, _, _ := grFirstSession(t)
+
+	p.fsm.recvOpen = grOpen(t)
+	p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
+
+	s := p.fsm.pConf.ReadOnly()
+	assert.False(t, s.GracefulRestart.State.Enabled)
+	assert.Zero(t, s.GracefulRestart.State.PeerRestartTime)
+	assert.False(t, s.GracefulRestart.State.NotificationEnabled)
+	assert.False(t, s.GracefulRestart.State.LongLivedEnabled)
+	for _, a := range s.AfiSafis {
+		assert.False(t, a.MpGracefulRestart.State.Enabled, a.State.Family)
+		assert.False(t, a.MpGracefulRestart.State.Received, a.State.Family)
+		assert.False(t, a.LongLivedGracefulRestart.State.Enabled, a.State.Family)
+		assert.False(t, a.LongLivedGracefulRestart.State.Received, a.State.Family)
+		assert.Zero(t, a.LongLivedGracefulRestart.State.PeerRestartTime, a.State.Family)
+	}
+	families, _ := p.forwardingPreservedFamilies()
+	assert.Empty(t, families)
+}
+
+// The next session has graceful restart for ipv4-unicast only, without the
+// N bit and without long-lived graceful restart.
+func TestFSMStateChange_GracefulRestartFamilyRemoved(t *testing.T) {
+	p, _, _ := grFirstSession(t)
+
+	p.fsm.recvOpen = grOpen(t,
+		bgp.NewCapGracefulRestart(false, false, 60, []*bgp.CapGracefulRestartTuple{
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+		}))
+	p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
+
+	s := p.fsm.pConf.ReadOnly()
+	assert.True(t, s.GracefulRestart.State.Enabled)
+	assert.Equal(t, uint16(60), s.GracefulRestart.State.PeerRestartTime)
+	assert.False(t, s.GracefulRestart.State.NotificationEnabled)
+	assert.False(t, s.GracefulRestart.State.LongLivedEnabled)
+	assert.True(t, s.GetAfiSafi(bgp.RF_IPv4_UC).MpGracefulRestart.State.Received)
+	assert.False(t, s.GetAfiSafi(bgp.RF_IPv6_UC).MpGracefulRestart.State.Received)
+	for _, a := range s.AfiSafis {
+		assert.False(t, a.LongLivedGracefulRestart.State.Received, a.State.Family)
+	}
+	families, _ := p.forwardingPreservedFamilies()
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, families)
+}
+
+// When the TCP connection of a session without graceful restart fails, the
+// session does not end as a graceful restart, even if the previous session
+// negotiated it.
+func TestFSMHandlerEstablished_NoGracefulRestartAfterCapabilityRemoved(t *testing.T) {
+	p, h, m := grFirstSession(t)
+
+	p.fsm.recvOpen = grOpen(t)
+	p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
+
+	type result struct {
+		state  bgp.FSMState
+		reason *fsmStateReason
+	}
+	ch := make(chan result, 1)
+	go func() {
+		state, reason := h.established(t.Context())
+		ch <- result{state, reason}
+	}()
+	m.remote.Close()
+
+	select {
+	case r := <-ch:
+		require.Equal(t, bgp.BGP_FSM_IDLE, r.state)
+		require.Equal(t, fsmReadFailed, r.reason.Type)
+	case <-time.After(5 * time.Second):
+		t.Fatal("established() did not return")
+	}
+}
