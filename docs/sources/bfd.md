@@ -55,6 +55,11 @@ Supported behavior:
   Poll;
 - hard BGP peer reset when the BFD session expires or the remote peer signals
   `DOWN`;
+- one `ADMIN_DOWN` packet, with diagnostic `7` (Administratively Down), sent
+  when a session the peer knows about is removed, for example when BFD is
+  disabled on the neighbor or the neighbor is deleted (RFC 5880 Section
+  6.8.16). The RFC asks for packets for a Detection Time; GoBGP sends one, as
+  FRR does;
 - BFD configuration through the GoBGP config file and gRPC API;
 - BFD state in peer state returned by the API.
 

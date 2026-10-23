@@ -624,6 +624,17 @@ func (p *bfdPeer) expiry() {
 }
 
 func (p *bfdPeer) shutdown() {
+	// RFC 5880 Section 6.8.16: a disabled session goes to AdminDown, so the remote
+	// can tell it from a path failure and keep its clients up (RFC 5882 Section
+	// 3.2). The RFC asks for packets for a Detection Time; one is sent, as FRR
+	// does, so that removing a peer does not wait that long. A remote that holds
+	// no session with us has nothing to be told.
+	if p.yourDiscriminator != 0 {
+		p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_ADMIN_DOWN))
+		p.localDiag = bfd.DiagnosticAdministrativelyDown
+		p.sendPacket(bfd.StateAdminDown, false, false, p.yourDiscriminator)
+	}
+
 	p.stop()
 	p.eventStart.Stop()
 	p.eventTx.Stop()
