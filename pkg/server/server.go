@@ -147,6 +147,20 @@ func (d *sharedData) propagateBucket(path *table.Path) *sync.Mutex {
 	if path == nil {
 		return &d.propagateBuckets[0]
 	}
+	// An EVPN MAC/IP advertisement picks its bucket from its MAC address.
+	// TableManager.Update can modify other destinations on MAC mobility: it
+	// withdraws the local MAC/IP paths that carry the MAC of the received
+	// path under other RDs, IP addresses and ESIs. All of them share the
+	// bucket, so the modification and the notifications of one update stay
+	// ordered against the other updates for the same MAC. The MAC is part of
+	// the NLRI, so the bucket still depends only on the destination, as
+	// peer.sentPaths requires, and a withdrawal lands in the bucket of the
+	// advertisement it withdraws.
+	if n, ok := path.GetNlri().(*bgp.EVPNNLRI); ok {
+		if r, ok := n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute); ok {
+			return &d.propagateBuckets[farm.Hash64(r.MacAddress)%uint64(len(d.propagateBuckets))]
+		}
+	}
 	// note: we can't use path.GetNlri().Serialize() here as peer.sentPaths is indexed by destLocalKey
 	destLocalKey := path.GetDestLocalKey()
 	idx := farm.Hash64([]byte(destLocalKey.Family.String()+destLocalKey.Prefix)) % uint64(len(d.propagateBuckets))
