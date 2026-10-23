@@ -251,6 +251,8 @@ func Test_RxPacketRemoteAdminDownKeepsPeer(t *testing.T) {
 			assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
 			assert.Equal(uint32(0), p.yourDiscriminator)
 			assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
+			// RFC 5880 Section 6.8.6 still sets bfd.LocalDiag to 3.
+			assert.Equal(bfd.DiagnosticNeighborSignaledSessionDown, p.localDiag)
 		})
 	}
 }
@@ -277,7 +279,7 @@ func Test_RxPacketRFCStateTransitions(t *testing.T) {
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_INIT, api.BfdSessionState(p.state.Load()))
 	assert.Equal(uint32(111), p.yourDiscriminator)
 
-	p.setStateDown()
+	p.setStateDown(bfd.DiagnosticNoDiagnostic)
 	p.rxPacket(&bfd.BFDHeader{
 		State:                bfd.StateUp,
 		MyDiscriminator:      222,
@@ -687,7 +689,7 @@ func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
 	}, "")
 	defer p.Stop()
 
-	p.setStateDown()
+	p.setStateDown(bfd.DiagnosticNoDiagnostic)
 	p.expiry()
 
 	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
@@ -1560,4 +1562,75 @@ func Test_TxStopsWhenRemoteMinRxIsZero(t *testing.T) {
 		}
 	}
 	require.Equal(t, 3, up)
+}
+
+// Test_TxDiagnostic checks the Diag field of sent packets. RFC 5880 Section
+// 6.8.6 sets bfd.LocalDiag to 3 when the remote system signals Down, and
+// Section 6.8.4 sets it to 1 when the Detection Time expires. Like BIRD and
+// FRR, it is cleared when the session comes back Up.
+func Test_TxDiagnostic(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:14704")
+	require.NoError(t, err)
+	defer conn.Close()
+
+	p := NewBfdPeer(&mockPeerState{}, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     14704,
+		Enabled:                  true,
+		DetectionMultiplier:      5,
+		RequiredMinimumReceive:   200000,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+	defer p.Stop()
+
+	buf := make([]byte, 64)
+	// next returns the next sent packet in the given state.
+	next := func(state bfd.StateType, timeout time.Duration) *bfd.BFDHeader {
+		t.Helper()
+		deadline := time.Now().Add(timeout)
+		for {
+			require.NoError(t, conn.SetReadDeadline(deadline))
+			n, _, err := conn.ReadFrom(buf)
+			require.NoError(t, err, "no packet in state %v", state)
+			h := &bfd.BFDHeader{}
+			require.NoError(t, h.UnmarshalBinary(buf[:n]))
+			if h.State == state {
+				return h
+			}
+		}
+	}
+	up := func(detectMult uint8) {
+		t.Helper()
+		for _, state := range []bfd.StateType{bfd.StateDown, bfd.StateInit} {
+			rxWait(t, p, &bfd.BFDHeader{
+				State:                 state,
+				MyDiscriminator:       111,
+				YourDiscriminator:     p.myDiscriminator,
+				DetectTimeMultiplier:  detectMult,
+				RequiredMinRxInterval: 1,
+			})
+		}
+	}
+
+	assert.Equal(t, bfd.DiagnosticNoDiagnostic, next(bfd.StateDown, 3*time.Second).Diagnostic)
+
+	// The detection time is 20 x 200ms = 4s, longer than these steps.
+	up(20)
+	assert.Equal(t, bfd.DiagnosticNoDiagnostic, next(bfd.StateUp, 2*time.Second).Diagnostic)
+
+	// The remote system signals Down.
+	rxWait(t, p, &bfd.BFDHeader{
+		State:                 bfd.StateDown,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DetectTimeMultiplier:  20,
+		RequiredMinRxInterval: 1,
+	})
+	assert.Equal(t, bfd.DiagnosticNeighborSignaledSessionDown, next(bfd.StateDown, 2*time.Second).Diagnostic)
+
+	// Up again, now with a detection time of 5 x 200ms = 1s.
+	up(5)
+	assert.Equal(t, bfd.DiagnosticNoDiagnostic, next(bfd.StateUp, 2*time.Second).Diagnostic)
+
+	// No packet comes from the remote system, so the Detection Time expires.
+	assert.Equal(t, bfd.DiagnosticControlDetectionTimeExpired, next(bfd.StateDown, 3*time.Second).Diagnostic)
 }

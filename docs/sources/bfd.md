@@ -40,6 +40,10 @@ Supported behavior:
   Multipoint (M) or Authentication Present (A) bit is set (RFC 5880 Section
   6.8.6). GoBGP does not support BFD authentication;
 - BFD states `DOWN`, `INIT`, `UP`, and `ADMIN_DOWN`;
+- the diagnostic code in sent packets: `1` (Control Detection Time Expired)
+  after the detection time expires, and `3` (Neighbor Signaled Session Down)
+  after the peer signals `DOWN` or `ADMIN_DOWN` (RFC 5880 Sections 6.8.4 and
+  6.8.6). It is cleared when the session comes back up;
 - transmission slows to at least one second while the session is not `UP`
   (RFC 5880 Section 6.8.3);
 - transmission paced by the peer's advertised `Required Min RX Interval`:

@@ -69,9 +69,13 @@ type bfdPeer struct {
 	state             atomic.Int32
 	myDiscriminator   uint32
 	yourDiscriminator uint32
-	multiplier        uint8
-	rxInterval        time.Duration
-	txInterval        time.Duration
+	// localDiag is the RFC's bfd.LocalDiag: the reason for the last change
+	// of the session state, sent in the Diag field. Confined to the peer's
+	// loop goroutine.
+	localDiag  bfd.DiagnosticType
+	multiplier uint8
+	rxInterval time.Duration
+	txInterval time.Duration
 
 	// desiredMinTx is the RFC's bfd.DesiredMinTxInterval: the value advertised in
 	// transmitted packets and one of the two terms of the transmit interval (see
@@ -504,7 +508,9 @@ func (p *bfdPeer) rxPacket(h *bfd.BFDHeader) {
 				slog.String("Peer", p.peerAddress.String()),
 			)
 
-			p.setStateDown()
+			// RFC 5880 Section 6.8.6: "Set bfd.LocalDiag to 3 (Neighbor
+			// signaled session down)".
+			p.setStateDown(bfd.DiagnosticNeighborSignaledSessionDown)
 		}
 	case bfd.StateDown:
 		switch p.sessionState() {
@@ -612,7 +618,9 @@ func (p *bfdPeer) expiry() {
 	p.stats.expired.Add(1)
 
 	p.bfdDown()
-	p.setStateDown()
+	// RFC 5880 Section 6.8.4: "the local system MUST set bfd.SessionState to
+	// Down and bfd.LocalDiag to 1 (Control Detection Time Expired)."
+	p.setStateDown(bfd.DiagnosticControlDetectionTimeExpired)
 }
 
 func (p *bfdPeer) shutdown() {
@@ -629,7 +637,9 @@ func (p *bfdPeer) remoteDown() {
 	)
 
 	p.bfdDown()
-	p.setStateDown()
+	// RFC 5880 Section 6.8.6: "Set bfd.LocalDiag to 3 (Neighbor signaled
+	// session down)".
+	p.setStateDown(bfd.DiagnosticNeighborSignaledSessionDown)
 }
 
 func (p *bfdPeer) bfdDown() {
@@ -651,6 +661,7 @@ func (p *bfdPeer) sendPacket(state bfd.StateType, poll bool, final bool, yourDis
 
 	packet := &bfd.BFDHeader{
 		Version:               1,
+		Diagnostic:            p.localDiag,
 		State:                 state,
 		Poll:                  poll,
 		Final:                 final,
@@ -727,7 +738,9 @@ func (p *bfdPeer) setDesiredMinTx(d time.Duration) {
 	}
 }
 
-func (p *bfdPeer) setStateDown() {
+// setStateDown moves the session to Down. diag is the reason, kept in
+// bfd.LocalDiag.
+func (p *bfdPeer) setStateDown(diag bfd.DiagnosticType) {
 	p.logger.Debug("Set state to DOWN",
 		slog.String("Topic", "bfd"),
 		slog.String("Peer", p.peerAddress.String()),
@@ -735,6 +748,7 @@ func (p *bfdPeer) setStateDown() {
 
 	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_DOWN))
 	p.yourDiscriminator = 0
+	p.localDiag = diag
 
 	// The remote session is gone, and with it any Poll Sequence in flight: nobody is
 	// left to answer it, and Down packets with the Poll bit set would ask an unbound
@@ -760,6 +774,9 @@ func (p *bfdPeer) setStateInit(yourDiscriminator uint32) {
 
 	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_INIT))
 	p.yourDiscriminator = yourDiscriminator
+	// RFC 5880 does not say when bfd.LocalDiag is cleared. Like BIRD, clear
+	// it when the session moves to Init or Up; FRR clears it on Up.
+	p.localDiag = bfd.DiagnosticNoDiagnostic
 
 	// desiredMinTx is left untouched here: Init is only ever entered from Down
 	// (rxPacket's bfd.StateDown case), and Down already carries the RFC 5880 Section
@@ -777,6 +794,7 @@ func (p *bfdPeer) setStateUp(yourDiscriminator uint32) {
 
 	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
 	p.yourDiscriminator = yourDiscriminator
+	p.localDiag = bfd.DiagnosticNoDiagnostic
 
 	// RFC 5880 Section 6.8.3: Up lifts the not-Up floor, restoring the configured
 	// interval, a change that starts a Poll Sequence unless it is a no-op.
