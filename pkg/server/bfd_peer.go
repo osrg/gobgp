@@ -57,6 +57,10 @@ type bfdPeer struct {
 	peerPort      int
 	localAddress  netip.Addr
 	bindInterface string
+	// multihop is true for a multihop session (RFC 5883). minTTL is the
+	// lowest TTL or Hop Limit of a received packet of such a session.
+	multihop bool
+	minTTL   int
 
 	udpClient *net.UDPConn
 
@@ -119,12 +123,12 @@ type bfdPeer struct {
 }
 
 func NewBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig, bindInterface string) *bfdPeer {
-	return newBfdPeer(ps, logger, peerAddress, config, netip.Addr{}, bindInterface, randomBFDMyDiscriminator())
+	return newBfdPeer(ps, logger, peerAddress, config, netip.Addr{}, bindInterface, randomBFDMyDiscriminator(), 1)
 }
 
 // newBfdPeer creates a session. myDiscriminator must be nonzero and must not
 // be used by any other session; see bfdServer.newDiscriminator.
-func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string, myDiscriminator uint32) *bfdPeer {
+func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string, myDiscriminator uint32, minTTL int) *bfdPeer {
 	peerPort := int(config.Port)
 	if peerPort == 0 {
 		peerPort = BfdServerPort
@@ -137,6 +141,8 @@ func newBfdPeer(ps peerState, logger *slog.Logger, peerAddress netip.Addr, confi
 		peerPort:      peerPort,
 		localAddress:  localAddress,
 		bindInterface: bindInterface,
+		multihop:      config.Multihop,
+		minTTL:        minTTL,
 
 		myDiscriminator: myDiscriminator,
 		multiplier:      defaultMultiplier,

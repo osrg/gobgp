@@ -23,7 +23,7 @@ func TestBFDQueuedDownRetirement(t *testing.T) {
 			s.bgpConfig.Global.Config.As = 65001
 			address := netip.MustParseAddr("127.0.0.1")
 			config := oc.BfdConfig{Enabled: true, Port: 13785}
-			require.NoError(t, s.bfdServer.addPeer(context.Background(), address, config, address, ""))
+			require.NoError(t, s.bfdServer.addPeer(context.Background(), address, config, address, "", 1))
 			s.bfdServer.peersMutex.RLock()
 			p := s.bfdServer.peers[address]
 			s.bfdServer.peersMutex.RUnlock()
@@ -56,7 +56,7 @@ func TestBFDQueuedDownRetirement(t *testing.T) {
 			case "delete":
 				require.NoError(t, s.bfdServer.DeletePeer(ctx, address))
 			case "replace":
-				require.NoError(t, s.bfdServer.addPeer(ctx, address, config, netip.MustParseAddr("127.0.0.2"), ""))
+				require.NoError(t, s.bfdServer.addPeer(ctx, address, config, netip.MustParseAddr("127.0.0.2"), "", 1))
 			case "stop":
 				stopped := make(chan struct{})
 				go func() { p.Stop(); close(stopped) }()
@@ -102,7 +102,7 @@ func TestBFDAddAcknowledgesRetirement(t *testing.T) {
 	address := netip.MustParseAddr("127.0.0.1")
 	config := oc.BfdConfig{Enabled: true, Port: 13785}
 	// Install directly so the setup does not itself depend on add acknowledgement.
-	s.bfdServer.addBfdPeer(address, config, address, "")
+	s.bfdServer.addBfdPeer(address, config, address, "", 1)
 	s.bfdServer.peersMutex.RLock()
 	p := s.bfdServer.peers[address]
 	s.bfdServer.peersMutex.RUnlock()
@@ -146,7 +146,7 @@ func TestBFDAddAcknowledgesRetirement(t *testing.T) {
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
-		result <- s.bfdServer.addPeer(ctx, address, config, netip.MustParseAddr("127.0.0.2"), "")
+		result <- s.bfdServer.addPeer(ctx, address, config, netip.MustParseAddr("127.0.0.2"), "", 1)
 	}()
 	select {
 	case <-retiring:

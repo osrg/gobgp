@@ -9,28 +9,32 @@ receiving packets for the configured detection time, the BFD session goes down
 and the routing protocol can react immediately.
 
 GoBGP implements BFD for BGP neighbors using the basic control packet model from
-[RFC 5880](https://datatracker.ietf.org/doc/html/rfc5880) and single-hop UDP
-transport from [RFC 5881](https://datatracker.ietf.org/doc/html/rfc5881).
+[RFC 5880](https://datatracker.ietf.org/doc/html/rfc5880), single-hop UDP
+transport from [RFC 5881](https://datatracker.ietf.org/doc/html/rfc5881), and
+multihop UDP transport from
+[RFC 5883](https://datatracker.ietf.org/doc/html/rfc5883).
 
 ## Supported Features
 
 GoBGP has an native BFD implementation scoped to fast BGP peer failure
-detection. It is intended to cover single-hop asynchronous BFD for BGP
-neighbors, not to replace a full-featured standalone BFD daemon.
+detection. It is intended to cover single-hop and multihop asynchronous BFD for
+BGP neighbors, not to replace a full-featured standalone BFD daemon.
 
 Supported behavior:
 
 - asynchronous BFD control packets over UDP;
 - per-neighbor BFD configuration;
 - peer-group BFD configuration inherited by neighbors;
-- default destination UDP port `3784`;
+- default destination UDP port `3784`, or `4784` for a multihop session;
 - source UDP port selected from the RFC 5881 dynamic range `49152..65535`;
 - source IP taken from the neighbor transport `local-address` when it is set;
   otherwise, for static and dynamic neighbors alike, from the local address of
   the established BGP TCP connection;
 - outgoing BFD packets sent with TTL/Hop Limit `255`;
-- received BFD packets discarded unless their TTL/Hop Limit is `255`
-  (RFC 5881 Section 5). The check is skipped on a platform where the socket
+- received BFD packets of a single-hop session discarded unless their TTL/Hop
+  Limit is `255` (RFC 5881 Section 5), and those of a multihop session
+  discarded if their TTL/Hop Limit is below a minimum (see
+  [Multihop](#multihop)). The check is skipped on a platform where the socket
   can't report the TTL;
 - BFD states `DOWN`, `INIT`, `UP`, and `ADMIN_DOWN`;
 - transmission slows to at least one second while the session is not `UP`
@@ -100,7 +104,8 @@ If BFD timer values are omitted, GoBGP uses these defaults:
 | Option | Default | Unit |
 | --- | ---: | --- |
 | `enabled` | `false` | boolean |
-| `port` | `3784` | UDP port |
+| `port` | `3784`, or `4784` with `multihop` | UDP port |
+| `multihop` | `false` | boolean |
 | `desired-minimum-tx-interval` | `1000000` | microseconds |
 | `required-minimum-receive` | `1000000` | microseconds |
 | `detection-multiplier` | `3` | multiplier |
@@ -151,16 +156,51 @@ By default, BFD control packets are sent to UDP destination port `3784`.
 ```
 
 Use the default unless the remote system explicitly requires another destination
-port. RFC 5881 specifies `3784` for single-hop BFD. In GoBGP, the local BFD
-server still listens on UDP `3784`; changing `port` only changes the remote
-destination port used by outgoing packets.
+port. RFC 5881 specifies `3784` for single-hop BFD, and RFC 5883 specifies
+`4784` for multihop BFD. In GoBGP, the local BFD server still listens on UDP
+`3784` and `4784`; changing `port` only changes the remote destination port used
+by outgoing packets.
 
 For firewalls and ACLs, allow:
 
-- inbound UDP `3784` to the GoBGP host;
+- inbound UDP `3784`, or `4784` for multihop, to the GoBGP host;
 - outbound UDP from an ephemeral source port in `49152..65535` to the peer's
-  BFD destination port, normally `3784`;
+  BFD destination port, normally `3784`, or `4784` for multihop;
 - the reverse direction on the peer.
+
+## Multihop
+
+Set `multihop = true` for a peer that is not on the same link, for example a
+route reflector or an eBGP peer reached with `ebgp-multihop`. Both sides must
+agree: a multihop session sends to and receives on UDP `4784`, and a packet for
+it that comes in on `3784` is discarded, and the other way around.
+
+```toml
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "198.51.100.2"
+    peer-as = 65002
+  [neighbors.ebgp-multihop.config]
+    enabled = true
+    multihop-ttl = 2
+  [neighbors.bfd.config]
+    enabled = true
+    multihop = true
+```
+
+The peer sends BFD packets with TTL/Hop Limit `255`, so a packet that crossed
+`n` hops arrives with `256 - n`. GoBGP takes the TTL that BGP uses for the
+neighbor as the largest number of hops, like FRR, and discards a packet that
+arrives with a lower TTL:
+
+| BGP neighbor | Lowest TTL accepted |
+| --- | --- |
+| eBGP with `ebgp-multihop` and `multihop-ttl = n` | `256 - n` |
+| eBGP without `ebgp-multihop` | `255` |
+| eBGP with `ttl-security` | any |
+| iBGP | any |
+
+In the example above, the lowest TTL accepted is `254`.
 
 The remote BGP speaker must also run BFD and must be configured with compatible
 timers. Enabling BFD only on one side is not enough to bring the BFD session up.
@@ -186,8 +226,8 @@ Changing BFD configuration through `UpdatePeer` is applied at runtime:
 
 - enabling BFD adds the BFD peer;
 - disabling BFD removes the BFD peer;
-- changing BFD timer or port settings recreates the BFD peer with the new
-  configuration.
+- changing BFD timer, port, or multihop settings recreates the BFD peer with
+  the new configuration.
 
 ## Checking State
 
@@ -272,9 +312,12 @@ If the BFD session does not come up:
 
 - verify that both GoBGP and the remote peer have BFD enabled for the same
   neighbor address;
-- verify that UDP `3784` is reachable in both directions;
+- verify that UDP `3784`, or `4784` for multihop, is reachable in both
+  directions;
+- verify that both sides agree on `multihop`;
 - verify that the remote system accepts source ports from `49152..65535`;
-- verify that the remote system sends BFD packets with TTL/Hop Limit `255`;
+- verify that the remote system sends BFD packets with TTL/Hop Limit `255`,
+  and for multihop, that `ebgp-multihop` allows the number of hops to it;
 - verify that the neighbor transport `local-address`, when configured, exists on
   the host and is compatible with `bind-interface`;
 - avoid setting a non-default `port` unless the remote peer is known to listen
@@ -283,7 +326,7 @@ If the BFD session does not come up:
 - capture traffic and confirm that BFD control packets are being exchanged.
 
 ```bash
-$ tcpdump -ni any udp port 3784
+$ tcpdump -ni any udp port 3784 or udp port 4784
 ```
 
 For production use, choose intervals conservatively. Very aggressive BFD timers

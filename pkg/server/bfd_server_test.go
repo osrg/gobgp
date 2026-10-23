@@ -148,18 +148,17 @@ func Test_NewBfdConfigFromAPIStructRejectsOverflow(t *testing.T) {
 	assert.True(config.Multihop)
 }
 
+// newServer starts a server that listens on port, and on port + 1000 for
+// multihop, so that tests do not use the real multihop port.
 func newServer(port uint16) *bfdServer {
-	ps := &mockPeerState{}
-	s := NewBfdServer(ps, slog.Default())
-	s.Start(context.Background(), oc.BfdConfig{ //nolint:errcheck
-		Port: port,
-	})
+	s, _ := newServerWithMock(port)
 	return s
 }
 
 func newServerWithMock(port uint16) (*bfdServer, *mockPeerState) {
 	ps := &mockPeerState{}
 	s := NewBfdServer(ps, slog.Default())
+	s.multihopPort = port + 1000
 	s.Start(context.Background(), oc.BfdConfig{ //nolint:errcheck
 		Port: port,
 	})
@@ -182,7 +181,7 @@ func Test_AddPeerLocalAddressAndBindInterface(t *testing.T) {
 
 	peerAddress := netip.MustParseAddr("127.0.0.1")
 	localAddress := netip.MustParseAddr("127.0.0.2")
-	err := s.addPeer(context.Background(), peerAddress, oc.BfdConfig{Enabled: true}, localAddress, "lo")
+	err := s.addPeer(context.Background(), peerAddress, oc.BfdConfig{Enabled: true}, localAddress, "lo", 1)
 	assert.NoError(t, err)
 
 	err = eventually(time.Second, func() error {
@@ -505,9 +504,9 @@ func Test_BfdServerRxInfo(t *testing.T) {
 			defer conn.Close()
 
 			s := &bfdServer{logger: slog.Default()}
-			read := s.ipv4Reader(conn)
+			read := s.ipv4Reader(conn, false)
 			if tt.network == "udp6" {
-				read = s.ipv6Reader(conn)
+				read = s.ipv6Reader(conn, false)
 			}
 
 			sender, err := net.DialUDP(tt.network, nil, conn.LocalAddr().(*net.UDPAddr))
@@ -794,6 +793,165 @@ func Test_BfdServerDiscardsWrongTTL(t *testing.T) {
 			}))
 		})
 	}
+}
+
+func Test_BfdMinTTL(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		conf oc.Neighbor
+		want int
+	}{
+		{"eBGP", oc.Neighbor{Config: oc.NeighborConfig{PeerAs: 65001, PeerType: oc.PEER_TYPE_EXTERNAL}}, 255},
+		{"eBGP multihop 2", oc.Neighbor{
+			Config:       oc.NeighborConfig{PeerAs: 65001, PeerType: oc.PEER_TYPE_EXTERNAL},
+			EbgpMultihop: oc.EbgpMultihop{Config: oc.EbgpMultihopConfig{Enabled: true, MultihopTtl: 2}},
+		}, 254},
+		{"eBGP multihop 255", oc.Neighbor{
+			Config:       oc.NeighborConfig{PeerAs: 65001, PeerType: oc.PEER_TYPE_EXTERNAL},
+			EbgpMultihop: oc.EbgpMultihop{Config: oc.EbgpMultihopConfig{Enabled: true, MultihopTtl: 255}},
+		}, 1},
+		{"iBGP", oc.Neighbor{Config: oc.NeighborConfig{PeerAs: 65000, PeerType: oc.PEER_TYPE_INTERNAL}}, 1},
+		{"TTL security", oc.Neighbor{
+			Config:      oc.NeighborConfig{PeerAs: 65001, PeerType: oc.PEER_TYPE_EXTERNAL},
+			TtlSecurity: oc.TtlSecurity{Config: oc.TtlSecurityConfig{Enabled: true, TtlMin: 254}},
+		}, 1},
+		{"peer AS unknown", oc.Neighbor{Config: oc.NeighborConfig{PeerType: oc.PEER_TYPE_EXTERNAL}}, 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, bfdMinTTL(&tt.conf))
+		})
+	}
+}
+
+func Test_BfdServerLookupPeerSessionType(t *testing.T) {
+	single := &bfdPeer{
+		peerAddress:     netip.MustParseAddr("192.0.2.2"),
+		myDiscriminator: 100,
+	}
+	multi := &bfdPeer{
+		peerAddress:     netip.MustParseAddr("198.51.100.2"),
+		myDiscriminator: 200,
+		multihop:        true,
+	}
+	s := &bfdServer{
+		peers:  map[netip.Addr]*bfdPeer{},
+		discrs: map[uint32]*bfdPeer{},
+	}
+	for _, p := range []*bfdPeer{single, multi} {
+		s.peers[p.peerAddress] = p
+		s.discrs[p.myDiscriminator] = p
+	}
+
+	for _, tt := range []struct {
+		name string
+		peer *bfdPeer
+		your uint32
+		mhop bool
+		want *bfdPeer
+	}{
+		{"single-hop on 3784", single, 100, false, single},
+		{"single-hop on 4784", single, 100, true, nil},
+		{"multihop on 4784", multi, 200, true, multi},
+		{"multihop on 3784", multi, 200, false, nil},
+		{"zero, single-hop on 3784", single, 0, false, single},
+		{"zero, single-hop on 4784", single, 0, true, nil},
+		{"zero, multihop on 4784", multi, 0, true, multi},
+		{"zero, multihop on 3784", multi, 0, false, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			info := bfdRxInfo{
+				src:  netip.AddrPortFrom(tt.peer.peerAddress, 49152),
+				ttl:  255,
+				mhop: tt.mhop,
+			}
+			got := s.lookupPeer(info, &bfd.BFDHeader{YourDiscriminator: tt.your})
+			assert.Same(t, tt.want, got)
+		})
+	}
+}
+
+func Test_BfdPeerValidTTL(t *testing.T) {
+	single := &bfdPeer{}
+	multi := &bfdPeer{multihop: true, minTTL: 254}
+	any := &bfdPeer{multihop: true, minTTL: 1}
+
+	for _, tt := range []struct {
+		name string
+		peer *bfdPeer
+		ttl  int
+		want bool
+	}{
+		{"single-hop 255", single, 255, true},
+		{"single-hop 254", single, 254, false},
+		{"single-hop unknown", single, -1, true},
+		{"multihop 255", multi, 255, true},
+		{"multihop 254", multi, 254, true},
+		{"multihop 253", multi, 253, false},
+		{"multihop unknown", multi, -1, true},
+		{"multihop any 1", any, 1, true},
+		{"multihop any missing", any, 0, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.peer.validTTL(tt.ttl))
+		})
+	}
+}
+
+func Test_StateUpDownMultihop(t *testing.T) {
+	assert := assert.New(t)
+	peerAddress := netip.MustParseAddr("127.0.0.1")
+	config := func(port uint16) oc.BfdConfig {
+		return oc.BfdConfig{
+			Port:                     port,
+			Multihop:                 true,
+			Enabled:                  true,
+			DetectionMultiplier:      5,
+			RequiredMinimumReceive:   200000,
+			DesiredMinimumTxInterval: 200000,
+		}
+	}
+
+	s1 := newServer(13791)
+	defer s1.Stop()
+	s2 := newServer(23791)
+	defer s2.Stop()
+
+	// Each side sends to the multihop port of the other.
+	assert.NoError(s1.AddPeer(context.Background(), peerAddress, config(s2.multihopPort), ""))
+	assert.NoError(s2.AddPeer(context.Background(), peerAddress, config(s1.multihopPort), ""))
+
+	assert.NoError(eventuallyCheckState(6*time.Second, s1, peerAddress, api.BfdSessionState_BFD_SESSION_STATE_UP))
+	assert.NoError(eventuallyCheckState(6*time.Second, s2, peerAddress, api.BfdSessionState_BFD_SESSION_STATE_UP))
+}
+
+func Test_BgpAddPeerBfdMultihop(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	defer s.Stop()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 1, RouterId: "1.1.1.1", ListenPort: -1},
+	}))
+
+	peerAddress := netip.MustParseAddr("127.0.0.2")
+	require.NoError(t, s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
+		Conf:         &api.PeerConf{NeighborAddress: peerAddress.String(), PeerAsn: 2},
+		Transport:    &api.Transport{LocalAddress: "127.0.0.1", PassiveMode: true},
+		EbgpMultihop: &api.EbgpMultihop{Enabled: true, MultihopTtl: 2},
+		Bfd:          &api.BfdPeerConfig{Enabled: true, Multihop: true},
+	}}))
+
+	require.NoError(t, eventually(time.Second, func() error {
+		s.bfdServer.peersMutex.RLock()
+		defer s.bfdServer.peersMutex.RUnlock()
+		p := s.bfdServer.peers[peerAddress]
+		if p == nil {
+			return fmt.Errorf("BFD peer not created")
+		}
+		if !p.multihop || p.minTTL != 254 || p.peerPort != bfdMultihopPort {
+			return fmt.Errorf("unexpected BFD session: multihop=%v minTTL=%d port=%d", p.multihop, p.minTTL, p.peerPort)
+		}
+		return nil
+	}))
 }
 
 func Test_BfdDown(t *testing.T) {

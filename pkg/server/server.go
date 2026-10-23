@@ -59,11 +59,13 @@ const (
 	FSMOperationTypeCount
 )
 
-// RFC 5881 requires the BFD server to listen on port 3784.
-// Per-peer BfdConfig.Port configures the destination port for outgoing
-// packets and may differ, but the listen port is not user-configurable.
+// RFC 5881 requires the BFD server to listen on port 3784, and RFC 5883
+// on port 4784 for multihop sessions. Per-peer BfdConfig.Port configures
+// the destination port for outgoing packets and may differ, but the
+// listen ports are not user-configurable.
 const (
-	BfdServerPort = 3784
+	BfdServerPort   = 3784
+	bfdMultihopPort = 4784
 )
 
 type FSMTimingHook interface {
@@ -3992,7 +3994,32 @@ func (s *BgpServer) addBFDPeer(conf *oc.Neighbor) error {
 	if !source.IsValid() || source.IsUnspecified() {
 		return nil
 	}
-	return s.bfdServer.addPeer(context.Background(), conf.State.NeighborAddress, conf.Bfd.Config, source, s.bfdBindInterface(conf))
+	return s.bfdServer.addPeer(context.Background(), conf.State.NeighborAddress, conf.Bfd.Config, source, s.bfdBindInterface(conf), bfdMinTTL(conf))
+}
+
+// bfdMinTTL returns the lowest TTL or Hop Limit that a received packet of
+// a multihop BFD session may have. RFC 5883 gives no value. Section 3 only
+// says that the single-hop rule, "requiring a Time to Live (TTL)/Hop Limit
+// of 255 on both transmit and receive", "obviously does not work across
+// multiple hops". Like FRR, take the TTL that BGP uses for the peer as the
+// number of hops to it. The peer sends with TTL 255, so a packet that
+// crossed at most that many hops arrives with at least 256 minus that
+// number. The TTL is chosen as in setPeerConnTTL. Without one, as for
+// iBGP, any TTL is accepted.
+func bfdMinTTL(conf *oc.Neighbor) int {
+	ttl := 0
+	if conf.TtlSecurity.Config.Enabled {
+		ttl = 255
+	} else if conf.Config.PeerAs != 0 && conf.Config.PeerType == oc.PEER_TYPE_EXTERNAL {
+		ttl = 1
+		if conf.EbgpMultihop.Config.Enabled {
+			ttl = int(conf.EbgpMultihop.Config.MultihopTtl)
+		}
+	}
+	if ttl == 0 {
+		return 1
+	}
+	return 256 - ttl
 }
 
 func (s *BgpServer) updateBfdPeer(
@@ -4000,6 +4027,7 @@ func (s *BgpServer) updateBfdPeer(
 	oldConfig, newConfig oc.BfdConfig,
 	localAddress netip.Addr,
 	oldBindInterface, newBindInterface string,
+	minTTL int,
 ) error {
 	if s.bfdServer == nil || oldConfig.Equal(&newConfig) && oldBindInterface == newBindInterface {
 		return nil
@@ -4017,7 +4045,7 @@ func (s *BgpServer) updateBfdPeer(
 	}
 
 	if newConfig.Enabled && localAddress.IsValid() && !localAddress.IsUnspecified() {
-		if err := s.bfdServer.addPeer(context.Background(), ipAddr, newConfig, localAddress, newBindInterface); err != nil {
+		if err := s.bfdServer.addPeer(context.Background(), ipAddr, newConfig, localAddress, newBindInterface, minTTL); err != nil {
 			return err
 		}
 	}
@@ -4451,6 +4479,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 				original.Bfd.Config, c.Bfd.Config,
 				bfdSourceAddress(&conf),
 				s.bfdBindInterface(original), s.bfdBindInterface(c),
+				bfdMinTTL(c),
 			)
 		}
 		if isLimit {

@@ -36,6 +36,7 @@ type bfdEventPeerUpdate struct {
 	config        oc.BfdConfig
 	localAddress  netip.Addr
 	bindInterface string
+	minTTL        int
 	done          chan struct{}
 }
 
@@ -62,6 +63,7 @@ type bfdRxInfo struct {
 // reports the TTL or Hop Limit through its own ancillary data.
 type bfdListener struct {
 	network string // "udp4" or "udp6"
+	mhop    bool   // listens on the multihop port
 
 	conn *net.UDPConn
 	read func(b []byte) (int, bfdRxInfo, error)
@@ -75,6 +77,8 @@ func newBfdListeners() []*bfdListener {
 	return []*bfdListener{
 		{network: "udp4"},
 		{network: "udp6"},
+		{network: "udp4", mhop: true},
+		{network: "udp6", mhop: true},
 	}
 }
 
@@ -97,6 +101,9 @@ type bfdServer struct {
 
 	listeners       []*bfdListener
 	listenInterface string
+	// multihopPort is the UDP port of the multihop listeners. Tests
+	// replace it.
+	multihopPort uint16
 
 	// peers and discrs index the same sessions, by peer address and by
 	// local discriminator. Both are protected by peersMutex.
@@ -132,7 +139,8 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 		discrs:              make(map[uint32]*bfdPeer),
 		randomDiscriminator: randomBFDMyDiscriminator,
 
-		listeners: newBfdListeners(),
+		listeners:    newBfdListeners(),
+		multihopPort: bfdMultihopPort,
 
 		eventStartStop:  time.NewTicker(time.Second),
 		eventConfig:     make(chan *oc.BfdConfig, 1),
@@ -173,10 +181,13 @@ func (s *bfdServer) Stop() {
 }
 
 func (s *bfdServer) AddPeer(ctx context.Context, peerAddress netip.Addr, config oc.BfdConfig, bindInterface string) error {
-	return s.addPeer(ctx, peerAddress, config, netip.Addr{}, bindInterface)
+	return s.addPeer(ctx, peerAddress, config, netip.Addr{}, bindInterface, 1)
 }
 
-func (s *bfdServer) addPeer(ctx context.Context, peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string) error {
+// addPeer adds a session. minTTL is the lowest TTL or Hop Limit a received
+// packet of a multihop session may have. It is not used for a single-hop
+// session.
+func (s *bfdServer) addPeer(ctx context.Context, peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string, minTTL int) error {
 	if s.stopped.Load() {
 		return errors.New("bfd server stopped")
 	}
@@ -187,7 +198,7 @@ func (s *bfdServer) addPeer(ctx context.Context, peerAddress netip.Addr, config 
 
 	done := make(chan struct{})
 	select {
-	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: true, peerAddress: peerAddress, config: config, localAddress: localAddress, bindInterface: bindInterface, done: done}:
+	case s.eventPeerUpdate <- &bfdEventPeerUpdate{isAdd: true, peerAddress: peerAddress, config: config, localAddress: localAddress, bindInterface: bindInterface, minTTL: minTTL, done: done}:
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-s.eventShutdown:
@@ -277,7 +288,7 @@ func (s *bfdServer) loop() {
 			s.config = ev
 		case ev := <-s.eventPeerUpdate:
 			if ev.isAdd {
-				s.addBfdPeer(ev.peerAddress, ev.config, ev.localAddress, ev.bindInterface)
+				s.addBfdPeer(ev.peerAddress, ev.config, ev.localAddress, ev.bindInterface, ev.minTTL)
 			} else {
 				s.deleteBfdPeer(ev.peerAddress)
 			}
@@ -312,7 +323,11 @@ func (s *bfdServer) start() bool {
 }
 
 func (s *bfdServer) startListener(l *bfdListener) bool {
-	addressString := ":" + strconv.FormatUint(uint64(s.config.Port), 10)
+	port := s.config.Port
+	if l.mhop {
+		port = s.multihopPort
+	}
+	addressString := ":" + strconv.FormatUint(uint64(port), 10)
 
 	var lc net.ListenConfig
 	lc.Control = func(network, address string, sc syscall.RawConn) error {
@@ -342,15 +357,16 @@ func (s *bfdServer) startListener(l *bfdListener) bool {
 	l.conn = conn
 	l.failed = false
 	if l.network == "udp4" {
-		l.read = s.ipv4Reader(conn)
+		l.read = s.ipv4Reader(conn, l.mhop)
 	} else {
-		l.read = s.ipv6Reader(conn)
+		l.read = s.ipv6Reader(conn, l.mhop)
 	}
 
 	s.logger.Info("BFD server is started",
 		slog.String("Topic", "bfd"),
 		slog.String("Network", l.network),
 		slog.String("Address", addressString),
+		slog.Bool("Multihop", l.mhop),
 	)
 
 	if s.serverStop == nil {
@@ -398,7 +414,7 @@ func (s *bfdServer) setControlMessage(network, what string, set func() error) bo
 	return true
 }
 
-func (s *bfdServer) ipv4Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, error) {
+func (s *bfdServer) ipv4Reader(conn *net.UDPConn, mhop bool) func([]byte) (int, bfdRxInfo, error) {
 	pc := ipv4.NewPacketConn(conn)
 	ttlOK := s.setControlMessage("udp4", "TTL", func() error {
 		return pc.SetControlMessage(ipv4.FlagTTL, true)
@@ -413,6 +429,7 @@ func (s *bfdServer) ipv4Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, 
 			return 0, bfdRxInfo{}, err
 		}
 		info := newBfdRxInfo(src)
+		info.mhop = mhop
 		if ttlOK {
 			// Every packet should carry the value. One without it
 			// gets 0, so the TTL check discards it.
@@ -429,7 +446,7 @@ func (s *bfdServer) ipv4Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, 
 	}
 }
 
-func (s *bfdServer) ipv6Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, error) {
+func (s *bfdServer) ipv6Reader(conn *net.UDPConn, mhop bool) func([]byte) (int, bfdRxInfo, error) {
 	pc := ipv6.NewPacketConn(conn)
 	ttlOK := s.setControlMessage("udp6", "Hop Limit", func() error {
 		return pc.SetControlMessage(ipv6.FlagHopLimit, true)
@@ -444,6 +461,7 @@ func (s *bfdServer) ipv6Reader(conn *net.UDPConn) func([]byte) (int, bfdRxInfo, 
 			return 0, bfdRxInfo{}, err
 		}
 		info := newBfdRxInfo(src)
+		info.mhop = mhop
 		if ttlOK {
 			// Every packet should carry the value. One without it
 			// gets 0, so the TTL check discards it.
@@ -502,13 +520,14 @@ func (s *bfdServer) stop() {
 	)
 }
 
-func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string) {
+func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string, minTTL int) {
 	s.peersMutex.RLock()
 	existing, ok := s.peers[peerAddress]
 	s.peersMutex.RUnlock()
 
 	if ok {
-		if existing.localAddress == localAddress && existing.bindInterface == bindInterface {
+		if existing.localAddress == localAddress && existing.bindInterface == bindInterface &&
+			existing.multihop == config.Multihop && existing.minTTL == minTTL {
 			s.logger.Debug("BFD peer already exist",
 				slog.String("Topic", "bfd"),
 				slog.String("Peer", peerAddress.String()),
@@ -516,12 +535,13 @@ func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, loca
 
 			return
 		}
-		// A changed source or interface replaces the session; retirement cancels
-		// its pending BFD-down operation so it cannot affect the replacement.
+		// A changed source, interface or session type replaces the session;
+		// retirement cancels its pending BFD-down operation so it cannot
+		// affect the replacement.
 		s.deleteBfdPeer(peerAddress)
 	}
 
-	bfdPeer := newBfdPeer(s.peerState, s.logger, peerAddress, config, localAddress, bindInterface, s.newDiscriminator())
+	bfdPeer := newBfdPeer(s.peerState, s.logger, peerAddress, config, localAddress, bindInterface, s.newDiscriminator(), minTTL)
 	if bfdPeer != nil {
 		s.logger.Info("Insert BFD peer",
 			slog.String("Topic", "bfd"),
@@ -685,12 +705,7 @@ func (s *bfdServer) rxPacket(info bfdRxInfo, packet *bfd.BFDHeader) {
 		return
 	}
 
-	// RFC 5881 Section 5: "All received BFD Control packets that are
-	// demultiplexed to the session MUST be discarded if the received TTL
-	// or Hop Limit is not equal to 255." GoBGP does not support BFD
-	// authentication, so this applies to every session. A socket that
-	// can't report the TTL gives -1, and the check is skipped.
-	if info.ttl != -1 && info.ttl != bfdTTL {
+	if !peer.validTTL(info.ttl) {
 		s.logger.Debug("Invalid TTL",
 			slog.String("Topic", "bfd"),
 			slog.String("Peer", peer.peerAddress.String()),
@@ -709,6 +724,23 @@ func (s *bfdServer) rxPacket(info bfdRxInfo, packet *bfd.BFDHeader) {
 	s.stats.rxPacket.Add(1)
 }
 
+// validTTL checks the TTL or Hop Limit of a received packet of the
+// session. A socket that can't report the TTL gives -1, and the check is
+// skipped.
+func (p *bfdPeer) validTTL(ttl int) bool {
+	if ttl == -1 {
+		return true
+	}
+	if p.multihop {
+		return ttl >= p.minTTL
+	}
+	// RFC 5881 Section 5: "All received BFD Control packets that are
+	// demultiplexed to the session MUST be discarded if the received TTL
+	// or Hop Limit is not equal to 255." GoBGP does not support BFD
+	// authentication, so this applies to every single-hop session.
+	return ttl == bfdTTL
+}
+
 // lookupPeer finds the session of a received packet as RFC 5880 Section
 // 6.8.6 describes:
 //
@@ -725,22 +757,37 @@ func (s *bfdServer) rxPacket(info bfdRxInfo, packet *bfd.BFDHeader) {
 // address. The destination address must also match the local address
 // when both are known. The session itself discards a zero Your
 // Discriminator in a state other than Down or AdminDown.
+//
+// In both cases, the session must be of the type of the port the packet
+// came in on. RFC 5881 Section 4 says "BFD Control packets MUST be
+// transmitted in UDP packets with destination port 3784", and RFC 5883
+// Section 5 says that for multihop "the UDP destination port MUST have a
+// value of 4784". Without this check, a packet sent to the multihop port
+// would skip the TTL 255 check of a single-hop session.
 func (s *bfdServer) lookupPeer(info bfdRxInfo, packet *bfd.BFDHeader) *bfdPeer {
 	s.peersMutex.RLock()
 	defer s.peersMutex.RUnlock()
 
+	var peer *bfdPeer
 	if packet.YourDiscriminator != 0 {
-		return s.discrs[packet.YourDiscriminator]
+		peer = s.discrs[packet.YourDiscriminator]
+	} else {
+		peer = s.peers[info.src.Addr()]
+		if peer != nil && !peer.localMatches(info.dst) {
+			peer = nil
+		}
 	}
-
-	peer, ok := s.peers[info.src.Addr()]
-	if !ok {
-		return nil
-	}
-	local := peer.localAddress.WithZone("").Unmap()
-	dst := info.dst.WithZone("").Unmap()
-	if local.IsValid() && !local.IsUnspecified() && dst.IsValid() && local != dst {
+	if peer == nil || peer.multihop != info.mhop {
 		return nil
 	}
 	return peer
+}
+
+// localMatches reports whether dst, the destination of a received packet,
+// can be the local address of the session. It can when either one is
+// unknown.
+func (p *bfdPeer) localMatches(dst netip.Addr) bool {
+	local := p.localAddress.WithZone("").Unmap()
+	dst = dst.WithZone("").Unmap()
+	return !local.IsValid() || local.IsUnspecified() || !dst.IsValid() || local == dst
 }
