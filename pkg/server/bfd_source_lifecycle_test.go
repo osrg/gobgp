@@ -346,6 +346,8 @@ func TestBFDFailureRetiresSession(t *testing.T) {
 	_, _ = establishBFDSourceTCP(t, s, false, "")
 	previous := bfdSourcePeer(s)
 	require.True(t, previous.Rx(&bfd.BFDHeader{State: bfd.StateDown, MyDiscriminator: 1, DetectTimeMultiplier: 1, DesiredMinTxInterval: 1000}))
+	// Bring the session Up: only an Up session that expires resets BGP.
+	rxOffer(t, previous, &bfd.BFDHeader{State: bfd.StateInit, MyDiscriminator: 1, YourDiscriminator: previous.myDiscriminator, DetectTimeMultiplier: 1, DesiredMinTxInterval: 1000})
 	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 	require.True(t, previous.stats.expired.Load() != 0)
 	// The session stays registered while BGP is down; a reconnect from a

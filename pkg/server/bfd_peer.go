@@ -677,7 +677,15 @@ func (p *bfdPeer) expiry() {
 
 	p.stats.expired.Add(1)
 
-	p.bfdDown()
+	// Only an Up session that expires is a path failure. A session that
+	// expires in Init never came up. RFC 5882 Section 3.3 says: "The BFD
+	// state machine transitions that occur in the process of bringing up a
+	// BFD session in such situations SHOULD NOT cause a connectivity failure
+	// notification to the clients." We read the expiry in Init as such a
+	// transition. FRR and BIRD also reset BGP only on Up to Down.
+	if p.sessionState() == api.BfdSessionState_BFD_SESSION_STATE_UP {
+		p.bfdDown()
+	}
 	// RFC 5880 Section 6.8.4: "the local system MUST set bfd.SessionState to
 	// Down and bfd.LocalDiag to 1 (Control Detection Time Expired)."
 	p.setStateDown(bfd.DiagnosticControlDetectionTimeExpired)

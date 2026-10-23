@@ -59,8 +59,8 @@ Supported behavior:
   interval or a shorter receive interval takes effect when the Poll Sequence
   for it ends. A change of another BFD setting, such as `port` or `multihop`,
   still replaces the session;
-- hard BGP peer reset when the BFD session expires or the remote peer signals
-  `DOWN`;
+- hard BGP peer reset when an `UP` BFD session expires or the remote peer
+  signals `DOWN`;
 - one `ADMIN_DOWN` packet, with diagnostic `7` (Administratively Down), sent
   when a session the peer knows about is removed, for example when BFD is
   disabled on the neighbor or the neighbor is deleted (RFC 5880 Section
