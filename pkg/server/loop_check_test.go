@@ -257,6 +257,26 @@ func TestExternalPeerReflectionAttrsDiscarded(t *testing.T) {
 			require.NoError(t, err)
 			nexthop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(externalAddr))
 			require.NoError(t, err)
+
+			// A pre-policy watcher reads the path in its own goroutine while
+			// the route is processed, so the path must not change after it
+			// is handed over. toConfig serializes the OPEN the peer sent.
+			open, err := bgp.NewBGPOpenMessage(65001, 90, netip.MustParseAddr(externalAddr), nil)
+			require.NoError(t, err)
+			external.fsm.recvOpen = open
+			w, err := s.watch(WatchUpdate(false, "", ""))
+			require.NoError(t, err)
+			t.Cleanup(w.Stop)
+			preAttrs := make(chan []bgp.PathAttributeInterface, 1)
+			go func() {
+				for ev := range w.Event() {
+					if u, ok := ev.(*watchEventUpdate); ok && len(u.PathList) > 0 {
+						preAttrs <- u.PathList[0].GetPathAttrs()
+						return
+					}
+				}
+			}()
+
 			s.handleFSMMessage(external, &fsmMsg{
 				MsgType: fsmMsgBGPMessage,
 				MsgData: bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{
@@ -275,6 +295,23 @@ func TestExternalPeerReflectionAttrsDiscarded(t *testing.T) {
 				require.Len(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC}), 1)
 				return nil
 			}, true))
+
+			// The attribute is discarded on receipt, so neither the
+			// Adj-RIB-In nor the pre-policy watcher has it.
+			adjIn := external.adjRibIn.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false)
+			require.Len(t, adjIn, 1)
+			typ := tc.attr(t).GetType()
+			for _, a := range adjIn[0].GetPathAttrs() {
+				assert.NotEqual(t, typ, a.GetType())
+			}
+			select {
+			case attrs := <-preAttrs:
+				for _, a := range attrs {
+					assert.NotEqual(t, typ, a.GetType())
+				}
+			case <-time.After(time.Second):
+				t.Fatal("the pre-policy watcher got no update")
+			}
 
 			select {
 			case o := <-client.fsm.outgoingCh.Out():

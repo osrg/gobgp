@@ -2699,3 +2699,48 @@ func TestTableManagerSelectionOptionsAreNotShared(t *testing.T) {
 	assert.True(t, multipath.UseMultiplePathsEnabled())
 	assert.False(t, byAge.UseMultiplePathsEnabled())
 }
+
+func TestProcessMessageExternalPeerAttrsDiscarded(t *testing.T) {
+	n1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	n2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.1.0/24"))
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	originatorID, _ := bgp.NewPathAttributeOriginatorId(netip.MustParseAddr("192.0.2.2"))
+	clusterList, _ := bgp.NewPathAttributeClusterList([]netip.Addr{netip.MustParseAddr("192.0.2.3")})
+	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001}),
+		}),
+		nexthop,
+		bgp.NewPathAttributeLocalPref(200),
+		originatorID,
+		clusterList,
+	}, []bgp.PathNLRI{{NLRI: n1}, {NLRI: n2}})
+
+	types := []bgp.BGPAttrType{bgp.BGP_ATTR_TYPE_LOCAL_PREF, bgp.BGP_ATTR_TYPE_ORIGINATOR_ID, bgp.BGP_ATTR_TYPE_CLUSTER_LIST}
+	for _, tc := range []struct {
+		name    string
+		info    *PeerInfo
+		discard bool
+	}{
+		{name: "external", info: &PeerInfo{PeerType: oc.PEER_TYPE_EXTERNAL, AS: 65001, LocalAS: 65000}, discard: true},
+		{name: "internal", info: &PeerInfo{PeerType: oc.PEER_TYPE_INTERNAL, AS: 65000, LocalAS: 65000}},
+		{name: "route server client", info: &PeerInfo{PeerType: oc.PEER_TYPE_EXTERNAL, AS: 65001, LocalAS: 65000, RouteServerClient: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			paths := ProcessMessage(msg, tc.info, time.Now(), false)
+			assert.Len(t, paths, 2)
+			for _, p := range paths {
+				for _, typ := range types {
+					assert.Equal(t, !tc.discard, p.getPathAttr(typ) != nil, "%s %s", p.GetPrefix(), typ)
+				}
+			}
+			// The paths share the attributes, so the hash shared by them
+			// has to be the one of what is left.
+			want := paths[0].GetHash()
+			paths[0].updateHash()
+			assert.Equal(t, want, paths[0].GetHash())
+			assert.Equal(t, want, paths[1].GetHash())
+		})
+	}
+}

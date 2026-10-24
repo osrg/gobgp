@@ -42,6 +42,24 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 		return []*Path{NewEOR(f)}
 	}
 
+	// The attributes that an external peer must not send are removed here,
+	// once for the update, before the paths share them. A route server
+	// client is left alone.
+	//
+	// RFC 4271 5.1.5: "If it is contained in an UPDATE message that is
+	// received from an external peer, then this attribute MUST be ignored
+	// by the receiving speaker, except in the case of BGP Confederations
+	// [RFC3065]."
+	//
+	// RFC 7606 7.9: "if the ORIGINATOR_ID attribute is received from an
+	// external neighbor, it SHALL be discarded using the approach of
+	// "attribute discard"". 7.10 says the same for CLUSTER_LIST. We would
+	// otherwise act on them when reflecting the route.
+	//
+	// TODO: a confederation peer has PeerType external, so LOCAL_PREF from
+	// it is removed too.
+	external := peerInfo != nil && peerInfo.PeerType == oc.PEER_TYPE_EXTERNAL && !peerInfo.RouteServerClient
+
 	// The next hops are kept out of the path attributes, so all the paths
 	// of the update share one attribute list and one hash.
 	attrs := make([]bgp.PathAttributeInterface, 0, len(update.PathAttributes))
@@ -56,6 +74,10 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 			reach = a
 		case *bgp.PathAttributeMpUnreachNLRI:
 			unreach = a
+		case *bgp.PathAttributeLocalPref, *bgp.PathAttributeOriginatorId, *bgp.PathAttributeClusterList:
+			if !external {
+				attrs = append(attrs, attr)
+			}
 		default:
 			attrs = append(attrs, attr)
 		}
