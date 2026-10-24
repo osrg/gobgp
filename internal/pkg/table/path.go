@@ -340,6 +340,13 @@ func updateLinkLocalNexthop(info *PeerInfo, path *Path) {
 	path.SetNexthop(globalNexthop)
 }
 
+// aigpSession reports whether AIGP is enabled on the session with the peer,
+// which is the RFC 7311 default: every session but a non-confederation eBGP
+// one. A local path has no session and keeps the attribute.
+func aigpSession(info *PeerInfo) bool {
+	return info.PeerType != oc.PEER_TYPE_EXTERNAL || info.Confederation
+}
+
 func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, original *Path) *Path {
 	if info.RouteServerClient {
 		return original
@@ -356,6 +363,14 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 			case bgp.BGP_ATTR_TYPE_CLUSTER_LIST, bgp.BGP_ATTR_TYPE_ORIGINATOR_ID:
 				if info.PeerType != oc.PEER_TYPE_INTERNAL || !info.RouteReflectorClient {
 					// send these attributes to only rr clients
+					path.delPathAttr(a.GetType())
+				}
+			case bgp.BGP_ATTR_TYPE_AIGP:
+				// RFC 7311 3.3: AIGP is disabled on an eBGP session that is
+				// not a confederation one, and we have no knob to enable it.
+				// It is not sent on such a session, and one received on it is
+				// an unrecognized non-transitive attribute, not passed along.
+				if !aigpSession(info) || !aigpSession(path.GetSource()) {
 					path.delPathAttr(a.GetType())
 				}
 			}
