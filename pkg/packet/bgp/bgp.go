@@ -17206,7 +17206,14 @@ func (msg *BGPUpdate) IsEndOfRib() (bool, Family) {
 			return true, RF_IPv4_UC
 		} else if len(msg.PathAttributes) == 1 && msg.PathAttributes[0].GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
 			unreach := msg.PathAttributes[0].(*PathAttributeMpUnreachNLRI)
-			if len(unreach.Value) == 0 {
+			// RFC 4724 Section 2: "For any other address family, it
+			// is an UPDATE message that contains only the
+			// MP_UNREACH_NLRI attribute [BGP-MP] with no withdrawn
+			// routes for that <AFI, SAFI>." Check the attribute
+			// length too. The decoder drops an NLRI of an unknown
+			// route type, so Value can be empty when the attribute
+			// carried withdrawn routes.
+			if len(unreach.Value) == 0 && unreach.Length <= 3 {
 				return true, NewFamily(unreach.AFI, unreach.SAFI)
 			}
 		}

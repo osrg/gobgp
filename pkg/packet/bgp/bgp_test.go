@@ -2145,6 +2145,35 @@ func Test_MpUnreachNLRIWithIPv6(t *testing.T) {
 	assert.Equal(value, p.Value)
 }
 
+func Test_IsEndOfRibMpUnreach(t *testing.T) {
+	eor := NewEndOfRib(RF_EVPN).Body.(*BGPUpdate)
+	ok, family := eor.IsEndOfRib()
+	assert.True(t, ok)
+	assert.Equal(t, RF_EVPN, family)
+
+	literal := NewBGPUpdateMessage(nil, []PathAttributeInterface{
+		&PathAttributeMpUnreachNLRI{
+			PathAttribute: PathAttribute{Type: BGP_ATTR_TYPE_MP_UNREACH_NLRI},
+			AFI:           AFI_L2VPN,
+			SAFI:          SAFI_EVPN,
+		},
+	}, nil).Body.(*BGPUpdate)
+	ok, family = literal.IsEndOfRib()
+	assert.True(t, ok)
+	assert.Equal(t, RF_EVPN, family)
+
+	// The attribute carried withdrawn routes that the decoder dropped.
+	dropped := NewBGPUpdateMessage(nil, []PathAttributeInterface{
+		&PathAttributeMpUnreachNLRI{
+			PathAttribute: PathAttribute{Type: BGP_ATTR_TYPE_MP_UNREACH_NLRI, Length: 3 + 12},
+			AFI:           AFI_L2VPN,
+			SAFI:          SAFI_EVPN,
+		},
+	}, nil).Body.(*BGPUpdate)
+	ok, _ = dropped.IsEndOfRib()
+	assert.False(t, ok)
+}
+
 func Test_MpReachNLRIWithIPv6PrefixWithLinkLocalNexthop(t *testing.T) {
 	assert := assert.New(t)
 	bufin := []byte{
