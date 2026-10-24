@@ -4639,7 +4639,8 @@ func (s *BgpServer) setAdminState(addr, communication string, state adminState) 
 			case peer.fsm.adminStateCh <- *stateOp:
 				peer.fsm.logger.Debug("set admin state", slog.String("Message", message))
 			default:
-				peer.fsm.logger.Warn("previous setting admin state request is still remaining")
+				peer.fsm.logger.Warn("too many admin state requests are queued")
+				err = fmt.Errorf("too many admin state requests are queued for peer %s", peer.ID())
 			}
 		}
 		switch state {
@@ -4651,7 +4652,7 @@ func (s *BgpServer) setAdminState(addr, communication string, state adminState) 
 			f(&adminStateOperation{adminStatePfxCt, nil}, "adminStatePfxCt requested")
 		}
 	}
-	return nil
+	return err
 }
 
 func (s *BgpServer) EnablePeer(ctx context.Context, r *api.EnablePeerRequest) error {

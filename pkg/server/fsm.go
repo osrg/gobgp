@@ -229,6 +229,12 @@ func (s adminState) String() string {
 	}
 }
 
+// adminStateChLen is the number of admin state requests that can wait for
+// the FSM. The FSM does not read adminStateCh while it changes state, so
+// requests sent back to back, such as DisablePeer, EnablePeer and
+// DisablePeer, must wait in the channel.
+const adminStateChLen = 16
+
 type adminStateOperation struct {
 	State         adminState
 	Communication []byte
@@ -743,7 +749,7 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 		connCh:                   make(chan net.Conn, 1),
 		opensentHoldTime:         float64(holdtimeOpensent),
 		idleHoldBackoff:          idleHoldTimeInitial,
-		adminStateCh:             make(chan adminStateOperation, 1),
+		adminStateCh:             make(chan adminStateOperation, adminStateChLen),
 		capMap:                   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
 		gracefulRestartTimer:     time.NewTimer(time.Hour),
 		notification:             make(chan *bgp.BGPMessage, 1),

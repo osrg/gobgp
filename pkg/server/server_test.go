@@ -6932,3 +6932,60 @@ func TestPostFilterpathExtendedNexthop(t *testing.T) {
 		})
 	}
 }
+
+// DisablePeer, EnablePeer and DisablePeer sent back to back must all reach
+// the FSM, and the last one wins. The FSM does not read adminStateCh while
+// it changes state, and the channel had room for one request, so the second
+// DisablePeer was dropped and the peer was left enabled.
+// https://github.com/osrg/gobgp/issues/3789
+func TestAdminStateRequestsBackToBack(t *testing.T) {
+	const (
+		asn      = 65000
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	establishSession(t, s, peer, asn, peerAddr)
+	ctx := context.Background()
+
+	require.NoError(t, s.DisablePeer(ctx, &api.DisablePeerRequest{Address: peerAddr}))
+	require.NoError(t, s.EnablePeer(ctx, &api.EnablePeerRequest{Address: peerAddr}))
+	require.NoError(t, s.DisablePeer(ctx, &api.DisablePeerRequest{Address: peerAddr}))
+
+	require.Eventually(t, func() bool {
+		return len(peer.fsm.adminStateCh) == 0 && peer.AdminState() == adminStateDown
+	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// When adminStateCh is full, setAdminState returns an error instead of
+// dropping the request silently.
+func TestAdminStateRequestQueueFull(t *testing.T) {
+	const (
+		asn      = 65000
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	establishSession(t, s, peer, asn, peerAddr)
+
+	// The FSM takes the first request, goes to Idle and then waits for
+	// the server lock, which the management operation holds. So it reads
+	// at most one request while the operation runs.
+	var errs []error
+	err := s.mgmtOperation(func() error {
+		errs = append(errs, s.setAdminState(peerAddr, "", adminStateDown))
+		for range adminStateChLen + 1 {
+			errs = append(errs, s.setAdminState(peerAddr, "", adminStateUp))
+		}
+		return nil
+	}, true)
+	require.NoError(t, err)
+
+	require.NoError(t, errs[0])
+	require.ErrorContains(t, errs[len(errs)-1], "too many admin state requests")
+
+	// The queued requests are applied in order and the last one wins.
+	require.Eventually(t, func() bool {
+		return len(peer.fsm.adminStateCh) == 0 && peer.AdminState() == adminStateUp
+	}, 10*time.Second, 10*time.Millisecond)
+}
