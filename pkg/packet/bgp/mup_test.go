@@ -119,6 +119,35 @@ func Test_MUPInterworkSegmentDiscoveryRouteIPv6(t *testing.T) {
 	assert.Equal(n1, n2)
 }
 
+func Test_MUPUnknownRouteTypeIsDiscarded(t *testing.T) {
+	rd, err := ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	known, err := NewMUPInterworkSegmentDiscoveryRoute(rd, netip.MustParsePrefix("10.10.10.0/24")).Serialize()
+	require.NoError(t, err)
+	// architecture type 2, route type 1
+	unknownArch := append([]byte{2, 0, 1, 10}, make([]byte, 10)...)
+	// architecture type 1, route type 5
+	unknownRoute := append([]byte{MUP_ARCH_TYPE_3GPP_5G, 0, 5, 10}, make([]byte, 10)...)
+
+	value := []byte{0x00, 0x01, SAFI_MUP, 4, 10, 0, 0, 1, 0} // afi, safi, next hop, reserved
+	value = append(value, unknownArch...)
+	value = append(value, known...)
+	value = append(value, unknownRoute...)
+	reach := &PathAttributeMpReachNLRI{}
+	require.NoError(t, reach.DecodeFromBytes(testMpAttr(BGP_ATTR_TYPE_MP_REACH_NLRI, value)))
+	require.Len(t, reach.Value, 1)
+	b, err := reach.Value[0].NLRI.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, known, b)
+
+	value = []byte{0x00, 0x01, SAFI_MUP} // afi, safi
+	value = append(value, unknownArch...)
+	value = append(value, unknownRoute...)
+	unreach := &PathAttributeMpUnreachNLRI{}
+	require.NoError(t, unreach.DecodeFromBytes(testMpAttr(BGP_ATTR_TYPE_MP_UNREACH_NLRI, value)))
+	assert.Empty(t, unreach.Value)
+}
+
 func Test_MUPDirectSegmentDiscoveryRouteIPv4(t *testing.T) {
 	assert := assert.New(t)
 	rd, _ := ParseRouteDistinguisher("100:100")

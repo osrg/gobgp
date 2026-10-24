@@ -265,7 +265,10 @@ func (n *MUPNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) er
 	}
 	r, err := getMUPRouteType(n.ArchitectureType, n.RouteType)
 	if err != nil {
-		return err
+		// draft-ietf-bess-mup-safi-01 Section 3.1: "Any other Route
+		// Types MUST be silently ignored upon a receipt if a BGP
+		// speaker supports only 3gpp-5G architecture type."
+		return &unknownRouteTypeError{msg: err.Error(), len: 4 + int(n.Length)}
 	}
 	n.RouteTypeData = r
 	return n.RouteTypeData.DecodeFromBytes(data[:n.Length], n.Afi)
