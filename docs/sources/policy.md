@@ -353,9 +353,14 @@ a condition.
 
 **neighbor-info-list** has 1 element.
 
-| Element | Description      | Example      | Optional |
-| ------- | ---------------- | ------------ | -------- |
-| address | neighbor address | "10.0.255.1" |          |
+| Element | Description                | Example      | Optional |
+| ------- | -------------------------- | ------------ | -------- |
+| address | neighbor address or prefix | "10.0.255.1" |          |
+
+An IPv6 link-local entry can have a zone, such as "fe80::1%eth0" or
+"fe80::1%eth0/128". The zone is the interface name. An entry with a zone
+matches only a neighbor on that interface. An entry without a zone matches
+a neighbor on any interface.
 
 ##### Examples
 

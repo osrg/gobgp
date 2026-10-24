@@ -293,6 +293,11 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 	args = args[1:]
 	list := make([]string, 0, len(args))
 	for _, arg := range args {
+		// The server checks an entry with a zone, such as fe80::1%eth0.
+		if strings.Contains(arg, "%") {
+			list = append(list, arg)
+			continue
+		}
 		address := net.ParseIP(arg)
 		if address.To4() != nil {
 			list = append(list, fmt.Sprintf("%s/32", arg))

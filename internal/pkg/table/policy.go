@@ -622,9 +622,66 @@ func NewNextHopSet(c []string) (*NextHopSet, error) {
 	}, nil
 }
 
+// neighborEntry is one entry of a neighbor set. zone is the interface of a
+// link-local entry. An entry without a zone matches a neighbor on any
+// interface.
+type neighborEntry struct {
+	prefix net.IPNet
+	zone   string
+}
+
+func (e neighborEntry) String() string {
+	if e.zone == "" {
+		return e.prefix.String()
+	}
+	ones, _ := e.prefix.Mask.Size()
+	return fmt.Sprintf("%s%%%s/%d", e.prefix.IP, e.zone, ones)
+}
+
+// parseNeighborEntry parses an address or a prefix, with an optional zone
+// for a link-local entry: "fe80::1%eth0" or "fe80::1%eth0/128".
+func parseNeighborEntry(s string) (neighborEntry, error) {
+	str := s
+	zone := ""
+	if addr, rest, ok := strings.Cut(s, "%"); ok {
+		z, plen, hasLen := strings.Cut(rest, "/")
+		if z == "" || strings.Contains(addr, "/") {
+			return neighborEntry{}, fmt.Errorf("invalid address or prefix: %s", s)
+		}
+		zone = z
+		str = addr
+		if hasLen {
+			str = addr + "/" + plen
+		}
+	}
+	_, cidr, err := net.ParseCIDR(str)
+	if err != nil {
+		addr := net.ParseIP(str)
+		if addr == nil {
+			return neighborEntry{}, fmt.Errorf("invalid address or prefix: %s", s)
+		}
+		mask := net.CIDRMask(32, 32)
+		if addr.To4() == nil {
+			mask = net.CIDRMask(128, 128)
+		}
+		cidr = &net.IPNet{
+			IP:   addr,
+			Mask: mask,
+		}
+	}
+	if zone != "" {
+		// A neighbor address has a zone only when it is link-local.
+		ones, _ := cidr.Mask.Size()
+		if cidr.IP.To4() != nil || ones < 10 || !cidr.IP.IsLinkLocalUnicast() {
+			return neighborEntry{}, fmt.Errorf("zone on a non link-local prefix: %s", s)
+		}
+	}
+	return neighborEntry{prefix: *cidr, zone: zone}, nil
+}
+
 type NeighborSet struct {
 	name string
-	list []net.IPNet
+	list []neighborEntry
 }
 
 func (s *NeighborSet) Name() string {
@@ -649,7 +706,7 @@ func (lhs *NeighborSet) Remove(arg DefinedSet) error {
 	if !ok {
 		return fmt.Errorf("type cast failed")
 	}
-	ps := make([]net.IPNet, 0, len(lhs.list))
+	ps := make([]neighborEntry, 0, len(lhs.list))
 	for _, x := range lhs.list {
 		found := false
 		for _, y := range rhs.list {
@@ -698,10 +755,18 @@ func (s *NeighborSet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.ToConfig())
 }
 
-func NewNeighborSetFromApiStruct(name string, list []net.IPNet) (*NeighborSet, error) {
+func NewNeighborSetFromApiStruct(name string, list []string) (*NeighborSet, error) {
+	l := make([]neighborEntry, 0, len(list))
+	for _, x := range list {
+		e, err := parseNeighborEntry(x)
+		if err != nil {
+			return nil, err
+		}
+		l = append(l, e)
+	}
 	return &NeighborSet{
 		name: name,
-		list: list,
+		list: l,
 	}, nil
 }
 
@@ -713,24 +778,13 @@ func NewNeighborSet(c oc.NeighborSet) (*NeighborSet, error) {
 		}
 		return nil, fmt.Errorf("empty neighbor set name")
 	}
-	list := make([]net.IPNet, 0, len(c.NeighborInfoList))
+	list := make([]neighborEntry, 0, len(c.NeighborInfoList))
 	for _, x := range c.NeighborInfoList {
-		_, cidr, err := net.ParseCIDR(x)
+		e, err := parseNeighborEntry(x)
 		if err != nil {
-			addr := net.ParseIP(x)
-			if addr == nil {
-				return nil, fmt.Errorf("invalid address or prefix: %s", x)
-			}
-			mask := net.CIDRMask(32, 32)
-			if addr.To4() == nil {
-				mask = net.CIDRMask(128, 128)
-			}
-			cidr = &net.IPNet{
-				IP:   addr,
-				Mask: mask,
-			}
+			return nil, err
 		}
-		list = append(list, *cidr)
+		list = append(list, e)
 	}
 	return &NeighborSet{
 		name: name,
@@ -2133,7 +2187,10 @@ func (c *NeighborCondition) Evaluate(path *Path, options *PolicyOptions) bool {
 	}
 	result := false
 	for _, n := range c.set.list {
-		if n.Contains(neighbor.AsSlice()) {
+		if n.zone != "" && n.zone != neighbor.Zone() {
+			continue
+		}
+		if n.prefix.Contains(neighbor.AsSlice()) {
 			result = true
 			break
 		}

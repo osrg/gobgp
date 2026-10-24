@@ -834,6 +834,23 @@ func TestNewPrefixFromApiStructRTC(t *testing.T) {
 	assert.True(t, p.Prefix.Contains(full.Prefix.Addr()))
 }
 
+func TestNewNeighborSetFromApiStructZone(t *testing.T) {
+	ds, err := newDefinedSetFromApiStruct(&api.DefinedSet{
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
+		Name:        "ns1",
+		List:        []string{"10.0.0.1/32", "fe80::1%eth0", "fe80::2%eth1/128"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"10.0.0.1/32", "fe80::1%eth0/128", "fe80::2%eth1/128"}, ds.List())
+
+	_, err = newDefinedSetFromApiStruct(&api.DefinedSet{
+		DefinedType: api.DefinedType_DEFINED_TYPE_NEIGHBOR,
+		Name:        "ns1",
+		List:        []string{"2001:db8::1%eth0"},
+	})
+	assert.Error(t, err)
+}
+
 // A peer event for a session that has not come up carries no router ID. The
 // field must be an empty string, not the zero netip.Addr's "invalid IP" text.
 func TestGRPCWatchEventPeerUnsetAddresses(t *testing.T) {

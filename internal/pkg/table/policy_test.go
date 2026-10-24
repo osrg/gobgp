@@ -4060,6 +4060,79 @@ func createAs4Value(s string) uint32 {
 	return uint32(upper<<16 | lower)
 }
 
+func TestNeighborSetZone(t *testing.T) {
+	for _, tt := range []struct {
+		in   string
+		want string
+	}{
+		{"10.0.0.1", "10.0.0.1/32"},
+		{"10.0.0.1/24", "10.0.0.0/24"},
+		{"fe80::1", "fe80::1/128"},
+		{"fe80::1%eth0", "fe80::1%eth0/128"},
+		{"fe80::1%eth0/128", "fe80::1%eth0/128"},
+		{"fe80::%eth0/10", "fe80::%eth0/10"},
+		{"fe80::1%eth0/64", "fe80::%eth0/64"},
+	} {
+		ns, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: []string{tt.in}})
+		require.NoError(t, err, tt.in)
+		assert.Equal(t, []string{tt.want}, ns.List(), tt.in)
+
+		// The output is accepted again and gives the same entry.
+		ns2, err := NewNeighborSetFromApiStruct("ns", ns.List())
+		require.NoError(t, err, tt.in)
+		assert.Equal(t, ns.List(), ns2.List(), tt.in)
+	}
+
+	for _, in := range []string{
+		"fe80::1%",
+		"fe80::1%/128",
+		"fe80::1/128%eth0",
+		"10.0.0.1%eth0",
+		"2001:db8::1%eth0",
+		"fe80::%eth0/8",
+		"::ffff:169.254.0.1%eth0",
+	} {
+		_, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: []string{in}})
+		assert.Error(t, err, in)
+		_, err = NewNeighborSetFromApiStruct("ns", []string{in})
+		assert.Error(t, err, in)
+	}
+
+	// Removing an entry without a zone keeps the entry with a zone.
+	ns, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: []string{"fe80::1", "fe80::1%eth0"}})
+	require.NoError(t, err)
+	del, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: []string{"fe80::1"}})
+	require.NoError(t, err)
+	require.NoError(t, ns.Remove(del))
+	assert.Equal(t, []string{"fe80::1%eth0/128"}, ns.List())
+}
+
+func TestNeighborConditionZone(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	match := func(entries []string, option MatchOption, neighbor string) bool {
+		ns, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: entries})
+		require.NoError(t, err)
+		cond := &NeighborCondition{set: ns, option: option}
+		src := &PeerInfo{Address: netip.MustParseAddr(neighbor)}
+		path := NewPath(bgp.RF_IPv4_UC, src, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+		return cond.Evaluate(path, &PolicyOptions{Info: src})
+	}
+
+	// An entry with a zone matches only the neighbor on that interface.
+	assert.True(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_ANY, "fe80::1%eth0"))
+	assert.False(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_ANY, "fe80::1%eth1"))
+	assert.False(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_ANY, "fe80::1"))
+	assert.True(t, match([]string{"fe80::%eth0/10"}, MATCH_OPTION_ANY, "fe80::2%eth0"))
+	assert.False(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_INVERT, "fe80::1%eth0"))
+	assert.True(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_INVERT, "fe80::1%eth1"))
+
+	// An entry without a zone matches the neighbor on any interface.
+	assert.True(t, match([]string{"fe80::1"}, MATCH_OPTION_ANY, "fe80::1%eth0"))
+	assert.True(t, match([]string{"fe80::1"}, MATCH_OPTION_ANY, "fe80::1%eth1"))
+	assert.True(t, match([]string{"fe80::1"}, MATCH_OPTION_ANY, "fe80::1"))
+}
+
 func TestPrefixSetOperation(t *testing.T) {
 	// tryp to create prefixset with multiple families
 	p1 := oc.Prefix{
