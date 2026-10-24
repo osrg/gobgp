@@ -353,6 +353,13 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 	}
 	path := original.Clone(original.IsWithdraw)
 
+	// RFC 4456 6: a route from a client is reflected to the non-client
+	// peers as well as to the clients, and Section 8 sets ORIGINATOR_ID
+	// and CLUSTER_LIST on every reflected route.
+	src := path.GetSource()
+	fromClient := src.PeerType == oc.PEER_TYPE_INTERNAL && src.RouteReflectorClient
+	reflected := info.PeerType == oc.PEER_TYPE_INTERNAL && (info.RouteReflectorClient || fromClient)
+
 	for _, a := range path.GetPathAttrs() {
 		if _, y := bgp.PathAttrFlags[a.GetType()]; !y {
 			if a.GetFlags()&bgp.BGP_ATTR_FLAG_TRANSITIVE == 0 {
@@ -361,8 +368,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 		} else {
 			switch a.GetType() {
 			case bgp.BGP_ATTR_TYPE_CLUSTER_LIST, bgp.BGP_ATTR_TYPE_ORIGINATOR_ID:
-				if info.PeerType != oc.PEER_TYPE_INTERNAL || !info.RouteReflectorClient {
-					// send these attributes to only rr clients
+				if !reflected {
 					path.delPathAttr(a.GetType())
 				}
 			case bgp.BGP_ATTR_TYPE_AIGP:
@@ -426,8 +432,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 
 		// RFC4456: BGP Route Reflection
 		// 8. Avoiding Routing Information Loops
-		src := path.GetSource()
-		if info.RouteReflectorClient {
+		if reflected {
 			// This attribute will carry the BGP Identifier of the originator of the route in the local AS.
 			// A BGP speaker SHOULD NOT create an ORIGINATOR_ID attribute if one already exists.
 			//
@@ -437,7 +442,7 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 			// advertiser, and the Next-hop attribute shall be set of the local
 			// address for that session.
 			var attr *bgp.PathAttributeOriginatorId
-			if path.GetFamily() == bgp.RF_RTC_UC {
+			if path.GetFamily() == bgp.RF_RTC_UC && info.RouteReflectorClient {
 				path.setNexthopsShared(info.localAddressNexthops())
 				if path.IsLocal() {
 					attr, _ = bgp.NewPathAttributeOriginatorId(global.Config.RouterId)
@@ -459,6 +464,11 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
 			// TODO: needs to validated earlier.
 			clusterID := info.RouteReflectorClusterID
+			if !info.RouteReflectorClient {
+				// A non-client has no cluster. The route is reflected
+				// from the cluster of the client it was learned from.
+				clusterID = src.RouteReflectorClusterID
+			}
 			var pa *bgp.PathAttributeClusterList
 			if p := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); p == nil {
 				pa, _ = bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})

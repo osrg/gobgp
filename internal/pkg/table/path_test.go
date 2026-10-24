@@ -1013,3 +1013,63 @@ func TestUpdatePathAttrsAigp(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdatePathAttrsReflectToNonClient(t *testing.T) {
+	global := &oc.Global{Config: oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("10.0.0.1")}}
+	clusterID := netip.MustParseAddr("10.0.0.100")
+
+	client := &PeerInfo{
+		AS:                      65000,
+		LocalAS:                 65000,
+		PeerType:                oc.PEER_TYPE_INTERNAL,
+		ID:                      netip.MustParseAddr("10.0.0.2"),
+		Address:                 netip.MustParseAddr("10.0.0.2"),
+		RouteReflectorClient:    true,
+		RouteReflectorClusterID: clusterID,
+	}
+	nonClient := &PeerInfo{
+		AS:       65000,
+		LocalAS:  65000,
+		PeerType: oc.PEER_TYPE_INTERNAL,
+		ID:       netip.MustParseAddr("10.0.0.3"),
+		Address:  netip.MustParseAddr("10.0.0.3"),
+	}
+	external := &PeerInfo{
+		AS:       65100,
+		LocalAS:  65000,
+		PeerType: oc.PEER_TYPE_EXTERNAL,
+		ID:       netip.MustParseAddr("10.0.0.4"),
+		Address:  netip.MustParseAddr("10.0.0.4"),
+	}
+
+	newPath := func(source *PeerInfo, extra ...bgp.PathAttributeInterface) *Path {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+		nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+		attrs := append([]bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+			bgp.NewPathAttributeAsPath(nil),
+			nexthop,
+		}, extra...)
+		return NewPath(bgp.RF_IPv4_UC, source, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+
+	t.Run("from a client", func(t *testing.T) {
+		updated := UpdatePathAttrs(logger, global, nonClient, newPath(client))
+		assert.Equal(t, client.ID, updated.GetOriginatorID())
+		assert.Equal(t, []netip.Addr{clusterID}, updated.GetClusterList())
+	})
+
+	t.Run("from a client that reflected it", func(t *testing.T) {
+		originator, _ := bgp.NewPathAttributeOriginatorId(netip.MustParseAddr("10.0.0.5"))
+		list, _ := bgp.NewPathAttributeClusterList([]netip.Addr{netip.MustParseAddr("10.0.0.200")})
+		updated := UpdatePathAttrs(logger, global, nonClient, newPath(client, originator, list))
+		assert.Equal(t, netip.MustParseAddr("10.0.0.5"), updated.GetOriginatorID())
+		assert.Equal(t, []netip.Addr{clusterID, netip.MustParseAddr("10.0.0.200")}, updated.GetClusterList())
+	})
+
+	t.Run("from an external peer", func(t *testing.T) {
+		updated := UpdatePathAttrs(logger, global, nonClient, newPath(external))
+		assert.False(t, updated.GetOriginatorID().IsValid())
+		assert.Empty(t, updated.GetClusterList())
+	})
+}
