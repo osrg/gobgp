@@ -4050,14 +4050,14 @@ func (s *BgpServer) updateBfdPeer(
 		return fmt.Errorf("failed to parse IP address: %v", err)
 	}
 
-	if oldConfig.Enabled {
-		if err := s.bfdServer.DeletePeer(context.Background(), ipAddr); err != nil {
-			return err
-		}
+	// addPeer keeps a running session when only its timers change and replaces
+	// it otherwise, so the session is deleted here only when none follows.
+	if newConfig.Enabled && localAddress.IsValid() && !localAddress.IsUnspecified() {
+		return s.bfdServer.addPeer(context.Background(), ipAddr, newConfig, localAddress, newBindInterface, minTTL)
 	}
 
-	if newConfig.Enabled && localAddress.IsValid() && !localAddress.IsUnspecified() {
-		if err := s.bfdServer.addPeer(context.Background(), ipAddr, newConfig, localAddress, newBindInterface, minTTL); err != nil {
+	if oldConfig.Enabled {
+		if err := s.bfdServer.DeletePeer(context.Background(), ipAddr); err != nil {
 			return err
 		}
 	}

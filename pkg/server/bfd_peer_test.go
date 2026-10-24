@@ -516,6 +516,170 @@ func Test_RxPacketFinalThenUpOrdering(t *testing.T) {
 	assert.True(p.pollSequence)
 }
 
+// Test_ApplyConfigUpHoldsUntilFinal pins RFC 5880 Section 6.8.3 for a timer change
+// while Up: the session stays Up, the change initiates a Poll Sequence, an increased
+// bfd.DesiredMinTxInterval keeps the previous transmit interval, and a reduced
+// bfd.RequiredMinRxInterval keeps the previous Detection Time, until the Final.
+func Test_ApplyConfigUpHoldsUntilFinal(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   100000,
+		DesiredMinimumTxInterval: 100000,
+	}, "")
+	defer p.Stop()
+
+	// An Up session with no Poll Sequence in flight. The large Detect Mult keeps
+	// the expiry timer from firing during the test.
+	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
+	p.yourDiscriminator = 12345
+	p.desiredMinTx = 100 * time.Millisecond
+	up := &bfd.BFDHeader{
+		State:                bfd.StateUp,
+		MyDiscriminator:      12345,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 50,
+		DesiredMinTxInterval: 50000,
+	}
+	p.rxPacket(up)
+	assert.Equal(5*time.Second, p.expiryInterval)
+
+	p.applyConfig(oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   50000,
+		DesiredMinimumTxInterval: 300000,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_UP, p.sessionState())
+	assert.True(p.pollSequence)
+	assert.Equal(300*time.Millisecond, p.desiredMinTx)
+	assert.Equal(50*time.Millisecond, p.rxInterval)
+	assert.Equal(100*time.Millisecond, p.effectiveTxInterval())
+	assert.Equal(5*time.Second, p.expiryInterval)
+
+	final := *up
+	final.Final = true
+	p.rxPacket(&final)
+	assert.False(p.pollSequence)
+	assert.Equal(300*time.Millisecond, p.effectiveTxInterval())
+	assert.Equal(2500*time.Millisecond, p.expiryInterval)
+}
+
+// Test_ApplyConfigRxChangeStartsPollSequence pins RFC 5880 Section 6.8.3: "If either
+// bfd.DesiredMinTxInterval is changed or bfd.RequiredMinRxInterval is changed, a Poll
+// Sequence MUST be initiated." An increase of bfd.RequiredMinRxInterval while Up holds
+// nothing: the remote slows down only after it has seen the Poll.
+func Test_ApplyConfigRxChangeStartsPollSequence(t *testing.T) {
+	assert := assert.New(t)
+
+	config := oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   100000,
+		DesiredMinimumTxInterval: 100000,
+	}
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), config, "")
+	defer p.Stop()
+
+	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
+	p.yourDiscriminator = 12345
+	p.desiredMinTx = 100 * time.Millisecond
+
+	config.RequiredMinimumReceive = 300000
+	p.applyConfig(config)
+	assert.True(p.pollSequence)
+	assert.Equal(300*time.Millisecond, p.rxInterval)
+	assert.Equal(100*time.Millisecond, p.desiredMinTx)
+	assert.Zero(p.heldTxInterval)
+	assert.Zero(p.heldRxInterval)
+}
+
+// Test_ApplyNextConfigWaitsForPollSequence pins RFC 5880 Section 6.8.3's rule for
+// several changes that need a Poll Sequence: a configuration waits for the sequence
+// in flight to end, and then for a packet with the Final bit clear, before it
+// applies. A change of only the detection multiplier needs no sequence of its own.
+func Test_ApplyNextConfigWaitsForPollSequence(t *testing.T) {
+	assert := assert.New(t)
+
+	config := oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   100000,
+		DesiredMinimumTxInterval: 100000,
+	}
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), config, "")
+	defer p.Stop()
+
+	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
+	p.yourDiscriminator = 12345
+	p.desiredMinTx = 100 * time.Millisecond
+	p.pollSequence = true
+
+	config.DetectionMultiplier = 5
+	p.nextConfig.Store(&config)
+
+	p.applyNextConfig()
+	assert.Equal(uint8(3), p.multiplier)
+
+	up := &bfd.BFDHeader{
+		State:                bfd.StateUp,
+		MyDiscriminator:      12345,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 50,
+	}
+	final := *up
+	final.Final = true
+	p.rxPacket(&final)
+	assert.False(p.pollSequence)
+	p.applyNextConfig()
+	assert.Equal(uint8(3), p.multiplier)
+
+	p.rxPacket(up)
+	p.applyNextConfig()
+	assert.Equal(uint8(5), p.multiplier)
+	assert.Nil(p.nextConfig.Load())
+	assert.False(p.pollSequence)
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_UP, p.sessionState())
+}
+
+// Test_ApplyConfigNotUpKeepsFloor pins RFC 5880 Section 6.8.3: while the session is
+// not Up, a new transmit interval stays under the one-second floor, and with no
+// remote session there is nothing to poll or hold.
+func Test_ApplyConfigNotUpKeepsFloor(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+	defer p.Stop()
+
+	p.applyConfig(oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		RequiredMinimumReceive:   300000,
+		DesiredMinimumTxInterval: 300000,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+	assert.Equal(300*time.Millisecond, p.txInterval)
+	assert.Equal(300*time.Millisecond, p.rxInterval)
+	assert.Equal(time.Second, p.desiredMinTx)
+	assert.False(p.pollSequence)
+	assert.Zero(p.heldTxInterval)
+	assert.Zero(p.heldRxInterval)
+}
+
 // Test_RxPacketDetectionTimeFromRemote pins RFC 5880 Section 6.8.4: the detection time
 // must be the remote Detect Mult multiplied by max(local RequiredMinRx,
 // remote DesiredMinTx), not our own multiplier multiplied by our own rxInterval.
@@ -1250,6 +1414,20 @@ func rxWait(t *testing.T, p *bfdPeer, h *bfd.BFDHeader) {
 			return nil
 		}
 		return fmt.Errorf("must be: rxPacket > %d", before)
+	})
+	assert.NoError(t, err)
+}
+
+// waitConfigApplied waits for the loop goroutine to have applied the configuration
+// last handed to p by updateConfig. applyNextConfig clears nextConfig only after
+// applying it, so the caller may read the timers once this returns.
+func waitConfigApplied(t *testing.T, p *bfdPeer) {
+	t.Helper()
+	err := eventually(2*time.Second, func() error {
+		if p.nextConfig.Load() == nil {
+			return nil
+		}
+		return fmt.Errorf("configuration not applied")
 	})
 	assert.NoError(t, err)
 }
