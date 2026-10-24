@@ -26,6 +26,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -166,6 +167,152 @@ func TestIngressLoopCheckWithdrawsInstalledPath(t *testing.T) {
 				assert.Equal(t, 1, p.adjRibIn.Accepted(families))
 				return nil
 			}, true))
+		})
+	}
+}
+
+// TestOwnNexthopWithdrawsInstalledPath covers RFC 4271 5.1.3: a route with
+// the local address of the session as its next hop is rejected. It stays in
+// the Adj-RIB-In, the path the peer had installed is withdrawn, and a soft
+// reset in keeps it rejected.
+func TestOwnNexthopWithdrawsInstalledPath(t *testing.T) {
+	const (
+		localAS  = uint32(65000)
+		prefix   = "10.0.0.0/24"
+		routerID = "192.0.2.254"
+		peerAddr = "192.0.2.1"
+		ownAddr  = "192.0.2.2"
+	)
+	families := []bgp.Family{bgp.RF_IPv4_UC}
+
+	for _, tc := range []struct {
+		name string
+		// localAddr is the local address of the session as the FSM records it.
+		localAddr string
+	}{
+		{name: "ipv4", localAddr: ownAddr},
+		// An IPv4 session accepted on an IPv6 socket.
+		{name: "ipv4-mapped", localAddr: "::ffff:" + ownAddr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := NewBgpServer()
+			go s.Serve()
+			require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{Global: &api.Global{
+				Asn: localAS, RouterId: routerID, ListenPort: -1,
+			}}))
+			t.Cleanup(s.Stop)
+
+			p := newPeerandInfo(t, localAS, 65001, peerAddr, s.globalRib)
+			p.policy = s.policy
+			p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+			info := *p.peerInfo.Load()
+			info.LocalAddress = netip.MustParseAddr(tc.localAddr)
+			p.peerInfo.Store(&info)
+			require.NoError(t, s.mgmtOperation(func() error {
+				s.neighborMap[netip.MustParseAddr(p.ID())] = p
+				return nil
+			}, true))
+			t.Cleanup(func() {
+				require.NoError(t, s.mgmtOperation(func() error {
+					delete(s.neighborMap, netip.MustParseAddr(p.ID()))
+					return nil
+				}, false))
+				cleanInfiniteChannel(p.fsm.outgoingCh)
+			})
+
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+			require.NoError(t, err)
+			advertise := func(nexthop string) {
+				t.Helper()
+				nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop))
+				require.NoError(t, err)
+				attrs := []bgp.PathAttributeInterface{
+					bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+					bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+						bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001}),
+					}),
+					nh,
+				}
+				s.handleFSMMessage(p, &fsmMsg{
+					MsgType:   fsmMsgBGPMessage,
+					MsgData:   bgp.NewBGPUpdateMessage(nil, attrs, []bgp.PathNLRI{{NLRI: nlri}}),
+					timestamp: time.Now(),
+				})
+			}
+			assertRejected := func() {
+				t.Helper()
+				require.NoError(t, s.mgmtOperation(func() error {
+					assert.Empty(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, families),
+						"the previously installed path must be withdrawn")
+					assert.Equal(t, 0, p.adjRibIn.Accepted(families))
+					cached := p.adjRibIn.PathList(families, false)
+					require.Len(t, cached, 1, "the rejected path stays in the Adj-RIB-In")
+					assert.True(t, cached[0].IsRejected())
+					return nil
+				}, true))
+			}
+
+			advertise(peerAddr)
+			require.NoError(t, s.mgmtOperation(func() error {
+				require.Len(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, families), 1)
+				assert.Equal(t, 1, p.adjRibIn.Accepted(families))
+				return nil
+			}, true))
+
+			// The same NLRI again, now with our own address as the next hop.
+			advertise(ownAddr)
+			assertRejected()
+
+			require.NoError(t, s.mgmtOperation(func() error {
+				return s.softResetIn(peerAddr, bgp.RF_IPv4_UC)
+			}, true))
+			assertRejected()
+
+			// A next hop that is not ours brings the path back.
+			advertise(peerAddr)
+			require.NoError(t, s.mgmtOperation(func() error {
+				assert.Len(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, families), 1)
+				assert.Equal(t, 1, p.adjRibIn.Accepted(families))
+				return nil
+			}, true))
+		})
+	}
+}
+
+// TestHasOwnNexthop covers which next hops hasOwnNexthop takes as ours.
+func TestHasOwnNexthop(t *testing.T) {
+	p := newPeerandInfo(t, 65000, 65001, "192.0.2.1", table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{}))
+
+	path := func(t *testing.T, nexthop string) *table.Path {
+		t.Helper()
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+		require.NoError(t, err)
+		nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop))
+		require.NoError(t, err)
+		return table.NewPath(bgp.RF_IPv4_UC, p.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false,
+			[]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP), nh},
+			time.Now(), false)
+	}
+
+	for _, tc := range []struct {
+		name      string
+		remote    string
+		local     string
+		nexthop   string
+		wantOwned bool
+	}{
+		{name: "own", remote: "192.0.2.1", local: "192.0.2.2", nexthop: "192.0.2.2", wantOwned: true},
+		{name: "peer", remote: "192.0.2.1", local: "192.0.2.2", nexthop: "192.0.2.1"},
+		{name: "third-party", remote: "192.0.2.1", local: "192.0.2.2", nexthop: "192.0.2.3"},
+		// Two instances on one host that differ only in the port.
+		{name: "same-address", remote: "127.0.0.1", local: "127.0.0.1", nexthop: "127.0.0.1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := *p.peerInfo.Load()
+			info.Address = netip.MustParseAddr(tc.remote)
+			info.LocalAddress = netip.MustParseAddr(tc.local)
+			assert.Equal(t, tc.wantOwned, p.hasOwnNexthop(path(t, tc.nexthop), &info))
 		})
 	}
 }

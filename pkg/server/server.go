@@ -3113,8 +3113,10 @@ func (s *BgpServer) softResetIn(addr string, family bgp.Family) error {
 		paths := peer.adjRibIn.PathList(familiesForSoftreset(peer, family), false)
 		pathList := make([]*table.Path, 0, len(paths))
 		loopGlobals := peer.loopCheckGlobals(s.rrClusterIDs)
+		info := peer.peerInfo.Load()
 		for _, path := range paths {
-			path, withdrawals := peer.adjRibIn.SetRejected(path, peer.detectsLoop(path, loopGlobals))
+			rejected := peer.detectsLoop(path, loopGlobals) || peer.hasOwnNexthop(path, info)
+			path, withdrawals := peer.adjRibIn.SetRejected(path, rejected)
 			pathList = append(pathList, withdrawals...)
 			if !path.IsRejected() {
 				pathList = append(pathList, path)

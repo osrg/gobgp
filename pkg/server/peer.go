@@ -858,6 +858,47 @@ func (peer *peer) detectsLoop(path *table.Path, g loopCheckGlobals) bool {
 	return false
 }
 
+// hasOwnNexthop reports whether the next hop of the path is the local address
+// of the session.
+//
+// RFC 4271 5.1.3: "A BGP speaker SHALL NOT install a route with itself as the
+// next hop." RFC 4271 uses "install" for the Loc-RIB and the Routing Table,
+// not for the Adj-RIB-In. We read the sentence that way, so the path is
+// rejected like a looped one: it stays in the Adj-RIB-In and is kept out of
+// the Loc-RIB.
+//
+// The local address of the session is the only address we know to be ours,
+// so a next hop of another family than the session is not checked. Like FRR,
+// only the unicast and multicast families are checked. The next hop of the
+// other families is not an address in our routing table.
+//
+// Two instances on one host can use the same address and differ only in the
+// port. The address then does not tell us from the peer, so the check is
+// skipped when the peer has our address.
+func (peer *peer) hasOwnNexthop(path *table.Path, info *table.PeerInfo) bool {
+	if path.IsWithdraw || info == nil || !info.LocalAddress.IsValid() {
+		return false
+	}
+	if f := path.GetFamily(); f != bgp.RF_IPv4_UC && f != bgp.RF_IPv6_UC &&
+		f != bgp.RF_IPv4_MC && f != bgp.RF_IPv6_MC {
+		return false
+	}
+	// The addresses are IPv4-mapped when an IPv4 session is accepted on an
+	// IPv6 socket, and a link-local one has a zone.
+	local := info.LocalAddress.Unmap().WithZone("")
+	if info.Address.Unmap().WithZone("") == local {
+		return false
+	}
+	nexthop := path.GetNexthop()
+	if nexthop.Unmap().WithZone("") != local {
+		return false
+	}
+	peer.fsm.logger.Debug("next hop is our own address, ignore",
+		slog.String("Nexthop", nexthop.String()),
+		slog.String("Data", path.String()))
+	return true
+}
+
 // handleUpdate turns an UPDATE into paths to propagate. The second return
 // value holds withdrawals for paths the Adj-RIB-In had accepted before and now
 // rejects, which the caller must propagate as well. They are kept apart from
@@ -878,7 +919,8 @@ func (peer *peer) handleUpdate(e *fsmMsg, localClusterIDs map[netip.Addr]struct{
 	conf.Timers.State.UpdateRecvTime = time.Now().Unix()
 	peer.fsm.pConf.Update(&conf)
 	peer.fsm.lock.Unlock()
-	pathList := table.ProcessMessage(m, peer.peerInfo.Load(), e.timestamp, treatAsWithdraw)
+	info := peer.peerInfo.Load()
+	pathList := table.ProcessMessage(m, info, e.timestamp, treatAsWithdraw)
 	if len(pathList) > 0 {
 		paths := make([]*table.Path, 0, len(pathList))
 		eor := []bgp.Family{}
@@ -891,7 +933,7 @@ func (peer *peer) handleUpdate(e *fsmMsg, localClusterIDs map[netip.Addr]struct{
 				eor = append(eor, family)
 				continue
 			}
-			if peer.detectsLoop(path, loopGlobals) {
+			if peer.detectsLoop(path, loopGlobals) || peer.hasOwnNexthop(path, info) {
 				path.SetRejected(true)
 				continue
 			}
