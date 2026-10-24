@@ -5452,8 +5452,19 @@ type WatchEventMessageCallbacks struct {
 }
 
 func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageCallbacks, opts ...WatchOption) error {
+	return s.watchEventQueued(ctx, callbacks, nil, opts...)
+}
+
+// watchEventQueued is WatchEvent for a caller that also wants to know when
+// each event was queued for its watcher. Before it calls a callback, it calls
+// onQueued with that time. The time the callbacks get is unchanged. A nil
+// onQueued is WatchEvent.
+func (s *BgpServer) watchEventQueued(ctx context.Context, callbacks WatchEventMessageCallbacks, onQueued func(time.Time), opts ...WatchOption) error {
 	if len(opts) == 0 {
 		return fmt.Errorf("no events to watch")
+	}
+	if onQueued != nil {
+		opts = append(opts[:len(opts):len(opts)], watchQueueTime())
 	}
 	w, err := s.watch(opts...)
 	if err != nil {
@@ -5466,6 +5477,10 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 		for {
 			select {
 			case ev := <-w.Event():
+				if q, ok := ev.(queuedWatchEvent); ok {
+					onQueued(q.queuedAt)
+					ev = q.event
+				}
 				switch msg := ev.(type) {
 				case *watchEventUpdate:
 					if callbacks.OnPathUpdate != nil {
@@ -5704,6 +5719,7 @@ type watchOptions struct {
 	recvMessage    bool
 	initEor        bool
 	eor            bool
+	queueTime      bool
 }
 
 type WatchOption func(*watchOptions)
@@ -5800,6 +5816,23 @@ func watchRecvMessage() WatchOption {
 	}
 }
 
+// watchQueueTime makes the watcher hand out each event wrapped in a
+// queuedWatchEvent, which says when the event was queued for this watcher.
+// Only watchEventQueued unwraps it, so no other consumer sets this.
+func watchQueueTime() WatchOption {
+	return func(o *watchOptions) {
+		o.queueTime = true
+	}
+}
+
+// queuedWatchEvent is an event with the time it was queued for one watcher.
+// The event is shared by all the watchers it goes to, so the time lives in
+// this wrapper and not in the event.
+type queuedWatchEvent struct {
+	event    watchEvent
+	queuedAt time.Time
+}
+
 type watcher struct {
 	opts   watchOptions
 	realCh chan watchEvent
@@ -5816,6 +5849,9 @@ func (w *watcher) Event() <-chan watchEvent {
 }
 
 func (w *watcher) notify(v watchEvent) {
+	if w.opts.queueTime {
+		v = queuedWatchEvent{event: v, queuedAt: time.Now()}
+	}
 	w.ch.In() <- v
 }
 

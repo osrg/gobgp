@@ -382,10 +382,16 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 	if len(opts) == 0 {
 		return status.Errorf(codes.InvalidArgument, "no events to watch")
 	}
+	// The callbacks run one at a time on the goroutine that calls onQueued
+	// before them, so queuedAt is the time of the event they are handling.
+	var queuedAt time.Time
 	simpleSend := func(paths []*api.Path, when time.Time) {
-		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}}, when)
+		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{
+			Paths:     paths,
+			Timestamp: tspb.New(queuedAt),
+		}}}, when)
 	}
-	err := s.bgpServer.WatchEvent(ctx, WatchEventMessageCallbacks{
+	err := s.bgpServer.watchEventQueued(ctx, WatchEventMessageCallbacks{
 		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time) {
 			paths := make([]*api.Path, 0, r.BatchSize)
 			for _, path := range pathList {
@@ -455,7 +461,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 				},
 			}, timestamp)
 		},
-	}, opts...)
+	}, func(t time.Time) { queuedAt = t }, opts...)
 	if err != nil {
 		return status.Errorf(codes.Aborted, "failed to watch event: %v", err)
 	}

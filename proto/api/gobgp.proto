@@ -171,6 +171,9 @@ message WatchEventResponse {
 
   message TableEvent {
     repeated Path paths = 2;
+    // The time the event was queued for this watcher. A consumer can compare
+    // it with its own clock to tell how late it reads.
+    google.protobuf.Timestamp timestamp = 3;
   }
 
   oneof event {
