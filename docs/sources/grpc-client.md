@@ -7,6 +7,7 @@ This page explains how to manage GoBGP with your favorite language. You can use 
 - [Prerequisite](#prerequisite)
 - [Python](#python)
 - [C++](#c)
+- [Watching events](#watching-events)
 
 ## Prerequisite
 
@@ -165,3 +166,7 @@ $ gobgp g r
    Network              Next Hop             AS_PATH              Age        Attrs
 *> 10.0.0.0/24          1.1.1.1                                   00:13:26   [{Origin: i} {Communities: 0:100}]
 ```
+
+## Watching events
+
+Every `WatchEventResponse.TableEvent` carries the `timestamp` the server recorded for the event, unset when the server has no time for the event: the initial snapshot of a filter with `init` and a live end-of-RIB marker. A client measures how late it reads by comparing it with its own clock. For a `TYPE_POST_POLICY` event it is the time of the path, which has a resolution of one second.

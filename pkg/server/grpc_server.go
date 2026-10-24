@@ -383,7 +383,11 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 		return status.Errorf(codes.InvalidArgument, "no events to watch")
 	}
 	simpleSend := func(paths []*api.Path, when time.Time) {
-		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: &api.WatchEventResponse_TableEvent{Paths: paths}}}, when)
+		ev := &api.WatchEventResponse_TableEvent{Paths: paths}
+		if !when.IsZero() {
+			ev.Timestamp = tspb.New(when)
+		}
+		fn(&api.WatchEventResponse{Event: &api.WatchEventResponse_Table{Table: ev}}, when)
 	}
 	err := s.bgpServer.WatchEvent(ctx, WatchEventMessageCallbacks{
 		OnPathUpdate: func(pathList []*apiutil.Path, timestamp time.Time) {
