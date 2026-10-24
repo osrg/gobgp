@@ -53,8 +53,8 @@ Supported behavior:
 - Poll Sequence initiation when the transmit interval changes, and
   termination on a received Final, plus an immediate reply to a received
   Poll;
-- hard BGP peer reset when the BFD session expires or the remote peer signals
-  `DOWN`;
+- hard BGP peer reset when an `UP` BFD session expires or the remote peer
+  signals `DOWN`;
 - BFD configuration through the GoBGP config file and gRPC API;
 - BFD state in peer state returned by the API.
 

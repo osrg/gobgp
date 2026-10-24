@@ -695,6 +695,33 @@ func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
 	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
+// Test_ExpiryFromInitKeepsPeer pins RFC 5882 Section 4.2: only a session
+// that goes from Up to Down is a failure a client acts on. A session that
+// reached Init and timed out never came up, so the BGP peer is left alone.
+func Test_ExpiryFromInitKeepsPeer(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:    13784,
+		Enabled: true,
+	}, "")
+	defer p.Stop()
+
+	p.rxPacket(&bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      111,
+		DetectTimeMultiplier: 1,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_INIT, p.sessionState())
+
+	p.expiry()
+
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+	assert.Equal(bfd.DiagnosticControlDetectionTimeExpired, p.localDiag)
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
+}
+
 // Test_JitteredTxInterval pins RFC 5880 Section 6.8.7: the transmit interval
 // must be reduced per packet by a random value of 0 to 25%, and when the
 // detect multiplier is 1, the interval must fall within 75%-90% of the
