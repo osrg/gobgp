@@ -202,6 +202,41 @@ func Test_AddPeerLocalAddressAndBindInterface(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// Test_AddPeerTimerChangeKeepsSession pins RFC 5880 Section 6.8.3: the timers may
+// change without affecting the session, so adding a running peer again with new
+// timers updates it in place. A new port needs a new session.
+func Test_AddPeerTimerChangeKeepsSession(t *testing.T) {
+	s := newServer(0)
+	defer s.Stop()
+
+	peerAddress := netip.MustParseAddr("127.0.0.1")
+	localAddress := netip.MustParseAddr("127.0.0.2")
+	peer := func() *bfdPeer {
+		s.peersMutex.RLock()
+		defer s.peersMutex.RUnlock()
+		return s.peers[peerAddress]
+	}
+
+	config := oc.BfdConfig{Enabled: true, Port: 13786}
+	require.NoError(t, s.addPeer(context.Background(), peerAddress, config, localAddress, "", 1))
+	first := peer()
+	require.NotNil(t, first)
+
+	config.DetectionMultiplier = 5
+	config.DesiredMinimumTxInterval = 300000
+	require.NoError(t, s.addPeer(context.Background(), peerAddress, config, localAddress, "", 1))
+	require.Same(t, first, peer())
+	waitConfigApplied(t, first)
+	assert.Equal(t, uint8(5), first.multiplier)
+	assert.Equal(t, 300*time.Millisecond, first.txInterval)
+	assert.False(t, first.stopped.Load())
+
+	config.Port = 13787
+	require.NoError(t, s.addPeer(context.Background(), peerAddress, config, localAddress, "", 1))
+	assert.NotSame(t, first, peer())
+	assert.True(t, first.stopped.Load())
+}
+
 func Test_BgpUpdatePeerLocalAddress(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
@@ -250,11 +285,18 @@ func Test_BgpUpdatePeerLocalAddress(t *testing.T) {
 		return nil
 	}, true))
 
-	// BFD-only changes retain the neighbor and preserve the source address.
+	// BFD-only changes retain the neighbor and its BFD session, which keeps the
+	// source address.
 	p.Bfd.DetectionMultiplier = 7
 	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: p})
 	require.NoError(t, err)
-	unchangedPeer := checkPeer(oldPeer)
+	s.bfdServer.peersMutex.RLock()
+	unchangedPeer := s.bfdServer.peers[peerAddress]
+	s.bfdServer.peersMutex.RUnlock()
+	require.Same(t, oldPeer, unchangedPeer)
+	waitConfigApplied(t, unchangedPeer)
+	assert.Equal(t, uint8(7), unchangedPeer.multiplier)
+	assert.Equal(t, p.Transport.LocalAddress, unchangedPeer.localAddress.String())
 	require.NoError(t, s.mgmtOperation(func() error {
 		assert.Same(t, oldNeighbor, s.neighborMap[peerAddress])
 		return nil

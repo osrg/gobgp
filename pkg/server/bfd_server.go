@@ -526,13 +526,20 @@ func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, loca
 	s.peersMutex.RUnlock()
 
 	if ok {
+		peerPort := int(config.Port)
+		if peerPort == 0 {
+			peerPort = BfdServerPort
+		}
 		if existing.localAddress == localAddress && existing.bindInterface == bindInterface &&
-			existing.multihop == config.Multihop && existing.minTTL == minTTL {
+			existing.multihop == config.Multihop && existing.minTTL == minTTL && existing.peerPort == peerPort {
 			s.logger.Debug("BFD peer already exist",
 				slog.String("Topic", "bfd"),
 				slog.String("Peer", peerAddress.String()),
 			)
 
+			// The timers can change without a new session (RFC 5880 Section
+			// 6.8.3).
+			existing.updateConfig(config)
 			return
 		}
 		// A changed source, interface or session type replaces the session;

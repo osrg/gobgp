@@ -255,11 +255,12 @@ func TestBFDInferredSourceConfigUpdates(t *testing.T) {
 	config.Bfd.DetectionMultiplier = 9
 	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: config})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		p := bfdSourcePeer(s)
-		return p != nil && p != previous && p.localAddress.Unmap() == source
-	}, time.Second, time.Millisecond)
-	require.True(t, previous.stopped.Load())
+	// A timer change keeps the session, and with it the inferred source.
+	require.True(t, bfdSourcePeer(s) == previous)
+	waitConfigApplied(t, previous)
+	require.Equal(t, uint8(9), previous.multiplier)
+	require.Equal(t, source, previous.localAddress.Unmap())
+	require.False(t, previous.stopped.Load())
 	config.Bfd.Enabled = false
 	_, err = s.UpdatePeer(context.Background(), &api.UpdatePeerRequest{Peer: config})
 	require.NoError(t, err)
@@ -275,8 +276,8 @@ func TestBFDInferredSourceConfigUpdates(t *testing.T) {
 
 // UpdatePeer can reach an accepted dynamic neighbor directly: the request
 // carries State.NeighborAddress and no Conf.NeighborAddress, so the neighbor
-// keeps its dynamic identity and only the BFD session is replaced. That
-// replacement must keep the global bind-to-device and the established source.
+// keeps its dynamic identity and the BFD session only takes the new timers. It
+// must keep the global bind-to-device and the established source.
 func TestBFDDynamicUpdateKeepsGlobalBindToDevice(t *testing.T) {
 	const device = "bfd0"
 	s := NewBgpServer()
@@ -317,12 +318,11 @@ func TestBFDDynamicUpdateKeepsGlobalBindToDevice(t *testing.T) {
 		return nil
 	}, true))
 	require.True(t, before.isDynamicNeighbor(), "BFD-only update must keep the dynamic identity")
-	require.Eventually(t, func() bool {
-		p := bfdSourcePeer(s)
-		return p != nil && p != previous && p.multiplier == 5
-	}, time.Second, time.Millisecond)
-	require.True(t, previous.stopped.Load())
 	current := bfdSourcePeer(s)
+	require.True(t, current == previous, "a timer change must keep the BFD session")
+	waitConfigApplied(t, current)
+	require.Equal(t, uint8(5), current.multiplier)
+	require.False(t, current.stopped.Load())
 	require.Equal(t, device, current.bindInterface, "dynamic neighbor must keep the global bind-to-device across a BFD update")
 	require.Equal(t, source, current.localAddress.Unmap(), "BFD update must keep the established source")
 }

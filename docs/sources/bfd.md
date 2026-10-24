@@ -50,9 +50,15 @@ Supported behavior:
   GoBGP never sends faster than the larger of its own interval and the peer's
   (RFC 5880 Section 6.8.7). If the peer advertises zero, GoBGP sends no
   periodic packets, only the ones for a state change or a reply to a Poll;
-- Poll Sequence initiation when the transmit interval changes, and
+- Poll Sequence initiation when the transmit or receive interval changes, and
   termination on a received Final, plus an immediate reply to a received
   Poll;
+- a change of `desired-minimum-tx-interval`, `required-minimum-receive` or
+  `detection-multiplier` applied to the running session, without taking it
+  down (RFC 5880 Section 6.8.3). While the session is `UP`, a longer transmit
+  interval or a shorter receive interval takes effect when the Poll Sequence
+  for it ends. A change of another BFD setting, such as `port` or `multihop`,
+  still replaces the session;
 - hard BGP peer reset when the BFD session expires or the remote peer signals
   `DOWN`;
 - one `ADMIN_DOWN` packet, with diagnostic `7` (Administratively Down), sent
