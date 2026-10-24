@@ -3290,6 +3290,10 @@ func NewEVPNIPPrefixRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIde
 	}), nil
 }
 
+// EVPNIPMSIRoute is the EVPN type 9 route (RFC 9572).
+//
+// Deprecated: gobgp does not accept this route on receipt, and the API
+// cannot carry it. It will be removed in v5 (issue #3803).
 type EVPNIPMSIRoute struct {
 	RD   RouteDistinguisherInterface
 	ETag uint32
@@ -3376,6 +3380,10 @@ func (er *EVPNIPMSIRoute) rd() RouteDistinguisherInterface {
 	return er.RD
 }
 
+// NewEVPNIPMSIRoute returns an EVPN type 9 route (RFC 9572).
+//
+// Deprecated: gobgp does not accept this route on receipt, and the API
+// cannot carry it. It will be removed in v5 (issue #3803).
 func NewEVPNIPMSIRoute(rd RouteDistinguisherInterface, etag uint32, ec ExtendedCommunityInterface) *EVPNNLRI {
 	return NewEVPNNLRI(EVPN_I_PMSI, &EVPNIPMSIRoute{
 		RD:   rd,
@@ -3415,7 +3423,11 @@ const (
 	EVPN_INCLUSIVE_MULTICAST_ETHERNET_TAG   = 3
 	EVPN_ETHERNET_SEGMENT_ROUTE             = 4
 	EVPN_IP_PREFIX                          = 5
-	EVPN_I_PMSI                             = 9
+	// EVPN_I_PMSI is the EVPN type 9 route (RFC 9572).
+	//
+	// Deprecated: gobgp does not accept this route on receipt, and the API
+	// cannot carry it. It will be removed in v5 (issue #3803).
+	EVPN_I_PMSI = 9
 )
 
 type EVPNNLRI struct {
