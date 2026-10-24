@@ -946,3 +946,70 @@ func TestToGlobalPathKeepsRDInKey(t *testing.T) {
 	}
 	assert.Equal(t, 2, n, "both routes must be in the UPDATE")
 }
+
+// RFC 7311 3.3 disables AIGP by default on an eBGP session that is not a
+// confederation one, and gobgp has no knob to enable it, so the attribute
+// is neither sent on nor passed along from such a session.
+func TestUpdatePathAttrsAigp(t *testing.T) {
+	global := &oc.Global{
+		Config:        oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("10.0.0.1")},
+		Confederation: oc.Confederation{Config: oc.ConfederationConfig{MemberAsList: []uint32{65001}}},
+	}
+
+	internal := &PeerInfo{
+		AS:       65000,
+		LocalAS:  65000,
+		PeerType: oc.PEER_TYPE_INTERNAL,
+		ID:       netip.MustParseAddr("10.0.0.2"),
+		Address:  netip.MustParseAddr("10.0.0.2"),
+	}
+	confed := &PeerInfo{
+		AS:            65001,
+		LocalAS:       65000,
+		PeerType:      oc.PEER_TYPE_EXTERNAL,
+		Confederation: true,
+		ID:            netip.MustParseAddr("10.0.0.3"),
+		Address:       netip.MustParseAddr("10.0.0.3"),
+	}
+	external := &PeerInfo{
+		AS:       65100,
+		LocalAS:  65000,
+		PeerType: oc.PEER_TYPE_EXTERNAL,
+		ID:       netip.MustParseAddr("10.0.0.4"),
+		Address:  netip.MustParseAddr("10.0.0.4"),
+	}
+	local := &PeerInfo{}
+
+	for _, tt := range []struct {
+		name   string
+		source *PeerInfo
+		info   *PeerInfo
+		want   bool
+	}{
+		{"local to internal", local, internal, true},
+		{"local to confederation", local, confed, true},
+		{"local to external", local, external, false},
+		{"internal to internal", internal, internal, true},
+		{"internal to confederation", internal, confed, true},
+		{"internal to external", internal, external, false},
+		{"confederation to internal", confed, internal, true},
+		{"external to internal", external, internal, false},
+		{"external to confederation", external, confed, false},
+		{"external to external", external, external, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+			nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+				bgp.NewPathAttributeAsPath(nil),
+				nexthop,
+				bgp.NewPathAttributeAigp([]bgp.AigpTLVInterface{bgp.NewAigpTLVIgpMetric(0)}),
+			}
+			path := NewPath(bgp.RF_IPv4_UC, tt.source, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+			updated := UpdatePathAttrs(logger, global, tt.info, path)
+
+			assert.Equal(t, tt.want, updated.getPathAttr(bgp.BGP_ATTR_TYPE_AIGP) != nil)
+		})
+	}
+}
