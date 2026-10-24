@@ -2542,15 +2542,17 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 
 func (h *fsmHandler) changeadminState(s adminState) error {
 	fsm := h.fsm
-	old := fsm.adminState.Load()
-	if fsm.adminState.CompareAndSwap(old, s) {
+	// Only the FSM goroutine writes adminState, so it cannot change
+	// between Load and Store.
+	if fsm.adminState.Load() != s {
+		fsm.adminState.Store(s)
 		fsm.logger.Debug("admin state changed",
 			slog.String("State", fsm.state.String()),
 			slog.String("adminState", s.String()))
 
 		h.fsm.lock.Lock()
 		conf := fsm.pConf.ReadCopy()
-		conf.State.AdminDown = !conf.State.AdminDown
+		conf.State.AdminDown = s != adminStateUp
 		fsm.pConf.Update(&conf)
 		h.fsm.lock.Unlock()
 

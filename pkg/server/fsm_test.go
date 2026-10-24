@@ -2539,6 +2539,45 @@ func TestFSMHandlerIdle_ResetWhileAdminDown(t *testing.T) {
 	require.Equal(t, float64(1), p.fsm.idleHoldTime)
 }
 
+// changeadminState rejects a request for the current admin state, and
+// State.AdminDown follows the admin state.
+// https://github.com/osrg/gobgp/issues/3788
+func TestChangeAdminState(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	require.Error(t, h.changeadminState(adminStateUp))
+	require.False(t, p.fsm.pConf.ReadOnly().State.AdminDown)
+
+	for _, s := range []adminState{adminStatePfxCt, adminStateDown, adminStateUp, adminStateDown} {
+		require.NoError(t, h.changeadminState(s))
+		require.Equal(t, s, p.fsm.adminState.Load())
+		require.Equal(t, s != adminStateUp, p.fsm.pConf.ReadOnly().State.AdminDown)
+		require.Error(t, h.changeadminState(s))
+		require.Equal(t, s != adminStateUp, p.fsm.pConf.ReadOnly().State.AdminDown)
+	}
+}
+
+// EnablePeer of an enabled peer in Idle does not restart the idle hold
+// timer.
+// https://github.com/osrg/gobgp/issues/3788
+func TestFSMHandlerIdle_AdminStateUpWhileUp(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	p.fsm.idleHoldTime = 1
+	start := time.Now()
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		p.fsm.adminStateCh <- adminStateOperation{adminStateUp, nil}
+	}()
+	state, _ := h.idle(t.Context())
+	require.Equal(t, bgp.BGP_FSM_ACTIVE, state)
+	require.Less(t, time.Since(start), 1400*time.Millisecond)
+}
+
 // ResetPeer in Active goes to Idle. The connection of the manager, on which
 // the OPEN was sent, is closed with Cease/Administrative Reset.
 func TestFSMHandlerActive_Reset(t *testing.T) {
