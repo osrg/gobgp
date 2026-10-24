@@ -1526,7 +1526,16 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 					s.notifyPostPolicyUpdateWatcher(peer, []*table.Path{path})
 				}
 
-				s.propagateUpdateToNeighbors(rib, peer, path, dsts, true)
+				// dsts[0] is the update for path. EVPN MAC mobility appends the
+				// withdrawals of the local MAC/IP paths that path replaces.
+				// Propagate each of them as a withdrawal of its own, so that
+				// peers with ADD-PATH send enabled get them too.
+				s.propagateUpdateToNeighbors(rib, peer, path, dsts[:1], true)
+				for _, u := range dsts[1:] {
+					if w := u.GetWithdrawnPath(); len(w) > 0 {
+						s.propagateUpdateToNeighbors(rib, peer, w[0], []*table.Update{u}, true)
+					}
+				}
 			}
 		}(path)
 	}
