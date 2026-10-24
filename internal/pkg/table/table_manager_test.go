@@ -98,6 +98,35 @@ func TestTreatAsWithdraw(t *testing.T) {
 	assert.Equal(t, paths[1].IsWithdraw, true)
 }
 
+// An UPDATE whose MP_REACH_NLRI or MP_UNREACH_NLRI carries only EVPN
+// routes of an unknown route type gives no paths and is not End-of-RIB.
+func TestProcessMessageEVPNUnknownRouteTypeOnly(t *testing.T) {
+	type6 := append([]byte{6, 10}, make([]byte, 10)...)
+	flags := byte(bgp.BGP_ATTR_FLAG_OPTIONAL | bgp.BGP_ATTR_FLAG_EXTENDED_LENGTH)
+	reach := byte(bgp.BGP_ATTR_TYPE_MP_REACH_NLRI)
+	unreach := byte(bgp.BGP_ATTR_TYPE_MP_UNREACH_NLRI)
+	for _, tc := range []struct {
+		name  string
+		value []byte
+	}{
+		{"MP_REACH_NLRI", append([]byte{flags, reach, 0, 9 + 12, 0x00, 0x19, 70, 4, 10, 0, 0, 1, 0}, type6...)},
+		{"MP_UNREACH_NLRI", append([]byte{flags, unreach, 0, 3 + 12, 0x00, 0x19, 70}, type6...)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l := bgp.BGP_HEADER_LENGTH + 4 + len(tc.value)
+			b := []byte{
+				0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+				0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+				byte(l >> 8), byte(l), bgp.BGP_MSG_UPDATE,
+				0, 0, byte(len(tc.value) >> 8), byte(len(tc.value)),
+			}
+			msg, err := bgp.ParseBGPMessage(append(b, tc.value...))
+			assert.NoError(t, err)
+			assert.Empty(t, ProcessMessage(msg, peerR2(), time.Now(), false))
+		})
+	}
+}
+
 func TestTableManagerIgnoresUnmatchedWithdrawal(t *testing.T) {
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
 	source := &PeerInfo{

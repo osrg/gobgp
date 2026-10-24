@@ -1626,6 +1626,124 @@ func Test_EVPNMacIPAdvertisementRoute_MarshalJSON(t *testing.T) {
 	})
 }
 
+// testMpAttr returns an MP_REACH_NLRI or MP_UNREACH_NLRI attribute with
+// the given value.
+func testMpAttr(typ BGPAttrType, value []byte) []byte {
+	flags := BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_EXTENDED_LENGTH
+	return append([]byte{byte(flags), byte(typ), byte(len(value) >> 8), byte(len(value))}, value...)
+}
+
+// testEVPNReach returns an MP_REACH_NLRI attribute for EVPN with the
+// given NLRI bytes.
+func testEVPNReach(nlris ...[]byte) []byte {
+	value := []byte{0x00, 0x19, 70, 4, 10, 0, 0, 1, 0} // afi, safi, next hop, reserved
+	for _, n := range nlris {
+		value = append(value, n...)
+	}
+	return testMpAttr(BGP_ATTR_TYPE_MP_REACH_NLRI, value)
+}
+
+// testEVPNUnreach returns an MP_UNREACH_NLRI attribute for EVPN with the
+// given NLRI bytes.
+func testEVPNUnreach(nlris ...[]byte) []byte {
+	value := []byte{0x00, 0x19, 70} // afi, safi
+	for _, n := range nlris {
+		value = append(value, n...)
+	}
+	return testMpAttr(BGP_ATTR_TYPE_MP_UNREACH_NLRI, value)
+}
+
+func testEVPNType2(t *testing.T) []byte {
+	t.Helper()
+	rd, err := ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	n, err := NewEVPNMacIPAdvertisementRoute(rd, EthernetSegmentIdentifier{}, 0, "aa:bb:cc:dd:ee:ff", netip.Addr{}, []uint32{100})
+	require.NoError(t, err)
+	b, err := n.Serialize()
+	require.NoError(t, err)
+	return b
+}
+
+// testUpdate returns an UPDATE message with the given path attributes
+// and no withdrawn routes or NLRI.
+func testUpdate(attrs ...[]byte) []byte {
+	var a []byte
+	for _, attr := range attrs {
+		a = append(a, attr...)
+	}
+	l := BGP_HEADER_LENGTH + 4 + len(a)
+	b := bytes.Repeat([]byte{0xff}, 16)
+	b = append(b, byte(l>>8), byte(l), BGP_MSG_UPDATE)
+	b = append(b, 0, 0, byte(len(a)>>8), byte(len(a)))
+	return append(b, a...)
+}
+
+func Test_EVPNUnknownRouteTypeIsDiscarded(t *testing.T) {
+	type2 := testEVPNType2(t)
+	type6 := append([]byte{6, 10}, make([]byte, 10)...)
+	type9 := append([]byte{9, 20}, make([]byte, 20)...)
+
+	nlris := func(p []PathNLRI) [][]byte {
+		var r [][]byte
+		for _, n := range p {
+			b, err := n.NLRI.Serialize()
+			require.NoError(t, err)
+			r = append(r, b)
+		}
+		return r
+	}
+
+	t.Run("MP_REACH_NLRI", func(t *testing.T) {
+		p := &PathAttributeMpReachNLRI{}
+		require.NoError(t, p.DecodeFromBytes(testEVPNReach(type6, type2, type9)))
+		assert.Equal(t, [][]byte{type2}, nlris(p.Value))
+	})
+
+	t.Run("MP_UNREACH_NLRI", func(t *testing.T) {
+		p := &PathAttributeMpUnreachNLRI{}
+		require.NoError(t, p.DecodeFromBytes(testEVPNUnreach(type6, type2, type9)))
+		assert.Equal(t, [][]byte{type2}, nlris(p.Value))
+	})
+
+	t.Run("ADD-PATH", func(t *testing.T) {
+		opt := &MarshallingOption{AddPath: map[Family]BGPAddPathMode{RF_EVPN: BGP_ADD_PATH_RECEIVE}}
+		id1 := []byte{0, 0, 0, 1}
+		id2 := []byte{0, 0, 0, 2}
+		attr := testEVPNReach(append(id1, type6...), append(id2, type2...))
+		p := &PathAttributeMpReachNLRI{}
+		require.NoError(t, p.DecodeFromBytes(attr, opt))
+		require.Len(t, p.Value, 1)
+		assert.Equal(t, uint32(2), p.Value[0].ID)
+		assert.Equal(t, [][]byte{type2}, nlris(p.Value))
+	})
+
+	t.Run("only unknown route types", func(t *testing.T) {
+		m, err := ParseBGPMessage(testUpdate(testEVPNUnreach(type6)))
+		require.NoError(t, err)
+		update := m.Body.(*BGPUpdate)
+		unreach := update.PathAttributes[0].(*PathAttributeMpUnreachNLRI)
+		assert.Empty(t, unreach.Value)
+		ok, _ := update.IsEndOfRib()
+		assert.False(t, ok)
+
+		m, err = ParseBGPMessage(testUpdate(testEVPNReach(type6)))
+		require.NoError(t, err)
+		reach := m.Body.(*BGPUpdate).PathAttributes[0].(*PathAttributeMpReachNLRI)
+		assert.Empty(t, reach.Value)
+	})
+
+	t.Run("length exceeds the attribute", func(t *testing.T) {
+		short := append([]byte{6, 10}, make([]byte, 5)...)
+		p := &PathAttributeMpReachNLRI{}
+		assert.Error(t, p.DecodeFromBytes(testEVPNReach(type2, short)))
+	})
+
+	t.Run("NLRIFromSlice", func(t *testing.T) {
+		_, err := NLRIFromSlice(RF_EVPN, type6)
+		assert.Error(t, err)
+	})
+}
+
 func mustParseMAC(t *testing.T, s string) net.HardwareAddr {
 	t.Helper()
 	m, err := net.ParseMAC(s)

@@ -3436,7 +3436,12 @@ func (n *EVPNNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) e
 	}
 	r, err := getEVPNRouteType(n.RouteType)
 	if err != nil {
-		return err
+		// RFC 7606 Section 5.4: "A BGP speaker advertising support
+		// for such a typed address family MUST handle routes with
+		// unrecognized NLRI types within that address family by
+		// discarding them, unless the relevant specification for
+		// that address family specifies otherwise."
+		return &unknownRouteTypeError{msg: err.Error(), len: 2 + int(n.Length)}
 	}
 	n.RouteTypeData = r
 	return n.RouteTypeData.DecodeFromBytes(data[:n.Length])
@@ -11719,6 +11724,19 @@ func GetFamily(name string) (Family, error) {
 	return Family(0), fmt.Errorf("%s isn't a valid route family name", name)
 }
 
+// unknownRouteTypeError is returned by the decoder of a typed NLRI (EVPN,
+// MUP) for a route type that gobgp does not know. len is the length of
+// the whole NLRI, so that the MP_REACH_NLRI and MP_UNREACH_NLRI decoders
+// can skip it and go on with the next NLRI.
+type unknownRouteTypeError struct {
+	msg string
+	len int
+}
+
+func (e *unknownRouteTypeError) Error() string {
+	return e.msg
+}
+
 func NLRIFromSlice(family Family, buf []byte, options ...*MarshallingOption) (nlri NLRI, err error) {
 	switch family {
 	case RF_IPv4_UC, RF_IPv4_MC, RF_IPv6_UC, RF_IPv6_MC:
@@ -13256,6 +13274,11 @@ func (p *PathAttributeMpReachNLRI) DecodeFromBytes(data []byte, options ...*Mars
 			value = value[addpathLen:]
 		}
 		prefix, err := NLRIFromSlice(family, value, options...)
+		var unknown *unknownRouteTypeError
+		if errors.As(err, &unknown) {
+			value = value[unknown.len:]
+			continue
+		}
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 		}
@@ -13470,6 +13493,11 @@ func (p *PathAttributeMpUnreachNLRI) DecodeFromBytes(data []byte, options ...*Ma
 		}
 
 		prefix, err := NLRIFromSlice(family, value, options...)
+		var unknown *unknownRouteTypeError
+		if errors.As(err, &unknown) {
+			value = value[unknown.len:]
+			continue
+		}
 		if err != nil {
 			return NewMessageError(eCode, BGP_ERROR_SUB_INVALID_NETWORK_FIELD, eData, err.Error())
 		}
