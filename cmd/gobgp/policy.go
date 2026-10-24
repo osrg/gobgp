@@ -303,6 +303,7 @@ func parseNeighborSet(args []string) (*api.DefinedSet, error) {
 			if err != nil {
 				return nil, fmt.Errorf("invalid address or prefix: %s\nplease enter ipv4 or ipv6 format", arg)
 			}
+			list = append(list, arg)
 		}
 	}
 	return &api.DefinedSet{
