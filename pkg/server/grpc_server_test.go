@@ -19,7 +19,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	tspb "google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -1039,6 +1041,163 @@ func TestGRPCListPolicyAndListStatementAgree(t *testing.T) {
 	for _, st := range policies[0].Statements {
 		if st.Name == "empty-replace" {
 			assert.Equal(t, api.CommunityAction_TYPE_REPLACE, st.GetActions().GetCommunity().GetType())
+		}
+	}
+}
+
+// watchTableEvents starts a WatchEvent whose consumer is held until release is
+// closed, so that the events are read well after they are queued. It returns
+// what the consumer received.
+func watchTableEvents(t *testing.T, s *BgpServer, filters []*api.WatchEventRequest_Table_Filter, release <-chan struct{}) <-chan watchedTableEvent {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	ch := make(chan watchedTableEvent, 64)
+	// watchEvent registers the watcher and returns, with a status that says
+	// the watch started.
+	err := (&server{bgpServer: s, shared: s.shared}).watchEvent(ctx, &api.WatchEventRequest{
+		Table: &api.WatchEventRequest_Table{Filters: filters},
+	}, func(resp *api.WatchEventResponse, _ time.Time) {
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return
+		}
+		ch <- watchedTableEvent{table: resp.GetTable(), readAt: time.Now()}
+	})
+	require.Equal(t, codes.OK, status.Code(err))
+	return ch
+}
+
+type watchedTableEvent struct {
+	table  *api.WatchEventResponse_TableEvent
+	readAt time.Time
+}
+
+func startWatchTestServer(t *testing.T) *BgpServer {
+	t.Helper()
+	s := NewBgpServer()
+	go s.Serve()
+	t.Cleanup(s.Stop)
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 1, RouterId: "1.1.1.1", ListenPort: -1},
+	}))
+	return s
+}
+
+func addWatchTestPath(t *testing.T, s *BgpServer, prefix string) {
+	t.Helper()
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+	require.NoError(t, err)
+	_, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{{
+		Family: bgp.RF_IPv4_UC,
+		Nlri:   nlri,
+		Attrs:  []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh},
+	}}})
+	require.NoError(t, err)
+}
+
+// A consumer of WatchEvent tells how late it reads from the timestamp of a
+// table event, so it has to be the time the event was queued for the watcher,
+// whatever the type of the event and whatever time the event itself carries.
+func TestGRPCWatchEventTableTimestampIsQueueTime(t *testing.T) {
+	s := startWatchTestServer(t)
+	release := make(chan struct{})
+	ch := watchTableEvents(t, s, []*api.WatchEventRequest_Table_Filter{
+		{Type: api.WatchEventRequest_Table_Filter_TYPE_BEST},
+		{Type: api.WatchEventRequest_Table_Filter_TYPE_ADJIN},
+		{Type: api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY},
+		{Type: api.WatchEventRequest_Table_Filter_TYPE_EOR},
+	}, release)
+
+	// The events the server queues carry times of their own: the receipt of
+	// the UPDATE, the time of the path, or none. Make them all older than the
+	// queueing.
+	old := time.Now().Add(-time.Hour)
+	peer := &table.PeerInfo{
+		AS:      65001,
+		Address: netip.MustParseAddr("192.0.2.2"),
+		ID:      netip.MustParseAddr("192.0.2.2"),
+		LocalID: netip.MustParseAddr("1.1.1.1"),
+	}
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.2"))
+	require.NoError(t, err)
+	newPath := func(prefix string) []*table.Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		require.NoError(t, err)
+		return []*table.Path{table.NewPath(bgp.RF_IPv4_UC, peer, bgp.PathNLRI{NLRI: nlri}, false,
+			[]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}, old, false)}
+	}
+
+	queuedAfter := time.Now()
+	addWatchTestPath(t, s, "10.1.0.0/24") // best path
+	s.notifyWatcher(watchEventTypePreUpdate, &watchEventUpdate{
+		Timestamp: old, PeerAS: peer.AS, PeerAddress: peer.Address, PeerID: peer.ID,
+		PathList: newPath("10.2.0.0/24"),
+	})
+	s.notifyWatcher(watchEventTypePostUpdate, &watchEventUpdate{
+		Timestamp: old, PeerAS: peer.AS, PeerAddress: peer.Address, PeerID: peer.ID,
+		PostPolicy: true, PathList: newPath("10.3.0.0/24"),
+	})
+	s.notifyWatcher(watchEventTypeEor, &watchEventEor{
+		Family: bgp.RF_IPv4_UC, PeerInfo: peer, // no time at all
+	})
+	queuedBefore := time.Now()
+
+	// Read well after the events were queued.
+	time.Sleep(300 * time.Millisecond)
+	close(release)
+
+	seen := make(map[string]bool)
+	deadline := time.After(5 * time.Second)
+	for len(seen) < 4 {
+		select {
+		case r := <-ch:
+			require.NotEmpty(t, r.table.Paths)
+			require.NotNil(t, r.table.Timestamp, "a table event carries a timestamp")
+			require.NoError(t, r.table.Timestamp.CheckValid())
+			ts := r.table.Timestamp.AsTime()
+			key := r.table.Paths[0].String()
+			require.False(t, ts.Before(queuedAfter), "queued before it was: %s, event %s", ts, key)
+			require.False(t, ts.After(queuedBefore), "queued after the last was queued, so not the queue time: %s, event %s", ts, key)
+			require.GreaterOrEqual(t, r.readAt.Sub(ts), 250*time.Millisecond, "the timestamp is the read time: event %s", key)
+			seen[key] = true
+		case <-deadline:
+			t.Fatalf("got %d of 4 events", len(seen))
+		}
+	}
+}
+
+// The events that dump the table when a watch starts are queued at that time,
+// and carry it like the others.
+func TestGRPCWatchEventInitTimestamp(t *testing.T) {
+	s := startWatchTestServer(t)
+	addWatchTestPath(t, s, "10.1.0.0/24")
+	time.Sleep(1100 * time.Millisecond) // the path is older than the watch by more than its resolution
+
+	release := make(chan struct{})
+	queuedAfter := time.Now()
+	ch := watchTableEvents(t, s, []*api.WatchEventRequest_Table_Filter{
+		{Type: api.WatchEventRequest_Table_Filter_TYPE_BEST, Init: true},
+		{Type: api.WatchEventRequest_Table_Filter_TYPE_POST_POLICY, Init: true},
+	}, release)
+	queuedBefore := time.Now()
+	time.Sleep(300 * time.Millisecond)
+	close(release)
+
+	// The best path dump, the post-policy dump and its end-of-RIB marker.
+	for range 3 {
+		select {
+		case r := <-ch:
+			require.NotNil(t, r.table.Timestamp, "an init dump message carries a timestamp")
+			require.NoError(t, r.table.Timestamp.CheckValid())
+			ts := r.table.Timestamp.AsTime()
+			require.False(t, ts.Before(queuedAfter), "queued before the watch started: %s", ts)
+			require.False(t, ts.After(queuedBefore), "queued after the watch started: %s", ts)
+		case <-time.After(5 * time.Second):
+			t.Fatal("no table event")
 		}
 	}
 }
