@@ -528,6 +528,47 @@ func (peer *peer) forwardingPreservedFamilies() ([]bgp.Family, []bgp.Family) {
 	return classifyFamilies(peer.configuredRFlist(), list)
 }
 
+// dropNotPreservedStale removes the stale routes that are retained for the
+// Restart Time of a family whose forwarding state the re-established session
+// does not preserve: the Graceful Restart Capability is missing, does not list
+// the family, or lists it with the Forwarding State bit clear. It returns the
+// withdrawals to propagate, and ends the restart when no family is left waiting.
+func (peer *peer) dropNotPreservedStale() []*table.Path {
+	peer.fsm.lock.Lock()
+	conf := peer.fsm.pConf.ReadCopy()
+	preserved := map[bgp.Family]bool{}
+	if gr := peer.fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]; conf.GracefulRestart.State.Enabled && len(gr) > 0 {
+		for _, t := range gr[len(gr)-1].(*bgp.CapGracefulRestart).Tuples {
+			if t.Flags&0x80 != 0 {
+				preserved[bgp.NewFamily(t.AFI, t.SAFI)] = true
+			}
+		}
+	}
+
+	families := []bgp.Family{}
+	waiting := false
+	for i, a := range conf.AfiSafis {
+		if a.MpGracefulRestart.State.Running && !preserved[a.State.Family] {
+			families = append(families, a.State.Family)
+			conf.AfiSafis[i].MpGracefulRestart.State.Running = false
+		} else if a.MpGracefulRestart.State.Running || a.LongLivedGracefulRestart.State.Running {
+			waiting = true
+		}
+	}
+	if len(families) == 0 {
+		peer.fsm.lock.Unlock()
+		return nil
+	}
+	peer.fsm.pConf.Update(&conf)
+	peer.fsm.lock.Unlock()
+
+	pathList := peer.adjRibIn.DropStale(families)
+	if !waiting {
+		peer.stopPeerRestarting()
+	}
+	return pathList
+}
+
 func (peer *peer) llgrFamilies() ([]bgp.Family, []bgp.Family) {
 	conf := peer.fsm.pConf.ReadOnly()
 	list := []bgp.Family{}
