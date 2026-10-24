@@ -2032,6 +2032,20 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		drainChannel(peer.fsm.notification)
 
 		if nextState == bgp.BGP_FSM_ESTABLISHED {
+			// RFC 4724 4.2
+			// Once the session is re-established, if the "Forwarding State" bit for
+			// a specific address family is not set in the newly received Graceful
+			// Restart Capability, or if a specific address family is not included
+			// in the newly received Graceful Restart Capability, or if the Graceful
+			// Restart Capability is not received in the re-established session at
+			// all, then the Receiving Speaker MUST immediately remove all the stale
+			// routes from the peer that it is retaining for that address family.
+			if peer.fsm.pConf.ReadOnly().GracefulRestart.State.PeerRestarting {
+				if pathList := peer.dropNotPreservedStale(); len(pathList) > 0 {
+					s.propagateUpdate(peer, pathList)
+				}
+			}
+
 			conf := peer.fsm.pConf.ReadOnly()
 			// An explicit source already has its session and is left alone. An
 			// inferred source is kept across reconnects; the BFD server replaces

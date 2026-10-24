@@ -2630,3 +2630,79 @@ func TestFSMHandler_ResetBeforeEstablished(t *testing.T) {
 		})
 	}
 }
+
+// TestStateChangeClearsGracefulRestartState checks that the graceful restart
+// state of a session comes from its own OPEN. A peer that advertised the
+// capability for two families before it restarted and comes back with one
+// family, or with no capability at all, must not be treated as still
+// advertising the rest.
+func TestStateChangeClearsGracefulRestartState(t *testing.T) {
+	tests := []struct {
+		name     string
+		gr       *bgp.CapGracefulRestart
+		enabled  bool
+		received map[bgp.Family]bool
+	}{
+		{
+			name: "one family left",
+			gr: bgp.NewCapGracefulRestart(false, false, 120, []*bgp.CapGracefulRestartTuple{
+				bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+			}),
+			enabled:  true,
+			received: map[bgp.Family]bool{bgp.RF_IPv4_UC: true},
+		},
+		{
+			name:     "no capability",
+			received: map[bgp.Family]bool{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMockConnection()
+			m.SetRemoteAddr("10.0.0.1")
+			p, h := makePeerAndHandler(m)
+			t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+			// The state the previous session left.
+			afiSafi := func(name oc.AfiSafiType, family bgp.Family) oc.AfiSafi {
+				var a oc.AfiSafi
+				a.Config.AfiSafiName = name
+				a.Config.Enabled = true
+				a.State.Family = family
+				a.MpGracefulRestart.Config.Enabled = true
+				a.MpGracefulRestart.State.Enabled = true
+				a.MpGracefulRestart.State.Received = true
+				return a
+			}
+			conf := p.fsm.pConf.ReadCopy()
+			conf.Config.PeerAs = 65001
+			conf.GracefulRestart.Config.Enabled = true
+			conf.GracefulRestart.State.Enabled = true
+			conf.AfiSafis = []oc.AfiSafi{
+				afiSafi(oc.AFI_SAFI_TYPE_IPV4_UNICAST, bgp.RF_IPv4_UC),
+				afiSafi(oc.AFI_SAFI_TYPE_IPV6_UNICAST, bgp.RF_IPv6_UC),
+			}
+			p.fsm.pConf.Update(&conf)
+
+			caps := []bgp.ParameterCapabilityInterface{
+				bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC),
+				bgp.NewCapMultiProtocol(bgp.RF_IPv6_UC),
+			}
+			if tt.gr != nil {
+				caps = append(caps, tt.gr)
+			}
+			open, err := bgp.NewBGPOpenMessage(65001, 90, netip.MustParseAddr("10.0.0.1"),
+				[]bgp.OptionParameterInterface{bgp.NewOptionParameterCapability(caps)})
+			require.NoError(t, err)
+			p.fsm.recvOpen = open
+
+			p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
+
+			got := p.fsm.pConf.ReadOnly()
+			assert.Equal(t, tt.enabled, got.GracefulRestart.State.Enabled)
+			for _, a := range got.AfiSafis {
+				assert.Equal(t, tt.received[a.State.Family], a.MpGracefulRestart.State.Received, "%s", a.State.Family)
+			}
+		})
+	}
+}

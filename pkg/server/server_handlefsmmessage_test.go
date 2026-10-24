@@ -2596,3 +2596,153 @@ func TestHandleFSMMessage_EORDropsStalePerFamily(t *testing.T) {
 	assert.Equal(t, 0, p.adjRibIn.Count([]bgp.Family{bgp.RF_IPv6_UC}))
 	assert.False(t, p.fsm.pConf.ReadOnly().GracefulRestart.State.PeerRestarting)
 }
+
+// TestHandleFSMMessage_EstablishedDropsNotPreservedStale checks RFC 4724 4.2:
+// once the session is re-established, the stale routes of a family are removed
+// at once when the Graceful Restart Capability of the new session does not
+// preserve its forwarding state. No End-of-RIB marker is needed for them.
+func TestHandleFSMMessage_EstablishedDropsNotPreservedStale(t *testing.T) {
+	v4 := bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true)
+	v6 := bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true)
+	v6NoForwarding := bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, false)
+
+	tests := []struct {
+		name string
+		// The Graceful Restart Capability of the new session, nil if the
+		// peer did not send one.
+		gr         *bgp.CapGracefulRestart
+		keepV4     bool
+		keepV6     bool
+		restarting bool
+	}{
+		{
+			name:       "both families preserved",
+			gr:         bgp.NewCapGracefulRestart(false, false, 120, []*bgp.CapGracefulRestartTuple{v4, v6}),
+			keepV4:     true,
+			keepV6:     true,
+			restarting: true,
+		},
+		{
+			name:       "forwarding state bit clear",
+			gr:         bgp.NewCapGracefulRestart(false, false, 120, []*bgp.CapGracefulRestartTuple{v4, v6NoForwarding}),
+			keepV4:     true,
+			restarting: true,
+		},
+		{
+			name:       "family not listed",
+			gr:         bgp.NewCapGracefulRestart(false, false, 120, []*bgp.CapGracefulRestartTuple{v4}),
+			keepV4:     true,
+			restarting: true,
+		},
+		{
+			name: "no graceful restart capability",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewBgpServer()
+			go s.Serve()
+
+			err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+				Global: &api.Global{
+					Asn:        65000,
+					RouterId:   "1.1.1.1",
+					ListenPort: -1,
+				},
+			})
+			require.NoError(t, err)
+
+			peerAddr := netip.MustParseAddr("10.0.0.1")
+			p := newPeerandInfo(t, 65000, 65001, peerAddr.String(), s.globalRib)
+			err = s.mgmtOperation(func() error {
+				s.neighborMap[peerAddr] = p
+				return nil
+			}, true)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				err := s.mgmtOperation(func() error {
+					delete(s.neighborMap, peerAddr)
+					return nil
+				}, false)
+				require.NoError(t, err)
+				require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+			})
+
+			listed := map[bgp.Family]bool{}
+			capMap := map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface{}
+			if tt.gr != nil {
+				for _, t := range tt.gr.Tuples {
+					listed[bgp.NewFamily(t.AFI, t.SAFI)] = true
+				}
+				capMap[bgp.BGP_CAP_GRACEFUL_RESTART] = []bgp.ParameterCapabilityInterface{tt.gr}
+			}
+
+			// The peer restarted gracefully, so the routes of both families
+			// are stale, and the session is coming up again. The state is
+			// what fsm.stateChange leaves for the OPEN of the new session.
+			afiSafi := func(name oc.AfiSafiType, family bgp.Family) oc.AfiSafi {
+				var a oc.AfiSafi
+				a.Config.AfiSafiName = name
+				a.Config.Enabled = true
+				a.State.Family = family
+				a.MpGracefulRestart.Config.Enabled = true
+				a.MpGracefulRestart.State.Enabled = true
+				a.MpGracefulRestart.State.Received = listed[family]
+				a.MpGracefulRestart.State.Running = true
+				return a
+			}
+			p.fsm.lock.Lock()
+			conf := p.fsm.pConf.ReadCopy()
+			conf.State.SessionState = oc.SESSION_STATE_OPENCONFIRM
+			conf.GracefulRestart.Config.Enabled = true
+			conf.GracefulRestart.Config.RestartTime = 120
+			conf.GracefulRestart.State.Enabled = tt.gr != nil
+			conf.GracefulRestart.State.PeerRestarting = true
+			conf.AfiSafis = []oc.AfiSafi{
+				afiSafi(oc.AFI_SAFI_TYPE_IPV4_UNICAST, bgp.RF_IPv4_UC),
+				afiSafi(oc.AFI_SAFI_TYPE_IPV6_UNICAST, bgp.RF_IPv6_UC),
+			}
+			p.fsm.pConf.Update(&conf)
+			p.fsm.capMap = capMap
+			p.fsm.lock.Unlock()
+			p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+				bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE,
+				bgp.RF_IPv6_UC: bgp.BGP_ADD_PATH_NONE,
+			})
+			p.adjRibIn = table.NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+
+			v4Prefix, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+			require.NoError(t, err)
+			v6Prefix, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:10::/64"))
+			require.NoError(t, err)
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0),
+				bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}),
+			}
+			info := p.peerInfo.Load()
+			p.adjRibIn.Update([]*table.Path{
+				table.NewPath(bgp.RF_IPv4_UC, info, bgp.PathNLRI{NLRI: v4Prefix}, false, attrs, time.Now(), false),
+				table.NewPath(bgp.RF_IPv6_UC, info, bgp.PathNLRI{NLRI: v6Prefix}, false, attrs, time.Now(), false),
+			})
+			p.StaleAll([]bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+
+			s.handleFSMMessage(p, &fsmMsg{
+				MsgType:     fsmMsgStateChange,
+				MsgData:     bgp.BGP_FSM_ESTABLISHED,
+				StateReason: newfsmStateReason(fsmOpenMsgNegotiated, nil, nil),
+				timestamp:   time.Now(),
+			})
+
+			count := func(keep bool) int {
+				if keep {
+					return 1
+				}
+				return 0
+			}
+			assert.Equal(t, count(tt.keepV4), p.adjRibIn.Count([]bgp.Family{bgp.RF_IPv4_UC}), "ipv4-unicast stale routes")
+			assert.Equal(t, count(tt.keepV6), p.adjRibIn.Count([]bgp.Family{bgp.RF_IPv6_UC}), "ipv6-unicast stale routes")
+			assert.Equal(t, tt.restarting, p.fsm.pConf.ReadOnly().GracefulRestart.State.PeerRestarting)
+		})
+	}
+}
