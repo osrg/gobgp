@@ -980,6 +980,24 @@ func (fsm *fsm) sendNotification(conn net.Conn, msg *bgp.BGPMessage) error {
 	return err
 }
 
+func (fsm *fsm) logRecvNotification(body *bgp.BGPNotification) {
+	if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
+		communication, rest := decodeAdministrativeCommunication(body.Data)
+		fsm.logger.Info("received notification",
+			slog.String("State", fsm.state.String()),
+			slog.Int("Code", int(body.ErrorCode)),
+			slog.Int("Subcode", int(body.ErrorSubcode)),
+			slog.String("Communicated-Reason", communication),
+			slog.Any("Data", rest))
+	} else {
+		fsm.logger.Info("received notification",
+			slog.String("State", fsm.state.String()),
+			slog.Int("Code", int(body.ErrorCode)),
+			slog.Int("Subcode", int(body.ErrorSubcode)),
+			slog.Any("Data", body.Data))
+	}
+}
+
 func (fsm *fsm) start(wg *sync.WaitGroup, callback func(*fsmMsg)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	fsm.h = &fsmHandler{
@@ -1989,8 +2007,24 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 		case e := <-recvChan:
 			switch m := e.MsgData.(type) {
 			case *bgp.BGPMessage:
-				if m.Header.Type == bgp.BGP_MSG_KEEPALIVE {
+				switch m.Header.Type {
+				case bgp.BGP_MSG_KEEPALIVE:
 					return bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil)
+				case bgp.BGP_MSG_NOTIFICATION:
+					// RFC 4271 8.2.2, OpenConfirm state: "If the local
+					// system receives a TcpConnectionFails event (Event 18)
+					// from the underlying TCP or a NOTIFICATION message
+					// (Event 25), the local system: ... - drops the TCP
+					// connection, ... - changes its state to Idle." and "If
+					// the local system receives a NOTIFICATION message with
+					// a version error (NotifMsgVerErr (Event 24)), the local
+					// system: ... - drops the TCP connection, and - changes
+					// its state to Idle." Neither list has a step that sends
+					// a NOTIFICATION.
+					body := m.Body.(*bgp.BGPNotification)
+					fsm.logRecvNotification(body)
+					fsm.conn.Close()
+					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmNotificationRecv, body, nil)
 				}
 				// send notification ?
 				fsm.conn.Close()
@@ -2230,20 +2264,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 				case bgp.BGP_MSG_NOTIFICATION:
 					doCallback = false
 					body := m.Body.(*bgp.BGPNotification)
-					if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
-						communication, rest := decodeAdministrativeCommunication(body.Data)
-						h.fsm.logger.Info("received notification",
-							slog.Int("Code", int(body.ErrorCode)),
-							slog.Int("Subcode", int(body.ErrorSubcode)),
-							slog.String("Communicated-Reason", communication),
-							slog.Any("Data", rest),
-						)
-					} else {
-						h.fsm.logger.Info("received notification",
-							slog.Int("Code", int(body.ErrorCode)),
-							slog.Int("Subcode", int(body.ErrorSubcode)),
-							slog.Any("Data", body.Data))
-					}
+					h.fsm.logRecvNotification(body)
 
 					conf := h.fsm.pConf.ReadOnly()
 					s := conf.GracefulRestart.State

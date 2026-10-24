@@ -300,6 +300,44 @@ func TestFSMHandlerOpenconfirm_HoldTimerExpired(t *testing.T) {
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
 }
 
+// RFC 4271 8.2.2: in OpenConfirm, a NOTIFICATION (Event 24 or 25) gets no
+// answer. The reason carries the received NOTIFICATION.
+func TestFSMHandlerOpenconfirm_NotificationReceived(t *testing.T) {
+	tests := []struct {
+		name    string
+		code    uint8
+		subcode uint8
+	}{
+		{"version error", bgp.BGP_ERROR_OPEN_MESSAGE_ERROR, bgp.BGP_ERROR_SUB_UNSUPPORTED_VERSION_NUMBER},
+		{"cease", bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMockConnection()
+			p, h := makePeerAndHandler(m)
+			t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+			p.fsm.lock.Lock()
+			conf := p.fsm.pConf.ReadCopy()
+			conf.Timers.State.KeepaliveInterval = 30
+			conf.Timers.State.NegotiatedHoldTime = 90
+			p.fsm.pConf.Update(&conf)
+			p.fsm.lock.Unlock()
+
+			// net.Pipe writes block until the message is read.
+			go m.PushBgpMessage(bgp.NewBGPNotificationMessage(tt.code, tt.subcode, nil))
+
+			state, reason := h.openconfirm(t.Context())
+			require.Equal(t, bgp.BGP_FSM_IDLE, state)
+			require.Equal(t, fsmNotificationRecv, reason.Type)
+			require.Equal(t, tt.code, reason.BGPNotification.ErrorCode)
+			require.Equal(t, tt.subcode, reason.BGPNotification.ErrorSubcode)
+			require.Never(t, func() bool { return len(m.GetSentMessages()) > 0 },
+				100*time.Millisecond, 10*time.Millisecond)
+		})
+	}
+}
+
 func TestFSMHandlerEstablish_HoldTimerExpired(t *testing.T) {
 	assert := assert.New(t)
 
