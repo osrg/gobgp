@@ -83,7 +83,6 @@ const (
 	fsmNotificationRecv
 	fsmHoldTimerExpired
 	fsmIdleTimerExpired
-	fsmRestartTimerExpired
 	fsmGracefulRestart
 	fsmInvalidMsg
 	fsmNewConnection
@@ -151,8 +150,6 @@ func (r fsmStateReason) String() string {
 		return "hold-timer-expired"
 	case fsmIdleTimerExpired:
 		return "idle-hold-timer-expired"
-	case fsmRestartTimerExpired:
-		return "restart-timer-expired"
 	case fsmGracefulRestart:
 		return "graceful-restart"
 	case fsmInvalidMsg:
@@ -571,7 +568,6 @@ type fsm struct {
 	familyMap                atomic.Value // map[bgp.Family]bgp.BGPAddPathMode
 	rtcEORWait               atomic.Bool
 	logger                   *slog.Logger
-	gracefulRestartTimer     *time.Timer
 	outgoingCh               *channels.InfiniteChannel
 	notification             chan *bgp.BGPMessage
 	deconfiguredNotification chan *bgp.BGPMessage
@@ -751,7 +747,6 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 		idleHoldBackoff:          idleHoldTimeInitial,
 		adminStateCh:             make(chan adminStateOperation, adminStateChLen),
 		capMap:                   make(map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface),
-		gracefulRestartTimer:     time.NewTimer(time.Hour),
 		notification:             make(chan *bgp.BGPMessage, 1),
 		deconfiguredNotification: make(chan *bgp.BGPMessage, 1),
 		resetCh:                  make(chan []byte, 1),
@@ -766,7 +761,6 @@ func newFSM(gConf *oc.Global, pConf *oc.Neighbor, state bgp.FSMState, logger *sl
 		adminState = adminStateDown
 	}
 	fsm.adminState.Store(adminState)
-	fsm.gracefulRestartTimer.Stop()
 	return fsm
 }
 
@@ -908,15 +902,6 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 						break
 					}
 				}
-			}
-
-			// RFC 4724 4.1
-			// To re-establish the session with its peer, the Restarting Speaker
-			// MUST set the "Restart State" bit in the Graceful Restart Capability
-			// of the OPEN message.
-			if conf.GracefulRestart.State.PeerRestarting && cap.Flags&0x08 == 0 {
-				fsm.logger.Warn("restart flag is not set", slog.String("State", fsm.state.String()))
-				// just ignore
 			}
 
 			// RFC 4724 3
@@ -1077,14 +1062,6 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 		select {
 		case <-ctx.Done():
 			return -1, newfsmStateReason(fsmDying, nil, nil)
-		case <-fsm.gracefulRestartTimer.C:
-			conf := fsm.pConf.ReadOnly()
-			restarting := conf.GracefulRestart.State.PeerRestarting
-
-			if restarting {
-				fsm.logger.Warn("graceful restart timer expired", slog.String("State", fsm.state.String()))
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
-			}
 		case conn, ok := <-fsm.connCh:
 			if !ok {
 				break
@@ -1276,13 +1253,6 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 				fsm.outgoingConnMgr.stop(nil)
 
 				return bgp.BGP_FSM_OPENCONFIRM, newfsmStateReason(fsmOpenMsgReceived, nil, nil)
-			}
-		case <-fsm.gracefulRestartTimer.C:
-			conf := fsm.pConf.ReadOnly()
-			restarting := conf.GracefulRestart.State.PeerRestarting
-			if restarting {
-				fsm.logger.Warn("graceful restart timer expired", slog.String("State", fsm.state.String()))
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
 			}
 		case communication := <-fsm.resetCh:
 			// ResetPeer. There is no connection to send the
@@ -1795,14 +1765,6 @@ func (h *fsmHandler) opensent(ctx context.Context) (bgp.FSMState, *fsmStateReaso
 			}
 			conn.Close()
 			fsm.logger.Warn("Closed an accepted connection", slog.String("State", fsm.state.String()))
-		case <-fsm.gracefulRestartTimer.C:
-			conf := fsm.pConf.ReadOnly()
-			restarting := conf.GracefulRestart.State.PeerRestarting
-			if restarting {
-				fsm.logger.Warn("graceful restart timer expired", slog.String("State", fsm.state.String()))
-				fsm.conn.Close()
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
-			}
 		case e := <-recvChan:
 			nextState, reason, notif := fsm.handleOpen(e)
 			if nextState != bgp.BGP_FSM_OPENCONFIRM {
@@ -2010,14 +1972,6 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// The old hold timer is not stopped. Its channel is no longer
 			// read, and the timer for hold time zero cannot be stopped.
 			holdTimer = newHoldTimer()
-		case <-fsm.gracefulRestartTimer.C:
-			conf := fsm.pConf.ReadOnly()
-			restarting := conf.GracefulRestart.State.PeerRestarting
-			if restarting {
-				fsm.logger.Warn("graceful restart timer expired", slog.String("State", fsm.state.String()))
-				fsm.conn.Close()
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmRestartTimerExpired, nil, nil)
-			}
 		case <-ticker.C:
 			m := bgp.NewBGPKeepAliveMessage()
 			b, _ := m.Serialize()
@@ -2347,8 +2301,6 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	fsm.pConf.Update(&conf)
 	fsm.lock.Unlock()
 
-	fsm.gracefulRestartTimer.Stop()
-
 	convertNotification := func(m *bgp.BGPMessage) *bgp.BGPMessage {
 		// RFC8538 defines a Hard Reset notification subcode which
 		// indicates that the BGP speaker wants to reset the session
@@ -2407,9 +2359,6 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 					err.Type == fsmWriteFailed {
 					err = *newfsmStateReason(fsmGracefulRestart, nil, nil)
 					fsm.logger.Info("peer graceful restart", slog.String("State", fsm.state.String()))
-					fsm.lock.Lock()
-					fsm.gracefulRestartTimer.Reset(time.Duration(conf.GracefulRestart.State.PeerRestartTime) * time.Second)
-					fsm.lock.Unlock()
 				}
 			}
 			return bgp.BGP_FSM_IDLE, &err

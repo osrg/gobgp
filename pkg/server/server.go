@@ -38,6 +38,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/gr"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
@@ -981,6 +982,9 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	// create copy which can be accessed without mutex
 	conf := peer.fsm.pConf.ReadCopy()
 
+	// The graceful restart state comes from the Helper of the peer.
+	peer.grMu.Lock()
+	conf.GracefulRestart.State.PeerRestarting = peer.grHelper.Restarting()
 	confAfiSafis := make([]oc.AfiSafi, len(conf.AfiSafis))
 	for i, af := range conf.AfiSafis {
 		confAfiSafis[i] = af
@@ -990,7 +994,12 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 		} else {
 			confAfiSafis[i].AddPaths.State.SendMax = 0
 		}
+		phase := peer.grHelper.Phase(af.State.Family)
+		confAfiSafis[i].MpGracefulRestart.State.Running = phase == gr.Stale
+		confAfiSafis[i].LongLivedGracefulRestart.State.Running = phase == gr.LLGRStale
+		confAfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTimerExpired = false
 	}
+	peer.grMu.Unlock()
 	conf.AfiSafis = confAfiSafis
 
 	peer.fsm.lock.Lock()
@@ -1824,7 +1833,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 }
 
 func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
-	peer.stopPeerRestarting()
+	peer.stopGRTimers()
 	// Guard against the TOCTOU window between the RUnlock and write-Lock in
 	// handleFSMMessage: only delete if the map still holds this exact peer
 	key := netip.MustParseAddr(peer.ID())
@@ -1849,25 +1858,129 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	s.broadcastPeerState(peer, bgp.BGP_FSM_IDLE, oldState, e)
 }
 
-// dropNotPreservedStaleRoutes removes the stale routes that the peer did not
-// preserve, when the session is established again after a graceful restart
-// of the peer. See notPreservedFamilies(). If no stale routes are kept, the
-// restart is over: the peer may not send End-of-RIB markers.
-func (s *BgpServer) dropNotPreservedStaleRoutes(peer *peer) {
-	if !peer.fsm.pConf.ReadOnly().GracefulRestart.State.PeerRestarting {
-		return
-	}
-	drop, kept := peer.notPreservedFamilies()
-	if len(drop) > 0 {
-		pathList := peer.adjRibIn.DropStale(drop)
-		peer.fsm.logger.Debug("withdraw stale routes not preserved",
-			slog.Any("Families", drop),
+// runGRActions runs the actions that the graceful restart Helper of the peer
+// returned, in their order.
+func (s *BgpServer) runGRActions(peer *peer, a gr.Actions) {
+	if len(a.DropStale) > 0 {
+		pathList := peer.adjRibIn.DropStale(a.DropStale)
+		peer.fsm.logger.Debug("withdraw stale routes",
+			slog.Any("Families", a.DropStale),
 			slog.Int("Numbers", len(pathList)))
 		s.propagateUpdate(peer, pathList)
 	}
-	if !kept {
-		peer.stopPeerRestarting()
+	if len(a.MarkStale) > 0 {
+		s.propagateUpdate(peer, peer.StaleAll(a.MarkStale))
 	}
+	if len(a.MarkLLGRStale) > 0 {
+		// When a path with LLGR_STALE is chosen as the best path, a peer
+		// that does not support LLGR does not get it. If the peer has the
+		// path, it is withdrawn.
+		s.propagateUpdate(peer, peer.markLLGRStale(a.MarkLLGRStale))
+	}
+
+	peer.grMu.Lock()
+	defer peer.grMu.Unlock()
+	if a.StopRestartTimer && peer.grRestartTimer != nil {
+		peer.grRestartTimer.Stop()
+		peer.grRestartTimer = nil
+	}
+	for _, f := range a.StopLLGRTimers {
+		if t, ok := peer.grLLGRTimers[f]; ok {
+			t.Stop()
+			delete(peer.grLLGRTimers, f)
+		}
+	}
+	if t := a.StartRestartTimer; t != nil {
+		peer.fsm.logger.Info("graceful restart timer started", slog.Any("Duration", t.Duration))
+		id := t.ID
+		peer.grRestartTimer = time.AfterFunc(t.Duration, func() {
+			s.grTimerExpired(peer, "graceful restart timer expired", nil, func(h *gr.Helper) gr.Actions {
+				return h.TimerExpired(id)
+			})
+		})
+	}
+	for _, t := range a.StartLLGRTimers {
+		peer.fsm.logger.Info("LLGR stale timer started",
+			slog.String("Family", t.Family.String()),
+			slog.Any("Duration", t.Duration))
+		f, id := t.Family, t.ID
+		if peer.grLLGRTimers == nil {
+			peer.grLLGRTimers = make(map[bgp.Family]*time.Timer)
+		}
+		peer.grLLGRTimers[f] = time.AfterFunc(t.Duration, func() {
+			s.grTimerExpired(peer, "LLGR stale timer expired", []any{slog.String("Family", f.String())}, func(h *gr.Helper) gr.Actions {
+				return h.LLGRTimerExpired(f, id)
+			})
+		})
+	}
+}
+
+// grTimerExpired passes the expiry of a graceful restart timer of the peer
+// to its Helper, in the server loop. msg and attrs are logged with what the
+// expiry did, unless the Helper ignored it.
+func (s *BgpServer) grTimerExpired(peer *peer, msg string, attrs []any, event func(*gr.Helper) gr.Actions) {
+	//nolint: errcheck // the server is stopping
+	s.mgmtOperation(func() error {
+		if s.neighborMap[netip.MustParseAddr(peer.ID())] != peer {
+			return nil
+		}
+		peer.grMu.Lock()
+		was := peer.grHelper.Restarting()
+		a := event(&peer.grHelper)
+		restarting := peer.grHelper.Restarting()
+		peer.grMu.Unlock()
+		if len(a.DropStale) > 0 || len(a.MarkLLGRStale) > 0 {
+			attrs = append(attrs, slog.Any("StaleRoutesRemoved", a.DropStale))
+			if len(a.MarkLLGRStale) > 0 {
+				attrs = append(attrs, slog.Any("LongLivedStale", a.MarkLLGRStale))
+			}
+			peer.fsm.logger.Info(msg, attrs...)
+		}
+		s.runGRActions(peer, a)
+		// A dynamic neighbor exists for its session. It is kept while its
+		// restart goes on, and deleted when the restart ends with no
+		// session.
+		if was && !restarting && peer.isDynamicNeighbor() && peer.State() != bgp.BGP_FSM_ESTABLISHED {
+			s.stopNeighbor(peer, peer.State(), nil)
+		}
+		return nil
+	}, false)
+}
+
+// grSessionEstablished passes the new session of the peer to its graceful
+// restart Helper.
+func (s *BgpServer) grSessionEstablished(peer *peer) {
+	n := peer.grNegotiated()
+	peer.grMu.Lock()
+	restarting := peer.grHelper.Restarting()
+	a := peer.grHelper.SessionEstablished(n)
+	peer.grMu.Unlock()
+	// RFC 4724 4.1
+	// To re-establish the session with its peer, the Restarting Speaker
+	// MUST set the "Restart State" bit in the Graceful Restart Capability
+	// of the OPEN message.
+	if restarting && n.GR != nil && n.GR.Flags&0x08 == 0 {
+		peer.fsm.logger.Warn("restart flag is not set")
+	}
+	s.runGRActions(peer, a)
+}
+
+// grAbort gives up the graceful restart of a peer that is disabled with no
+// session. Its routes are removed.
+func (s *BgpServer) grAbort(peer *peer) {
+	if peer.State() == bgp.BGP_FSM_ESTABLISHED {
+		// The session ends, not as a graceful restart.
+		return
+	}
+	peer.grMu.Lock()
+	if !peer.grHelper.Restarting() {
+		peer.grMu.Unlock()
+		return
+	}
+	a := peer.grHelper.Abort()
+	peer.grMu.Unlock()
+	s.runGRActions(peer, a)
+	s.dropAdjRIBIn(peer, peer.configuredRFlist())
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
@@ -1892,7 +2005,6 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 		conf.State.SessionState = oc.IntToSessionStateMap[int(nextState)]
 		peer.fsm.pConf.Update(&conf)
 
-		nextStateIdle := conf.GracefulRestart.State.PeerRestarting && nextState == bgp.BGP_FSM_IDLE
 		peer.fsm.lock.Unlock()
 
 		// PeerDown
@@ -1906,27 +2018,23 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			}
 			graceful := e.StateReason.Type == fsmGracefulRestart
 			peer.fsm.lock.Unlock()
-			var dropFamilies, gracefulFamilies []bgp.Family
+			// Without the capabilities, no family is kept as stale.
+			var n gr.Negotiated
 			if graceful {
-				peer.fsm.lock.Lock()
-				conf := peer.fsm.pConf.ReadCopy()
-				conf.GracefulRestart.State.PeerRestarting = true
-				peer.fsm.pConf.Update(&conf)
-				peer.fsm.lock.Unlock()
-
-				gracefulFamilies, dropFamilies = peer.forwardingPreservedFamilies()
-				s.propagateUpdate(peer, peer.StaleAll(gracefulFamilies))
-			} else {
-				dropFamilies = peer.configuredRFlist()
+				n = peer.grNegotiated()
 			}
+			peer.grMu.Lock()
+			a := peer.grHelper.SessionDown(n)
+			peer.grMu.Unlock()
+			s.runGRActions(peer, a)
+			// The routes of the families that are not kept as stale are
+			// removed below.
+			_, dropFamilies := classifyFamilies(peer.configuredRFlist(), a.MarkStale)
 
 			// Always clear EndOfRibReceived state on PeerDown
 			peer.fsm.lock.Lock()
 			conf = peer.fsm.pConf.ReadCopy()
-			for i, af := range conf.AfiSafis {
-				if slices.Contains(gracefulFamilies, af.State.Family) {
-					conf.AfiSafis[i].MpGracefulRestart.State.Running = true
-				}
+			for i := range conf.AfiSafis {
 				conf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
 			}
 			peer.fsm.pConf.Update(&conf)
@@ -1947,95 +2055,13 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				peer.fsm.lock.Unlock()
 			}
 
-			if !graceful && peer.isDynamicNeighbor() {
+			// A dynamic neighbor exists for its session. It is kept only
+			// while it restarts gracefully.
+			if !peer.grRestarting() && peer.isDynamicNeighbor() {
 				needStopNeighbor = true
 				return
 			}
-		} else if nextStateIdle {
-			conf := peer.fsm.pConf.ReadOnly()
-			longLivedEnabled := conf.GracefulRestart.State.LongLivedEnabled
-			longLivedRunning := peer.longLivedRunning.Load()
-			// We must not restart LLGR timer until we have syncronized with
-			// the peer. Routes also need to be marked wit LLGR comm just once.
-			// https://datatracker.ietf.org/doc/html/rfc9494#session_resetsnever
-			if longLivedEnabled && !longLivedRunning {
-				peer.longLivedRunning.Store(true)
-				llgr, no_llgr := peer.llgrFamilies()
-
-				s.dropAdjRIBIn(peer, no_llgr)
-
-				// attach LLGR_STALE community to paths in peer's adj-rib-in
-				// paths with NO_LLGR are deleted
-				pathList := peer.markLLGRStale(llgr)
-
-				// calculate again
-				// wheh path with LLGR_STALE chosen as best,
-				// peer which doesn't support LLGR will drop the path
-				// if it is in adj-rib-out, do withdrawal
-				s.propagateUpdate(peer, pathList)
-
-				for _, f := range llgr {
-					endCh := make(chan struct{})
-					peer.fsm.lock.Lock()
-					peer.llgrEndChs = append(peer.llgrEndChs, endCh)
-					peer.fsm.lock.Unlock()
-					go func(family bgp.Family, endCh chan struct{}) {
-						peer.llgrRestartTimerStarted(family)
-						t := peer.llgrRestartTime(family)
-						timer := time.NewTimer(time.Second * time.Duration(t))
-
-						peer.fsm.logger.Info("LLGR restart timer started", slog.String("Family", family.String()), slog.Any("Duration", t))
-
-						select {
-						case <-timer.C:
-							err := s.mgmtOperation(func() error {
-								peer.fsm.logger.Info("LLGR restart timer expired", slog.String("Family", family.String()), slog.Any("Duration", t))
-
-								s.dropAdjRIBIn(peer, []bgp.Family{family})
-
-								// when all llgr restart timer expired, stop PeerRestarting
-								if peer.llgrRestartTimerExpired(family) {
-									peer.stopPeerRestarting()
-								}
-								return nil
-							}, false)
-							if err != nil {
-								// this would not happen, but handle the error just in case
-								// the above operation changes in the future
-								peer.fsm.logger.Error("LLGR restart timer expired but failed to propagate update",
-									slog.String("Family", family.String()),
-									slog.Any("Duration", t))
-							}
-						case <-endCh:
-							peer.fsm.logger.Info("LLGR restart timer stopped",
-								slog.String("Family", family.String()),
-								slog.Any("Duration", t))
-						}
-					}(f, endCh)
-				}
-			} else if !longLivedEnabled {
-				// RFC 4724 4.2
-				// If the session does not get re-established within the "Restart Time"
-				// that the peer advertised previously, the Receiving Speaker MUST
-				// delete all the stale routes from the peer that it is retaining.
-				peer.fsm.lock.Lock()
-				conf := peer.fsm.pConf.ReadCopy()
-				conf.GracefulRestart.State.PeerRestarting = false
-				for i := range conf.AfiSafis {
-					conf.AfiSafis[i].MpGracefulRestart.State.Running = false
-				}
-				peer.fsm.pConf.Update(&conf)
-				peer.fsm.lock.Unlock()
-
-				s.dropAdjRIBIn(peer, peer.configuredRFlist())
-
-				if peer.isDynamicNeighbor() {
-					needStopNeighbor = true
-					return
-				}
-			}
 		}
-
 		// Drop the messages that the last session did not send. The
 		// nonblocking drainChannel cannot be used here. It returns before
 		// the InfiniteChannel worker moves the next item to the output.
@@ -2067,9 +2093,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				conf.State.RemoteRouterId,
 				peer.fsm.gConf.Config.RouterId, conf.Transport.State.RemoteAddress, conf.Transport.State.LocalAddress)
 			peer.peerInfo.Store(peerInfo)
-			s.dropNotPreservedStaleRoutes(peer)
-			// It may have ended the restart of the peer.
-			conf = peer.fsm.pConf.ReadOnly()
+			s.grSessionEstablished(peer)
 
 			notLocalRestarting := !conf.GracefulRestart.State.LocalRestarting
 			if notLocalRestarting {
@@ -2083,7 +2107,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				// waiting sending non-route-target NLRIs since the peer won't send
 				// any routes (and EORs) before we send ours (or deferral-timer expires).
 				c := conf.GetAfiSafi(bgp.RF_RTC_UC)
-				notPeerRestarting := !conf.GracefulRestart.State.PeerRestarting
+				notPeerRestarting := !peer.grRestarting()
 				if y := peer.IsFamilyEnabled(bgp.RF_RTC_UC); y && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
 					peer.setRtcEORWait(true)
 					s.getBestFromLocalCallback(peer, []bgp.Family{bgp.RF_RTC_UC}, true, true, func(paths []*table.Path, filtered []*table.Path) {
@@ -2295,23 +2319,12 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					// we don't delay non-route-target NLRIs when local-restarting
 					peer.setRtcEORWait(false)
 				}
-				conf := peer.fsm.pConf.ReadOnly()
-				peerRestarting := conf.GracefulRestart.State.PeerRestarting
-				if peerRestarting {
-					// RFC 4724 4.2
-					// Once the End-of-RIB marker for an address family is
-					// received from the peer, it MUST immediately remove any
-					// routes from the peer that are still marked as stale for
-					// that address family.
-					if pathList := peer.adjRibIn.DropStale(eor); len(pathList) > 0 {
-						peer.fsm.logger.Debug("withdraw stale routes",
-							slog.Any("Families", eor),
-							slog.Int("Numbers", len(pathList)))
-
-						s.propagateUpdate(peer, pathList)
-					}
-					if peer.receivedAllEOR() {
-						peer.stopPeerRestarting()
+				if peer.grRestarting() {
+					for _, f := range eor {
+						peer.grMu.Lock()
+						a := peer.grHelper.EORReceived(f)
+						peer.grMu.Unlock()
+						s.runGRActions(peer, a)
 					}
 					// we don't delay non-route-target NLRIs when peer is restarting
 					peer.setRtcEORWait(false)
@@ -4674,6 +4687,7 @@ func (s *BgpServer) setAdminState(addr, communication string, state adminState) 
 			f(&adminStateOperation{adminStateUp, nil}, "adminStateUp requested")
 		case adminStateDown:
 			f(&adminStateOperation{adminStateDown, newAdministrativeCommunication(communication)}, "adminStateDown requested")
+			s.grAbort(peer)
 		case adminStatePfxCt:
 			f(&adminStateOperation{adminStatePfxCt, nil}, "adminStatePfxCt requested")
 		}
@@ -5273,8 +5287,6 @@ func convertFSMStateReasonToAPI(stateReason *fsmStateReason) (api.PeerState_Disc
 		disconnectReason = api.PeerState_DISCONNECT_REASON_WRITE_FAILED
 	case fsmIdleTimerExpired:
 		disconnectReason = api.PeerState_DISCONNECT_REASON_IDLE_TIMER_EXPIRED
-	case fsmRestartTimerExpired:
-		disconnectReason = api.PeerState_DISCONNECT_REASON_RESTART_TIMER_EXPIRED
 	case fsmGracefulRestart:
 		disconnectReason = api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART
 	case fsmInvalidMsg:

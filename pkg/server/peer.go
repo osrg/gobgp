@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/osrg/gobgp/v4/internal/pkg/gr"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -129,8 +130,15 @@ type peer struct {
 	advertisedCount sync.Map
 	// map[table.PathLocalKey]struct{}
 	sendMaxPathFiltered sync.Map
-	llgrEndChs          []chan struct{} // protected by fsm.lock
-	longLivedRunning    atomic.Bool
+	// grHelper keeps the graceful restart of the peer. grMu protects it and
+	// the timers that run for it. grMu is held only around a call to
+	// grHelper and the Stop or AfterFunc of a timer. No other lock is
+	// taken, no route is changed, and no mgmtOperation is queued while it
+	// is held.
+	grMu           sync.Mutex
+	grHelper       gr.Helper
+	grRestartTimer *time.Timer
+	grLLGRTimers   map[bgp.Family]*time.Timer
 	// Route Target Membership handler after import policy (for constrained VPN distribution).
 	rtmHandler *table.RouteTargetMembershipHandler
 	// Route refresh in progress, during an established session or route refresh, this need to be atomic to avoid out of order updates
@@ -517,62 +525,6 @@ func classifyFamilies(all, part []bgp.Family) ([]bgp.Family, []bgp.Family) {
 	return a, b
 }
 
-func (peer *peer) forwardingPreservedFamilies() ([]bgp.Family, []bgp.Family) {
-	conf := peer.fsm.pConf.ReadOnly()
-	list := []bgp.Family{}
-	for _, a := range conf.AfiSafis {
-		if s := a.MpGracefulRestart.State; s.Enabled && s.Received {
-			list = append(list, a.State.Family)
-		}
-	}
-	return classifyFamilies(peer.configuredRFlist(), list)
-}
-
-// notPreservedFamilies is called when the session is established again
-// after a graceful restart of the peer. It returns the families whose stale
-// routes must be removed now. RFC 4724 Section 4.2 says: "Once the session
-// is re-established, if the "Forwarding State" bit for a specific address
-// family is not set in the newly received Graceful Restart Capability, or if
-// a specific address family is not included in the newly received Graceful
-// Restart Capability, or if the Graceful Restart Capability is not received
-// in the re-established session at all, then the Receiving Speaker MUST
-// immediately remove all the stale routes from the peer that it is
-// retaining for that address family."
-//
-// kept reports whether stale routes of some family are still kept.
-//
-// A family in the long-lived stale period is always kept. RFC 9494 Section
-// 4.2 asks for the same check with the LLGR Capability, but the long-lived
-// stale timer of one family cannot be stopped yet.
-func (peer *peer) notPreservedFamilies() (drop []bgp.Family, kept bool) {
-	peer.fsm.lock.Lock()
-	defer peer.fsm.lock.Unlock()
-
-	conf := peer.fsm.pConf.ReadOnly()
-	preserved := make(map[bgp.Family]bool)
-	if caps := peer.fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]; conf.GracefulRestart.State.Enabled && len(caps) > 0 {
-		for _, t := range caps[len(caps)-1].(*bgp.CapGracefulRestart).Tuples {
-			// the Forwarding State (F) bit
-			preserved[bgp.NewFamily(t.AFI, t.SAFI)] = t.Flags&0x80 != 0
-		}
-	}
-	negotiated := peer.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)
-	for _, a := range conf.AfiSafis {
-		family := a.State.Family
-		switch {
-		case a.LongLivedGracefulRestart.State.Running:
-			kept = true
-		case a.MpGracefulRestart.State.Running:
-			if _, ok := negotiated[family]; ok && preserved[family] {
-				kept = true
-			} else {
-				drop = append(drop, family)
-			}
-		}
-	}
-	return drop, kept
-}
-
 func (peer *peer) llgrFamilies() ([]bgp.Family, []bgp.Family) {
 	conf := peer.fsm.pConf.ReadOnly()
 	list := []bgp.Family{}
@@ -582,6 +534,50 @@ func (peer *peer) llgrFamilies() ([]bgp.Family, []bgp.Family) {
 		}
 	}
 	return classifyFamilies(peer.configuredRFlist(), list)
+}
+
+// grNegotiated returns what the current session negotiated, for the graceful
+// restart of the peer. The capabilities are set only if they are
+// negotiated: we advertised them, and the peer sent them.
+func (peer *peer) grNegotiated() gr.Negotiated {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+
+	n := gr.Negotiated{Families: make(map[bgp.Family]bool)}
+	for f := range peer.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode) {
+		n.Families[f] = true
+	}
+	state := peer.fsm.pConf.ReadOnly().GracefulRestart.State
+	if caps := peer.fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]; state.Enabled && len(caps) > 0 {
+		n.GR = caps[len(caps)-1].(*bgp.CapGracefulRestart)
+	}
+	if caps := peer.fsm.capMap[bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART]; state.LongLivedEnabled && len(caps) > 0 {
+		n.LLGR = caps[len(caps)-1].(*bgp.CapLongLivedGracefulRestart)
+	}
+	return n
+}
+
+// grRestarting reports whether the stale routes of some family of the peer
+// are kept for a graceful restart.
+func (peer *peer) grRestarting() bool {
+	peer.grMu.Lock()
+	defer peer.grMu.Unlock()
+	return peer.grHelper.Restarting()
+}
+
+// stopGRTimers stops all the graceful restart timers of the peer. It is
+// called when the peer is deleted.
+func (peer *peer) stopGRTimers() {
+	peer.grMu.Lock()
+	defer peer.grMu.Unlock()
+	if peer.grRestartTimer != nil {
+		peer.grRestartTimer.Stop()
+		peer.grRestartTimer = nil
+	}
+	for f, t := range peer.grLLGRTimers {
+		t.Stop()
+		delete(peer.grLLGRTimers, f)
+	}
 }
 
 // extendedNexthopFamily reports whether the peer advertised the Extended
@@ -614,49 +610,6 @@ func (peer *peer) isLLGREnabledFamily(family bgp.Family) bool {
 	return slices.Contains(fs, family)
 }
 
-func (peer *peer) llgrRestartTime(family bgp.Family) uint32 {
-	conf := peer.fsm.pConf.ReadOnly()
-	for _, a := range conf.AfiSafis {
-		if a.State.Family == family {
-			return a.LongLivedGracefulRestart.State.PeerRestartTime
-		}
-	}
-	return 0
-}
-
-func (peer *peer) llgrRestartTimerStarted(family bgp.Family) {
-	peer.fsm.lock.Lock()
-	defer peer.fsm.lock.Unlock()
-
-	conf := peer.fsm.pConf.ReadCopy()
-	for i, a := range conf.AfiSafis {
-		if a.State.Family == family {
-			conf.AfiSafis[i].MpGracefulRestart.State.Running = false
-			conf.AfiSafis[i].LongLivedGracefulRestart.State.Running = true
-		}
-	}
-	peer.fsm.pConf.Update(&conf)
-}
-
-func (peer *peer) llgrRestartTimerExpired(family bgp.Family) bool {
-	peer.fsm.lock.Lock()
-	defer peer.fsm.lock.Unlock()
-
-	all := true
-	conf := peer.fsm.pConf.ReadCopy()
-	for i, a := range conf.AfiSafis {
-		if a.State.Family == family {
-			conf.AfiSafis[i].LongLivedGracefulRestart.State.PeerRestartTimerExpired = true
-		}
-		s := a.LongLivedGracefulRestart.State
-		if s.Received && !s.PeerRestartTimerExpired {
-			all = false
-		}
-	}
-	peer.fsm.pConf.Update(&conf)
-	return all
-}
-
 func (peer *peer) markLLGRStale(fs []bgp.Family) []*table.Path {
 	return peer.adjRibIn.MarkLLGRStaleOrDrop(fs)
 }
@@ -670,25 +623,6 @@ func (peer *peer) stopDeferralTimer() {
 		peer.deferralCancel = nil
 	}
 	peer.fsm.lock.Unlock()
-}
-
-func (peer *peer) stopPeerRestarting() {
-	peer.fsm.lock.Lock()
-	conf := peer.fsm.pConf.ReadCopy()
-	conf.GracefulRestart.State.PeerRestarting = false
-	for i := range conf.AfiSafis {
-		conf.AfiSafis[i].MpGracefulRestart.State.Running = false
-		conf.AfiSafis[i].LongLivedGracefulRestart.State.Running = false
-	}
-	peer.fsm.pConf.Update(&conf)
-
-	for _, ch := range peer.llgrEndChs {
-		close(ch)
-	}
-	peer.llgrEndChs = make([]chan struct{}, 0)
-	peer.fsm.lock.Unlock()
-
-	peer.longLivedRunning.Store(false)
 }
 
 // Returns true if the peer is interested in this path according to BGP RTC

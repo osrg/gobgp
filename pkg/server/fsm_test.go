@@ -2035,7 +2035,6 @@ func TestNextIdleHoldTime(t *testing.T) {
 		{"read failure keeps the value", 4, newfsmStateReason(fsmReadFailed, nil, nil), 4, 4},
 		{"write failure keeps the value", 4, newfsmStateReason(fsmWriteFailed, nil, nil), 4, 4},
 		{"graceful restart keeps the value", 4, newfsmStateReason(fsmGracefulRestart, nil, nil), 4, 4},
-		{"restart timer expiry keeps the value", 4, newfsmStateReason(fsmRestartTimerExpired, nil, nil), 4, 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2724,8 +2723,9 @@ func TestFSMStateChange_GracefulRestartCapabilityRemoved(t *testing.T) {
 		assert.False(t, a.LongLivedGracefulRestart.State.Received, a.State.Family)
 		assert.Zero(t, a.LongLivedGracefulRestart.State.PeerRestartTime, a.State.Family)
 	}
-	families, _ := p.forwardingPreservedFamilies()
-	assert.Empty(t, families)
+	n := p.grNegotiated()
+	assert.Nil(t, n.GR)
+	assert.Nil(t, n.LLGR)
 }
 
 // The next session has graceful restart for ipv4-unicast only, without the
@@ -2749,8 +2749,10 @@ func TestFSMStateChange_GracefulRestartFamilyRemoved(t *testing.T) {
 	for _, a := range s.AfiSafis {
 		assert.False(t, a.LongLivedGracefulRestart.State.Received, a.State.Family)
 	}
-	families, _ := p.forwardingPreservedFamilies()
-	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, families)
+	n := p.grNegotiated()
+	require.NotNil(t, n.GR)
+	assert.Equal(t, uint16(60), n.GR.Time)
+	assert.Nil(t, n.LLGR)
 }
 
 // When the TCP connection of a session without graceful restart fails, the
