@@ -2773,3 +2773,51 @@ func TestProcessMessageExternalPeerAttrsDiscarded(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessMessageExternalPeerOriginValidationStateDiscarded(t *testing.T) {
+	n1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	n2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.1.0/24"))
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	valid := bgp.NewValidationExtended(bgp.VALIDATION_STATE_VALID)
+	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65001, 100, true)
+	external := &PeerInfo{PeerType: oc.PEER_TYPE_EXTERNAL, AS: 65001, LocalAS: 65000}
+
+	for _, tc := range []struct {
+		name string
+		info *PeerInfo
+		exts []bgp.ExtendedCommunityInterface
+		want []bgp.ExtendedCommunityInterface
+	}{
+		{name: "external", info: external, exts: []bgp.ExtendedCommunityInterface{valid, rt}, want: []bgp.ExtendedCommunityInterface{rt}},
+		{name: "external only state", info: external, exts: []bgp.ExtendedCommunityInterface{valid}},
+		{name: "internal", info: &PeerInfo{PeerType: oc.PEER_TYPE_INTERNAL, AS: 65000, LocalAS: 65000}, exts: []bgp.ExtendedCommunityInterface{valid, rt}, want: []bgp.ExtendedCommunityInterface{valid, rt}},
+		{name: "route server client", info: &PeerInfo{PeerType: oc.PEER_TYPE_EXTERNAL, AS: 65001, LocalAS: 65000, RouteServerClient: true}, exts: []bgp.ExtendedCommunityInterface{valid, rt}, want: []bgp.ExtendedCommunityInterface{valid, rt}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			received := bgp.NewPathAttributeExtendedCommunities(tc.exts)
+			msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+				bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+					bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65001}),
+				}),
+				nexthop,
+				received,
+			}, []bgp.PathNLRI{{NLRI: n1}, {NLRI: n2}})
+
+			paths := ProcessMessage(msg, tc.info, time.Now(), false)
+			assert.Len(t, paths, 2)
+			for _, p := range paths {
+				assert.Equal(t, tc.want, p.GetExtCommunities(), "%s", p.GetPrefix())
+				assert.Equal(t, tc.want != nil, p.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES) != nil, "%s", p.GetPrefix())
+			}
+			// The received attribute is not changed.
+			assert.Equal(t, tc.exts, received.Value)
+			// The paths share the attributes, so the hash shared by them
+			// has to be the one of what is left.
+			want := paths[0].GetHash()
+			paths[0].updateHash()
+			assert.Equal(t, want, paths[0].GetHash())
+			assert.Equal(t, want, paths[1].GetHash())
+		})
+	}
+}
