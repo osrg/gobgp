@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,6 +57,10 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 	// "attribute discard"". 7.10 says the same for CLUSTER_LIST. We would
 	// otherwise act on them when reflecting the route.
 	//
+	// RFC 8097 2: "By default, implementations MUST drop the origin
+	// validation state extended community if received from an External
+	// BGP (EBGP) peer, without processing it further."
+	//
 	// TODO: a confederation peer has PeerType external, so LOCAL_PREF from
 	// it is removed too.
 	external := peerInfo != nil && peerInfo.PeerType == oc.PEER_TYPE_EXTERNAL && !peerInfo.RouteServerClient
@@ -77,6 +82,15 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 		case *bgp.PathAttributeLocalPref, *bgp.PathAttributeOriginatorId, *bgp.PathAttributeClusterList:
 			if !external {
 				attrs = append(attrs, attr)
+			}
+		case *bgp.PathAttributeExtendedCommunities:
+			if !external || !slices.ContainsFunc(a.Value, isOriginValidationState) {
+				attrs = append(attrs, attr)
+				break
+			}
+			// The received attribute is left as it is.
+			if exts := slices.DeleteFunc(slices.Clone(a.Value), isOriginValidationState); len(exts) != 0 {
+				attrs = append(attrs, bgp.NewPathAttributeExtendedCommunities(exts))
 			}
 		default:
 			attrs = append(attrs, attr)
@@ -162,6 +176,11 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 	}
 
 	return pathList
+}
+
+func isOriginValidationState(ec bgp.ExtendedCommunityInterface) bool {
+	_, ok := ec.(*bgp.ValidationExtended)
+	return ok
 }
 
 type TableManager struct {
