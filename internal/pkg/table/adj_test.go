@@ -439,3 +439,44 @@ func TestAdjRibCountUnknownFamily(t *testing.T) {
 	adj := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	assert.Equal(t, 0, adj.Count([]bgp.Family{bgp.RF_IPv6_UC}))
 }
+
+// A path that already carries LLGR_STALE does not get it twice, and is not
+// returned again. This happens when the session ends again while the family
+// is in the long-lived stale period.
+func TestLLGRStaleAlreadyMarked(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.10.0/24"))
+	p1 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	p2 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri2}, false, attrs, time.Now(), false)
+
+	families := []bgp.Family{bgp.RF_IPv4_UC}
+	adj := NewAdjRib(slog.Default(), families)
+	adj.Update([]*Path{p1})
+	require.Len(t, adj.MarkLLGRStaleOrDrop(families), 1)
+
+	// p2 comes later, then the family is marked again.
+	adj.Update([]*Path{p2})
+	pathList := adj.MarkLLGRStaleOrDrop(families)
+	require.Len(t, pathList, 1)
+	assert.Equal(t, "20.20.20.0/24", pathList[0].GetNlri().String())
+
+	for _, p := range adj.PathList(families, false) {
+		n := 0
+		for _, c := range p.GetCommunities() {
+			if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
+				n++
+			}
+		}
+		assert.Equal(t, 1, n, p.GetNlri().String())
+	}
+	// NO_LLGR wins over LLGR_STALE: the path is removed.
+	p1 = p1.Clone(false)
+	p1.SetCommunities([]uint32{uint32(bgp.COMMUNITY_LLGR_STALE), uint32(bgp.COMMUNITY_NO_LLGR)}, true)
+	adj.Update([]*Path{p1})
+	pathList = adj.MarkLLGRStaleOrDrop(families)
+	require.Len(t, pathList, 1)
+	assert.True(t, pathList[0].IsWithdraw)
+	assert.Equal(t, 1, adj.Count(families))
+}

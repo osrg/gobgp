@@ -314,8 +314,9 @@ func (adj *AdjRib) StaleAll(rfList []bgp.Family) []*Path {
 }
 
 // MarkLLGRStaleOrDrop attaches LLGR_STALE to the paths in the Adj-RIB-In and
-// removes the ones that carry NO_LLGR. It returns the paths that the caller
-// must propagate.
+// removes the ones that carry NO_LLGR. A path that already carries
+// LLGR_STALE is left as it is. It returns the paths that the caller must
+// propagate.
 //
 // As in DropStale, the list that goes to Update and the returned list are not
 // the same. A rejected path removed for NO_LLGR was never installed in the
@@ -334,6 +335,9 @@ func (adj *AdjRib) MarkLLGRStaleOrDrop(rfList []bgp.Family) []*Path {
 				if !p.IsRejected() {
 					pathList = append(pathList, n)
 				}
+			} else if p.IsLLGRStale() {
+				// Marked in an earlier restart, or received with it.
+				continue
 			} else {
 				n := p.Clone(false)
 				n.SetRejected(p.IsRejected())
