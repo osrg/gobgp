@@ -4156,6 +4156,43 @@ func Test_LsTLVTEDefaultMetric(t *testing.T) {
 	}
 }
 
+func Test_LsTLVPrefixMetric(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		{[]byte{0x04, 0x83, 0x00, 0x04, 0x00, 0x00, 0x00, 0x0a}, `{"type":1155,"prefix_metric":10}`, true, false},
+		{[]byte{0x04, 0x83, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00}, `{"type":1155,"prefix_metric":0}`, true, false},
+		{[]byte{0x04, 0x83, 0x00, 0x04, 0x00, 0xff, 0xff, 0xff, 0xAA}, `{"type":1155,"prefix_metric":16777215}`, false, false},
+		{[]byte{0x04, 0x83, 0x00, 0x03, 0x00, 0x00, 0x0a}, "", false, true},
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVPrefixMetric{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+
+		if test.serialize {
+			got, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, got)
+		}
+	}
+}
+
 func Test_LsTLVUnidirectionalLinkDelay(t *testing.T) {
 	assert := assert.New(t)
 
@@ -6021,6 +6058,40 @@ func Test_PathAttributeLs_MultiPrefixSID(t *testing.T) {
 		assert.Equal(uint8(128), ls.Prefix.SrPrefixSIDs[1].Algorithm)
 		assert.Equal(uint32(100501), ls.Prefix.SrPrefixSIDs[1].SID)
 	}
+}
+
+func Test_PathAttributeLs_PrefixMetric(t *testing.T) {
+	assert := assert.New(t)
+
+	in := []byte{
+		0x80, 0x29, 0x0d, // Optional attribute, BGP_ATTR_TYPE_LS, length 13
+		0x04, 0x80, 0x00, 0x01, 0x00, // IGP Flags, none set
+		0x04, 0x83, 0x00, 0x04, 0x00, 0x00, 0x00, 0x14, // Prefix Metric 20
+	}
+
+	attr := PathAttributeLs{}
+	assert.NoError(attr.DecodeFromBytes(in))
+
+	ls := attr.Extract()
+	if assert.NotNil(ls.Prefix.PrefixMetric) {
+		assert.Equal(uint32(20), *ls.Prefix.PrefixMetric)
+	}
+
+	// A Prefix NLRI without the TLV leaves the metric unset rather
+	// than reporting 0, a valid metric.
+	none := PathAttributeLs{}
+	assert.NoError(none.DecodeFromBytes([]byte{0x80, 0x29, 0x05, 0x04, 0x80, 0x00, 0x01, 0x00}))
+	assert.Nil(none.Extract().Prefix.PrefixMetric)
+
+	tlvs := NewLsAttributeTLVs(ls)
+	found := false
+	for _, tlv := range tlvs {
+		if m, ok := tlv.(*LsTLVPrefixMetric); ok {
+			found = true
+			assert.Equal(uint32(20), m.Metric)
+		}
+	}
+	assert.True(found)
 }
 
 func Test_PathAttributeLs_DualStackAdjacencySID(t *testing.T) {

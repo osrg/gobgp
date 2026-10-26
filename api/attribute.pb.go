@@ -4015,8 +4015,12 @@ type LsAttributePrefix struct {
 	// TLV (FAPM, TLV 1044, RFC 9351 Section 4) observed on this Prefix
 	// NLRI. One entry per Flex-Algorithm announced.
 	FadPrefixMetrics []*LsAttributeFADPrefixMetric `protobuf:"bytes,5,rep,name=fad_prefix_metrics,json=fadPrefixMetrics,proto3" json:"fad_prefix_metrics,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// prefix_metric is the Prefix Metric TLV (TLV 1155, RFC 9552
+	// Section 5.3.3.4). Unset when the originator did not advertise it;
+	// 0 is a valid metric.
+	PrefixMetric  *uint32 `protobuf:"varint,6,opt,name=prefix_metric,json=prefixMetric,proto3,oneof" json:"prefix_metric,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LsAttributePrefix) Reset() {
@@ -4082,6 +4086,13 @@ func (x *LsAttributePrefix) GetFadPrefixMetrics() []*LsAttributeFADPrefixMetric 
 		return x.FadPrefixMetrics
 	}
 	return nil
+}
+
+func (x *LsAttributePrefix) GetPrefixMetric() uint32 {
+	if x != nil && x.PrefixMetric != nil {
+		return *x.PrefixMetric
+	}
+	return 0
 }
 
 // LsAttributePrefixSID is one Prefix-SID TLV (RFC 9085 Section 2.1.1)
@@ -8364,13 +8375,15 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x1bLsAttributeLinkAdjacencySID\x12\x14\n" +
 	"\x05flags\x18\x01 \x01(\rR\x05flags\x12\x16\n" +
 	"\x06weight\x18\x02 \x01(\rR\x06weight\x12\x10\n" +
-	"\x03sid\x18\x03 \x01(\rR\x03sid\"\x8d\x02\n" +
+	"\x03sid\x18\x03 \x01(\rR\x03sid\"\xc9\x02\n" +
 	"\x11LsAttributePrefix\x12,\n" +
 	"\tigp_flags\x18\x01 \x01(\v2\x0f.api.LsIGPFlagsR\bigpFlags\x12\x16\n" +
 	"\x06opaque\x18\x02 \x01(\fR\x06opaque\x12\"\n" +
 	"\rsr_prefix_sid\x18\x03 \x01(\rR\vsrPrefixSid\x12?\n" +
 	"\x0esr_prefix_sids\x18\x04 \x03(\v2\x19.api.LsAttributePrefixSIDR\fsrPrefixSids\x12M\n" +
-	"\x12fad_prefix_metrics\x18\x05 \x03(\v2\x1f.api.LsAttributeFADPrefixMetricR\x10fadPrefixMetrics\"\\\n" +
+	"\x12fad_prefix_metrics\x18\x05 \x03(\v2\x1f.api.LsAttributeFADPrefixMetricR\x10fadPrefixMetrics\x12(\n" +
+	"\rprefix_metric\x18\x06 \x01(\rH\x00R\fprefixMetric\x88\x01\x01B\x10\n" +
+	"\x0e_prefix_metric\"\\\n" +
 	"\x14LsAttributePrefixSID\x12\x1c\n" +
 	"\talgorithm\x18\x01 \x01(\rR\talgorithm\x12\x14\n" +
 	"\x05flags\x18\x02 \x01(\rR\x05flags\x12\x10\n" +
@@ -9039,6 +9052,7 @@ func file_api_attribute_proto_init() {
 		(*TunnelEncapSubTLVSRBindingSID_SrBindingSid)(nil),
 		(*TunnelEncapSubTLVSRBindingSID_Srv6BindingSid)(nil),
 	}
+	file_api_attribute_proto_msgTypes[56].OneofWrappers = []any{}
 	file_api_attribute_proto_msgTypes[92].OneofWrappers = []any{}
 	file_api_attribute_proto_msgTypes[96].OneofWrappers = []any{
 		(*SRv6SubSubTLV_Structure)(nil),

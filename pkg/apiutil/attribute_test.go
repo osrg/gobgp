@@ -90,6 +90,41 @@ func Test_LsAttributeDelayMetricRoundTrip(t *testing.T) {
 	}
 }
 
+func Test_LsAttributePrefixMetricRoundTrip(t *testing.T) {
+	assert := assert.New(t)
+
+	metric := uint32(0)
+	input := &api.LsAttribute{
+		Prefix: &api.LsAttributePrefix{
+			IgpFlags:     &api.LsIGPFlags{},
+			PrefixMetric: &metric,
+		},
+	}
+
+	native, err := UnmarshalLsAttribute(input)
+	assert.NoError(err)
+	if assert.NotNil(native.Prefix.PrefixMetric) {
+		assert.Equal(uint32(0), *native.Prefix.PrefixMetric)
+	}
+
+	pathAttrLs := &bgp.PathAttributeLs{
+		TLVs: bgp.NewLsAttributeTLVs(native),
+	}
+	output, err := NewLsAttributeFromNative(pathAttrLs)
+	assert.NoError(err)
+	if assert.NotNil(output.Prefix) && assert.NotNil(output.Prefix.PrefixMetric) {
+		assert.Equal(uint32(0), *output.Prefix.PrefixMetric)
+	}
+
+	// Without IGP Flags the metric alone still makes the trip.
+	metric = 30
+	native, err = UnmarshalLsAttribute(&api.LsAttribute{Prefix: &api.LsAttributePrefix{PrefixMetric: &metric}})
+	assert.NoError(err)
+	if assert.NotNil(native.Prefix.PrefixMetric) {
+		assert.Equal(uint32(30), *native.Prefix.PrefixMetric)
+	}
+}
+
 func Test_AsPathAttribute(t *testing.T) {
 	assert := assert.New(t)
 
