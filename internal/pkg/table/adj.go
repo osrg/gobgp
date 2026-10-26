@@ -296,10 +296,16 @@ func (adj *AdjRib) DropStale(rfList []bgp.Family) []*Path {
 	return pathList
 }
 
+// StaleAll marks the paths in the Adj-RIB-In stale and returns the ones that
+// the caller must propagate. A path that is already stale is left as it is:
+// it was marked in an earlier restart and has been propagated.
 func (adj *AdjRib) StaleAll(rfList []bgp.Family) []*Path {
 	pathList := make([]*Path, 0, adj.Count(rfList))
 	adj.walkActive(rfList, func(d *destination) bool {
 		for i, p := range d.knownPathList {
+			if p.IsStale() {
+				continue
+			}
 			n := p.Clone(false)
 			n.MarkStale(true)
 			n.SetRejected(p.IsRejected())

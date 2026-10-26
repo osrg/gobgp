@@ -266,6 +266,38 @@ func TestStale(t *testing.T) {
 	assert.Equal(t, 1, len(adj.table[family].GetDestinations()))
 }
 
+// StaleAll leaves a path that is already stale as it is and does not return
+// it: it was propagated when it was marked. The paths received after that
+// are marked and returned.
+func TestStaleAllSkipsStale(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	family := bgp.RF_IPv4_UC
+	families := []bgp.Family{family}
+
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.10.0/24"))
+	p1 := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
+	adj := NewAdjRib(slog.Default(), families)
+	adj.Update([]*Path{p1})
+	assert.Len(t, adj.StaleAll(families), 1)
+	stale := adj.PathList(families, false)[0]
+	assert.True(t, stale.IsStale())
+
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	p2 := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri2}, false, attrs, time.Now(), false)
+	adj.Update([]*Path{p2})
+
+	pathList := adj.StaleAll(families)
+	assert.Len(t, pathList, 1)
+	assert.Equal(t, "20.20.20.0/24", pathList[0].GetNlri().String())
+	for _, p := range adj.PathList(families, false) {
+		assert.True(t, p.IsStale())
+		if p.GetNlri().String() == "20.20.10.0/24" {
+			assert.Same(t, stale, p)
+		}
+	}
+}
+
 func TestDropSkipsRejected(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
