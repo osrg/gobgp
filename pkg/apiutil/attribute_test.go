@@ -90,6 +90,28 @@ func Test_LsAttributeDelayMetricRoundTrip(t *testing.T) {
 	}
 }
 
+func Test_LsAttributeExtendedAdminGroupRoundTrip(t *testing.T) {
+	assert := assert.New(t)
+
+	input := &api.LsAttribute{
+		Link: &api.LsAttributeLink{
+			AdminGroup:         0x20,
+			ExtendedAdminGroup: []uint32{0x20, 0, 0, 0x10},
+		},
+	}
+
+	native, err := UnmarshalLsAttribute(input)
+	assert.NoError(err)
+	assert.Equal([]uint32{0x20, 0, 0, 0x10}, native.Link.ExtendedAdminGroup)
+
+	output, err := NewLsAttributeFromNative(&bgp.PathAttributeLs{TLVs: bgp.NewLsAttributeTLVs(native)})
+	assert.NoError(err)
+	if assert.NotNil(output.Link) {
+		assert.Equal(uint32(0x20), output.Link.AdminGroup)
+		assert.Equal([]uint32{0x20, 0, 0, 0x10}, output.Link.ExtendedAdminGroup)
+	}
+}
+
 func Test_AsPathAttribute(t *testing.T) {
 	assert := assert.New(t)
 

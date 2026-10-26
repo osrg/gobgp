@@ -471,6 +471,11 @@ message LsAttributeLink {
   uint32 unidirectional_delay_variation = 21;
 
   repeated LsAttributeLinkAdjacencySID sr_adjacency_sids = 22;
+
+  // extended_admin_group is the Extended Administrative Group TLV
+  // (TLV 1173, RFC 9104): its 32-bit bitmasks as received, in order.
+  // Empty when the TLV is absent.
+  repeated uint32 extended_admin_group = 23;
 }
 
 message LsAttributeLinkAdjacencySID {

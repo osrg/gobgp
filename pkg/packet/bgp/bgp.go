@@ -6265,6 +6265,7 @@ const (
 	LS_TLV_PREFIX_ATTRIBUTE_FLAGS = 1170 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
 	LS_TLV_SOURCE_ROUTER_ID       = 1171 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
 	LS_TLV_L2_BUNDLE_MEMBER_TLV   = 1172 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
+	LS_TLV_EXTENDED_ADMIN_GROUP   = 1173 // RFC9104
 
 	LS_TLV_SR_BINDING_SID               = 1201 // RFC9857
 	LS_TLV_SR_CP_STATE                  = 1202 // RFC9857
@@ -6346,6 +6347,9 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	}
 	if lsAttr.Link.AdminGroup != nil {
 		tlvs = append(tlvs, NewLsTLVAdminGroup(lsAttr.Link.AdminGroup))
+	}
+	if len(lsAttr.Link.ExtendedAdminGroup) > 0 {
+		tlvs = append(tlvs, NewLsTLVExtendedAdminGroup(lsAttr.Link.ExtendedAdminGroup))
 	}
 	if lsAttr.Link.DefaultTEMetric != nil {
 		tlvs = append(tlvs, NewLsTLVTEDefaultMetric(lsAttr.Link.DefaultTEMetric))
@@ -7799,6 +7803,87 @@ func (l *LsTLVAdminGroup) MarshalJSON() ([]byte, error) {
 }
 
 func (l *LsTLVAdminGroup) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// LsTLVExtendedAdminGroup is the Extended Administrative Group TLV
+// (RFC 9104 Section 2), the BGP-LS form of the IGP Extended
+// Administrative Group (RFC 7308). The value is one or more 32-bit
+// bitmasks, kept as received; which group a bit stands for is left to
+// the consumer (RFC 9104 Section 4).
+type LsTLVExtendedAdminGroup struct {
+	LsTLV
+	Groups []uint32
+}
+
+func NewLsTLVExtendedAdminGroup(l []uint32) *LsTLVExtendedAdminGroup {
+	return &LsTLVExtendedAdminGroup{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_EXTENDED_ADMIN_GROUP,
+			Length: uint16(4 * len(l)),
+		},
+		Groups: append([]uint32(nil), l...),
+	}
+}
+
+func (l *LsTLVExtendedAdminGroup) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_EXTENDED_ADMIN_GROUP {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://www.rfc-editor.org/rfc/rfc9104#section-2: "The length
+	// value MUST be a multiple of 4. If the length is not a multiple of
+	// 4, the TLV MUST be considered malformed." The value holds one or
+	// more bitmasks, so it is not empty either.
+	if len(value) == 0 || len(value)%4 != 0 {
+		return malformedAttrListErr("Incorrect Extended Admin Group length")
+	}
+
+	l.Groups = make([]uint32, 0, len(value)/4)
+	for i := 0; i < len(value); i += 4 {
+		l.Groups = append(l.Groups, binary.BigEndian.Uint32(value[i:i+4]))
+	}
+
+	return nil
+}
+
+func (l *LsTLVExtendedAdminGroup) Serialize() ([]byte, error) {
+	buf := make([]byte, 4*len(l.Groups))
+	for i, g := range l.Groups {
+		binary.BigEndian.PutUint32(buf[4*i:], g)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVExtendedAdminGroup) groups() []string {
+	out := make([]string, len(l.Groups))
+	for i, g := range l.Groups {
+		out[i] = fmt.Sprintf("%08x", g)
+	}
+	return out
+}
+
+func (l *LsTLVExtendedAdminGroup) String() string {
+	return fmt.Sprintf("{Extended Admin Group: %s}", strings.Join(l.groups(), " "))
+}
+
+func (l *LsTLVExtendedAdminGroup) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type               LsTLVType `json:"type"`
+		ExtendedAdminGroup []string  `json:"extended_admin_group"`
+	}{
+		Type:               l.Type,
+		ExtendedAdminGroup: l.groups(),
+	})
+}
+
+func (l *LsTLVExtendedAdminGroup) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
@@ -11114,6 +11199,7 @@ type LsAttributeLink struct {
 	RemoteRouterID                *netip.Addr                      `json:"remote_router_id_ipv4,omitempty"`
 	RemoteRouterIDv6              *netip.Addr                      `json:"remote_router_id_ipv6,omitempty"`
 	AdminGroup                    *uint32                          `json:"admin_group,omitempty"`
+	ExtendedAdminGroup            []uint32                         `json:"extended_admin_group,omitempty"`
 	DefaultTEMetric               *uint32                          `json:"default_te_metric,omitempty"`
 	UnidirectionalLinkDelay       *LsUnidirectionalLinkDelay       `json:"unidirectional_link_delay,omitempty"`
 	MinMaxUnidirectionalLinkDelay *LsMinMaxUnidirectionalLinkDelay `json:"min_max_unidirectional_link_delay,omitempty"`
@@ -11258,6 +11344,9 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVAdminGroup:
 			l.Link.AdminGroup = &v.AdminGroup
+
+		case *LsTLVExtendedAdminGroup:
+			l.Link.ExtendedAdminGroup = append([]uint32(nil), v.Groups...)
 
 		case *LsTLVMaxLinkBw:
 			l.Link.Bandwidth = &v.Bandwidth
@@ -11469,6 +11558,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		case LS_TLV_ADMIN_GROUP:
 			tlv = &LsTLVAdminGroup{}
+
+		case LS_TLV_EXTENDED_ADMIN_GROUP:
+			tlv = &LsTLVExtendedAdminGroup{}
 
 		case LS_TLV_MAX_LINK_BANDWIDTH:
 			tlv = &LsTLVMaxLinkBw{}

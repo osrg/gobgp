@@ -3749,8 +3749,12 @@ type LsAttributeLink struct {
 	MaxUnidirectionalLinkDelay             uint32                         `protobuf:"varint,20,opt,name=max_unidirectional_link_delay,json=maxUnidirectionalLinkDelay,proto3" json:"max_unidirectional_link_delay,omitempty"`
 	UnidirectionalDelayVariation           uint32                         `protobuf:"varint,21,opt,name=unidirectional_delay_variation,json=unidirectionalDelayVariation,proto3" json:"unidirectional_delay_variation,omitempty"`
 	SrAdjacencySids                        []*LsAttributeLinkAdjacencySID `protobuf:"bytes,22,rep,name=sr_adjacency_sids,json=srAdjacencySids,proto3" json:"sr_adjacency_sids,omitempty"`
-	unknownFields                          protoimpl.UnknownFields
-	sizeCache                              protoimpl.SizeCache
+	// extended_admin_group is the Extended Administrative Group TLV
+	// (TLV 1173, RFC 9104): its 32-bit bitmasks as received, in order.
+	// Empty when the TLV is absent.
+	ExtendedAdminGroup []uint32 `protobuf:"varint,23,rep,packed,name=extended_admin_group,json=extendedAdminGroup,proto3" json:"extended_admin_group,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *LsAttributeLink) Reset() {
@@ -3933,6 +3937,13 @@ func (x *LsAttributeLink) GetUnidirectionalDelayVariation() uint32 {
 func (x *LsAttributeLink) GetSrAdjacencySids() []*LsAttributeLinkAdjacencySID {
 	if x != nil {
 		return x.SrAdjacencySids
+	}
+	return nil
+}
+
+func (x *LsAttributeLink) GetExtendedAdminGroup() []uint32 {
+	if x != nil {
+		return x.ExtendedAdminGroup
 	}
 	return nil
 }
@@ -8334,7 +8345,7 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x14include_all_affinity\x18\b \x03(\rR\x12includeAllAffinity\x12)\n" +
 	"\x10definition_flags\x18\t \x01(\fR\x0fdefinitionFlags\x12!\n" +
 	"\fexclude_srlg\x18\n" +
-	" \x03(\rR\vexcludeSrlg\"\xd6\b\n" +
+	" \x03(\rR\vexcludeSrlg\"\x88\t\n" +
 	"\x0fLsAttributeLink\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12&\n" +
 	"\x0flocal_router_id\x18\x02 \x01(\tR\rlocalRouterId\x12+\n" +
@@ -8360,7 +8371,8 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x1dmin_unidirectional_link_delay\x18\x13 \x01(\rR\x1aminUnidirectionalLinkDelay\x12A\n" +
 	"\x1dmax_unidirectional_link_delay\x18\x14 \x01(\rR\x1amaxUnidirectionalLinkDelay\x12D\n" +
 	"\x1eunidirectional_delay_variation\x18\x15 \x01(\rR\x1cunidirectionalDelayVariation\x12L\n" +
-	"\x11sr_adjacency_sids\x18\x16 \x03(\v2 .api.LsAttributeLinkAdjacencySIDR\x0fsrAdjacencySids\"]\n" +
+	"\x11sr_adjacency_sids\x18\x16 \x03(\v2 .api.LsAttributeLinkAdjacencySIDR\x0fsrAdjacencySids\x120\n" +
+	"\x14extended_admin_group\x18\x17 \x03(\rR\x12extendedAdminGroup\"]\n" +
 	"\x1bLsAttributeLinkAdjacencySID\x12\x14\n" +
 	"\x05flags\x18\x01 \x01(\rR\x05flags\x12\x16\n" +
 	"\x06weight\x18\x02 \x01(\rR\x06weight\x12\x10\n" +
