@@ -462,3 +462,60 @@ func TestSetDefaultNeighborConfigValuesBfdPort(t *testing.T) {
 		})
 	}
 }
+
+// The graceful restart configuration of a neighbor read from a configuration
+// file is kept, and only the leaves that the neighbor does not set come from
+// the peer group.
+func TestOverwriteNeighborConfigWithPeerGroupGracefulRestart(t *testing.T) {
+	newPeerGroup := func() *PeerGroup {
+		return &PeerGroup{
+			Config: PeerGroupConfig{PeerGroupName: "g"},
+			GracefulRestart: GracefulRestart{
+				Config: GracefulRestartConfig{Enabled: true, RestartTime: 120, DeferralTime: 300},
+			},
+		}
+	}
+	newNeighbor := func() *Neighbor {
+		return &Neighbor{
+			Config: NeighborConfig{NeighborAddress: netip.MustParseAddr(testNeighborAddress), PeerGroup: "g"},
+		}
+	}
+
+	t.Run("inherited_when_not_configured", func(t *testing.T) {
+		registerConfiguredFields(t, testNeighborAddress, map[string]any{
+			"config": map[string]any{
+				"neighbor-address": testNeighborAddress,
+				"peer-group":       "g",
+			},
+		})
+
+		n := newNeighbor()
+		require.NoError(t, OverwriteNeighborConfigWithPeerGroup(n, newPeerGroup()))
+		assert.True(t, n.GracefulRestart.Config.Enabled)
+		assert.Equal(t, uint16(120), n.GracefulRestart.Config.RestartTime)
+		assert.Equal(t, uint16(300), n.GracefulRestart.Config.DeferralTime)
+	})
+
+	t.Run("kept_when_configured", func(t *testing.T) {
+		registerConfiguredFields(t, testNeighborAddress, map[string]any{
+			"config": map[string]any{
+				"neighbor-address": testNeighborAddress,
+				"peer-group":       "g",
+			},
+			"graceful-restart": map[string]any{
+				"config": map[string]any{
+					"enabled":      false,
+					"restart-time": 90,
+				},
+			},
+		})
+
+		n := newNeighbor()
+		n.GracefulRestart.Config = GracefulRestartConfig{Enabled: false, RestartTime: 90}
+		require.NoError(t, OverwriteNeighborConfigWithPeerGroup(n, newPeerGroup()))
+		assert.False(t, n.GracefulRestart.Config.Enabled)
+		assert.Equal(t, uint16(90), n.GracefulRestart.Config.RestartTime)
+		// Not set by the neighbor, so it comes from the peer group.
+		assert.Equal(t, uint16(300), n.GracefulRestart.Config.DeferralTime)
+	})
+}
