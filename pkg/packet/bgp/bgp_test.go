@@ -4156,6 +4156,90 @@ func Test_LsTLVTEDefaultMetric(t *testing.T) {
 	}
 }
 
+func Test_LsTLVExtendedAdminGroup(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		// As an EOS 4.33.10M BGP-LS producer sends groups 5 and 100.
+		{
+			[]byte{
+				0x04, 0x95, 0x00, 0x10,
+				0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+			},
+			`{"type":1173,"extended_admin_group":["00000020","00000000","00000000","00000010"]}`, true, false,
+		},
+		{[]byte{0x04, 0x95, 0x00, 0x04, 0x80, 0x00, 0x00, 0x01}, `{"type":1173,"extended_admin_group":["80000001"]}`, true, false},
+		{[]byte{0x04, 0x95, 0x00, 0x04, 0x80, 0x00, 0x00, 0x01, 0xFF}, `{"type":1173,"extended_admin_group":["80000001"]}`, false, false},
+		{[]byte{0x04, 0x95, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00}, "", false, true}, // not a multiple of 4
+		{[]byte{0x04, 0x95, 0x00, 0x00}, "", false, true},                                     // empty
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVExtendedAdminGroup{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(got, []byte(test.want))
+
+		if test.serialize {
+			got, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, got)
+		}
+	}
+}
+
+func Test_PathAttributeLs_ExtendedAdminGroup(t *testing.T) {
+	assert := assert.New(t)
+
+	// The Administrative Group and Extended Administrative Group TLVs of
+	// a link NLRI as an EOS 4.33.10M producer sends them for an interface
+	// with "traffic-engineering administrative-group 5,100".
+	in := []byte{
+		0x80, 0x29, 0x1c, // Optional attribute, BGP_ATTR_TYPE_LS, length 28
+		0x04, 0x40, 0x00, 0x04, 0x00, 0x00, 0x00, 0x20, // Administrative Group, bit 5
+		0x04, 0x95, 0x00, 0x10,
+		0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+	}
+
+	attr := PathAttributeLs{}
+	assert.NoError(attr.DecodeFromBytes(in))
+
+	ls := attr.Extract()
+	if assert.NotNil(ls.Link.AdminGroup) {
+		assert.Equal(uint32(0x20), *ls.Link.AdminGroup)
+	}
+	assert.Equal([]uint32{0x20, 0, 0, 0x10}, ls.Link.ExtendedAdminGroup)
+
+	found := false
+	for _, tlv := range NewLsAttributeTLVs(ls) {
+		if e, ok := tlv.(*LsTLVExtendedAdminGroup); ok {
+			found = true
+			b, err := e.Serialize()
+			assert.NoError(err)
+			assert.Equal(in[11:], b)
+		}
+	}
+	assert.True(found)
+
+	// Administrative Group alone: no extended one.
+	none := PathAttributeLs{}
+	assert.NoError(none.DecodeFromBytes([]byte{0x80, 0x29, 0x08, 0x04, 0x40, 0x00, 0x04, 0x00, 0x00, 0x00, 0x20}))
+	assert.Nil(none.Extract().Link.ExtendedAdminGroup)
+}
+
 func Test_LsTLVUnidirectionalLinkDelay(t *testing.T) {
 	assert := assert.New(t)
 
