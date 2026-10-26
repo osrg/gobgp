@@ -15,7 +15,8 @@
 
 // Package gr keeps the state of graceful restart. Helper keeps the restart
 // of a peer: we are the Receiving Speaker of RFC 4724 and the Helper of
-// RFC 9494. The package does no I/O: the caller passes events and runs the
+// RFC 9494. Restart keeps our own restart: we are the Restarting Speaker of
+// RFC 4724. The package does no I/O: the caller passes events and runs the
 // actions that come back, including the timers.
 package gr
 
@@ -27,6 +28,13 @@ import (
 // Restart Capability (RFC 4724 Section 3) and of the Long-Lived Graceful
 // Restart Capability (RFC 9494 Section 3): "The most significant bit".
 const fBit = 0x80
+
+// restartStateBit is the R bit in the Restart Flags of the Graceful Restart
+// Capability (RFC 4724 Section 3): "The most significant bit is defined as
+// the Restart State (R) bit, which can be used to avoid possible deadlock
+// caused by waiting for the End-of-RIB marker when multiple BGP speakers
+// peering with each other restart."
+const restartStateBit = 0x08
 
 // Negotiated is what a session negotiated with the peer. It is an argument:
 // the caller passes it to Helper.SessionEstablished() and
