@@ -1282,16 +1282,14 @@ func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Fami
 			pathList = append(pathList, paths...)
 			filtered = append(filtered, rejected...)
 		}
-		fn(pathList, filtered)
-		return
-	}
-
-	for _, family := range peer.toGlobalFamilies(rfList) {
-		for _, path := range s.getPossibleBest(peer, family) {
-			if p := s.filterpath(peer, path, nil); p != nil {
-				pathList = append(pathList, p)
-			} else {
-				filtered = append(filtered, filteredPathForPeer(peer, path))
+	} else {
+		for _, family := range peer.toGlobalFamilies(rfList) {
+			for _, path := range s.getPossibleBest(peer, family) {
+				if p := s.filterpath(peer, path, nil); p != nil {
+					pathList = append(pathList, p)
+				} else {
+					filtered = append(filtered, filteredPathForPeer(peer, path))
+				}
 			}
 		}
 	}
@@ -1342,10 +1340,6 @@ func needToAdvertise(peer *peer) bool {
 }
 
 func (s *BgpServer) sendSecondaryRoutes(peer *peer, dsts []*table.Update) (paths, filtered []*table.Path) {
-	if !needToAdvertise(peer) {
-		return nil, nil
-	}
-
 	f := func(path, old *table.Path) *table.Path {
 		path, options, stop := s.prePolicyFilterpath(peer, path, old)
 		if stop {
@@ -1809,6 +1803,9 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			} else {
 				if targetPeer.isRouteServerClient() {
 					if targetPeer.isSecondaryRouteEnabled() {
+						if !needToAdvertise(targetPeer) {
+							return
+						}
 						if paths, _ := s.sendSecondaryRoutes(targetPeer, dsts); len(paths) > 0 {
 							targetPeer.updateRoutes(paths...)
 							sendfsmOutgoingMsg(targetPeer, paths)
