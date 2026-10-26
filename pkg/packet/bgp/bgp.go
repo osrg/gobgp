@@ -3456,7 +3456,14 @@ func (n *EVPNNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) e
 		return &unknownRouteTypeError{msg: err.Error(), len: 2 + int(n.Length)}
 	}
 	n.RouteTypeData = r
-	return n.RouteTypeData.DecodeFromBytes(data[:n.Length])
+	if err := n.RouteTypeData.DecodeFromBytes(data[:n.Length]); err != nil {
+		return err
+	}
+	// Serialize writes n.Length back, so the route must use all of it.
+	if n.RouteTypeData.Len() != int(n.Length) {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("EVPN route type %d length %d does not match its content", n.RouteType, n.Length))
+	}
+	return nil
 }
 
 func (n *EVPNNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {

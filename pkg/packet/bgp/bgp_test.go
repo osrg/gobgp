@@ -1744,6 +1744,35 @@ func Test_EVPNUnknownRouteTypeIsDiscarded(t *testing.T) {
 	})
 }
 
+func Test_EVPNNLRIRejectsTrailingBytes(t *testing.T) {
+	rd, err := ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	ip := netip.MustParseAddr("10.0.0.1")
+	ad := NewEVPNEthernetAutoDiscoveryRoute(rd, EthernetSegmentIdentifier{}, 1, 100)
+	macip, err := NewEVPNMacIPAdvertisementRoute(rd, EthernetSegmentIdentifier{}, 1, "aa:bb:cc:dd:ee:ff", ip, []uint32{100})
+	require.NoError(t, err)
+	mcast, err := NewEVPNMulticastEthernetTagRoute(rd, 1, ip)
+	require.NoError(t, err)
+	es, err := NewEVPNEthernetSegmentRoute(rd, EthernetSegmentIdentifier{}, ip)
+	require.NoError(t, err)
+
+	for _, n := range []*EVPNNLRI{ad, macip, mcast, es} {
+		b, err := n.Serialize()
+		require.NoError(t, err)
+		_, err = NLRIFromSlice(RF_EVPN, b)
+		require.NoError(t, err)
+
+		// Four octets past the route, covered by the Length octet.
+		b = append(b, 0, 0, 0, 0)
+		b[1] += 4
+		_, err = NLRIFromSlice(RF_EVPN, b)
+		assert.Error(t, err, "route type %d", b[0])
+
+		p := &PathAttributeMpReachNLRI{}
+		assert.Error(t, p.DecodeFromBytes(testEVPNReach(b, testEVPNType2(t))), "route type %d", b[0])
+	}
+}
+
 func mustParseMAC(t *testing.T, s string) net.HardwareAddr {
 	t.Helper()
 	m, err := net.ParseMAC(s)
