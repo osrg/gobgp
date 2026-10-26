@@ -503,6 +503,11 @@ message LsAttributePrefix {
   // TLV (FAPM, TLV 1044, RFC 9351 Section 4) observed on this Prefix
   // NLRI. One entry per Flex-Algorithm announced.
   repeated LsAttributeFADPrefixMetric fad_prefix_metrics = 5;
+
+  // prefix_metric is the Prefix Metric TLV (TLV 1155, RFC 9552
+  // Section 5.3.3.4). Unset when the originator did not advertise it;
+  // 0 is a valid metric.
+  optional uint32 prefix_metric = 6;
 }
 
 // LsAttributePrefixSID is one Prefix-SID TLV (RFC 9085 Section 2.1.1)

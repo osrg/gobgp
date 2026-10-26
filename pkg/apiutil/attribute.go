@@ -1437,12 +1437,14 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 				SrPrefixSID:      &a.Prefix.SrPrefixSid,
 				SrPrefixSIDs:     prefixSIDs,
 				FadPrefixMetrics: fapms,
+				PrefixMetric:     a.Prefix.PrefixMetric,
 			}
-		} else if len(prefixSIDs) > 0 || len(fapms) > 0 {
-			// IgpFlags absent but SR / FAPM TLVs present.
+		} else if len(prefixSIDs) > 0 || len(fapms) > 0 || a.Prefix.PrefixMetric != nil {
+			// IgpFlags absent but SR / FAPM / Prefix Metric TLVs present.
 			lsAttr.Prefix = bgp.LsAttributePrefix{
 				SrPrefixSIDs:     prefixSIDs,
 				FadPrefixMetrics: fapms,
+				PrefixMetric:     a.Prefix.PrefixMetric,
 			}
 		}
 	}
@@ -3181,7 +3183,8 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 		Prefix: &api.LsAttributePrefix{
 			Opaque: bytesOrDefault(attr.Prefix.Opaque),
 
-			SrPrefixSid: uint32OrDefault(attr.Prefix.SrPrefixSID),
+			SrPrefixSid:  uint32OrDefault(attr.Prefix.SrPrefixSID),
+			PrefixMetric: attr.Prefix.PrefixMetric,
 		},
 		BgpPeerSegment: bgpPeerSegment,
 		Srv6Sid:        srv6SID,
