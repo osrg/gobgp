@@ -4264,6 +4264,118 @@ func Test_LsTLVMinMaxUnidirectionalLinkDelaySerializeMasksUndefinedFlagBits(t *t
 	assert.Equal([]byte{0x04, 0x5b, 0x00, 0x08, 0x80, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02}, got)
 }
 
+func Test_LsTLVApplicationSpecificLinkAttr(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		in        []byte
+		want      string
+		serialize bool
+		err       bool
+	}{
+		// SABM with the Flexible Algorithm bit (RFC 9350 Section 12, bit 3),
+		// a TE Default Metric of 100 and a Min/Max delay of 1000/2000 us.
+		{[]byte{0x04, 0x62, 0x00, 0x1c,
+			0x04, 0x00, 0x00, 0x00,
+			0x10, 0x00, 0x00, 0x00,
+			0x04, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x64,
+			0x04, 0x5b, 0x00, 0x08, 0x00, 0x00, 0x03, 0xe8, 0x00, 0x00, 0x07, 0xd0},
+			`{"type":1122,"standard_applications":"10000000","user_defined_applications":"","sub_tlvs":[{"type":1092,"te_default_metric":100},{"type":1115,"flags":0,"min_unidirectional_link_delay":1000,"max_unidirectional_link_delay":2000}]}`, true, false},
+		// Zero-length masks (every application, RFC 8919 Section 6.2), one
+		// user-defined application, and a sub-TLV of a type not decoded
+		// here (Unidirectional Link Loss, 1117), kept as received.
+		{[]byte{0x04, 0x62, 0x00, 0x10,
+			0x00, 0x04, 0x00, 0x00,
+			0x80, 0x00, 0x00, 0x00,
+			0x04, 0x5d, 0x00, 0x04, 0x80, 0x00, 0x00, 0x01},
+			`{"type":1122,"standard_applications":"","user_defined_applications":"80000000","sub_tlvs":[{"type":1117,"value":"gAAAAQ=="}]}`, true, false},
+		// No sub-TLVs.
+		{[]byte{0x04, 0x62, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00},
+			`{"type":1122,"standard_applications":"","user_defined_applications":"","sub_tlvs":null}`, true, false},
+		{[]byte{0x04, 0x62, 0x00, 0x07, 0x03, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00}, "", false, true},                         // SABM length not 0, 4 or 8
+		{[]byte{0x04, 0x62, 0x00, 0x06, 0x04, 0x00, 0x00, 0x00, 0x10, 0x00}, "", false, true},                               // SABM shorter than its length
+		{[]byte{0x04, 0x62, 0x00, 0x03, 0x00, 0x00, 0x00}, "", false, true},                                                 // no room for the lengths
+		{[]byte{0x04, 0x62, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x04, 0x44, 0x00, 0x04}, "", false, true},                   // truncated sub-TLV
+		{[]byte{0x04, 0x62, 0x00, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x04, 0x44, 0x00, 0x03, 0x00, 0x00, 0x64}, "", false, true}, // malformed sub-TLV
+		{[]byte{0xfe, 0xfe, 0x00, 0x00}, "", false, true},
+	}
+
+	for _, test := range tests {
+		tlv := LsTLVApplicationSpecificLinkAttr{}
+		if test.err {
+			assert.Error(tlv.DecodeFromBytes(test.in))
+			continue
+		} else {
+			assert.NoError(tlv.DecodeFromBytes(test.in))
+		}
+
+		got, err := tlv.MarshalJSON()
+		assert.NoError(err)
+		assert.Equal(test.want, string(got))
+
+		if test.serialize {
+			got, err := tlv.Serialize()
+			assert.NoError(err)
+			assert.Equal(test.in, got)
+		}
+	}
+}
+
+func Test_PathAttributeLs_ApplicationSpecificLinkAttr(t *testing.T) {
+	assert := assert.New(t)
+
+	// A link with a top-level TE Default Metric of 10 (RSVP-TE) and an
+	// ASLA TLV for Flexible Algorithm with a TE Default Metric of 100 and
+	// a Min/Max delay of 1000/2000 us.
+	in := []byte{
+		0x80, 0x29, 0x28, // Optional attribute, BGP_ATTR_TYPE_LS, length 40
+		0x04, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x0a,
+		0x04, 0x62, 0x00, 0x1c,
+		0x04, 0x00, 0x00, 0x00,
+		0x10, 0x00, 0x00, 0x00,
+		0x04, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x64,
+		0x04, 0x5b, 0x00, 0x08, 0x00, 0x00, 0x03, 0xe8, 0x00, 0x00, 0x07, 0xd0,
+	}
+
+	attr := PathAttributeLs{}
+	assert.NoError(attr.DecodeFromBytes(in))
+
+	ls := attr.Extract()
+	if assert.NotNil(ls.Link.DefaultTEMetric) {
+		assert.Equal(uint32(10), *ls.Link.DefaultTEMetric)
+	}
+	assert.Nil(ls.Link.MinMaxUnidirectionalLinkDelay)
+	if assert.Len(ls.Link.ApplicationSpecific, 1) {
+		a := ls.Link.ApplicationSpecific[0]
+		assert.Equal([]byte{0x10, 0x00, 0x00, 0x00}, a.StandardApplications)
+		assert.Empty(a.UserDefinedApplications)
+		if assert.NotNil(a.DefaultTEMetric) {
+			assert.Equal(uint32(100), *a.DefaultTEMetric)
+		}
+		if assert.NotNil(a.MinMaxUnidirectionalLinkDelay) {
+			assert.Equal(uint32(1000), a.MinMaxUnidirectionalLinkDelay.MinDelay)
+			assert.Equal(uint32(2000), a.MinMaxUnidirectionalLinkDelay.MaxDelay)
+		}
+		assert.Nil(a.AdminGroup)
+		assert.Nil(a.UnidirectionalLinkDelay)
+	}
+
+	found := false
+	for _, tlv := range NewLsAttributeTLVs(ls) {
+		if a, ok := tlv.(*LsTLVApplicationSpecificLinkAttr); ok {
+			found = true
+			b, err := a.Serialize()
+			assert.NoError(err)
+			assert.Equal(in[11:], b)
+		}
+	}
+	assert.True(found)
+
+	out, err := attr.Serialize()
+	assert.NoError(err)
+	assert.Equal(in, out)
+}
+
 func Test_LsTLVUnidirectionalDelayVariation(t *testing.T) {
 	assert := assert.New(t)
 
