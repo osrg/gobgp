@@ -29,8 +29,10 @@ import (
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/gr"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 )
 
 // TestHandleFSMMessage_PrefixLimitWarnedRace tests concurrent access to prefixLimitWarned map
@@ -1484,7 +1486,7 @@ func TestHandleFSMMessage_GRStateRace(t *testing.T) {
 				s.handleFSMMessage(p, &fsmMsg{
 					MsgType:     fsmMsgStateChange,
 					MsgData:     bgp.BGP_FSM_IDLE,
-					StateReason: newfsmStateReason(fsmGracefulRestart, nil, nil),
+					StateReason: newfsmStateReason(fsmReadFailed, nil, nil),
 					timestamp:   time.Now(),
 				})
 				time.Sleep(2 * time.Millisecond)
@@ -1957,7 +1959,7 @@ func TestHandleFSMMessage_WithGracefulRestart(t *testing.T) {
 	msg := &fsmMsg{
 		MsgType:     fsmMsgStateChange,
 		MsgData:     bgp.BGP_FSM_IDLE,
-		StateReason: newfsmStateReason(fsmGracefulRestart, nil, nil),
+		StateReason: newfsmStateReason(fsmReadFailed, nil, nil),
 		timestamp:   time.Now(),
 	}
 
@@ -2606,7 +2608,7 @@ func grStateChange(t *testing.T, s *BgpServer, p *peer, next bgp.FSMState, reaso
 // grDown ends the session of p as a graceful restart.
 func grDown(t *testing.T, s *BgpServer, p *peer) {
 	t.Helper()
-	grStateChange(t, s, p, bgp.BGP_FSM_IDLE, newfsmStateReason(fsmGracefulRestart, nil, nil))
+	grStateChange(t, s, p, bgp.BGP_FSM_IDLE, newfsmStateReason(fsmReadFailed, nil, nil))
 }
 
 func grEOR(s *BgpServer, p *peer, f bgp.Family) {
@@ -3143,4 +3145,85 @@ func TestHandleFSMMessage_LocalRestartPeerDown(t *testing.T) {
 	assert.False(t, s.deferred(bgp.RF_IPv6_UC))
 	assert.ElementsMatch(t, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, sentEORs(a))
 	assert.False(t, localRestarting(a))
+}
+
+// The server decides from the reason of the session end and the negotiated
+// state whether the session ends as a graceful restart. The peer event
+// reports a graceful restart to the API, and BMP gets the real reason.
+func TestHandleFSMMessage_GracefulSessionEnd(t *testing.T) {
+	notification := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_UPDATE_MESSAGE_ERROR, bgp.BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil)
+	hardReset := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_HARD_RESET, nil)
+	holdTimer := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+	tests := []struct {
+		name         string
+		reason       *fsmStateReason
+		notification bool
+		graceful     bool
+		wantAPI      api.PeerState_DisconnectReason
+		wantBMP      uint8
+	}{
+		{
+			"read failed", newfsmStateReason(fsmReadFailed, nil, nil), false, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION,
+		},
+		{
+			"write failed", newfsmStateReason(fsmWriteFailed, nil, nil), false, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION,
+		},
+		{
+			"hold timer expired", newfsmStateReason(fsmHoldTimerExpired, notificationBody(holdTimer), nil), false, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION,
+		},
+		{
+			"notification received without N", newfsmStateReason(fsmNotificationRecv, notificationBody(notification), nil), false, false,
+			api.PeerState_DISCONNECT_REASON_NOTIFICATION_RECEIVED, bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION,
+		},
+		{
+			"notification received with N", newfsmStateReason(fsmNotificationRecv, notificationBody(notification), nil), true, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION,
+		},
+		{
+			"hard reset received with N", newfsmStateReason(fsmHardReset, notificationBody(hardReset), nil), true, false,
+			api.PeerState_DISCONNECT_REASON_HARD_RESET, bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION,
+		},
+		{
+			"admin down", newfsmStateReason(fsmAdminDown, nil, nil), true, false,
+			api.PeerState_DISCONNECT_REASON_ADMIN_DOWN, bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, p := grTestPeer(t, grOpen(t, grBoth(120)))
+			p.fsm.lock.Lock()
+			conf := p.fsm.pConf.ReadCopy()
+			require.True(t, conf.GracefulRestart.State.Enabled)
+			conf.GracefulRestart.State.NotificationEnabled = tt.notification
+			p.fsm.pConf.Update(&conf)
+			p.fsm.lock.Unlock()
+
+			grStateChange(t, s, p, bgp.BGP_FSM_IDLE, tt.reason)
+
+			assert.Equal(t, tt.graceful, p.grRestarting())
+			if tt.graceful {
+				assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+			} else {
+				assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv4_UC))
+			}
+
+			e := newWatchEventPeer(p, &fsmMsg{StateReason: tt.reason}, bgp.BGP_FSM_IDLE, bgp.BGP_FSM_ESTABLISHED, apiutil.PEER_EVENT_STATE)
+			assert.Equal(t, tt.graceful, e.Graceful)
+			reason, message := convertFSMStateReasonToAPI(e.StateReason, e.Graceful)
+			assert.Equal(t, tt.wantAPI, reason)
+			if tt.graceful {
+				assert.Equal(t, "graceful-restart", message)
+			}
+
+			m := bmpPeerDown(e, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)
+			body := m.Body.(*bmp.BMPPeerDownNotification)
+			assert.Equal(t, tt.wantBMP, body.Reason)
+			if n := tt.reason.notificationMessage(); n != nil {
+				assert.Equal(t, n, body.BGPNotification)
+			}
+		})
+	}
 }

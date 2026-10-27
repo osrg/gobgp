@@ -465,7 +465,7 @@ func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMe
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION
 	case fsmAdminDown:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION
-	case fsmNotificationRecv, fsmGracefulRestart, fsmHardReset:
+	case fsmNotificationRecv, fsmHardReset:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION
 	case fsmReadFailed, fsmWriteFailed:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION

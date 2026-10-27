@@ -390,9 +390,12 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	p.fsm.pConf.Update(&conf)
 	p.fsm.lock.Unlock()
 
+	// The server decides whether the session ends gracefully. The FSM
+	// reports the real reason.
 	state, reason := h.established(t.Context())
 	assert.Equal(bgp.BGP_FSM_IDLE, state)
-	assert.Equal(fsmGracefulRestart, reason.Type)
+	assert.Equal(fsmHoldTimerExpired, reason.Type)
+	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), reason.BGPNotification.ErrorCode)
 
 	<-m.bufReady.C
 
@@ -414,7 +417,8 @@ func (c writeFailConn) Write([]byte) (int, error) {
 }
 
 // When the hold timer expires and the NOTIFICATION cannot be sent, the
-// session still ends gracefully.
+// session ends with a write failure, which the server handles as a graceful
+// restart.
 func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled_WriteFailed(t *testing.T) {
 	m := writeFailConn{NewMockConnection()}
 	p, h := makePeerAndHandler(m)
@@ -431,7 +435,21 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled_WriteFailed(t *testing.
 
 	state, reason := h.established(t.Context())
 	assert.Equal(t, bgp.BGP_FSM_IDLE, state)
-	assert.Equal(t, fsmGracefulRestart, reason.Type)
+	assert.Equal(t, fsmWriteFailed, reason.Type)
+}
+
+// A received Hard Reset is reported as fsmHardReset even when the "N" bit
+// was not exchanged.
+func TestFSMHandlerEstablish_HardResetReceived(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	go m.PushBgpMessage(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_HARD_RESET, nil))
+
+	state, reason := h.established(t.Context())
+	assert.Equal(t, bgp.BGP_FSM_IDLE, state)
+	assert.Equal(t, fsmHardReset, reason.Type)
 }
 
 func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
@@ -2064,7 +2082,6 @@ func TestNextIdleHoldTime(t *testing.T) {
 		{"admin down goes back to the initial value", 16, newfsmStateReason(fsmAdminDown, nil, nil), idleHoldTimeInitial, idleHoldTimeInitial},
 		{"read failure keeps the value", 4, newfsmStateReason(fsmReadFailed, nil, nil), 4, 4},
 		{"write failure keeps the value", 4, newfsmStateReason(fsmWriteFailed, nil, nil), 4, 4},
-		{"graceful restart keeps the value", 4, newfsmStateReason(fsmGracefulRestart, nil, nil), 4, 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

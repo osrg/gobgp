@@ -83,7 +83,6 @@ const (
 	fsmNotificationRecv
 	fsmHoldTimerExpired
 	fsmIdleTimerExpired
-	fsmGracefulRestart
 	fsmInvalidMsg
 	fsmNewConnection
 	fsmOpenMsgReceived
@@ -150,8 +149,6 @@ func (r fsmStateReason) String() string {
 		return "hold-timer-expired"
 	case fsmIdleTimerExpired:
 		return "idle-hold-timer-expired"
-	case fsmGracefulRestart:
-		return "graceful-restart"
 	case fsmInvalidMsg:
 		return "invalid-msg"
 	case fsmNewConnection:
@@ -2231,10 +2228,7 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 					body := m.Body.(*bgp.BGPNotification)
 					h.fsm.logRecvNotification(body)
 
-					conf := h.fsm.pConf.ReadOnly()
-					s := conf.GracefulRestart.State
-					hardReset := s.Enabled && s.NotificationEnabled && body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET
-					if hardReset {
+					if body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_HARD_RESET {
 						nonblockSendChannel(stateReasonCh, *newfsmStateReason(fsmHardReset, body, nil))
 					} else {
 						nonblockSendChannel(stateReasonCh, *newfsmStateReason(fsmNotificationRecv, body, nil))
@@ -2262,9 +2256,8 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 
-	// send and recv goroutine send errors to reasonCh, and the loop goroutine also sends
-	// to reasonCh with hold timer expiration. So three buffer is enough.
-	reasonCh := make(chan fsmStateReason, 3)
+	// send and recv goroutine send errors to reasonCh. So two buffers are enough.
+	reasonCh := make(chan fsmStateReason, 2)
 
 	holdtimerResetCh := make(chan struct{}, 2)
 
@@ -2338,36 +2331,15 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// ctx.Done() or keepalive timer. So let kill
 			// it now.
 			h.outgoing.In() <- err
-			conf := fsm.pConf.ReadOnly()
-			if s := conf.GracefulRestart.State; s.Enabled {
-				if s.NotificationEnabled && err.Type == fsmNotificationRecv ||
-					err.Type == fsmNotificationSent &&
-						err.BGPNotification.ErrorCode == bgp.BGP_ERROR_HOLD_TIMER_EXPIRED ||
-					err.Type == fsmReadFailed ||
-					err.Type == fsmWriteFailed {
-					err = *newfsmStateReason(fsmGracefulRestart, nil, nil)
-					fsm.logger.Info("peer graceful restart", slog.String("State", fsm.state.String()))
-				}
-			}
 			return bgp.BGP_FSM_IDLE, &err
 		case <-holdTimer.C:
 			fsm.logger.Warn("hold timer expired", slog.String("State", fsm.state.String()))
 
 			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			err := fsm.sendNotification(fsm.conn, m)
-
-			conf := fsm.pConf.ReadOnly()
-			s := conf.GracefulRestart.State
-			// Do not return hold timer expired to server if graceful restart is enabled
-			// Let it fallback to read/write error or fsmNotificationSent handled above
-			// Reference: https://github.com/osrg/gobgp/issues/2174
-			if !s.Enabled {
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, notificationBody(m), nil)
-			} else if err != nil {
-				reasonCh <- *newfsmStateReason(fsmWriteFailed, nil, nil)
-			} else {
-				reasonCh <- *newfsmStateReason(fsmNotificationSent, notificationBody(m), nil)
+			if err := fsm.sendNotification(fsm.conn, m); err != nil {
+				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
 			}
+			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, notificationBody(m), nil)
 		case <-holdtimerResetCh:
 			conf := fsm.pConf.ReadOnly()
 			if conf.Timers.State.NegotiatedHoldTime != 0 {
@@ -2438,7 +2410,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
 		}
 
 		switch reason.Type {
-		case fsmAdminDown, fsmGracefulRestart:
+		case fsmAdminDown:
 			if fsm.outgoingConnMgr != nil {
 				fsm.outgoingConnMgr.stop(nil)
 			}

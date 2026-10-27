@@ -1184,6 +1184,9 @@ func (s *BgpServer) notifyAdjInWithdrawWatcher(peer *peer, pathList []*table.Pat
 func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t apiutil.PeerEventType) *watchEventPeer {
 	peer.fsm.lock.Lock()
 	conf := peer.fsm.pConf.ReadCopy()
+	// The negotiated graceful restart state is kept until the next session
+	// is established.
+	graceful := m != nil && oldState == bgp.BGP_FSM_ESTABLISHED && gracefulSessionEnd(m.StateReason, conf.GracefulRestart.State)
 	sentOpen := buildopen(peer.fsm.gConf, &conf)
 	capList := make([]bgp.ParameterCapabilityInterface, 0, len(peer.fsm.capMap))
 	if newState >= bgp.BGP_FSM_OPENCONFIRM {
@@ -1226,6 +1229,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t
 
 	if m != nil {
 		e.StateReason = m.StateReason
+		e.Graceful = graceful
 	}
 	return e
 }
@@ -2133,6 +2137,43 @@ func (s *BgpServer) restartReleased(released []bgp.Family) {
 	}
 }
 
+// gracefulSessionEnd reports whether the end of an established session
+// starts a graceful restart of the peer. reason is why the session ended,
+// and state is the graceful restart state negotiated for the session.
+func gracefulSessionEnd(reason *fsmStateReason, state oc.GracefulRestartState) bool {
+	if !state.Enabled {
+		return false
+	}
+	switch reason.Type {
+	case fsmReadFailed, fsmWriteFailed:
+		// RFC 4724 Section 4.2: "When the Receiving Speaker detects
+		// termination of the TCP session for a BGP session with a peer
+		// that has advertised the Graceful Restart Capability, it MUST
+		// retain the routes received from the peer for all the address
+		// families that were previously received in the Graceful Restart
+		// Capability and MUST mark them as stale routing information."
+		return true
+	case fsmHoldTimerExpired:
+		// RFC 8538 Section 4: "When a BGP speaker resets its session due
+		// to a HOLDTIME expiry, it should generate the relevant BGP
+		// NOTIFICATION message as mentioned in [RFC4271] but
+		// subsequently MUST follow the rules for the Receiving Speaker
+		// mentioned in Section 4.1."
+		//
+		// The RFC does not say whether this needs the "N" bit. We apply
+		// it without the "N" bit (issue #2174).
+		return true
+	case fsmNotificationRecv:
+		// RFC 8538 Section 4: "When such a BGP speaker has received the
+		// "N" bit from its peer, and receives from that peer a BGP
+		// NOTIFICATION message other than a Hard Reset, it MUST follow
+		// the rules for the Receiving Speaker mentioned in Section 4.1."
+		// A Hard Reset is fsmHardReset.
+		return state.NotificationEnabled
+	}
+	return false
+}
+
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 	needStopNeighbor := false
 	var oldState bgp.FSMState
@@ -2166,7 +2207,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				conf.State.Flops++
 				peer.fsm.pConf.Update(&conf)
 			}
-			graceful := e.StateReason.Type == fsmGracefulRestart
+			graceful := gracefulSessionEnd(e.StateReason, conf.GracefulRestart.State)
 			peer.fsm.lock.Unlock()
 			// Without the capabilities, no family is kept as stale.
 			var n gr.Negotiated
@@ -5322,9 +5363,14 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 }
 
 // convertFSMStateReasonToAPI converts FSM state reason to API disconnect reason and message
-func convertFSMStateReasonToAPI(stateReason *fsmStateReason) (api.PeerState_DisconnectReason, string) {
+func convertFSMStateReasonToAPI(stateReason *fsmStateReason, graceful bool) (api.PeerState_DisconnectReason, string) {
 	if stateReason == nil {
 		return api.PeerState_DISCONNECT_REASON_UNSPECIFIED, ""
+	}
+	// The API reports a graceful restart instead of the real reason
+	// (issue #3818).
+	if graceful {
+		return api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, "graceful-restart"
 	}
 
 	var disconnectReason api.PeerState_DisconnectReason
@@ -5343,8 +5389,6 @@ func convertFSMStateReasonToAPI(stateReason *fsmStateReason) (api.PeerState_Disc
 		disconnectReason = api.PeerState_DISCONNECT_REASON_WRITE_FAILED
 	case fsmIdleTimerExpired:
 		disconnectReason = api.PeerState_DISCONNECT_REASON_IDLE_TIMER_EXPIRED
-	case fsmGracefulRestart:
-		disconnectReason = api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART
 	case fsmInvalidMsg:
 		disconnectReason = api.PeerState_DISCONNECT_REASON_INVALID_MSG
 	case fsmHardReset:
@@ -5452,7 +5496,7 @@ func (s *BgpServer) WatchEvent(ctx context.Context, callbacks WatchEventMessageC
 							admin_state = api.PeerState_ADMIN_STATE_PFX_CT
 						}
 
-						disconnectReason, disconnectMessage := convertFSMStateReasonToAPI(msg.StateReason)
+						disconnectReason, disconnectMessage := convertFSMStateReasonToAPI(msg.StateReason, msg.Graceful)
 
 						callbacks.OnPeerUpdate(&apiutil.WatchEventMessage_PeerEvent{
 							Type: msg.Type,
@@ -5577,6 +5621,7 @@ type watchEventPeer struct {
 	State         bgp.FSMState
 	OldState      bgp.FSMState
 	StateReason   *fsmStateReason
+	Graceful      bool // the session ended with a graceful restart of the peer
 	AdminState    adminState
 	Timestamp     time.Time
 	PeerInterface string
