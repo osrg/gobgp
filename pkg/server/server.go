@@ -198,6 +198,15 @@ type BgpServer struct {
 	logger        *slog.Logger
 	logLevelVar   *slog.LevelVar
 	timingHook    FSMTimingHook
+	// restart keeps our own graceful restart. restartMu protects it and the
+	// timers that run for it. Like peer.grMu it is held only around a call
+	// to restart and the Stop or AfterFunc of a timer: no other lock is
+	// taken, no route is changed, and no mgmtOperation is queued while it
+	// is held. FSM callbacks of different peers run in parallel under
+	// shared.mu for reading, and all of them reach restart.
+	restartMu     sync.Mutex
+	restart       gr.Restart
+	restartTimers map[gr.DeferralTimer]*time.Timer
 	// manage lifecycle of the server
 	// isServing is set by Serve and is never cleared. It says that Serve was
 	// entered, not that it is still running. A server cannot be served twice:
@@ -1263,6 +1272,10 @@ func (s *BgpServer) getBestFromLocalCallback(peer *peer, rfList []bgp.Family, ad
 func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Family, addEOR bool, fn func([]*table.Path, []*table.Path)) {
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
+	// The families of our own graceful restart that are not released yet
+	// are not advertised. They are, with the End-of-RIB marker, when they
+	// are released.
+	rfList = slices.DeleteFunc(slices.Clone(rfList), s.deferred)
 
 	if peer.isSecondaryRouteEnabled() {
 		for _, family := range peer.toGlobalFamilies(rfList) {
@@ -1326,17 +1339,7 @@ func filteredPathForPeer(peer *peer, path *table.Path) *table.Path {
 }
 
 func needToAdvertise(peer *peer) bool {
-	conf := peer.fsm.pConf.ReadOnly()
-	notEstablished := peer.State() != bgp.BGP_FSM_ESTABLISHED
-	if notEstablished {
-		return false
-	}
-	localRestarting := conf.GracefulRestart.State.LocalRestarting
-	if localRestarting {
-		peer.fsm.logger.Debug("now syncing, suppress sending updates")
-		return false
-	}
-	return true
+	return peer.State() == bgp.BGP_FSM_ESTABLISHED
 }
 
 func (s *BgpServer) sendSecondaryRoutes(peer *peer, dsts []*table.Update) (paths, filtered []*table.Path) {
@@ -1397,6 +1400,15 @@ func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) 
 		var old *table.Path
 		if olds != nil {
 			old = olds[idx]
+		}
+		// path is nil when the destination has no best path any more.
+		if p := path; p != nil || old != nil {
+			if p == nil {
+				p = old
+			}
+			if s.deferred(p.GetFamily()) {
+				continue
+			}
 		}
 		if p := s.filterpath(peer, path, old); p != nil {
 			outgoing = append(outgoing, p)
@@ -1712,7 +1724,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			defer targetPeer.routeRefreshInProgress.RUnlock()
 			// If the peer is not advertising, return early to avoid rebuilding RIB-out bookkeeping,
 			// as it might have been already cleared by resetAdvertisedRoutes.
-			if !needToAdvertise(targetPeer) {
+			if !needToAdvertise(targetPeer) || s.deferred(f) {
 				return
 			}
 			var bestList, oldList []*table.Path
@@ -1840,6 +1852,9 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 		s.rebuildLocalClusterIDs()
 		// Drop the policy assignment without touching the global assignment.
 		s.policy.DeletePeerPolicy(peer.ID())
+		s.restartEvent(func(r *gr.Restart) gr.RestartActions {
+			return r.PeerRemoved(peer.ID())
+		})
 	}
 	// deregister BFD here for both static peers (deleted) and dynamic peers (stopped on session loss);
 	// Do not retire BFD belonging to a replacement neighbor after an old FSM stops.
@@ -1946,8 +1961,7 @@ func (s *BgpServer) grTimerExpired(peer *peer, msg string, attrs []any, event fu
 
 // grSessionEstablished passes the new session of the peer to its graceful
 // restart Helper.
-func (s *BgpServer) grSessionEstablished(peer *peer) {
-	n := peer.grNegotiated()
+func (s *BgpServer) grSessionEstablished(peer *peer, n gr.Negotiated) {
 	peer.grMu.Lock()
 	restarting := peer.grHelper.Restarting()
 	a := peer.grHelper.SessionEstablished(n)
@@ -1978,6 +1992,145 @@ func (s *BgpServer) grAbort(peer *peer) {
 	peer.grMu.Unlock()
 	s.runGRActions(peer, a)
 	s.dropAdjRIBIn(peer, peer.configuredRFlist())
+}
+
+// restartEvent passes an event of our own graceful restart to restart and
+// runs the actions that come back. When the event ends the restart, the
+// LocalRestarting state of every peer is cleared.
+func (s *BgpServer) restartEvent(event func(*gr.Restart) gr.RestartActions) {
+	s.restartMu.Lock()
+	was := s.restart.Restarting()
+	a := event(&s.restart)
+	ended := was && !s.restart.Restarting()
+	s.restartMu.Unlock()
+	s.runRestartActions(a, 0)
+	if ended {
+		for _, p := range s.neighborMap {
+			s.setLocalRestarting(p, false)
+		}
+	}
+}
+
+// deferred reports whether family f is not advertised yet because of our
+// own graceful restart.
+func (s *BgpServer) deferred(f bgp.Family) bool {
+	s.restartMu.Lock()
+	defer s.restartMu.Unlock()
+	return s.restart.Deferred(f)
+}
+
+// restartPeerAdded makes the End-of-RIB marker of a new peer awaited by our
+// own graceful restart, in the families it is configured with. It is called
+// when the peer is added with LocalRestarting set: by the configuration
+// file when gobgpd is started with -r, or through the API.
+func (s *BgpServer) restartPeerAdded(peer *peer, c *oc.Neighbor) {
+	families, _ := oc.AfiSafis(c.AfiSafis).ToRfList()
+	deferral := time.Duration(c.GracefulRestart.Config.DeferralTime) * time.Second
+	s.restartMu.Lock()
+	a := s.restart.PeerAdded(peer.ID(), families)
+	s.restartMu.Unlock()
+	if len(a.StartTimers) == 0 {
+		// Nothing is awaited: the restart is over, or every family of
+		// the peer was released already.
+		s.setLocalRestarting(peer, false)
+	}
+	s.runRestartActions(a, deferral)
+}
+
+// setLocalRestarting sets the LocalRestarting state of the peer. The state
+// mirrors restart.Restarting() for the API and for the Restart State bit of
+// the OPEN message that the FSM sends.
+func (s *BgpServer) setLocalRestarting(peer *peer, v bool) {
+	peer.fsm.lock.Lock()
+	conf := peer.fsm.pConf.ReadCopy()
+	if conf.GracefulRestart.State.LocalRestarting != v {
+		conf.GracefulRestart.State.LocalRestarting = v
+		peer.fsm.pConf.Update(&conf)
+	}
+	peer.fsm.lock.Unlock()
+}
+
+// runRestartActions runs the actions that restart returned, in their order.
+// deferral is the duration of the timers to start: the deferral time of the
+// peer that was added. Only PeerAdded returns timers to start.
+func (s *BgpServer) runRestartActions(a gr.RestartActions, deferral time.Duration) {
+	s.restartMu.Lock()
+	for _, d := range a.StopTimers {
+		if t, ok := s.restartTimers[d]; ok {
+			t.Stop()
+			delete(s.restartTimers, d)
+		}
+	}
+	for _, d := range a.StartTimers {
+		if s.restartTimers == nil {
+			s.restartTimers = make(map[gr.DeferralTimer]*time.Timer)
+		}
+		s.restartTimers[d] = time.AfterFunc(deferral, func() {
+			s.restartTimerExpired(d)
+		})
+	}
+	s.restartMu.Unlock()
+	if len(a.Released) > 0 {
+		s.restartReleased(a.Released)
+	}
+}
+
+// restartTimerExpired passes the expiry of a deferral timer of our own
+// graceful restart to restart, in the server loop.
+func (s *BgpServer) restartTimerExpired(d gr.DeferralTimer) {
+	//nolint: errcheck // the server is stopping
+	s.mgmtOperation(func() error {
+		s.restartMu.Lock()
+		delete(s.restartTimers, d)
+		s.restartMu.Unlock()
+		s.logger.Info("deferral timer expired",
+			slog.String("Topic", "Server"),
+			slog.String("Key", d.Peer),
+			slog.String("Family", d.Family.String()))
+		s.restartEvent(func(r *gr.Restart) gr.RestartActions {
+			return r.TimerExpired(d.Peer, d.Family)
+		})
+		return nil
+	}, false)
+}
+
+// restartReleased advertises the families that our own graceful restart
+// released, with the End-of-RIB marker, to the peers that are established.
+// RFC 4724 Section 4.1: "The Adj-RIB-Out can then be advertised to its
+// peers. Once the initial update is complete for an address family
+// (including the case that there is no routing update to send), the
+// End-of-RIB marker MUST be sent."
+func (s *BgpServer) restartReleased(released []bgp.Family) {
+	s.logger.Info("sync finished",
+		slog.String("Topic", "Server"),
+		slog.Any("Families", released))
+	for _, p := range s.neighborMap {
+		// The FSM stores the Established state after the server handles
+		// it, and the handling of another peer runs in parallel. The
+		// session state of the configuration is set at the start of the
+		// handling, so a peer whose initial dump is being built is not
+		// left out. Such a peer may get a family twice, which is harmless.
+		if p.fsm.pConf.ReadOnly().State.SessionState != oc.SESSION_STATE_ESTABLISHED {
+			continue
+		}
+		families := make([]bgp.Family, 0, len(released))
+		for _, f := range p.negotiatedRFList() {
+			// The families other than route target are sent when the
+			// route target End-of-RIB marker of the peer is received.
+			if slices.Contains(released, f) && (f == bgp.RF_RTC_UC || !p.getRtcEORWait()) {
+				families = append(families, f)
+			}
+		}
+		if len(families) == 0 {
+			continue
+		}
+		s.getBestFromLocalCallback(p, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
+			if len(paths) > 0 {
+				p.updateRoutes(paths...)
+				sendfsmOutgoingMsg(p, paths)
+			}
+		})
+	}
 }
 
 func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
@@ -2024,6 +2177,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			a := peer.grHelper.SessionDown(n)
 			peer.grMu.Unlock()
 			s.runGRActions(peer, a)
+			s.restartEvent(func(r *gr.Restart) gr.RestartActions {
+				return r.PeerDown(peer.ID())
+			})
 			// The routes of the families that are not kept as stale are
 			// removed below.
 			_, dropFamilies := classifyFamilies(peer.configuredRFlist(), a.MarkStale)
@@ -2090,90 +2246,39 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				conf.State.RemoteRouterId,
 				peer.fsm.gConf.Config.RouterId, conf.Transport.State.RemoteAddress, conf.Transport.State.LocalAddress)
 			peer.peerInfo.Store(peerInfo)
-			s.grSessionEstablished(peer)
+			n := peer.grNegotiated()
+			s.grSessionEstablished(peer, n)
+			s.restartEvent(func(r *gr.Restart) gr.RestartActions {
+				return r.PeerEstablished(peer.ID(), n)
+			})
 
-			notLocalRestarting := !conf.GracefulRestart.State.LocalRestarting
-			if notLocalRestarting {
-				// When graceful-restart cap (which means intention
-				// of sending EOR) and route-target address family are negotiated,
-				// send route-target NLRIs first, and wait to send others
-				// till receiving EOR of route-target address family.
-				// This prevents sending uninterested routes to peers.
-				//
-				// However, when the peer is graceful restarting, give up
-				// waiting sending non-route-target NLRIs since the peer won't send
-				// any routes (and EORs) before we send ours (or deferral-timer expires).
-				c := conf.GetAfiSafi(bgp.RF_RTC_UC)
-				notPeerRestarting := !peer.grRestarting()
-				if y := peer.IsFamilyEnabled(bgp.RF_RTC_UC); y && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
-					peer.setRtcEORWait(true)
-					s.getBestFromLocalCallback(peer, []bgp.Family{bgp.RF_RTC_UC}, true, true, func(paths []*table.Path, filtered []*table.Path) {
-						if len(paths) > 0 {
-							peer.updateRoutes(paths...)
-							sendfsmOutgoingMsg(peer, paths)
-						}
-					})
-					s.startDeferralTimer(peer, time.Second*time.Duration(c.RouteTargetMembership.Config.DeferralTime))
-				} else {
-					s.getBestFromLocalCallback(peer, peer.negotiatedRFList(), true, true, func(paths []*table.Path, filtered []*table.Path) {
-						if len(paths) > 0 {
-							peer.updateRoutes(paths...)
-							sendfsmOutgoingMsg(peer, paths)
-						}
-					})
-				}
+			// When graceful-restart cap (which means intention
+			// of sending EOR) and route-target address family are negotiated,
+			// send route-target NLRIs first, and wait to send others
+			// till receiving EOR of route-target address family.
+			// This prevents sending uninterested routes to peers.
+			//
+			// However, when the peer is graceful restarting, give up
+			// waiting sending non-route-target NLRIs since the peer won't send
+			// any routes (and EORs) before we send ours (or deferral-timer expires).
+			c := conf.GetAfiSafi(bgp.RF_RTC_UC)
+			notPeerRestarting := !peer.grRestarting()
+			if y := peer.IsFamilyEnabled(bgp.RF_RTC_UC); y && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
+				peer.setRtcEORWait(true)
+				s.getBestFromLocalCallback(peer, []bgp.Family{bgp.RF_RTC_UC}, true, true, func(paths []*table.Path, filtered []*table.Path) {
+					if len(paths) > 0 {
+						peer.updateRoutes(paths...)
+						sendfsmOutgoingMsg(peer, paths)
+					}
+				})
+				s.startDeferralTimer(peer, time.Second*time.Duration(c.RouteTargetMembership.Config.DeferralTime))
 			} else {
-				// RFC 4724 4.1
-				// Once the session between the Restarting Speaker and the Receiving
-				// Speaker is re-established, ...snip... it MUST defer route
-				// selection for an address family until it either (a) receives the
-				// End-of-RIB marker from all its peers (excluding the ones with the
-				// "Restart State" bit set in the received capability and excluding the
-				// ones that do not advertise the graceful restart capability) or (b)
-				// the Selection_Deferral_Timer referred to below has expired.
-				allEnd := func() bool {
-					for _, p := range s.neighborMap {
-						if p == peer {
-							// This peer is transitioning to ESTABLISHED inside
-							// this callback, so fsm.state.Store() has not been
-							// called yet. Apply the post-ESTABLISHED EOR check
-							// directly instead of going through receivedAllEOR().
-							if !p.allNegotiatedEORReceived() {
-								return false
-							}
-							continue
-						}
-						if !p.receivedAllEOR() {
-							return false
-						}
+				s.getBestFromLocalCallback(peer, peer.negotiatedRFList(), true, true, func(paths []*table.Path, filtered []*table.Path) {
+					if len(paths) > 0 {
+						peer.updateRoutes(paths...)
+						sendfsmOutgoingMsg(peer, paths)
 					}
-					return true
-				}()
-				if allEnd {
-					for _, p := range s.neighborMap {
-						p.fsm.lock.Lock()
-						conf := p.fsm.pConf.ReadCopy()
-						peerLocalRestarting := conf.GracefulRestart.State.LocalRestarting
-						conf.GracefulRestart.State.LocalRestarting = false
-						p.fsm.pConf.Update(&conf)
-						p.fsm.lock.Unlock()
-						if !p.isGracefulRestartEnabled() && !peerLocalRestarting {
-							continue
-						}
-						s.getBestFromLocalCallback(p, p.configuredRFlist(), true, true, func(paths []*table.Path, filtered []*table.Path) {
-							if len(paths) > 0 {
-								p.updateRoutes(paths...)
-								sendfsmOutgoingMsg(p, paths)
-							}
-						})
-					}
-					peer.fsm.logger.Info("sync finished")
-				} else {
-					conf := peer.fsm.pConf.ReadOnly()
-					deferral := conf.GracefulRestart.Config.DeferralTime
-					peer.fsm.logger.Debug("Now syncing, suppress sending updates. start deferral timer", slog.Any("Duration", deferral))
-					s.startDeferralTimer(peer, time.Second*time.Duration(deferral))
-				}
+				})
 			}
 		} else if oldState == bgp.BGP_FSM_ESTABLISHED {
 			peer.stopDeferralTimer()
@@ -2272,49 +2377,11 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					peer.fsm.lock.Unlock()
 				}
 
-				// RFC 4724 4.1
-				// Once the session between the Restarting Speaker and the Receiving
-				// Speaker is re-established, ...snip... it MUST defer route
-				// selection for an address family until it either (a) receives the
-				// End-of-RIB marker from all its peers (excluding the ones with the
-				// "Restart State" bit set in the received capability and excluding the
-				// ones that do not advertise the graceful restart capability) or ...snip...
-
-				localRestarting := conf.GracefulRestart.State.LocalRestarting
-				if localRestarting {
-					allEnd := func() bool {
-						for _, p := range s.neighborMap {
-							if !p.receivedAllEOR() {
-								return false
-							}
-						}
-						return true
-					}()
-					if allEnd {
-						for _, p := range s.neighborMap {
-							p.fsm.lock.Lock()
-							conf := p.fsm.pConf.ReadCopy()
-							peerLocalRestarting := conf.GracefulRestart.State.LocalRestarting
-							conf.GracefulRestart.State.LocalRestarting = false
-							p.fsm.pConf.Update(&conf)
-							p.fsm.lock.Unlock()
-							if !p.isGracefulRestartEnabled() && !peerLocalRestarting {
-								continue
-							}
-							s.getBestFromLocalCallback(p, p.negotiatedRFList(), true, true, func(paths []*table.Path, filtered []*table.Path) {
-								if len(paths) > 0 {
-									p.updateRoutes(paths...)
-									sendfsmOutgoingMsg(p, paths)
-								}
-							})
-						}
-						s.logger.Info("sync finished",
-							slog.String("Topic", "Server"),
-						)
-					}
-
-					// we don't delay non-route-target NLRIs when local-restarting
-					peer.setRtcEORWait(false)
+				// Our own graceful restart waits for the marker.
+				for _, f := range eor {
+					s.restartEvent(func(r *gr.Restart) gr.RestartActions {
+						return r.EORReceived(peer.ID(), f)
+					})
 				}
 				if peer.grRestarting() {
 					for _, f := range eor {
@@ -3182,18 +3249,7 @@ func (s *BgpServer) softResetOutPeer(peer *peer, family bgp.Family, deferral boo
 	if deferral {
 		conf := peer.fsm.pConf.ReadOnly()
 		c := conf.GetAfiSafi(bgp.RF_RTC_UC)
-		restarting := conf.GracefulRestart.State.LocalRestarting
-		if restarting {
-			if family == bgp.Family(0) {
-				families = peer.configuredRFlist()
-			}
-			peer.fsm.lock.Lock()
-			conf := peer.fsm.pConf.ReadCopy()
-			conf.GracefulRestart.State.LocalRestarting = false
-			peer.fsm.pConf.Update(&conf)
-			peer.fsm.lock.Unlock()
-			peer.fsm.logger.Debug("deferral timer expired", slog.Any("Families", families))
-		} else if peer.IsFamilyEnabled(bgp.RF_RTC_UC) && !c.MpGracefulRestart.State.EndOfRibReceived {
+		if peer.IsFamilyEnabled(bgp.RF_RTC_UC) && !c.MpGracefulRestart.State.EndOfRibReceived {
 			peer.setRtcEORWait(false)
 			peer.fsm.logger.Debug("route-target deferral timer expired", slog.Any("Families", families))
 			if family == bgp.Family(0) {
@@ -3933,6 +3989,9 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 		slog.String("Key", addr))
 	s.neighborMap[ipAddr] = peer
 	s.rebuildLocalClusterIDs()
+	if c.GracefulRestart.State.LocalRestarting {
+		s.restartPeerAdded(peer, c)
+	}
 	if s.bfdServer != nil {
 		if err := s.addBFDPeer(c); err != nil {
 			s.logger.Warn("failed to add BFD peer",

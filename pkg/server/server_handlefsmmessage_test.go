@@ -2953,3 +2953,194 @@ func TestGetBestFromLocalSecondaryRouteBeforeEstablished(t *testing.T) {
 		})
 	}
 }
+
+// localRestartPeer adds a peer that takes part in our own graceful restart,
+// like a peer of the configuration file when gobgpd is started with -r. The
+// peer has no FSM goroutine. It is configured for ipv4-unicast and
+// ipv6-unicast with graceful restart, and a deferral time of deferral.
+func localRestartPeer(t *testing.T, s *BgpServer, address string, deferral uint16) *peer {
+	t.Helper()
+	addr := netip.MustParseAddr(address)
+	p := newPeerandInfo(t, 65000, 65001, address, s.globalRib)
+	m := NewMockConnection()
+	m.SetRemoteAddr(address)
+	t.Cleanup(func() { m.Close() })
+	p.fsm.conn = m
+
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Config.LocalAs = 65000
+	conf.GracefulRestart.Config.Enabled = true
+	conf.GracefulRestart.Config.DeferralTime = deferral
+	conf.GracefulRestart.State.LocalRestarting = true
+	conf.AfiSafis = []oc.AfiSafi{
+		grAfiSafi(oc.AFI_SAFI_TYPE_IPV4_UNICAST, bgp.RF_IPv4_UC),
+		grAfiSafi(oc.AFI_SAFI_TYPE_IPV6_UNICAST, bgp.RF_IPv6_UC),
+	}
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	p.adjRibIn = table.NewAdjRib(s.logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.neighborMap[addr] = p
+		s.restartPeerAdded(p, &conf)
+		return nil
+	}, true))
+	t.Cleanup(func() {
+		require.NoError(t, s.mgmtOperation(func() error {
+			if s.neighborMap[addr] == p {
+				delete(s.neighborMap, addr)
+				s.restartEvent(func(r *gr.Restart) gr.RestartActions { return r.PeerRemoved(p.ID()) })
+			}
+			return nil
+		}, false))
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+	})
+	return p
+}
+
+// localRestartServer starts a server for the tests of our own graceful
+// restart.
+func localRestartServer(t *testing.T) *BgpServer {
+	t.Helper()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 65000, RouterId: "1.1.1.1", ListenPort: -1},
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+	return s
+}
+
+// sentEORs returns the families whose End-of-RIB marker was queued for the
+// peer, and drains the queue.
+func sentEORs(p *peer) []bgp.Family {
+	var eors []bgp.Family
+	for {
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			for _, path := range o.(*fsmOutgoingMsg).Paths {
+				if path != nil && path.IsEOR() {
+					eors = append(eors, path.GetFamily())
+				}
+			}
+		case <-time.After(50 * time.Millisecond):
+			return eors
+		}
+	}
+}
+
+func localRestarting(p *peer) bool {
+	return p.fsm.pConf.ReadOnly().GracefulRestart.State.LocalRestarting
+}
+
+// After gobgpd is started with -r, a family is advertised, with the
+// End-of-RIB marker, when the marker of the family is received from every
+// peer (RFC 4724 Section 4.1). The families are independent.
+func TestHandleFSMMessage_LocalRestart(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 360)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	require.True(t, s.deferred(bgp.RF_IPv4_UC))
+	require.True(t, s.deferred(bgp.RF_IPv6_UC))
+
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	grEstablish(t, s, b, grOpen(t, grBoth(120)))
+	// Nothing is advertised while the families are deferred.
+	assert.Empty(t, sentEORs(a))
+	assert.Empty(t, sentEORs(b))
+
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	assert.True(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.Empty(t, sentEORs(a))
+	assert.Empty(t, sentEORs(b))
+
+	grEOR(s, b, bgp.RF_IPv4_UC)
+	assert.False(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.True(t, s.deferred(bgp.RF_IPv6_UC))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(a))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(b))
+	assert.True(t, localRestarting(a))
+	assert.True(t, localRestarting(b))
+
+	grEOR(s, a, bgp.RF_IPv6_UC)
+	grEOR(s, b, bgp.RF_IPv6_UC)
+	assert.False(t, s.deferred(bgp.RF_IPv6_UC))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv6_UC}, sentEORs(a))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv6_UC}, sentEORs(b))
+	assert.False(t, localRestarting(a))
+	assert.False(t, localRestarting(b))
+	assert.False(t, s.restart.Restarting())
+}
+
+// A peer with the Restart State bit, and a peer without the Graceful Restart
+// Capability, are not waited for (RFC 4724 Section 4.1). They get the
+// advertisement when the family is released.
+func TestHandleFSMMessage_LocalRestartExcludedPeers(t *testing.T) {
+	restarted := bgp.NewCapGracefulRestart(true, false, 120, []*bgp.CapGracefulRestartTuple{
+		bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+		bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+	})
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 360)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	c := localRestartPeer(t, s, "10.0.0.3", 360)
+
+	grEstablish(t, s, b, grOpen(t, restarted))
+	grEstablish(t, s, c, grOpen(t))
+	assert.True(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.Empty(t, sentEORs(b))
+	assert.Empty(t, sentEORs(c))
+
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	assert.False(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.True(t, s.deferred(bgp.RF_IPv6_UC))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(a))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(b))
+	// A peer without graceful restart gets no marker.
+	assert.Empty(t, sentEORs(c))
+}
+
+// A deferral timer releases the peer from the family. The family is
+// released when every peer is.
+func TestHandleFSMMessage_LocalRestartDeferralTimer(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 1)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	grEstablish(t, s, b, grOpen(t, grBoth(120)))
+
+	// The timers of a expire, but b is waited for.
+	require.Eventually(t, func() bool {
+		s.restartMu.Lock()
+		defer s.restartMu.Unlock()
+		_, ok := s.restartTimers[gr.DeferralTimer{Peer: a.ID(), Family: bgp.RF_IPv4_UC}]
+		return !ok
+	}, 3*time.Second, 50*time.Millisecond)
+	assert.True(t, s.deferred(bgp.RF_IPv4_UC))
+	grEOR(s, b, bgp.RF_IPv4_UC)
+	assert.False(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(a))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(b))
+}
+
+// A peer whose session ends is not waited for any more.
+func TestHandleFSMMessage_LocalRestartPeerDown(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 360)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	grEstablish(t, s, b, grOpen(t, grBoth(120)))
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	grEOR(s, a, bgp.RF_IPv6_UC)
+	require.True(t, s.deferred(bgp.RF_IPv4_UC))
+
+	grStateChange(t, s, b, bgp.BGP_FSM_IDLE, newfsmStateReason(fsmReadFailed, nil, nil))
+	assert.False(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.False(t, s.deferred(bgp.RF_IPv6_UC))
+	assert.ElementsMatch(t, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, sentEORs(a))
+	assert.False(t, localRestarting(a))
+}
