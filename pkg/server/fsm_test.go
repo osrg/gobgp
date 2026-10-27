@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -436,6 +437,72 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled_WriteFailed(t *testing.
 	state, reason := h.established(t.Context())
 	assert.Equal(t, bgp.BGP_FSM_IDLE, state)
 	assert.Equal(t, fsmWriteFailed, reason.Type)
+}
+
+// While the server processes a message from the peer, the recv goroutine
+// does not read the next messages. The hold timer does not end the session
+// then. It expires after the server is done, if nothing else comes.
+func TestFSMHandlerEstablished_HoldTimerWhileProcessing(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	h.callback = func(*fsmMsg) {
+		once.Do(func() {
+			close(entered)
+			<-release
+		})
+	}
+
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Timers.State.KeepaliveInterval = 3
+	conf.Timers.State.NegotiatedHoldTime = 1
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+
+	type result struct {
+		state  bgp.FSMState
+		reason *fsmStateReason
+	}
+	ch := make(chan result, 1)
+	go func() {
+		state, reason := h.established(t.Context())
+		ch <- result{state, reason}
+	}()
+	go m.PushBgpMessage(bgp.NewEndOfRib(bgp.RF_IPv4_UC))
+
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the UPDATE was not passed to the server")
+	}
+	// The hold timer expires twice while the server processes the UPDATE.
+	// No NOTIFICATION is sent. established() itself cannot return before
+	// the recv goroutine does, so the NOTIFICATION is what shows it.
+	notificationSent := func() bool {
+		for _, b := range m.GetSentMessages() {
+			msg, err := bgp.ParseBGPMessage(b)
+			if err == nil && msg.Header.Type == bgp.BGP_MSG_NOTIFICATION {
+				return true
+			}
+		}
+		return false
+	}
+	require.Never(t, notificationSent, 2500*time.Millisecond, 50*time.Millisecond)
+
+	close(release)
+	select {
+	case r := <-ch:
+		assert.Equal(t, bgp.BGP_FSM_IDLE, r.state)
+		assert.Equal(t, fsmHoldTimerExpired, r.reason.Type)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the hold timer did not expire after the server was done")
+	}
+	assert.True(t, notificationSent())
 }
 
 // A received Hard Reset is reported as fsmHardReset even when the "N" bit
@@ -1943,7 +2010,7 @@ func recvUpdate(t *testing.T, raw []byte) (*fsmMsg, *bgp.BGPMessage) {
 	t.Cleanup(cancel)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go h.recvMessageloop(ctx, m.Conn, make(chan struct{}, 2), make(chan fsmStateReason, 3), wg)
+	go h.recvMessageloop(ctx, m.Conn, make(chan struct{}, 2), make(chan fsmStateReason, 3), &atomic.Bool{}, wg)
 	go m.remote.Write(raw)
 
 	select {

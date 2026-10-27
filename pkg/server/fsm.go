@@ -2190,7 +2190,7 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 	}
 }
 
-func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtimerResetCh chan<- struct{}, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) {
+func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtimerResetCh chan<- struct{}, stateReasonCh chan<- fsmStateReason, processing *atomic.Bool, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for ctx.Err() == nil {
@@ -2287,7 +2287,9 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 				}
 
 				if doCallback {
+					processing.Store(true)
 					h.callback(fmsg)
+					processing.Store(false)
 				}
 			}
 		}
@@ -2312,8 +2314,12 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 
 	holdtimerResetCh := make(chan struct{}, 2)
 
+	// processing is true while the recv goroutine waits for the server to
+	// process a message. See the holdTimer case.
+	var processing atomic.Bool
+
 	go h.sendMessageloop(ioCtx, fsm.conn, reasonCh, wg)
-	go h.recvMessageloop(ioCtx, fsm.conn, holdtimerResetCh, reasonCh, wg)
+	go h.recvMessageloop(ioCtx, fsm.conn, holdtimerResetCh, reasonCh, &processing, wg)
 
 	defer func() {
 		// for to stop the recv goroutine
@@ -2404,6 +2410,19 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			h.outgoing.In() <- err
 			return bgp.BGP_FSM_IDLE, &err
 		case <-holdTimer.C:
+			if processing.Load() {
+				// The recv goroutine read a message from the peer and
+				// reset the hold timer, and now waits for the server to
+				// process it, for example during a long API call. It
+				// reads the next messages, the KEEPALIVE messages too,
+				// only after that. The delay is ours, not the peer's,
+				// so the session is not ended.
+				fsm.logger.Debug("hold timer expired while a message is processed",
+					slog.String("State", fsm.state.String()))
+				conf := fsm.pConf.ReadOnly()
+				holdTimer.Reset(time.Second * time.Duration(conf.Timers.State.NegotiatedHoldTime))
+				break
+			}
 			fsm.logger.Warn("hold timer expired", slog.String("State", fsm.state.String()))
 
 			m, err := fsm.sendEstablishedNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil))
