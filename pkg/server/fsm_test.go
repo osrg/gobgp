@@ -1868,6 +1868,84 @@ func TestSendMessageloop_CoalesceMultipleAttributeGroups(t *testing.T) {
 	t.Logf("coalesced %d paths (%d groups) into %d UPDATEs", total, numGroups, updates)
 }
 
+// TestSendMessageloop_WithdrawsTooLongUpdate checks that a path whose
+// UPDATE does not fit in 4096 octets is withdrawn from a peer without the
+// Extended Message Capability instead of being dropped (RFC 8654 Section 4).
+func TestSendMessageloop_WithdrawsTooLongUpdate(t *testing.T) {
+	communities := make([]uint32, 1100) // 4400 bytes, over 4096
+	for i := range communities {
+		communities[i] = uint32(i)
+	}
+	for _, tt := range []struct {
+		name   string
+		family bgp.Family
+		prefix string
+		nh     string
+	}{
+		{"IPv4", bgp.RF_IPv4_UC, "10.1.0.0/24", "192.0.2.1"},
+		{"IPv6", bgp.RF_IPv6_UC, "2001:db8:1::/64", "2001:db8::1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMockConnection()
+			_, h := makePeerAndHandler(m)
+			t.Cleanup(func() { h.outgoing.Close(); m.Close() })
+
+			ctx, cancel := context.WithCancel(context.Background())
+			stateReasonCh := make(chan fsmStateReason, 3)
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+
+			go h.sendMessageloop(ctx, m, stateReasonCh, wg)
+
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(tt.prefix))
+			require.NoError(t, err)
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0),
+				bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}),
+				bgp.NewPathAttributeCommunities(communities),
+			}
+			if tt.family == bgp.RF_IPv4_UC {
+				nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(tt.nh))
+				require.NoError(t, err)
+				attrs = append(attrs, nh)
+			} else {
+				mp, err := bgp.NewPathAttributeMpReachNLRI(tt.family, []bgp.PathNLRI{{NLRI: nlri}}, netip.MustParseAddr(tt.nh))
+				require.NoError(t, err)
+				attrs = append(attrs, mp)
+			}
+			path := table.NewPath(tt.family, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+			h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{path}}
+
+			select {
+			case <-m.bufReady.C:
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for the withdrawal")
+			}
+
+			cancel()
+			wg.Wait()
+
+			msgs := parseBGPUpdates(t, m.GetSentMessages())
+			require.Len(t, msgs, 1)
+			require.Equal(t, uint8(bgp.BGP_MSG_UPDATE), msgs[0].Header.Type)
+			u := msgs[0].Body.(*bgp.BGPUpdate)
+			assert.Empty(t, u.NLRI, "the route must not be announced")
+			if tt.family == bgp.RF_IPv4_UC {
+				assert.Empty(t, u.PathAttributes)
+				require.Len(t, u.WithdrawnRoutes, 1)
+				assert.Equal(t, tt.prefix, u.WithdrawnRoutes[0].NLRI.String())
+			} else {
+				assert.Empty(t, u.WithdrawnRoutes)
+				require.Len(t, u.PathAttributes, 1)
+				unreach, ok := u.PathAttributes[0].(*bgp.PathAttributeMpUnreachNLRI)
+				require.True(t, ok, "expected MP_UNREACH_NLRI, got %T", u.PathAttributes[0])
+				require.Len(t, unreach.Value, 1)
+				assert.Equal(t, tt.prefix, unreach.Value[0].NLRI.String())
+			}
+		})
+	}
+}
+
 // TestSendMessageloop_KillSignal verifies that a non-path message causes
 // sendMessageloop to exit promptly. This test checks timely termination,
 // not preservation or forwarding of the non-path payload.
