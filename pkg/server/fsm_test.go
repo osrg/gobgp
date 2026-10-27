@@ -2917,3 +2917,55 @@ func TestFSMHandlerEstablished_NewConnection(t *testing.T) {
 		})
 	}
 }
+
+// An admin state change in Established sends a NOTIFICATION and ends the
+// session as admin down.
+func TestFSMHandlerEstablished_AdminStateNotification(t *testing.T) {
+	tests := []struct {
+		name    string
+		op      adminStateOperation
+		subcode uint8
+	}{
+		{"admin down", adminStateOperation{adminStateDown, nil}, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN},
+		{"prefix limit", adminStateOperation{adminStatePfxCt, nil}, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, h, m := grFirstSession(t)
+			p.fsm.recvOpen = grOpen(t,
+				bgp.NewCapGracefulRestart(false, false, 120, []*bgp.CapGracefulRestartTuple{
+					bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+				}))
+			p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
+
+			type result struct {
+				state  bgp.FSMState
+				reason *fsmStateReason
+			}
+			ch := make(chan result, 1)
+			go func() {
+				state, reason := h.established(t.Context())
+				ch <- result{state, reason}
+			}()
+			p.fsm.adminStateCh <- tt.op
+
+			var r result
+			select {
+			case r = <-ch:
+			case <-time.After(5 * time.Second):
+				t.Fatal("established() did not return")
+			}
+			assert.Equal(t, bgp.BGP_FSM_IDLE, r.state)
+			assert.Equal(t, fsmAdminDown, r.reason.Type)
+			require.NotNil(t, r.reason.BGPNotification)
+			assert.Equal(t, uint8(bgp.BGP_ERROR_CEASE), r.reason.BGPNotification.ErrorCode)
+			assert.Equal(t, tt.subcode, r.reason.BGPNotification.ErrorSubcode)
+
+			msg := sentMessage(t, m, 0)
+			require.Equal(t, uint8(bgp.BGP_MSG_NOTIFICATION), msg.Header.Type)
+			body := msg.Body.(*bgp.BGPNotification)
+			assert.Equal(t, uint8(bgp.BGP_ERROR_CEASE), body.ErrorCode)
+			assert.Equal(t, tt.subcode, body.ErrorSubcode)
+		})
+	}
+}
