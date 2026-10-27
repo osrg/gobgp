@@ -6253,6 +6253,8 @@ const (
 	LS_TLV_MIN_MAX_UNIDIRECTIONAL_LINK_DELAY = 1115 // RFC8571
 	LS_TLV_UNIDIRECTIONAL_DELAY_VARIATION    = 1116 // RFC8571
 
+	LS_TLV_APPLICATION_SPECIFIC_LINK_ATTR = 1122 // RFC9294
+
 	LS_TLV_IGP_FLAGS              = 1152
 	LS_TLV_IGP_ROUTE_TAG          = 1153 // TODO
 	LS_TLV_EXTENDED_ROUTE_TAG     = 1154 // TODO
@@ -6382,6 +6384,9 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	}
 	if lsAttr.Link.Srv6EndXSID != nil && len(lsAttr.Link.Srv6EndXSID.SIDs) > 0 {
 		tlvs = append(tlvs, NewLsTLVSrv6EndXSID(lsAttr.Link.Srv6EndXSID))
+	}
+	for i := range lsAttr.Link.ApplicationSpecific {
+		tlvs = append(tlvs, NewLsTLVApplicationSpecificLinkAttr(&lsAttr.Link.ApplicationSpecific[i]))
 	}
 
 	if lsAttr.Prefix.IGPFlags != nil {
@@ -8336,6 +8341,198 @@ func (l *LsTLVUnidirectionalDelayVariation) MarshalJSON() ([]byte, error) {
 }
 
 func (l *LsTLVUnidirectionalDelayVariation) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
+// LsTLVApplicationSpecificLinkAttr is the Application-Specific Link
+// Attributes (ASLA) TLV (RFC 9294 Section 2): link attributes that hold
+// for the applications named in its bit masks. The bit masks are kept as
+// received; which application a bit stands for is in the IANA "Link
+// Attribute Application Identifiers" registry (RFC 8919 Section 7.4,
+// bit 0 being the most significant bit of the first octet). A zero-length
+// mask means the attributes hold for every application (RFC 8919
+// Section 6.2).
+type LsTLVApplicationSpecificLinkAttr struct {
+	LsTLV
+	StandardApplications    []byte
+	UserDefinedApplications []byte
+	SubTLVs                 []LsTLVInterface
+}
+
+func NewLsTLVApplicationSpecificLinkAttr(l *LsApplicationSpecificLinkAttr) *LsTLVApplicationSpecificLinkAttr {
+	t := &LsTLVApplicationSpecificLinkAttr{
+		LsTLV:                   LsTLV{Type: LS_TLV_APPLICATION_SPECIFIC_LINK_ATTR},
+		StandardApplications:    append([]byte(nil), l.StandardApplications...),
+		UserDefinedApplications: append([]byte(nil), l.UserDefinedApplications...),
+	}
+	if l.AdminGroup != nil {
+		t.SubTLVs = append(t.SubTLVs, NewLsTLVAdminGroup(l.AdminGroup))
+	}
+	if l.DefaultTEMetric != nil {
+		t.SubTLVs = append(t.SubTLVs, NewLsTLVTEDefaultMetric(l.DefaultTEMetric))
+	}
+	if l.Srlgs != nil {
+		t.SubTLVs = append(t.SubTLVs, NewLsTLVSrlg(l.Srlgs))
+	}
+	if l.UnidirectionalLinkDelay != nil {
+		t.SubTLVs = append(t.SubTLVs, NewLsTLVUnidirectionalLinkDelay(l.UnidirectionalLinkDelay))
+	}
+	if l.MinMaxUnidirectionalLinkDelay != nil {
+		t.SubTLVs = append(t.SubTLVs, NewLsTLVMinMaxUnidirectionalLinkDelay(l.MinMaxUnidirectionalLinkDelay))
+	}
+	if l.UnidirectionalDelayVariation != nil {
+		t.SubTLVs = append(t.SubTLVs, NewLsTLVUnidirectionalDelayVariation(l.UnidirectionalDelayVariation))
+	}
+	length := 4 + len(t.StandardApplications) + len(t.UserDefinedApplications)
+	for _, sub := range t.SubTLVs {
+		length += sub.Len()
+	}
+	t.Length = uint16(length)
+	return t
+}
+
+// validApplicationMaskLength is the lengths RFC 8920 Section 3 allows for
+// the SABM and the UDABM, to which RFC 9294 Section 2 refers.
+func validApplicationMaskLength(n int) bool {
+	return n == 0 || n == 4 || n == 8
+}
+
+func (l *LsTLVApplicationSpecificLinkAttr) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_APPLICATION_SPECIFIC_LINK_ATTR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	// https://www.rfc-editor.org/rfc/rfc9294#section-2: SABM Length (1),
+	// UDABM Length (1), Reserved (2), then the masks and the sub-TLVs.
+	if len(value) < 4 {
+		return malformedAttrListErr("Incorrect Application-Specific Link Attributes length")
+	}
+	sabm, udabm := int(value[0]), int(value[1])
+	if !validApplicationMaskLength(sabm) || !validApplicationMaskLength(udabm) {
+		return malformedAttrListErr("Incorrect Application-Specific Link Attributes bit mask length")
+	}
+	if len(value) < 4+sabm+udabm {
+		return malformedAttrListErr("Incorrect Application-Specific Link Attributes length")
+	}
+	l.StandardApplications = append([]byte(nil), value[4:4+sabm]...)
+	l.UserDefinedApplications = append([]byte(nil), value[4+sabm:4+sabm+udabm]...)
+
+	l.SubTLVs = nil
+	subs := value[4+sabm+udabm:]
+	for len(subs) > 0 {
+		t := &LsTLV{}
+		if _, err := t.DecodeFromBytes(subs); err != nil {
+			return err
+		}
+
+		// The sub-TLVs are the link attribute TLVs that can be
+		// application-specific (RFC 9294 Section 3, Table 1). Any other
+		// type is kept as received (RFC 9552 Section 5.1).
+		var sub LsTLVInterface
+		switch t.Type {
+		case LS_TLV_ADMIN_GROUP:
+			sub = &LsTLVAdminGroup{}
+		case LS_TLV_TE_DEFAULT_METRIC:
+			sub = &LsTLVTEDefaultMetric{}
+		case LS_TLV_SRLG:
+			sub = &LsTLVSrlg{}
+		case LS_TLV_UNIDIRECTIONAL_LINK_DELAY:
+			sub = &LsTLVUnidirectionalLinkDelay{}
+		case LS_TLV_MIN_MAX_UNIDIRECTIONAL_LINK_DELAY:
+			sub = &LsTLVMinMaxUnidirectionalLinkDelay{}
+		case LS_TLV_UNIDIRECTIONAL_DELAY_VARIATION:
+			sub = &LsTLVUnidirectionalDelayVariation{}
+		default:
+			sub = &lsTLVUnknown{}
+		}
+		if err := sub.DecodeFromBytes(subs); err != nil {
+			return err
+		}
+		l.SubTLVs = append(l.SubTLVs, sub)
+		subs = subs[t.Len():]
+	}
+
+	return nil
+}
+
+func (l *LsTLVApplicationSpecificLinkAttr) Serialize() ([]byte, error) {
+	if !validApplicationMaskLength(len(l.StandardApplications)) || !validApplicationMaskLength(len(l.UserDefinedApplications)) {
+		return nil, malformedAttrListErr("Incorrect Application-Specific Link Attributes bit mask length")
+	}
+
+	buf := []byte{byte(len(l.StandardApplications)), byte(len(l.UserDefinedApplications)), 0, 0}
+	buf = append(buf, l.StandardApplications...)
+	buf = append(buf, l.UserDefinedApplications...)
+	for _, sub := range l.SubTLVs {
+		b, err := sub.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, b...)
+	}
+
+	return l.LsTLV.Serialize(buf)
+}
+
+// Extract returns the attributes the TLV carries. Sub-TLVs of other types
+// are left out.
+func (l *LsTLVApplicationSpecificLinkAttr) Extract() *LsApplicationSpecificLinkAttr {
+	a := &LsApplicationSpecificLinkAttr{
+		StandardApplications:    append([]byte(nil), l.StandardApplications...),
+		UserDefinedApplications: append([]byte(nil), l.UserDefinedApplications...),
+	}
+	for _, sub := range l.SubTLVs {
+		switch v := sub.(type) {
+		case *LsTLVAdminGroup:
+			g := v.AdminGroup
+			a.AdminGroup = &g
+		case *LsTLVTEDefaultMetric:
+			m := v.Metric
+			a.DefaultTEMetric = &m
+		case *LsTLVSrlg:
+			s := append([]uint32(nil), v.Srlgs...)
+			a.Srlgs = &s
+		case *LsTLVUnidirectionalLinkDelay:
+			a.UnidirectionalLinkDelay = v.Extract()
+		case *LsTLVMinMaxUnidirectionalLinkDelay:
+			a.MinMaxUnidirectionalLinkDelay = v.Extract()
+		case *LsTLVUnidirectionalDelayVariation:
+			d := v.DelayVariation
+			a.UnidirectionalDelayVariation = &d
+		}
+	}
+	return a
+}
+
+func (l *LsTLVApplicationSpecificLinkAttr) String() string {
+	subs := make([]string, len(l.SubTLVs))
+	for i, sub := range l.SubTLVs {
+		subs[i] = sub.String()
+	}
+	return fmt.Sprintf("{Application-Specific Link Attributes: SABM: %x UDABM: %x %s}",
+		l.StandardApplications, l.UserDefinedApplications, strings.Join(subs, " "))
+}
+
+func (l *LsTLVApplicationSpecificLinkAttr) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type                    LsTLVType        `json:"type"`
+		StandardApplications    string           `json:"standard_applications"`
+		UserDefinedApplications string           `json:"user_defined_applications"`
+		SubTLVs                 []LsTLVInterface `json:"sub_tlvs"`
+	}{
+		Type:                    l.Type,
+		StandardApplications:    fmt.Sprintf("%x", l.StandardApplications),
+		UserDefinedApplications: fmt.Sprintf("%x", l.UserDefinedApplications),
+		SubTLVs:                 l.SubTLVs,
+	})
+}
+
+func (l *LsTLVApplicationSpecificLinkAttr) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
@@ -11131,6 +11328,26 @@ type LsAttributeLink struct {
 	SrAdjacencySID  *uint32                       `json:"adjacency_sid,omitempty"`
 	SrAdjacencySIDs []LsAttributeLinkAdjacencySID `json:"sr_adjacency_sids,omitempty"`
 	Srv6EndXSID     *LsSrv6EndXSID                `json:"srv6_end_x_sid,omitempty"`
+
+	// ApplicationSpecific holds one entry per Application-Specific Link
+	// Attributes TLV (RFC 9294), in the order received. RFC 9294
+	// Section 3: for the applications an entry names, its attributes
+	// take precedence over the top-level ones.
+	ApplicationSpecific []LsApplicationSpecificLinkAttr `json:"application_specific,omitempty"`
+}
+
+// LsApplicationSpecificLinkAttr is the content of one Application-Specific
+// Link Attributes TLV (RFC 9294 Section 2): the application bit masks as
+// received and the attributes, each nil when absent.
+type LsApplicationSpecificLinkAttr struct {
+	StandardApplications          []byte                           `json:"standard_applications,omitempty"`
+	UserDefinedApplications       []byte                           `json:"user_defined_applications,omitempty"`
+	AdminGroup                    *uint32                          `json:"admin_group,omitempty"`
+	DefaultTEMetric               *uint32                          `json:"default_te_metric,omitempty"`
+	Srlgs                         *[]uint32                        `json:"srlgs,omitempty"`
+	UnidirectionalLinkDelay       *LsUnidirectionalLinkDelay       `json:"unidirectional_link_delay,omitempty"`
+	MinMaxUnidirectionalLinkDelay *LsMinMaxUnidirectionalLinkDelay `json:"min_max_unidirectional_link_delay,omitempty"`
+	UnidirectionalDelayVariation  *uint32                          `json:"unidirectional_delay_variation,omitempty"`
 }
 
 type LsAttributeLinkAdjacencySID struct {
@@ -11282,6 +11499,9 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVUnidirectionalDelayVariation:
 			l.Link.UnidirectionalDelayVariation = &v.DelayVariation
+
+		case *LsTLVApplicationSpecificLinkAttr:
+			l.Link.ApplicationSpecific = append(l.Link.ApplicationSpecific, *v.Extract())
 
 		case *LsTLVIGPMetric:
 			l.Link.IGPMetric = &v.Metric
@@ -11493,6 +11713,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		case LS_TLV_UNIDIRECTIONAL_DELAY_VARIATION:
 			tlv = &LsTLVUnidirectionalDelayVariation{}
+
+		case LS_TLV_APPLICATION_SPECIFIC_LINK_ATTR:
+			tlv = &LsTLVApplicationSpecificLinkAttr{}
 
 		case LS_TLV_IGP_METRIC:
 			tlv = &LsTLVIGPMetric{}

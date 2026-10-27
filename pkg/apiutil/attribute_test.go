@@ -90,6 +90,49 @@ func Test_LsAttributeDelayMetricRoundTrip(t *testing.T) {
 	}
 }
 
+func Test_LsAttributeApplicationSpecificRoundTrip(t *testing.T) {
+	assert := assert.New(t)
+
+	metric := uint32(100)
+	input := &api.LsAttribute{
+		Link: &api.LsAttributeLink{
+			DefaultTeMetric: 10,
+			ApplicationSpecific: []*api.LsApplicationSpecificLinkAttr{{
+				StandardApplications:          []byte{0x10, 0, 0, 0},
+				DefaultTeMetric:               &metric,
+				MinMaxUnidirectionalLinkDelay: &api.LsLinkMinMaxDelay{MinDelay: 1000, MaxDelay: 2000},
+			}},
+		},
+	}
+
+	native, err := UnmarshalLsAttribute(input)
+	assert.NoError(err)
+	if assert.Len(native.Link.ApplicationSpecific, 1) {
+		a := native.Link.ApplicationSpecific[0]
+		assert.Equal([]byte{0x10, 0, 0, 0}, a.StandardApplications)
+		assert.Equal(uint32(100), *a.DefaultTEMetric)
+		assert.Equal(uint32(1000), a.MinMaxUnidirectionalLinkDelay.MinDelay)
+		assert.Nil(a.UnidirectionalLinkDelay)
+	}
+
+	output, err := NewLsAttributeFromNative(&bgp.PathAttributeLs{TLVs: bgp.NewLsAttributeTLVs(native)})
+	assert.NoError(err)
+	if assert.NotNil(output.Link) && assert.Len(output.Link.ApplicationSpecific, 1) {
+		a := output.Link.ApplicationSpecific[0]
+		assert.Equal(uint32(10), output.Link.DefaultTeMetric)
+		assert.Equal([]byte{0x10, 0, 0, 0}, a.StandardApplications)
+		if assert.NotNil(a.DefaultTeMetric) {
+			assert.Equal(uint32(100), *a.DefaultTeMetric)
+		}
+		assert.Nil(a.AdminGroup)
+		if assert.NotNil(a.MinMaxUnidirectionalLinkDelay) {
+			assert.Equal(uint32(1000), a.MinMaxUnidirectionalLinkDelay.MinDelay)
+			assert.Equal(uint32(2000), a.MinMaxUnidirectionalLinkDelay.MaxDelay)
+		}
+		assert.Nil(a.UnidirectionalLinkDelay)
+	}
+}
+
 func Test_AsPathAttribute(t *testing.T) {
 	assert := assert.New(t)
 

@@ -1397,6 +1397,7 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			SrAdjacencySID:                linkSrAdjacencySid,
 			SrAdjacencySIDs:               linkAdjacencySIDs,
 			Srv6EndXSID:                   srv6EndXSID,
+			ApplicationSpecific:           unmarshalLsApplicationSpecific(a.Link.ApplicationSpecific),
 		}
 	}
 
@@ -3068,6 +3069,75 @@ func float32OrDefault(f *float32) float32 {
 	return *f
 }
 
+// unmarshalLsApplicationSpecific maps the Application-Specific Link
+// Attributes (RFC 9294) of the API to their native form.
+func unmarshalLsApplicationSpecific(in []*api.LsApplicationSpecificLinkAttr) []bgp.LsApplicationSpecificLinkAttr {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]bgp.LsApplicationSpecificLinkAttr, 0, len(in))
+	for _, a := range in {
+		if a == nil {
+			continue
+		}
+		n := bgp.LsApplicationSpecificLinkAttr{
+			StandardApplications:         append([]byte(nil), a.StandardApplications...),
+			UserDefinedApplications:      append([]byte(nil), a.UserDefinedApplications...),
+			AdminGroup:                   a.AdminGroup,
+			DefaultTEMetric:              a.DefaultTeMetric,
+			UnidirectionalDelayVariation: a.UnidirectionalDelayVariation,
+		}
+		if len(a.Srlgs) > 0 {
+			srlgs := append([]uint32(nil), a.Srlgs...)
+			n.Srlgs = &srlgs
+		}
+		if d := a.UnidirectionalLinkDelay; d != nil {
+			n.UnidirectionalLinkDelay = &bgp.LsUnidirectionalLinkDelay{
+				Flags: bgp.LsDelayMetricFlags{Anomalous: d.Anomalous},
+				Delay: d.Delay,
+			}
+		}
+		if d := a.MinMaxUnidirectionalLinkDelay; d != nil {
+			n.MinMaxUnidirectionalLinkDelay = &bgp.LsMinMaxUnidirectionalLinkDelay{
+				Flags:    bgp.LsDelayMetricFlags{Anomalous: d.Anomalous},
+				MinDelay: d.MinDelay,
+				MaxDelay: d.MaxDelay,
+			}
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+// newLsApplicationSpecific maps native Application-Specific Link
+// Attributes (RFC 9294) to the API.
+func newLsApplicationSpecific(in []bgp.LsApplicationSpecificLinkAttr) []*api.LsApplicationSpecificLinkAttr {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*api.LsApplicationSpecificLinkAttr, 0, len(in))
+	for _, n := range in {
+		a := &api.LsApplicationSpecificLinkAttr{
+			StandardApplications:         append([]byte(nil), n.StandardApplications...),
+			UserDefinedApplications:      append([]byte(nil), n.UserDefinedApplications...),
+			AdminGroup:                   n.AdminGroup,
+			DefaultTeMetric:              n.DefaultTEMetric,
+			UnidirectionalDelayVariation: n.UnidirectionalDelayVariation,
+		}
+		if n.Srlgs != nil {
+			a.Srlgs = append([]uint32(nil), (*n.Srlgs)...)
+		}
+		if d := n.UnidirectionalLinkDelay; d != nil {
+			a.UnidirectionalLinkDelay = &api.LsLinkDelay{Anomalous: d.Flags.Anomalous, Delay: d.Delay}
+		}
+		if d := n.MinMaxUnidirectionalLinkDelay; d != nil {
+			a.MinMaxUnidirectionalLinkDelay = &api.LsLinkMinMaxDelay{Anomalous: d.Flags.Anomalous, MinDelay: d.MinDelay, MaxDelay: d.MaxDelay}
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
 func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) {
 	attr := a.Extract()
 
@@ -3175,6 +3245,7 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 			ReservableBandwidth: float32OrDefault(attr.Link.ReservableBandwidth),
 			SrAdjacencySid:      uint32OrDefault(attr.Link.SrAdjacencySID),
 			Srv6EndXSid:         srv6EndXSID,
+			ApplicationSpecific: newLsApplicationSpecific(attr.Link.ApplicationSpecific),
 		},
 		Prefix: &api.LsAttributePrefix{
 			Opaque: bytesOrDefault(attr.Prefix.Opaque),

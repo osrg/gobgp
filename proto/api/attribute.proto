@@ -471,6 +471,41 @@ message LsAttributeLink {
   uint32 unidirectional_delay_variation = 21;
 
   repeated LsAttributeLinkAdjacencySID sr_adjacency_sids = 22;
+
+  // application_specific has one entry per Application-Specific Link
+  // Attributes TLV (TLV 1122, RFC 9294), in the order received.
+  repeated LsApplicationSpecificLinkAttr application_specific = 24;
+}
+
+// LsApplicationSpecificLinkAttr is one Application-Specific Link
+// Attributes TLV (RFC 9294 Section 2). The bit masks are as received
+// (0, 4 or 8 octets); an empty mask means the attributes hold for every
+// application (RFC 8919 Section 6.2). The attributes are unset when
+// their sub-TLV is absent.
+message LsApplicationSpecificLinkAttr {
+  bytes standard_applications = 1;
+  bytes user_defined_applications = 2;
+  optional uint32 admin_group = 3;
+  optional uint32 default_te_metric = 4;
+  repeated uint32 srlgs = 5;
+  LsLinkDelay unidirectional_link_delay = 6;
+  LsLinkMinMaxDelay min_max_unidirectional_link_delay = 7;
+  optional uint32 unidirectional_delay_variation = 8;
+}
+
+// LsLinkDelay is the Unidirectional Link Delay (RFC 8571 Section 2.1),
+// in microseconds.
+message LsLinkDelay {
+  bool anomalous = 1;
+  uint32 delay = 2;
+}
+
+// LsLinkMinMaxDelay is the Min/Max Unidirectional Link Delay (RFC 8571
+// Section 2.2), in microseconds.
+message LsLinkMinMaxDelay {
+  bool anomalous = 1;
+  uint32 min_delay = 2;
+  uint32 max_delay = 3;
 }
 
 message LsAttributeLinkAdjacencySID {
