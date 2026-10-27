@@ -5346,7 +5346,7 @@ func TestRTCImplicitWithdrawForAcceptedPathWillWithdrawVPNPaths(t *testing.T) {
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 22179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2 := runNewServer(t, 1, "2.2.2.2", 33179)
+	s2 := runNewServer(t, 1, "2.2.2.2", 23179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
@@ -5437,9 +5437,9 @@ func TestRTCImplicitWithdrawForAcceptedPathWillWithdrawVPNPaths(t *testing.T) {
 func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.T) {
 	ctx := context.Background()
 
-	s1 := runNewServer(t, 1, "1.1.1.1", 44179)
+	s1 := runNewServer(t, 1, "1.1.1.1", 24179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2 := runNewServer(t, 1, "2.2.2.2", 55179)
+	s2 := runNewServer(t, 1, "2.2.2.2", 25179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
@@ -5528,9 +5528,9 @@ func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.
 func TestRTCShouldNotWithdrawVPNRouteAfterOneRTCWithdraw(t *testing.T) {
 	ctx := context.Background()
 
-	s1 := runNewServer(t, 1, "1.1.1.1", 44179)
+	s1 := runNewServer(t, 1, "1.1.1.1", 24179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2 := runNewServer(t, 1, "2.2.2.2", 55179)
+	s2 := runNewServer(t, 1, "2.2.2.2", 25179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
