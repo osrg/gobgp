@@ -1006,6 +1006,10 @@ func (fsm *fsm) sendNotification(conn net.Conn, msg *bgp.BGPMessage) error {
 // short, the Hard Reset encapsulates another NOTIFICATION message in its
 // data portion."
 //
+// For Administrative Reset, RFC 8538 Section 5.1 leaves the choice to the
+// user ("Provide user control"). It is sent as a Hard Reset: ResetPeer
+// ends the session on purpose, and the routes are not kept.
+//
 // The State, not the Config, is checked because RFC 8538 Section 4 says
 // "A BGP speaker SHOULD NOT send a Hard Reset to a peer from which it has
 // not received the "N" bit." The State is set when the session enters
@@ -1013,7 +1017,7 @@ func (fsm *fsm) sendNotification(conn net.Conn, msg *bgp.BGPMessage) error {
 func (fsm *fsm) sendEstablishedNotification(m *bgp.BGPMessage) (*bgp.BGPMessage, error) {
 	body := m.Body.(*bgp.BGPNotification)
 	if fsm.pConf.ReadOnly().GracefulRestart.State.NotificationEnabled &&
-		body.ErrorCode == bgp.BGP_ERROR_CEASE && bgp.ShouldHardReset(body.ErrorSubcode, false) {
+		body.ErrorCode == bgp.BGP_ERROR_CEASE && bgp.ShouldHardReset(body.ErrorSubcode, true) {
 		data := append([]byte{body.ErrorCode, body.ErrorSubcode}, body.Data...)
 		m = bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_HARD_RESET, data)
 	}

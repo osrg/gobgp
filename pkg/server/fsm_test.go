@@ -2918,32 +2918,40 @@ func TestFSMHandlerEstablished_NewConnection(t *testing.T) {
 	}
 }
 
-// An admin state change in Established sends a NOTIFICATION and ends the
-// session as admin down. When the N bit was exchanged, the NOTIFICATION is
-// a Hard Reset (RFC 8538 Section 5.1), and its data is the original
-// NOTIFICATION: ErrCode, Subcode and Data (RFC 8538 Section 3.1).
-func TestFSMHandlerEstablished_AdminStateNotification(t *testing.T) {
+// A NOTIFICATION that Established sends for an operation or an admin state
+// change. When the N bit was exchanged, the NOTIFICATION is a Hard Reset
+// (RFC 8538 Section 5.1), and its data is the original NOTIFICATION:
+// ErrCode, Subcode and Data (RFC 8538 Section 3.1).
+func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 	communication := newAdministrativeCommunication("maintenance")
+	adminDown := func(f *fsm) { f.adminStateCh <- adminStateOperation{adminStateDown, communication} }
+	prefixLimit := func(f *fsm) { f.adminStateCh <- adminStateOperation{adminStatePfxCt, nil} }
+	reset := func(f *fsm) { f.resetCh <- communication }
 	tests := []struct {
 		name         string
-		op           adminStateOperation
+		send         func(*fsm)
+		reason       fsmStateReasonType
 		notification bool
 		sentSubcode  uint8
 		sentData     []byte
 	}{
-		{"admin down", adminStateOperation{adminStateDown, communication}, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, communication},
-		{"prefix limit", adminStateOperation{adminStatePfxCt, nil}, false, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil},
+		{"admin down", adminDown, fsmAdminDown, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, communication},
+		{"prefix limit", prefixLimit, fsmAdminDown, false, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil},
+		{"reset", reset, fsmAdminReset, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, communication},
 		{
-			"admin down with N bit",
-			adminStateOperation{adminStateDown, communication},
+			"admin down with N bit", adminDown, fsmAdminDown,
 			true, bgp.BGP_ERROR_SUB_HARD_RESET,
 			append([]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN}, communication...),
 		},
 		{
-			"prefix limit with N bit",
-			adminStateOperation{adminStatePfxCt, nil},
+			"prefix limit with N bit", prefixLimit, fsmAdminDown,
 			true, bgp.BGP_ERROR_SUB_HARD_RESET,
 			[]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED},
+		},
+		{
+			"reset with N bit", reset, fsmAdminReset,
+			true, bgp.BGP_ERROR_SUB_HARD_RESET,
+			append([]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET}, communication...),
 		},
 	}
 	for _, tt := range tests {
@@ -2964,7 +2972,7 @@ func TestFSMHandlerEstablished_AdminStateNotification(t *testing.T) {
 				state, reason := h.established(t.Context())
 				ch <- result{state, reason}
 			}()
-			p.fsm.adminStateCh <- tt.op
+			tt.send(p.fsm)
 
 			var r result
 			select {
@@ -2973,7 +2981,7 @@ func TestFSMHandlerEstablished_AdminStateNotification(t *testing.T) {
 				t.Fatal("established() did not return")
 			}
 			assert.Equal(t, bgp.BGP_FSM_IDLE, r.state)
-			assert.Equal(t, fsmAdminDown, r.reason.Type)
+			assert.Equal(t, tt.reason, r.reason.Type)
 			require.NotNil(t, r.reason.BGPNotification)
 			assert.Equal(t, uint8(bgp.BGP_ERROR_CEASE), r.reason.BGPNotification.ErrorCode)
 			assert.Equal(t, tt.sentSubcode, r.reason.BGPNotification.ErrorSubcode)
