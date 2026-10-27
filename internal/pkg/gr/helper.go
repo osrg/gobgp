@@ -123,6 +123,10 @@ type Actions struct {
 //	+------+  SessionEstablished                         (preserved)
 //	            (not preserved)
 //
+// A family that is in the Long-Lived Graceful Restart Capability but not in
+// the Graceful Restart Capability has a Restart Time of zero. SessionDown
+// moves it from None to LLGRStale at once.
+//
 // Abort, and SessionDown without the family, move a family from Stale or
 // LLGRStale to None without removing its routes. The caller removes them.
 //
@@ -195,6 +199,19 @@ func (h *Helper) untrack(f bgp.Family, r *restartingFamily, a *Actions) {
 	delete(h.families, f)
 }
 
+// startLLGR moves family f to the long-lived stale period: the stale routes
+// get LLGR_STALE, and its LLST timer starts. r.llst must not be zero.
+func (h *Helper) startLLGR(f bgp.Family, r *restartingFamily, a *Actions) {
+	r.phase = LLGRStale
+	r.llgrTimerID = h.newTimerID()
+	a.MarkLLGRStale = append(a.MarkLLGRStale, f)
+	a.StartLLGRTimers = append(a.StartLLGRTimers, LLGRTimer{
+		Family:   f,
+		Duration: time.Duration(r.llst) * time.Second,
+		ID:       r.llgrTimerID,
+	})
+}
+
 // finish ends the restart of family f by the procedures of RFC 4724 or
 // RFC 9494. Its stale routes are removed, and its LLST timer is stopped.
 func (h *Helper) finish(f bgp.Family, r *restartingFamily, a *Actions) {
@@ -219,29 +236,46 @@ func (h *Helper) SessionDown(n Negotiated) Actions {
 	h.up = false
 	var a Actions
 	// families maps each family whose routes are kept as stale to its
-	// LLST, or zero.
-	var families map[bgp.Family]uint32
+	// LLST, or zero. llgrOnly maps each family that is only in the
+	// Long-Lived Graceful Restart Capability to its LLST.
+	var families, llgrOnly map[bgp.Family]uint32
 	var restartTime time.Duration
 	if n.GR != nil {
 		families = make(map[bgp.Family]uint32)
+		llgrOnly = make(map[bgp.Family]uint32)
+		gr := n.grFamilies()
 		llgr := n.llgrTuples()
-		for f := range n.grFamilies() {
+		for f := range gr {
 			if t, ok := llgr[f]; ok {
 				families[f] = t.RestartTime
 			} else {
 				families[f] = 0
 			}
 		}
+		// RFC 9494 Section 4.2: "If the Graceful Restart Capability that
+		// was received does not list all AFIs/SAFIs supported by the
+		// session, then the GR Restart Time shall be deemed zero for
+		// those AFIs/SAFIs that are not listed." and "For example, if the
+		// Restart Time is zero and the Long-Lived Stale Time is nonzero,
+		// only the procedures particular to LLGR would apply." With an
+		// LLST of zero too, "none of these procedures would apply".
+		for f, t := range llgr {
+			if _, ok := gr[f]; !ok && t.RestartTime != 0 {
+				llgrOnly[f] = t.RestartTime
+			}
+		}
 		restartTime = time.Duration(n.GR.Time) * time.Second
 	}
 	// The session ended before the last restart was over. The caller
-	// removes the routes of a family that is not in families.
+	// removes the routes of a family that is not kept.
 	for f, r := range h.families {
-		if _, ok := families[f]; !ok {
+		_, ok := families[f]
+		_, ok2 := llgrOnly[f]
+		if !ok && !ok2 {
 			h.untrack(f, r, &a)
 		}
 	}
-	if len(families) > 0 && h.families == nil {
+	if len(families)+len(llgrOnly) > 0 && h.families == nil {
 		h.families = make(map[bgp.Family]*restartingFamily)
 	}
 	stale := false
@@ -277,6 +311,22 @@ func (h *Helper) SessionDown(n Negotiated) Actions {
 			a.MarkLLGRStale = append(a.MarkLLGRStale, f)
 		}
 	}
+	// A family only in the Long-Lived Graceful Restart Capability starts
+	// its long-lived stale period at once.
+	for f, llst := range llgrOnly {
+		a.MarkStale = append(a.MarkStale, f)
+		if _, ok := h.families[f]; ok {
+			// The family is in LLGRStale. A family in Stale is not here:
+			// SessionEstablished ended its restart unless it is in the
+			// Graceful Restart Capability of the session. As above, the
+			// old stale routes are kept, and the timer is not updated.
+			a.MarkLLGRStale = append(a.MarkLLGRStale, f)
+			continue
+		}
+		r := &restartingFamily{llst: llst}
+		h.families[f] = r
+		h.startLLGR(f, r, &a)
+	}
 	if stale {
 		h.restartTimerID = h.newTimerID()
 		a.StartRestartTimer = &RestartTimer{Duration: restartTime, ID: h.restartTimerID}
@@ -307,14 +357,7 @@ func (h *Helper) TimerExpired(id uint64) Actions {
 			h.finish(f, r, &a)
 			continue
 		}
-		r.phase = LLGRStale
-		r.llgrTimerID = h.newTimerID()
-		a.MarkLLGRStale = append(a.MarkLLGRStale, f)
-		a.StartLLGRTimers = append(a.StartLLGRTimers, LLGRTimer{
-			Family:   f,
-			Duration: time.Duration(r.llst) * time.Second,
-			ID:       r.llgrTimerID,
-		})
+		h.startLLGR(f, r, &a)
 	}
 	return a
 }

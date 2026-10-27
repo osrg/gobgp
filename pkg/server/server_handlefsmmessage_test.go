@@ -3227,3 +3227,34 @@ func TestHandleFSMMessage_GracefulSessionEnd(t *testing.T) {
 		})
 	}
 }
+
+// A family that is only in the Long-Lived Graceful Restart Capability has a
+// Restart Time of zero (RFC 9494 Section 4.2). Its routes get LLGR_STALE and
+// its LLST timer starts when the session ends. A family in the Graceful
+// Restart Capability waits for the Restart Time.
+func TestHandleFSMMessage_LLGROnlyFamily(t *testing.T) {
+	s, p := grTestPeer(t, grOpen(t,
+		bgp.NewCapGracefulRestart(false, false, 120, []*bgp.CapGracefulRestartTuple{
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+		}),
+		grLLGRv4(3600)))
+	grDown(t, s, p)
+
+	assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+	assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv6_UC))
+	var v4LLGRStale, v6LLGRStale bool
+	require.NoError(t, s.mgmtOperation(func() error {
+		v4LLGRStale = p.adjRibIn.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false)[0].IsLLGRStale()
+		v6LLGRStale = p.adjRibIn.PathList([]bgp.Family{bgp.RF_IPv6_UC}, false)[0].IsLLGRStale()
+		return nil
+	}, false))
+	assert.True(t, v4LLGRStale)
+	assert.False(t, v6LLGRStale)
+
+	p.grMu.Lock()
+	_, llgrTimer := p.grLLGRTimers[bgp.RF_IPv4_UC]
+	restartTimer := p.grRestartTimer != nil
+	p.grMu.Unlock()
+	assert.True(t, llgrTimer)
+	assert.True(t, restartTimer)
+}

@@ -175,7 +175,6 @@ func TestHelper_TimerExpiredWithoutLLGR(t *testing.T) {
 	}{
 		{"no LLGR Capability", nil},
 		{"LLST of zero", llgrCap(llgrTuple(v4, true, 0))},
-		{"other family", llgrCap(llgrTuple(v6, true, 60))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -421,4 +420,77 @@ func TestHelper_Abort(t *testing.T) {
 	assert.False(t, h.Restarting())
 	assert.Empty(t, h.families)
 	assert.Equal(t, Actions{}, h.LLGRTimerExpired(v4, id))
+}
+
+// A family that is in the LLGR Capability but not in the GR Capability has a
+// Restart Time of zero (RFC 9494 Section 4.2). Its long-lived stale period
+// starts when the session ends.
+func TestHelper_SessionDownLLGROnly(t *testing.T) {
+	n := Negotiated{
+		Families: both,
+		GR:       grCap(120, grTuple(v4, true)),
+		LLGR:     llgrCap(llgrTuple(v6, true, 60)),
+	}
+	h := established(n)
+	a := h.SessionDown(n)
+	assert.ElementsMatch(t, []bgp.Family{v4, v6}, a.MarkStale)
+	assert.Equal(t, []bgp.Family{v6}, a.MarkLLGRStale)
+	require.Len(t, a.StartLLGRTimers, 1)
+	assert.Equal(t, v6, a.StartLLGRTimers[0].Family)
+	assert.Equal(t, 60*time.Second, a.StartLLGRTimers[0].Duration)
+	require.NotNil(t, a.StartRestartTimer)
+	requirePhase(t, h, v4, Stale)
+	requirePhase(t, h, v6, LLGRStale)
+	llgrID := a.StartLLGRTimers[0].ID
+
+	// The Restart Time ends the restart of ipv4 only.
+	a = h.TimerExpired(a.StartRestartTimer.ID)
+	assert.Equal(t, Actions{DropStale: []bgp.Family{v4}}, a)
+	requirePhase(t, h, v6, LLGRStale)
+
+	a = h.LLGRTimerExpired(v6, llgrID)
+	assert.Equal(t, Actions{DropStale: []bgp.Family{v6}}, a)
+	assert.False(t, h.Restarting())
+}
+
+// With no family in the GR Capability, only the long-lived stale periods
+// run. There is no Restart Time timer. A family with an LLST of zero is not
+// kept: "If both are zero, none of these procedures would apply".
+func TestHelper_SessionDownLLGRWithoutGRFamilies(t *testing.T) {
+	n := Negotiated{
+		Families: both,
+		GR:       grCap(0),
+		LLGR:     llgrCap(llgrTuple(v4, true, 60), llgrTuple(v6, true, 0)),
+	}
+	h := established(n)
+	a := h.SessionDown(n)
+	assert.Equal(t, []bgp.Family{v4}, a.MarkStale)
+	assert.Equal(t, []bgp.Family{v4}, a.MarkLLGRStale)
+	require.Len(t, a.StartLLGRTimers, 1)
+	assert.Nil(t, a.StartRestartTimer)
+	requirePhase(t, h, v4, LLGRStale)
+	requirePhase(t, h, v6, None)
+}
+
+// A consecutive restart of a family only in the LLGR Capability keeps the
+// old stale routes and the running LLST timer (RFC 9494 Section 4.2).
+func TestHelper_SessionDownLLGROnlyConsecutive(t *testing.T) {
+	n := Negotiated{
+		Families: both,
+		GR:       grCap(0),
+		LLGR:     llgrCap(llgrTuple(v4, true, 60)),
+	}
+	h := established(n)
+	h.SessionDown(n)
+	requirePhase(t, h, v4, LLGRStale)
+
+	// The new session keeps the family: it is in the LLGR Capability with
+	// the F bit.
+	assert.Equal(t, Actions{}, h.SessionEstablished(n))
+	a := h.SessionDown(n)
+	assert.Equal(t, Actions{
+		MarkStale:     []bgp.Family{v4},
+		MarkLLGRStale: []bgp.Family{v4},
+	}, a)
+	requirePhase(t, h, v4, LLGRStale)
 }
