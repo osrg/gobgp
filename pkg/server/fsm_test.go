@@ -2927,6 +2927,9 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 	adminDown := func(f *fsm) { f.adminStateCh <- adminStateOperation{adminStateDown, communication} }
 	prefixLimit := func(f *fsm) { f.adminStateCh <- adminStateOperation{adminStatePfxCt, nil} }
 	reset := func(f *fsm) { f.resetCh <- communication }
+	bfdDown := func(f *fsm) {
+		f.notification <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_BFD_DOWN, nil)
+	}
 	tests := []struct {
 		name         string
 		send         func(*fsm)
@@ -2938,6 +2941,7 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 		{"admin down", adminDown, fsmAdminDown, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, communication},
 		{"prefix limit", prefixLimit, fsmAdminDown, false, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil},
 		{"reset", reset, fsmAdminReset, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, communication},
+		{"bfd down", bfdDown, fsmNotificationSent, false, bgp.BGP_ERROR_SUB_BFD_DOWN, nil},
 		{
 			"admin down with N bit", adminDown, fsmAdminDown,
 			true, bgp.BGP_ERROR_SUB_HARD_RESET,
@@ -2952,6 +2956,11 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 			"reset with N bit", reset, fsmAdminReset,
 			true, bgp.BGP_ERROR_SUB_HARD_RESET,
 			append([]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET}, communication...),
+		},
+		{
+			"bfd down with N bit", bfdDown, fsmNotificationSent,
+			true, bgp.BGP_ERROR_SUB_HARD_RESET,
+			[]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_BFD_DOWN},
 		},
 	}
 	for _, tt := range tests {

@@ -17322,6 +17322,13 @@ func NewBGPNotificationMessage(errcode uint8, errsubcode uint8, data []byte) *BG
 // returns true if the subcode is BGP_ERROR_SUB_ADMINISTRATIVE_RESET.
 // Otherwise, it returns false.
 //
+// BFD Down (RFC 9384) is newer than RFC 8538 and is not in its table. The
+// function returns true for it: BFD detected that the forwarding path is
+// down, so the routes of the peer cannot be used. RFC 9384 Section 4 says
+// how to send it as a Hard Reset: "the "BFD Down" subcode SHOULD be
+// encapsulated in the Hard Reset's data portion of the NOTIFICATION
+// message."
+//
 // As RFC8538 states, it is not mandatory to follow this suggestion. You can
 // use this function when you want to follow the suggestion.
 func ShouldHardReset(subcode uint8, hardResetOnAdminReset bool) bool {
@@ -17329,7 +17336,8 @@ func ShouldHardReset(subcode uint8, hardResetOnAdminReset bool) bool {
 	case BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED,
 		BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN,
 		BGP_ERROR_SUB_PEER_DECONFIGURED,
-		BGP_ERROR_SUB_HARD_RESET:
+		BGP_ERROR_SUB_HARD_RESET,
+		BGP_ERROR_SUB_BFD_DOWN:
 		return true
 	default:
 		if hardResetOnAdminReset && subcode == BGP_ERROR_SUB_ADMINISTRATIVE_RESET {
