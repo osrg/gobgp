@@ -2920,18 +2920,31 @@ func TestFSMHandlerEstablished_NewConnection(t *testing.T) {
 
 // An admin state change in Established sends a NOTIFICATION and ends the
 // session as admin down. When the N bit was exchanged, the NOTIFICATION is
-// a Hard Reset (RFC 8538 Section 5.1).
+// a Hard Reset (RFC 8538 Section 5.1), and its data is the original
+// NOTIFICATION: ErrCode, Subcode and Data (RFC 8538 Section 3.1).
 func TestFSMHandlerEstablished_AdminStateNotification(t *testing.T) {
+	communication := newAdministrativeCommunication("maintenance")
 	tests := []struct {
 		name         string
 		op           adminStateOperation
 		notification bool
 		sentSubcode  uint8
+		sentData     []byte
 	}{
-		{"admin down", adminStateOperation{adminStateDown, nil}, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN},
-		{"prefix limit", adminStateOperation{adminStatePfxCt, nil}, false, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED},
-		{"admin down with N bit", adminStateOperation{adminStateDown, nil}, true, bgp.BGP_ERROR_SUB_HARD_RESET},
-		{"prefix limit with N bit", adminStateOperation{adminStatePfxCt, nil}, true, bgp.BGP_ERROR_SUB_HARD_RESET},
+		{"admin down", adminStateOperation{adminStateDown, communication}, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, communication},
+		{"prefix limit", adminStateOperation{adminStatePfxCt, nil}, false, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil},
+		{
+			"admin down with N bit",
+			adminStateOperation{adminStateDown, communication},
+			true, bgp.BGP_ERROR_SUB_HARD_RESET,
+			append([]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN}, communication...),
+		},
+		{
+			"prefix limit with N bit",
+			adminStateOperation{adminStatePfxCt, nil},
+			true, bgp.BGP_ERROR_SUB_HARD_RESET,
+			[]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2970,6 +2983,7 @@ func TestFSMHandlerEstablished_AdminStateNotification(t *testing.T) {
 			body := msg.Body.(*bgp.BGPNotification)
 			assert.Equal(t, uint8(bgp.BGP_ERROR_CEASE), body.ErrorCode)
 			assert.Equal(t, tt.sentSubcode, body.ErrorSubcode)
+			assert.Equal(t, tt.sentData, body.Data)
 		})
 	}
 }

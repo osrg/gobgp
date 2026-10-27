@@ -1001,7 +1001,10 @@ func (fsm *fsm) sendNotification(conn net.Conn, msg *bgp.BGPMessage) error {
 // RFC 8538 defines the Hard Reset subcode of Cease. It ends the session
 // without the graceful restart procedures. When the "N" bit was exchanged,
 // a Cease with a subcode for which bgp.ShouldHardReset() is true is sent as
-// a Hard Reset, as RFC 8538 Section 5.1 suggests.
+// a Hard Reset, as RFC 8538 Section 5.1 suggests. The Hard Reset carries
+// the original NOTIFICATION in its data. RFC 8538 Section 3.1 says "In
+// short, the Hard Reset encapsulates another NOTIFICATION message in its
+// data portion."
 //
 // The State, not the Config, is checked because RFC 8538 Section 4 says
 // "A BGP speaker SHOULD NOT send a Hard Reset to a peer from which it has
@@ -1011,7 +1014,8 @@ func (fsm *fsm) sendEstablishedNotification(m *bgp.BGPMessage) (*bgp.BGPMessage,
 	body := m.Body.(*bgp.BGPNotification)
 	if fsm.pConf.ReadOnly().GracefulRestart.State.NotificationEnabled &&
 		body.ErrorCode == bgp.BGP_ERROR_CEASE && bgp.ShouldHardReset(body.ErrorSubcode, false) {
-		m = bgp.NewBGPNotificationMessage(body.ErrorCode, bgp.BGP_ERROR_SUB_HARD_RESET, body.Data)
+		data := append([]byte{body.ErrorCode, body.ErrorSubcode}, body.Data...)
+		m = bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_HARD_RESET, data)
 	}
 	return m, fsm.sendNotification(fsm.conn, m)
 }
