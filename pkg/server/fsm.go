@@ -2093,16 +2093,38 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 			table.UpdatePathAggregator2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
 
-		b, err := m.Serialize(&bgp.MarshallingOption{
+		options := &bgp.MarshallingOption{
 			AddPath:         fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode),
 			ExtendedMessage: fsm.extendedMessage.Load(),
-		})
+		}
+		b, err := m.Serialize(options)
 		if err != nil {
 			fsm.logger.Warn("failed to serialize",
 				slog.String("State", fsm.state.String()),
 				slog.String("Error", err.Error()))
 			fsm.bgpMessageStateUpdate(0, false)
-			return nil
+			// An UPDATE that does not fit in the message size of the
+			// peer is not sent. RFC 8654 Section 4 says:
+			//
+			//   If the message is still too big, then it must not be
+			//   sent to the neighbor ([RFC4271], Section 9.2).
+			//   Additionally, if the NLRI was previously advertised to
+			//   that peer, it must be withdrawn from service
+			//   ([RFC4271], Section 9.1.3).
+			if m.Header.Type != bgp.BGP_MSG_UPDATE {
+				return nil
+			}
+			m = table.CreateWithdrawMsgFromUpdate(m.Body.(*bgp.BGPUpdate))
+			if m == nil {
+				return nil
+			}
+			b, err = m.Serialize(options)
+			if err != nil {
+				fsm.logger.Warn("failed to serialize the withdrawal",
+					slog.String("State", fsm.state.String()),
+					slog.String("Error", err.Error()))
+				return nil
+			}
 		}
 		_, err = conn.Write(b)
 		if err != nil {
