@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/eapache/channels"
+	"github.com/osrg/gobgp/v4/internal/pkg/gr"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/internal/pkg/version"
@@ -944,6 +945,27 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 			fsm.twoByteAsTrans = true
 		}
 	}
+}
+
+// grNegotiated returns what the current session negotiated, for the graceful
+// restart of the peer. The capabilities are set only if they are
+// negotiated: we advertised them, and the peer sent them.
+func (fsm *fsm) grNegotiated() gr.Negotiated {
+	fsm.lock.Lock()
+	defer fsm.lock.Unlock()
+
+	n := gr.Negotiated{Families: make(map[bgp.Family]bool)}
+	for f := range fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode) {
+		n.Families[f] = true
+	}
+	state := fsm.pConf.ReadOnly().GracefulRestart.State
+	if caps := fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]; state.Enabled && len(caps) > 0 {
+		n.GR = caps[len(caps)-1].(*bgp.CapGracefulRestart)
+	}
+	if caps := fsm.capMap[bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART]; state.LongLivedEnabled && len(caps) > 0 {
+		n.LLGR = caps[len(caps)-1].(*bgp.CapLongLivedGracefulRestart)
+	}
+	return n
 }
 
 func (fsm *fsm) sendNotification(conn net.Conn, msg *bgp.BGPMessage) error {
@@ -2321,8 +2343,48 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			if !ok {
 				break
 			}
-			conn.Close()
-			fsm.logger.Warn("Closed an accepted connection", slog.String("State", fsm.state.String()))
+			n := fsm.grNegotiated()
+			if !n.HasFamilies() {
+				conn.Close()
+				fsm.logger.Warn("Closed an accepted connection", slog.String("State", fsm.state.String()))
+				break
+			}
+			// RFC 4724 Section 4.2: "In case it does not detect the
+			// termination of the old TCP session and still considers
+			// the BGP session as being established, it MUST treat the
+			// subsequent open connection from the peer as an indication
+			// of the termination of the old TCP session and act
+			// accordingly (when the Graceful Restart Capability has
+			// been received from the peer)." and "Since the previous
+			// connection is considered to be terminated, no
+			// NOTIFICATION message should be sent -- the previous TCP
+			// session is simply closed."
+			//
+			// Section 5 changes the Established state: "if the Graceful
+			// Restart Capability with one or more AFIs/SAFIs has been
+			// received for the session, then in response to Event 16 or
+			// Event 17 the local system: ... changes its state to
+			// Connect." Active also does the work of Connect here.
+			//
+			// A peer may list no AFI/SAFI in the Graceful Restart
+			// Capability and use long-lived graceful restart only. RFC
+			// 9494 Section 4.1 says the Graceful Restart Capability is
+			// required "to enable the reuse of certain base mechanisms
+			// that are common to both "flavors" notably: origination,
+			// collection, and processing of EoR as well as the
+			// finite-state-machine modifications and connection-reset
+			// logic introduced by GR." We read this as: the families in
+			// the Long-Lived Graceful Restart Capability count too.
+			fsm.conn.Close()
+			// active() takes the connection. idle() would close it.
+			select {
+			case fsm.connCh <- conn:
+			default:
+				// Another connection from the peer is queued. active()
+				// takes that one.
+				conn.Close()
+			}
+			return bgp.BGP_FSM_ACTIVE, newfsmStateReason(fsmNewConnection, nil, nil)
 		case err := <-reasonCh:
 			fsm.conn.Close()
 			// if recv goroutine hit an error and sent to

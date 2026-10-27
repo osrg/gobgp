@@ -3190,6 +3190,10 @@ func TestHandleFSMMessage_GracefulSessionEnd(t *testing.T) {
 			"admin down", newfsmStateReason(fsmAdminDown, nil, nil), true, false,
 			api.PeerState_DISCONNECT_REASON_ADMIN_DOWN, bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION,
 		},
+		{
+			"new connection", newfsmStateReason(fsmNewConnection, nil, nil), false, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -3201,16 +3205,25 @@ func TestHandleFSMMessage_GracefulSessionEnd(t *testing.T) {
 			p.fsm.pConf.Update(&conf)
 			p.fsm.lock.Unlock()
 
-			grStateChange(t, s, p, bgp.BGP_FSM_IDLE, tt.reason)
+			// After a new connection, the FSM goes to Active to take it.
+			next := bgp.BGP_FSM_IDLE
+			if tt.reason.Type == fsmNewConnection {
+				next = bgp.BGP_FSM_ACTIVE
+			}
+			grStateChange(t, s, p, next, tt.reason)
 
 			assert.Equal(t, tt.graceful, p.grRestarting())
+			p.grMu.Lock()
+			restartTimer := p.grRestartTimer != nil
+			p.grMu.Unlock()
+			assert.Equal(t, tt.graceful, restartTimer)
 			if tt.graceful {
 				assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
 			} else {
 				assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv4_UC))
 			}
 
-			e := newWatchEventPeer(p, &fsmMsg{StateReason: tt.reason}, bgp.BGP_FSM_IDLE, bgp.BGP_FSM_ESTABLISHED, apiutil.PEER_EVENT_STATE)
+			e := newWatchEventPeer(p, &fsmMsg{StateReason: tt.reason}, next, bgp.BGP_FSM_ESTABLISHED, apiutil.PEER_EVENT_STATE)
 			assert.Equal(t, tt.graceful, e.Graceful)
 			reason, message := convertFSMStateReasonToAPI(e.StateReason, e.Graceful)
 			assert.Equal(t, tt.wantAPI, reason)
@@ -3223,6 +3236,10 @@ func TestHandleFSMMessage_GracefulSessionEnd(t *testing.T) {
 			assert.Equal(t, tt.wantBMP, body.Reason)
 			if n := tt.reason.notificationMessage(); n != nil {
 				assert.Equal(t, n, body.BGPNotification)
+			}
+			if tt.reason.Type == fsmNewConnection {
+				// FSM Event 17, TcpConnectionConfirmed.
+				assert.Equal(t, []byte{0, 17}, body.Data)
 			}
 		})
 	}

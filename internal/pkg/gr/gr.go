@@ -55,6 +55,12 @@ type Negotiated struct {
 	LLGR *bgp.CapLongLivedGracefulRestart
 }
 
+// HasFamilies reports whether n has one or more families in its Graceful
+// Restart Capability or its Long-Lived Graceful Restart Capability.
+func (n *Negotiated) HasFamilies() bool {
+	return len(n.grFamilies()) > 0 || len(n.llgrTuples()) > 0
+}
+
 // grFamilies returns the families that n negotiated and that are in its
 // Graceful Restart Capability, with whether the F bit is set for each.
 func (n *Negotiated) grFamilies() map[bgp.Family]bool {

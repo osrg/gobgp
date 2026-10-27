@@ -2830,3 +2830,90 @@ func TestFSMHandlerEstablished_NoGracefulRestartAfterCapabilityRemoved(t *testin
 		t.Fatal("established() did not return")
 	}
 }
+
+// A new connection from the peer while the session is established ends the
+// session when the peer advertised graceful restart or long-lived graceful
+// restart for one or more families (RFC 4724 Section 4.2). The old
+// connection is closed without a NOTIFICATION, and active() takes the new
+// one. Otherwise the new connection is closed.
+func TestFSMHandlerEstablished_NewConnection(t *testing.T) {
+	tests := []struct {
+		name string
+		caps []bgp.ParameterCapabilityInterface
+		ends bool
+	}{
+		{"graceful restart", []bgp.ParameterCapabilityInterface{
+			bgp.NewCapGracefulRestart(false, false, 120, []*bgp.CapGracefulRestartTuple{
+				bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+			}),
+		}, true},
+		{"long-lived graceful restart only", []bgp.ParameterCapabilityInterface{
+			bgp.NewCapGracefulRestart(false, false, 0, nil),
+			bgp.NewCapLongLivedGracefulRestart([]*bgp.CapLongLivedGracefulRestartTuple{
+				bgp.NewCapLongLivedGracefulRestartTuple(bgp.RF_IPv4_UC, true, 3600),
+			}),
+		}, true},
+		{"no family in the capability", []bgp.ParameterCapabilityInterface{
+			bgp.NewCapGracefulRestart(false, false, 120, nil),
+		}, false},
+		{"no graceful restart", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, h, m := grFirstSession(t)
+			p.fsm.recvOpen = grOpen(t, tt.caps...)
+			p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
+
+			type result struct {
+				state  bgp.FSMState
+				reason *fsmStateReason
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			ch := make(chan result, 1)
+			go func() {
+				state, reason := h.established(ctx)
+				ch <- result{state, reason}
+			}()
+
+			conn, remote := net.Pipe()
+			t.Cleanup(func() { remote.Close() })
+			p.fsm.connCh <- conn
+
+			if !tt.ends {
+				// The new connection is closed, and the session stays.
+				remote.SetReadDeadline(time.Now().Add(5 * time.Second))
+				_, err := remote.Read(make([]byte, 1))
+				require.ErrorIs(t, err, io.EOF)
+				require.Never(t, func() bool { return len(ch) > 0 }, 100*time.Millisecond, 10*time.Millisecond)
+				cancel()
+				<-ch
+				return
+			}
+
+			var r result
+			select {
+			case r = <-ch:
+			case <-time.After(5 * time.Second):
+				t.Fatal("established() did not return")
+			}
+			assert.Equal(t, bgp.BGP_FSM_ACTIVE, r.state)
+			assert.Equal(t, fsmNewConnection, r.reason.Type)
+			// active() takes the new connection.
+			select {
+			case c := <-p.fsm.connCh:
+				assert.Equal(t, conn, c)
+			default:
+				t.Fatal("the new connection is not passed to active()")
+			}
+			// The old connection is closed without a NOTIFICATION.
+			_, err := m.Write([]byte{0})
+			assert.ErrorIs(t, err, io.ErrClosedPipe)
+			for _, b := range m.GetSentMessages() {
+				msg, err := bgp.ParseBGPMessage(b)
+				require.NoError(t, err)
+				assert.NotEqual(t, uint8(bgp.BGP_MSG_NOTIFICATION), msg.Header.Type)
+			}
+		})
+	}
+}

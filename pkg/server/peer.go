@@ -506,24 +506,9 @@ func (peer *peer) llgrFamilies() ([]bgp.Family, []bgp.Family) {
 }
 
 // grNegotiated returns what the current session negotiated, for the graceful
-// restart of the peer. The capabilities are set only if they are
-// negotiated: we advertised them, and the peer sent them.
+// restart of the peer.
 func (peer *peer) grNegotiated() gr.Negotiated {
-	peer.fsm.lock.Lock()
-	defer peer.fsm.lock.Unlock()
-
-	n := gr.Negotiated{Families: make(map[bgp.Family]bool)}
-	for f := range peer.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode) {
-		n.Families[f] = true
-	}
-	state := peer.fsm.pConf.ReadOnly().GracefulRestart.State
-	if caps := peer.fsm.capMap[bgp.BGP_CAP_GRACEFUL_RESTART]; state.Enabled && len(caps) > 0 {
-		n.GR = caps[len(caps)-1].(*bgp.CapGracefulRestart)
-	}
-	if caps := peer.fsm.capMap[bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART]; state.LongLivedEnabled && len(caps) > 0 {
-		n.LLGR = caps[len(caps)-1].(*bgp.CapLongLivedGracefulRestart)
-	}
-	return n
+	return peer.fsm.grNegotiated()
 }
 
 // grRestarting reports whether the stale routes of some family of the peer

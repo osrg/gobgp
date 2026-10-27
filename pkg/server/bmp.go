@@ -460,6 +460,7 @@ func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMe
 	ph := bmp.NewBMPPeerHeader(t, flags, pd, ev.PeerAddress, ev.PeerAS, ev.PeerID, float64(ev.Timestamp.Unix()))
 
 	reasonCode := bmp.BMP_peerDownByUnknownReason
+	data := ev.StateReason.Data
 	switch ev.StateReason.Type {
 	case fsmDying, fsmInvalidMsg, fsmNotificationSent, fsmHoldTimerExpired, fsmIdleTimerExpired, fsmAdminReset:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION
@@ -471,8 +472,18 @@ func bmpPeerDown(ev *watchEventPeer, t uint8, policy bool, pd uint64) *bmp.BMPMe
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION
 	case fsmDeConfigured:
 		reasonCode = bmp.BMP_PEER_DOWN_REASON_PEER_DE_CONFIGURED
+	case fsmNewConnection:
+		// A new connection from the peer ended the session. RFC 7854
+		// Section 4.9: "Reason 2: The local system closed the session.
+		// No notification message was sent.  Following the reason code
+		// is a 2-byte field containing the code corresponding to the
+		// Finite State Machine (FSM) Event that caused the system to
+		// close the session (see Section 8.1 of [RFC4271])." The event
+		// is Event 17, TcpConnectionConfirmed.
+		reasonCode = bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION
+		data = []byte{0, 17}
 	}
-	return bmp.NewBMPPeerDownNotification(*ph, uint8(reasonCode), ev.StateReason.notificationMessage(), ev.StateReason.Data)
+	return bmp.NewBMPPeerDownNotification(*ph, uint8(reasonCode), ev.StateReason.notificationMessage(), data)
 }
 
 func bmpPeerRoute(t uint8, policy bool, pd uint64, fourBytesAs bool, peeri *table.PeerInfo, timestamp int64, payload []byte) *bmp.BMPMessage {

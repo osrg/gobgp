@@ -16,6 +16,10 @@
 package gr
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
@@ -49,5 +53,26 @@ func grNegotiated() Negotiated {
 		Families: both,
 		GR:       grCap(120, grTuple(v4, true), grTuple(v6, true)),
 		LLGR:     llgrCap(llgrTuple(v4, true, 60)),
+	}
+}
+
+func TestNegotiated_HasFamilies(t *testing.T) {
+	v4only := map[bgp.Family]bool{v4: true}
+	tests := []struct {
+		name string
+		n    Negotiated
+		want bool
+	}{
+		{"nothing", Negotiated{Families: both}, false},
+		{"graceful restart", Negotiated{Families: both, GR: grCap(120, grTuple(v4, false))}, true},
+		{"no family in the capability", Negotiated{Families: both, GR: grCap(120)}, false},
+		{"family not negotiated", Negotiated{Families: v4only, GR: grCap(120, grTuple(v6, true))}, false},
+		{"long-lived graceful restart only", Negotiated{Families: both, GR: grCap(0), LLGR: llgrCap(llgrTuple(v4, true, 60))}, true},
+		{"long-lived without graceful restart", Negotiated{Families: both, LLGR: llgrCap(llgrTuple(v4, true, 60))}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.n.HasFamilies())
+		})
 	}
 }

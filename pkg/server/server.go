@@ -2163,6 +2163,17 @@ func gracefulSessionEnd(reason *fsmStateReason, state oc.GracefulRestartState) b
 		// The RFC does not say whether this needs the "N" bit. We apply
 		// it without the "N" bit (issue #2174).
 		return true
+	case fsmNewConnection:
+		// RFC 4724 Section 4.2: "In case it does not detect the
+		// termination of the old TCP session and still considers the BGP
+		// session as being established, it MUST treat the subsequent open
+		// connection from the peer as an indication of the termination of
+		// the old TCP session and act accordingly (when the Graceful
+		// Restart Capability has been received from the peer)."
+		//
+		// The FSM ends an established session with this reason only when
+		// the peer advertised graceful restart for one or more families.
+		return true
 	case fsmNotificationRecv:
 		// RFC 8538 Section 4: "When such a BGP speaker has received the
 		// "N" bit from its peer, and receives from that peer a BGP
