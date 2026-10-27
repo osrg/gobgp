@@ -12,6 +12,7 @@ to do graceful restart. GoBGP supports both roles.
 - [Helper speaker](#helper-speaker)
 - [Restarting speaker](#restarting-speaker)
 - [Graceful Restart Notification Support](#graceful-restart-notification-support)
+  - [Hard Reset](#hard-reset)
 - [Long Lived Graceful Restart](#long-lived-graceful-restart)
   - [Long Lived Graceful Restart Helper Speaker Configuration](#long-lived-graceful-restart-helper-speaker-configuration)
   - [Long Lived Graceful Restart Restarting Speaker Configuration](#long-lived-graceful-restart-restarting-speaker-configuration)
@@ -201,6 +202,40 @@ To turn on this feature, add `notification-enabled = true` to configuration like
     enabled = true
     notification-enabled = true
 ```
+
+The feature is used only when both sides advertise it (the "N" bit in the
+Graceful Restart Capability). In this document, this is called "the N bit is
+exchanged".
+
+### Hard Reset
+
+RFC 8538 adds the Hard Reset subcode of the Cease NOTIFICATION. A Hard Reset
+ends the session without the graceful restart procedures: the peer removes the
+routes at once. Which NOTIFICATIONs to send as a Hard Reset is up to the
+implementation. RFC 8538 Section 5.1 gives suggestions only.
+
+When the N bit is exchanged, GoBGP sends the following Cease NOTIFICATIONs as a
+Hard Reset. The original NOTIFICATION (error code, error subcode and data) is
+put in the data of the Hard Reset, as RFC 8538 Section 3.1 says.
+
+| Cease subcode | Sent when |
+|---|---|
+| Maximum Number of Prefixes Reached | the number of received prefixes goes over the limit |
+| Administrative Shutdown | `gobgp neighbor <address> shutdown` or `disable` |
+| Peer De-configured | the neighbor is deleted |
+| Administrative Reset | `gobgp neighbor <address> reset` |
+| BFD Down | BFD detects that the path to the peer is down |
+
+GoBGP sends the other NOTIFICATIONs as they are, for example a NOTIFICATION for
+an error in a received message. The peer starts the graceful restart
+procedures for them.
+
+When the N bit is not exchanged, GoBGP does not send a Hard Reset. Every
+NOTIFICATION is sent as it is, and the peer removes the routes at once.
+
+When GoBGP receives a NOTIFICATION other than a Hard Reset and the N bit is
+exchanged, it keeps the routes of the peer as stale, like when the TCP
+connection is closed.
 
 ## Long Lived Graceful Restart
 
