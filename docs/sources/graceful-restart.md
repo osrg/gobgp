@@ -148,6 +148,37 @@ Also, when `gobgpd` doesn't recovered within `restart-time`, the peers will
 withdraw all routes.
 Default value of `restart-time` is equal to `hold-time`.
 
+### Route advertisement after the restart
+
+After `gobgpd` is started with `-r`, it does not advertise an address family
+until it receives the End-of-RIB marker of that family from every peer, as
+[RFC4724](https://tools.ietf.org/html/rfc4724) Section 4.1 requires. A peer
+is not waited for when its OPEN message has the restart flag set (it has
+restarted too) or has no graceful restart capability, and when its session
+ends. The families are independent: ipv4-unicast is advertised as soon as
+its markers are in, even if ipv6-unicast is still waited for.
+
+`deferral-time` bounds the wait for each peer. When it expires for a peer,
+that peer is no longer waited for. The default is 360 seconds.
+
+```toml
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.255.1"
+    peer-as = 65001
+  [neighbors.graceful-restart.config]
+    enabled = true
+    restart-time = 120
+    deferral-time = 60
+```
+
+Note that the peers keep the routes of `gobgpd` only for the `restart-time`
+that `gobgpd` advertised. If `deferral-time` is longer than `restart-time`
+and a peer is slow to send its marker, the other peers withdraw the routes
+of `gobgpd` before the wait ends. Set `deferral-time` below `restart-time`,
+or `restart-time` above `deferral-time`, when the peers must keep the routes
+for the whole wait.
+
 ## Graceful Restart Notification Support
 
 [RFC4724](https://tools.ietf.org/html/rfc4724) specifies gracful restart procedures are triggered only when
