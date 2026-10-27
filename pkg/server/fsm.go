@@ -995,6 +995,27 @@ func (fsm *fsm) sendNotification(conn net.Conn, msg *bgp.BGPMessage) error {
 	return err
 }
 
+// sendEstablishedNotification sends m on the connection of the session in
+// Established and returns the message that was sent.
+//
+// RFC 8538 defines the Hard Reset subcode of Cease. It ends the session
+// without the graceful restart procedures. When the "N" bit was exchanged,
+// a Cease with a subcode for which bgp.ShouldHardReset() is true is sent as
+// a Hard Reset, as RFC 8538 Section 5.1 suggests.
+//
+// The State, not the Config, is checked because RFC 8538 Section 4 says
+// "A BGP speaker SHOULD NOT send a Hard Reset to a peer from which it has
+// not received the "N" bit." The State is set when the session enters
+// Established, so the other states must not use this function.
+func (fsm *fsm) sendEstablishedNotification(m *bgp.BGPMessage) (*bgp.BGPMessage, error) {
+	body := m.Body.(*bgp.BGPNotification)
+	if fsm.pConf.ReadOnly().GracefulRestart.State.NotificationEnabled &&
+		body.ErrorCode == bgp.BGP_ERROR_CEASE && bgp.ShouldHardReset(body.ErrorSubcode, false) {
+		m = bgp.NewBGPNotificationMessage(body.ErrorCode, bgp.BGP_ERROR_SUB_HARD_RESET, body.Data)
+	}
+	return m, fsm.sendNotification(fsm.conn, m)
+}
+
 func (fsm *fsm) logRecvNotification(body *bgp.BGPNotification) {
 	if body.ErrorCode == bgp.BGP_ERROR_CEASE && (body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN || body.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET) {
 		communication, rest := decodeAdministrativeCommunication(body.Data)
@@ -2304,40 +2325,20 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	fsm.pConf.Update(&conf)
 	fsm.lock.Unlock()
 
-	convertNotification := func(m *bgp.BGPMessage) *bgp.BGPMessage {
-		// RFC8538 defines a Hard Reset notification subcode which
-		// indicates that the BGP speaker wants to reset the session
-		// without triggering graceful restart procedures. Here we map
-		// notification subcodes to the Hard Reset subcode following
-		// the RFC8538 suggestion.
-		//
-		// We check Status instead of Config because RFC8538 states
-		// that A BGP speaker SHOULD NOT send a Hard Reset to a peer
-		// from which it has not received the "N" bit.
-		if conf.GracefulRestart.State.NotificationEnabled {
-			if m.Body.(*bgp.BGPNotification).ErrorCode == bgp.BGP_ERROR_CEASE && bgp.ShouldHardReset(m.Body.(*bgp.BGPNotification).ErrorSubcode, false) {
-				return bgp.NewBGPNotificationMessage(m.Body.(*bgp.BGPNotification).ErrorCode, bgp.BGP_ERROR_SUB_HARD_RESET, m.Body.(*bgp.BGPNotification).Data)
-			}
-		}
-		return m
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
 			var m *bgp.BGPMessage
 			select {
 			case m = <-fsm.deconfiguredNotification:
-				m = convertNotification(m)
-				_ = fsm.sendNotification(fsm.conn, m)
+				m, _ = fsm.sendEstablishedNotification(m)
 			default:
 				// fsm.sendNotification closes the connection.
 				fsm.conn.Close()
 			}
 			return -1, newfsmStateReason(fsmDeConfigured, notificationBody(m), nil)
 		case m := <-fsm.notification:
-			m = convertNotification(m)
-			_ = fsm.sendNotification(fsm.conn, m)
+			m, _ = fsm.sendEstablishedNotification(m)
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmNotificationSent, notificationBody(m), nil)
 		case conn, ok := <-fsm.connCh:
 			if !ok {
@@ -2397,8 +2398,8 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 		case <-holdTimer.C:
 			fsm.logger.Warn("hold timer expired", slog.String("State", fsm.state.String()))
 
-			m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
-			if err := fsm.sendNotification(fsm.conn, m); err != nil {
+			m, err := fsm.sendEstablishedNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil))
+			if err != nil {
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
 			}
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, notificationBody(m), nil)
@@ -2408,20 +2409,17 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 				holdTimer.Reset(time.Second * time.Duration(conf.Timers.State.NegotiatedHoldTime))
 			}
 		case communication := <-fsm.resetCh:
-			m := convertNotification(adminResetNotification(communication))
-			_ = fsm.sendNotification(fsm.conn, m)
+			m, _ := fsm.sendEstablishedNotification(adminResetNotification(communication))
 			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminReset, notificationBody(m), nil)
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
 			if err == nil {
 				switch stateOp.State {
 				case adminStateDown:
-					m := convertNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication))
-					_ = fsm.sendNotification(fsm.conn, m)
+					m, _ := fsm.sendEstablishedNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, stateOp.Communication))
 					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminDown, notificationBody(m), nil)
 				case adminStatePfxCt:
-					m := convertNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil))
-					_ = fsm.sendNotification(fsm.conn, m)
+					m, _ := fsm.sendEstablishedNotification(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil))
 					return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmAdminDown, notificationBody(m), nil)
 				}
 			}
