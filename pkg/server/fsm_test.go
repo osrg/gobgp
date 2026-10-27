@@ -404,6 +404,36 @@ func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled(t *testing.T) {
 	assert.Equal(uint8(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED), sent.Body.(*bgp.BGPNotification).ErrorCode)
 }
 
+// writeFailConn is a connection on which every write fails.
+type writeFailConn struct {
+	*MockConnection
+}
+
+func (c writeFailConn) Write([]byte) (int, error) {
+	return 0, errors.New("write failed")
+}
+
+// When the hold timer expires and the NOTIFICATION cannot be sent, the
+// session still ends gracefully.
+func TestFSMHandlerEstablish_HoldTimerExpired_GR_Enabled_WriteFailed(t *testing.T) {
+	m := writeFailConn{NewMockConnection()}
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	// The hold timer expires before the first KEEPALIVE is sent.
+	conf.Timers.State.KeepaliveInterval = 3
+	conf.Timers.State.NegotiatedHoldTime = 2
+	conf.GracefulRestart.State.Enabled = true
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+
+	state, reason := h.established(t.Context())
+	assert.Equal(t, bgp.BGP_FSM_IDLE, state)
+	assert.Equal(t, fsmGracefulRestart, reason.Type)
+}
+
 func TestFSMHandlerOpenconfirm_HoldtimeZero(t *testing.T) {
 	assert := assert.New(t)
 

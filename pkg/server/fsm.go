@@ -2364,9 +2364,10 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			if !s.Enabled {
 				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmHoldTimerExpired, notificationBody(m), nil)
 			} else if err != nil {
-				return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmWriteFailed, nil, nil)
+				reasonCh <- *newfsmStateReason(fsmWriteFailed, nil, nil)
+			} else {
+				reasonCh <- *newfsmStateReason(fsmNotificationSent, notificationBody(m), nil)
 			}
-			reasonCh <- *newfsmStateReason(fsmNotificationSent, notificationBody(m), nil)
 		case <-holdtimerResetCh:
 			conf := fsm.pConf.ReadOnly()
 			if conf.Timers.State.NegotiatedHoldTime != 0 {
