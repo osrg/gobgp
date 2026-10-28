@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -468,4 +469,42 @@ func TestNexthopRegisterVrfID(t *testing.T) {
 		assert.NoError(t, err, tc.name)
 		assert.Equal(t, tc.id, id, tc.name)
 	}
+}
+
+func TestAddLabelChunk(t *testing.T) {
+	newClient := func(requested bool) *zebraClient {
+		return &zebraClient{mplsLabel: mplsLabelParameter{
+			rangeSize: 100,
+			requested: requested,
+			maps:      make(map[uint64]*table.Bitmap),
+		}}
+	}
+
+	// A chunk that was not requested is not used.
+	z := newClient(false)
+	assert.Error(t, z.addLabelChunk(&zebra.GetLabelChunkBody{Start: 100, End: 199}))
+	assert.Empty(t, z.mplsLabel.maps)
+
+	// Chunks with labels that are not valid are not used.
+	for _, c := range []struct{ start, end uint32 }{
+		{200, 100},
+		{0, 99},
+		{15, 99},
+		{100, 1 << 20},
+		{0, 0xfffffffe},
+	} {
+		z := newClient(true)
+		assert.Error(t, z.addLabelChunk(&zebra.GetLabelChunkBody{Start: c.start, End: c.end}), "%d-%d", c.start, c.end)
+		assert.Empty(t, z.mplsLabel.maps)
+	}
+
+	// The requested chunk is used, and only once.
+	z = newClient(true)
+	require.NoError(t, z.addLabelChunk(&zebra.GetLabelChunkBody{Start: 16, End: 115}))
+	assert.Len(t, z.mplsLabel.maps, 1)
+	assert.Error(t, z.addLabelChunk(&zebra.GetLabelChunkBody{Start: 200, End: 299}))
+	assert.Len(t, z.mplsLabel.maps, 1)
+	label, err := z.assignMplsLabel()
+	require.NoError(t, err)
+	assert.Equal(t, uint32(16), label)
 }

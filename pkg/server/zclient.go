@@ -351,9 +351,18 @@ func newPathFromIPRouteMessage(logger *slog.Logger, m *zebra.Message, version ui
 
 type mplsLabelParameter struct {
 	rangeSize     uint32
+	requested     bool // a GET_LABEL_CHUNK request waits for its response
 	maps          map[uint64]*table.Bitmap
 	unassignedVrf []*table.Vrf // Vrfs which are not assigned MPLS label
 }
+
+// The labels that a label chunk from zebra may hold. RFC 3032 Section 2.1
+// gives 0 to 3 special meanings and says "Values 4-15 are reserved.", and
+// "This 20-bit field carries the actual value of the Label."
+const (
+	minUnreservedMplsLabel = 16
+	maxMplsLabel           = 1<<20 - 1
+)
 
 type zebraClient struct {
 	client       *zebra.Client
@@ -484,8 +493,12 @@ func (z *zebraClient) loop() {
 					slog.Int("Start", int(body.Start)),
 					slog.Int("End", int(body.End)),
 				)
-				startEnd := uint64(body.Start)<<32 | uint64(body.End)
-				z.mplsLabel.maps[startEnd] = table.NewBitmap(int(body.End - body.Start + 1))
+				if err := z.addLabelChunk(body); err != nil {
+					z.server.logger.Warn("ignore a label chunk from zebra",
+						slog.String("Topic", "Zebra"),
+						slog.String("Error", err.Error()))
+					continue
+				}
 				for _, vrf := range z.mplsLabel.unassignedVrf {
 					if err := z.assignAndSendVrfMplsLabel(vrf); err != nil {
 						z.server.logger.Error("zebra failed to assign and send vrf mpls label",
@@ -667,6 +680,8 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 		pathVrfMap:   make(map[*table.Path]uint32),
 		mplsLabel: mplsLabelParameter{
 			rangeSize: mplsLabelRangeSize,
+			// Set before the loop starts, as the loop reads it.
+			requested: mplsLabelRangeSize > 0 && cli.SupportMpls(),
 			maps:      make(map[uint64]*table.Bitmap),
 		},
 		dead: make(chan struct{}),
@@ -678,6 +693,23 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 		}
 	}
 	return w, nil
+}
+
+// addLabelChunk takes the label chunk that zebra sent in response to our
+// GET_LABEL_CHUNK request. gobgpd sends one request only, so a chunk that
+// comes without a request is not used. The size of the bitmap comes from the
+// chunk, so the chunk must hold only valid labels.
+func (z *zebraClient) addLabelChunk(body *zebra.GetLabelChunkBody) error {
+	if !z.mplsLabel.requested {
+		return fmt.Errorf("label chunk %d-%d was not requested", body.Start, body.End)
+	}
+	if body.Start > body.End || body.Start < minUnreservedMplsLabel || body.End > maxMplsLabel {
+		return fmt.Errorf("invalid label chunk %d-%d", body.Start, body.End)
+	}
+	z.mplsLabel.requested = false
+	startEnd := uint64(body.Start)<<32 | uint64(body.End)
+	z.mplsLabel.maps[startEnd] = table.NewBitmap(int(body.End - body.Start + 1))
+	return nil
 }
 
 func (z *zebraClient) assignMplsLabel() (uint32, error) {
