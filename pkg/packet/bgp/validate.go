@@ -24,22 +24,32 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[Family]BGPAddPathMode, isEBGP bool,
 
 	seen := make(map[BGPAttrType]PathAttributeInterface)
 	newAttrs := make([]PathAttributeInterface, 0, len(seen))
+	discarded := make(map[BGPAttrType]bool)
 	// check path attribute
 	for _, a := range m.PathAttributes {
 		// check duplication
 		if _, ok := seen[a.GetType()]; !ok {
 			seen[a.GetType()] = a
-			newAttrs = append(newAttrs, a)
 			// check specific path attribute
 			ok, err := ValidateAttribute(a, rfs, isEBGP, isConfed, loopbackNextHopAllowed)
 			if !ok {
 				msgErr := err.(*MessageError)
 				if msgErr.ErrorHandling == ERROR_HANDLING_SESSION_RESET {
 					return false, err
-				} else if msgErr.Stronger(strongestError) {
+				}
+				if msgErr.Stronger(strongestError) {
 					strongestError = err
 				}
+				// attribute-discard means the attribute must be
+				// removed so the malformed value is not stored or
+				// re-propagated. The FSM only logs this handling, so
+				// drop the attribute here instead of keeping it.
+				if msgErr.ErrorHandling == ERROR_HANDLING_ATTRIBUTE_DISCARD {
+					discarded[a.GetType()] = true
+					continue
+				}
 			}
+			newAttrs = append(newAttrs, a)
 		} else if a.GetType() == BGP_ATTR_TYPE_MP_REACH_NLRI || a.GetType() == BGP_ATTR_TYPE_MP_UNREACH_NLRI {
 			eMsg := "the path attribute appears twice. Type : " + strconv.Itoa(int(a.GetType()))
 			return false, NewMessageError(eCode, eSubCodeAttrList, nil, eMsg)
@@ -50,6 +60,14 @@ func ValidateUpdateMsg(m *BGPUpdate, rfs map[Family]BGPAddPathMode, isEBGP bool,
 				strongestError = e
 			}
 		}
+	}
+	// rfc6793 4.2.3. AS4_AGGREGATOR only replaces the AS of an AGGREGATOR
+	// carrying AS_TRANS. Without the AGGREGATOR it has nothing to apply
+	// to, so discard it too and keep processing the UPDATE.
+	if discarded[BGP_ATTR_TYPE_AGGREGATOR] {
+		newAttrs = slices.DeleteFunc(newAttrs, func(a PathAttributeInterface) bool {
+			return a.GetType() == BGP_ATTR_TYPE_AS4_AGGREGATOR
+		})
 	}
 	m.PathAttributes = newAttrs
 
@@ -157,6 +175,18 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 			}
 		}
 	case *PathAttributeAsPath:
+		// rfc7607 2. An UPDATE message with AS 0 in the AS_PATH attribute
+		// MUST be considered malformed and handled by the rfc7606 procedure,
+		// which for AS_PATH is treat-as-withdraw.
+		for _, param := range p.Value {
+			if slices.Contains(param.GetAS(), 0) {
+				e := NewMessageErrorWithErrorHandling(eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, "AS_PATH contains AS 0")
+				if e.(*MessageError).Stronger(strongestError) {
+					strongestError = e
+				}
+				break
+			}
+		}
 		if isEBGP {
 			if isConfed {
 				if len(p.Value) == 0 {
@@ -177,6 +207,38 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 						}
 					}
 				}
+			}
+		}
+	case *PathAttributeAs4Path:
+		// rfc7607 2. AS 0 in the AS4_PATH attribute makes the UPDATE
+		// malformed. rfc7607 sends this to rfc6793, whose section 6
+		// handles a malformed AS4_PATH as attribute-discard.
+		for _, param := range p.Value {
+			if slices.Contains(param.GetAS(), 0) {
+				e := NewMessageErrorWithErrorHandling(eCode, eSubCodeMalformedAspath, nil, ERROR_HANDLING_ATTRIBUTE_DISCARD, nil, "AS4_PATH contains AS 0")
+				if e.(*MessageError).Stronger(strongestError) {
+					strongestError = e
+				}
+				break
+			}
+		}
+	case *PathAttributeAggregator:
+		// rfc7607 2. AS 0 in the AGGREGATOR attribute makes the UPDATE
+		// malformed. rfc7606 handles it as attribute-discard.
+		if p.Value.AS == 0 {
+			e := NewMessageErrorWithErrorHandling(eCode, uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, "AGGREGATOR has AS 0")
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
+			}
+		}
+	case *PathAttributeAs4Aggregator:
+		// rfc7607 2. AS 0 in the AS4_AGGREGATOR attribute makes the UPDATE
+		// malformed. rfc7607 sends this to rfc6793, whose section 6
+		// handles a malformed AS4_AGGREGATOR as attribute-discard.
+		if p.Value.AS == 0 {
+			e := NewMessageErrorWithErrorHandling(eCode, uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), nil, ERROR_HANDLING_ATTRIBUTE_DISCARD, nil, "AS4_AGGREGATOR has AS 0")
+			if e.(*MessageError).Stronger(strongestError) {
+				strongestError = e
 			}
 		}
 	case *PathAttributeLargeCommunities:
