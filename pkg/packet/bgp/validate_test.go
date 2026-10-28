@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"net"
 	"net/netip"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -675,4 +676,109 @@ func Test_Validate_OpenMsg_zero_as(t *testing.T) {
 	as, err = ValidateOpenMsg(m.Body.(*BGPOpen), 65536, 65001, myId)
 	assert.NoError(err)
 	assert.Equal(uint32(65536), as)
+}
+
+// rfc7607 2. An UPDATE that carries AS 0 in the AS_PATH, AS4_PATH,
+// AGGREGATOR, or AS4_AGGREGATOR attribute must be treated as malformed. The
+// receive side used to accept and re-propagate such a route.
+func Test_Validate_zero_as(t *testing.T) {
+	agg := func(as uint32) *PathAttributeAggregator {
+		a, err := NewPathAttributeAggregator(as, netip.MustParseAddr("192.168.1.1"))
+		require.NoError(t, err)
+		return a
+	}
+	as4agg := func(as uint32) *PathAttributeAs4Aggregator {
+		a, err := NewPathAttributeAs4Aggregator(as, netip.MustParseAddr("192.168.1.1"))
+		require.NoError(t, err)
+		return a
+	}
+
+	tests := []struct {
+		name     string
+		attr     PathAttributeInterface
+		replace  bool // replace the AS_PATH attribute instead of appending
+		subCode  uint8
+		handling ErrorHandling
+	}{
+		{
+			name:     "AS_PATH",
+			attr:     NewPathAttributeAsPath([]AsPathParamInterface{NewAsPathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65001, 0})}),
+			replace:  true,
+			subCode:  BGP_ERROR_SUB_MALFORMED_AS_PATH,
+			handling: ERROR_HANDLING_TREAT_AS_WITHDRAW,
+		},
+		{
+			name:     "AS4_PATH",
+			attr:     NewPathAttributeAs4Path([]*As4PathParam{NewAs4PathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65536, 0})}),
+			subCode:  BGP_ERROR_SUB_MALFORMED_AS_PATH,
+			handling: ERROR_HANDLING_ATTRIBUTE_DISCARD,
+		},
+		{
+			name:     "AGGREGATOR",
+			attr:     agg(0),
+			subCode:  BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST,
+			handling: ERROR_HANDLING_ATTRIBUTE_DISCARD,
+		},
+		{
+			name:     "AS4_AGGREGATOR",
+			attr:     as4agg(0),
+			subCode:  BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST,
+			handling: ERROR_HANDLING_ATTRIBUTE_DISCARD,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			message := bgpupdate().Body.(*BGPUpdate)
+			if tt.replace {
+				message.PathAttributes[1] = tt.attr
+			} else {
+				message.PathAttributes = append(message.PathAttributes, tt.attr)
+			}
+
+			res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
+			assert.Equal(false, res)
+			require.Error(t, err)
+			e := err.(*MessageError)
+			assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+			assert.Equal(tt.subCode, e.SubTypeCode)
+			assert.Equal(tt.handling, e.ErrorHandling)
+
+			// attribute-discard must leave the malformed attribute out
+			// of the message; treat-as-withdraw keeps it since the
+			// whole route is withdrawn.
+			present := slices.ContainsFunc(message.PathAttributes, func(x PathAttributeInterface) bool {
+				return x.GetType() == tt.attr.GetType()
+			})
+			if tt.handling == ERROR_HANDLING_ATTRIBUTE_DISCARD {
+				assert.False(present, "discarded attribute should be removed")
+			} else {
+				assert.True(present)
+			}
+		})
+	}
+}
+
+// rfc7606 2. Discarding an AGGREGATOR with AS 0 must not leave an
+// AS4_AGGREGATOR behind, which would otherwise reset the session when the
+// FSM merges the two.
+func Test_Validate_zero_as_aggregator_with_as4_aggregator(t *testing.T) {
+	assert := assert.New(t)
+	agg, err := NewPathAttributeAggregator(uint32(0), netip.MustParseAddr("192.168.1.1"))
+	require.NoError(t, err)
+	as4agg, err := NewPathAttributeAs4Aggregator(65536, netip.MustParseAddr("192.168.1.1"))
+	require.NoError(t, err)
+	message := bgpupdate().Body.(*BGPUpdate)
+	message.PathAttributes = append(message.PathAttributes, agg, as4agg)
+
+	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
+	assert.Equal(false, res)
+	require.Error(t, err)
+	assert.Equal(ERROR_HANDLING_ATTRIBUTE_DISCARD, err.(*MessageError).ErrorHandling)
+	for _, a := range message.PathAttributes {
+		assert.NotEqual(BGP_ATTR_TYPE_AGGREGATOR, a.GetType())
+		assert.NotEqual(BGP_ATTR_TYPE_AS4_AGGREGATOR, a.GetType())
+	}
+	assert.Len(message.NLRI, 1)
 }
