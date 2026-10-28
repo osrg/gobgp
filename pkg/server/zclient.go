@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -622,6 +623,12 @@ func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nh
 		if cli != nil && err == nil {
 			usingVersion = ver
 			break
+		}
+		// Another version helps when zebra closes the connection on a
+		// version it does not support, not when zebra does not answer.
+		var ne net.Error
+		if errors.As(err, &ne) && ne.Timeout() {
+			return nil, err
 		}
 		// Retry with another Zebra message version
 		s.logger.Warn("cannot connect to Zebra with message version",

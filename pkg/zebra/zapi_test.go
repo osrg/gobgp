@@ -19,10 +19,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1333,5 +1336,61 @@ func TestRegisteredNexthopSerializeLayout(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func TestNewClientHandshakeTimeout(t *testing.T) {
+	old := handshakeTimeout
+	handshakeTimeout = 200 * time.Millisecond
+	defer func() { handshakeTimeout = old }()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	software := NewSoftware(6, "frr7.5")
+
+	// serve accepts connections and sends hdr, if any, on each of them.
+	serve := func(hdr []byte) net.Listener {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		go func() {
+			for {
+				c, err := l.Accept()
+				if err != nil {
+					return
+				}
+				if hdr != nil {
+					_, _ = c.Write(hdr)
+				}
+				go func() {
+					_, _ = io.Copy(io.Discard, c)
+					c.Close()
+				}()
+			}
+		}()
+		return l
+	}
+
+	// A zebra that accepts the connection but does not answer.
+	silent := serve(nil)
+	defer silent.Close()
+	start := time.Now()
+	_, err := NewClient(logger, "tcp", silent.Addr().String(), RouteBGP, 6, software, 0)
+	var ne net.Error
+	require.ErrorAs(t, err, &ne)
+	assert.True(t, ne.Timeout())
+	assert.Less(t, time.Since(start), 10*handshakeTimeout)
+
+	// A zebra that answers. The deadline must not stay on the connection,
+	// so the receive loop still runs after the timeout has passed.
+	hdr, err := (&Header{Len: HeaderSize(6), Marker: frrHeaderMarker, Version: 6}).serialize()
+	require.NoError(t, err)
+	answering := serve(hdr)
+	defer answering.Close()
+	cli, err := NewClient(logger, "tcp", answering.Addr().String(), RouteBGP, 6, software, 0)
+	require.NoError(t, err)
+	defer cli.close()
+	time.Sleep(3 * handshakeTimeout)
+	select {
+	case _, ok := <-cli.Receive():
+		assert.True(t, ok, "the receive loop stopped")
+	default:
 	}
 }

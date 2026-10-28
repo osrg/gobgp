@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
@@ -1428,8 +1429,13 @@ func ReceiveSingleMsg(logger *slog.Logger, conn net.Conn, version uint8, softwar
 }
 
 // NewClient returns a Client instance (Client constructor)
+// handshakeTimeout bounds how long NewClient waits for zebra to accept the
+// connection and to send the first message. Without it, a zebra that accepts
+// the connection but does not answer blocks the caller forever.
+var handshakeTimeout = 30 * time.Second
+
 func NewClient(logger *slog.Logger, network, address string, typ RouteType, version uint8, software Software, mplsLabelRangeSize uint32) (*Client, error) {
-	conn, err := net.Dial(network, address)
+	conn, err := net.DialTimeout(network, address, handshakeTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -1492,12 +1498,20 @@ func NewClient(logger *slog.Logger, network, address string, typ RouteType, vers
 	}
 
 	// Try to receive the first message from Zebra.
+	if err := conn.SetReadDeadline(time.Now().Add(handshakeTimeout)); err != nil {
+		c.close()
+		return nil, err
+	}
 	if m, err := ReceiveSingleMsg(logger, conn, version, software, "Zebra"); err != nil {
 		c.close()
 		// Return error explicitly in order to retry connection.
 		return nil, err
 	} else if m != nil {
 		incoming <- m
+	}
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		c.close()
+		return nil, err
 	}
 
 	// Start receive loop only when the first message successfully received.
