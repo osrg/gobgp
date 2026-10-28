@@ -80,6 +80,26 @@ func TestNewPeerGroupFromAPIStructRejectsInvalidAllowOwnAsn(t *testing.T) {
 	assert.ErrorContains(t, err, "allow_own_asn is out of range")
 }
 
+func TestNewNeighborFromAPIStructIgnoresStateCapabilities(t *testing.T) {
+	// A capability with no value used to make UnmarshalCapabilities
+	// dereference nil.
+	pconf, err := newNeighborFromAPIStruct(&api.Peer{
+		Conf: &api.PeerConf{
+			NeighborAddress: "192.0.2.1",
+			PeerAsn:         65001,
+		},
+		State: &api.PeerState{
+			LocalCap:  []*api.Capability{{Cap: &api.Capability_MultiProtocol{}}},
+			RemoteCap: []*api.Capability{{Cap: &api.Capability_GracefulRestart{}}},
+			RouterId:  "192.0.2.2",
+		},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, pconf.State.LocalCapabilityList)
+	assert.Empty(t, pconf.State.RemoteCapabilityList)
+	assert.Equal(t, netip.MustParseAddr("192.0.2.2"), pconf.State.RemoteRouterId)
+}
+
 func TestNewNeighborFromAPIStructTcpAo(t *testing.T) {
 	newNeighbor := func(t *testing.T, tcpAo *api.TcpAoPeerConfig) (*oc.Neighbor, error) {
 		t.Helper()

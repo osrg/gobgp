@@ -978,18 +978,10 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 			pconf.Config.RemovePrivateAs = oc.REMOVE_PRIVATE_AS_OPTION_REPLACE
 		}
 
+		// The capabilities in State come from the session, and toConfig
+		// builds them again for ListPeer. Do not read them from the
+		// request.
 		if a.State != nil {
-			localCaps, err := apiutil.UnmarshalCapabilities(a.State.LocalCap)
-			if err != nil {
-				return nil, err
-			}
-			remoteCaps, err := apiutil.UnmarshalCapabilities(a.State.RemoteCap)
-			if err != nil {
-				return nil, err
-			}
-			pconf.State.LocalCapabilityList = localCaps
-			pconf.State.RemoteCapabilityList = remoteCaps
-
 			if addr, err := netip.ParseAddr(a.State.RouterId); err == nil {
 				pconf.State.RemoteRouterId = addr
 			}
