@@ -5242,7 +5242,7 @@ func (s *BgpServer) DisableMrt(ctx context.Context, r *api.DisableMrtRequest) er
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.mrtManager.disable(&oc.MrtConfig{})
+		return s.mrtManager.disable(&oc.MrtConfig{FileName: r.Filename})
 	}, false)
 }
 

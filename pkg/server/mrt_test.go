@@ -16,10 +16,12 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/netip"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -238,4 +241,28 @@ func TestMrtDumpTableWithConcurrentNeighborChange(t *testing.T) {
 
 	close(stop)
 	<-done
+}
+
+func TestDisableMrt(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	name := filepath.Join(t.TempDir(), "updates.dump")
+	enable := func() error {
+		return s.EnableMrt(context.Background(), &api.EnableMrtRequest{
+			DumpType: api.EnableMrtRequest_DUMP_TYPE_UPDATES,
+			Filename: name,
+		})
+	}
+	disable := func() error {
+		return s.DisableMrt(context.Background(), &api.DisableMrtRequest{Filename: name})
+	}
+
+	require.NoError(t, enable())
+	require.NoError(t, disable())
+	// The writer is gone, so it cannot be disabled twice, and the same
+	// file name can be enabled again.
+	assert.Error(t, disable())
+	require.NoError(t, enable())
+	require.NoError(t, disable())
 }

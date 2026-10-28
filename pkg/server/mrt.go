@@ -478,7 +478,7 @@ func (m *mrtManager) enable(c *oc.MrtConfig) error {
 func (m *mrtManager) disable(c *oc.MrtConfig) error {
 	w, ok := m.writer[c.FileName]
 	if !ok {
-		return fmt.Errorf("%s doesn't exists", c.FileName)
+		return fmt.Errorf("%s does not exist", c.FileName)
 	}
 	w.Stop()
 	delete(m.writer, c.FileName)
