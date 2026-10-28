@@ -1642,6 +1642,97 @@ func Test_EVPNNilESI(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func Test_UnmarshalNLRIConstructorError(t *testing.T) {
+	// A constructor error must be returned, not a typed nil NLRI.
+	fs := &api.NLRI{Nlri: &api.NLRI_FlowSpec{FlowSpec: &api.FlowSpecNLRI{}}}
+	n, err := UnmarshalNLRI(bgp.RF_IPv4_UC, fs)
+	assert.Error(t, err)
+	assert.Nil(t, n)
+}
+
+func Test_UnmarshalSRPolicyNLRILength(t *testing.T) {
+	sp := func(l uint32, ep []byte) *api.NLRI {
+		return &api.NLRI{Nlri: &api.NLRI_SrPolicy{SrPolicy: &api.SRPolicyNLRI{
+			Length:        l,
+			Distinguisher: 1,
+			Color:         2,
+			Endpoint:      ep,
+		}}}
+	}
+	v4 := []byte{192, 0, 2, 1}
+	v6 := netip.MustParseAddr("2001:db8::1").AsSlice()
+
+	n, err := UnmarshalNLRI(bgp.RF_SR_POLICY_IPv4, sp(96, v4))
+	require.NoError(t, err)
+	_, err = n.Serialize()
+	require.NoError(t, err)
+	n, err = UnmarshalNLRI(bgp.RF_SR_POLICY_IPv6, sp(192, v6))
+	require.NoError(t, err)
+	_, err = n.Serialize()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		rf bgp.Family
+		l  uint32
+		ep []byte
+	}{
+		{bgp.RF_SR_POLICY_IPv4, 0, v4},
+		{bgp.RF_SR_POLICY_IPv4, 96, v6},
+		{bgp.RF_SR_POLICY_IPv4, 192, v6},
+		{bgp.RF_SR_POLICY_IPv6, 192, v4},
+		{bgp.RF_IPv4_UC, 96, v4},
+	} {
+		_, err := UnmarshalNLRI(tc.rf, sp(tc.l, tc.ep))
+		assert.Error(t, err, "%s length %d endpoint %d octets", tc.rf, tc.l, len(tc.ep))
+	}
+}
+
+func Test_UnmarshalMUPType2EndpointAddressLength(t *testing.T) {
+	t2st := func(ea string, l uint32) *api.NLRI {
+		return &api.NLRI{Nlri: &api.NLRI_MupType_2SessionTransformed{
+			MupType_2SessionTransformed: &api.MUPType2SessionTransformedRoute{
+				Rd: &api.RouteDistinguisher{Rd: &api.RouteDistinguisher_TwoOctetAsn{
+					TwoOctetAsn: &api.RouteDistinguisherTwoOctetASN{Admin: 100, Assigned: 100},
+				}},
+				EndpointAddressLength: l,
+				EndpointAddress:       ea,
+				Teid:                  12345,
+			},
+		}}
+	}
+
+	for _, tc := range []struct {
+		rf bgp.Family
+		ea string
+		l  uint32
+	}{
+		{bgp.RF_MUP_IPv4, "10.0.0.1", 32},
+		{bgp.RF_MUP_IPv4, "10.0.0.1", 64},
+		{bgp.RF_MUP_IPv6, "2001:db8::1", 128},
+		{bgp.RF_MUP_IPv6, "2001:db8::1", 160},
+	} {
+		n, err := UnmarshalNLRI(tc.rf, t2st(tc.ea, tc.l))
+		require.NoError(t, err)
+		_, err = n.Serialize()
+		require.NoError(t, err)
+	}
+
+	for _, tc := range []struct {
+		rf bgp.Family
+		ea string
+		l  uint32
+	}{
+		{bgp.RF_MUP_IPv4, "10.0.0.1", 31},
+		{bgp.RF_MUP_IPv4, "10.0.0.1", 65},
+		{bgp.RF_MUP_IPv4, "10.0.0.1", 288}, // 32 after uint8 truncation
+		{bgp.RF_MUP_IPv6, "2001:db8::1", 127},
+		{bgp.RF_MUP_IPv6, "2001:db8::1", 161},
+	} {
+		_, err := UnmarshalNLRI(tc.rf, t2st(tc.ea, tc.l))
+		assert.Error(t, err, "%s length %d", tc.ea, tc.l)
+	}
+}
+
 func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 	assert := assert.New(t)
 

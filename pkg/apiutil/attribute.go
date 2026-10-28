@@ -1960,14 +1960,22 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 		if err != nil {
 			return nil, err
 		}
-		nlri, _ = bgp.NewLabeledIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...))
+		r, err := bgp.NewLabeledIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...))
+		if err != nil {
+			return nil, err
+		}
+		nlri = r
 	case *api.NLRI_Encapsulation:
 		v := n.Encapsulation
 		addr, err := netip.ParseAddr(v.Address)
 		if err != nil {
 			return nil, err
 		}
-		nlri, _ = bgp.NewEncapNLRI(addr)
+		r, err := bgp.NewEncapNLRI(addr)
+		if err != nil {
+			return nil, err
+		}
+		nlri = r
 	case *api.NLRI_Vpls:
 		v := n.Vpls
 		if rf == bgp.RF_VPLS {
@@ -2013,7 +2021,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 					return nil, err
 				}
 			}
-			nlri, _ = bgp.NewEVPNMacIPAdvertisementRoute(rd, *esi, v.EthernetTag, v.MacAddress, addr, v.Labels)
+			r, err := bgp.NewEVPNMacIPAdvertisementRoute(rd, *esi, v.EthernetTag, v.MacAddress, addr, v.Labels)
+			if err != nil {
+				return nil, err
+			}
+			nlri = r
 		}
 	case *api.NLRI_EvpnMulticast:
 		v := n.EvpnMulticast
@@ -2026,7 +2038,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 			if err != nil {
 				return nil, err
 			}
-			nlri, _ = bgp.NewEVPNMulticastEthernetTagRoute(rd, v.EthernetTag, addr)
+			r, err := bgp.NewEVPNMulticastEthernetTagRoute(rd, v.EthernetTag, addr)
+			if err != nil {
+				return nil, err
+			}
+			nlri = r
 		}
 	case *api.NLRI_EvpnEthernetSegment:
 		v := n.EvpnEthernetSegment
@@ -2043,7 +2059,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 			if err != nil {
 				return nil, err
 			}
-			nlri, _ = bgp.NewEVPNEthernetSegmentRoute(rd, *esi, addr)
+			r, err := bgp.NewEVPNEthernetSegmentRoute(rd, *esi, addr)
+			if err != nil {
+				return nil, err
+			}
+			nlri = r
 		}
 	case *api.NLRI_EvpnIpPrefix:
 		v := n.EvpnIpPrefix
@@ -2064,11 +2084,19 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 			if err != nil {
 				return nil, err
 			}
-			nlri, _ = bgp.NewEVPNIPPrefixRoute(rd, *esi, v.EthernetTag, uint8(v.IpPrefixLen), prefix, gw, v.Label)
+			r, err := bgp.NewEVPNIPPrefixRoute(rd, *esi, v.EthernetTag, uint8(v.IpPrefixLen), prefix, gw, v.Label)
+			if err != nil {
+				return nil, err
+			}
+			nlri = r
 		}
 	case *api.NLRI_SrPolicy:
 		v := n.SrPolicy
-		nlri, _ = bgp.NewSRPolicy(rf, v.Length, v.Distinguisher, v.Color, v.Endpoint)
+		r, err := bgp.NewSRPolicy(rf, v.Length, v.Distinguisher, v.Color, v.Endpoint)
+		if err != nil {
+			return nil, err
+		}
+		nlri = r
 	case *api.NLRI_LabeledVpnIpPrefix:
 		v := n.LabeledVpnIpPrefix
 		rd, err := UnmarshalRD(v.Rd)
@@ -2079,7 +2107,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 		if err != nil {
 			return nil, err
 		}
-		nlri, _ = bgp.NewLabeledVPNIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...), rd)
+		r, err := bgp.NewLabeledVPNIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(v.Labels...), rd)
+		if err != nil {
+			return nil, err
+		}
+		nlri = r
 	case *api.NLRI_RouteTargetMembership:
 		v := n.RouteTargetMembership
 		rt, err := func() (bgp.ExtendedCommunityInterface, error) {
@@ -2098,7 +2130,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 		if err != nil {
 			return nil, err
 		}
-		nlri, _ = bgp.NewFlowSpecUnicast(rf, rules)
+		r, err := bgp.NewFlowSpecUnicast(rf, rules)
+		if err != nil {
+			return nil, err
+		}
+		nlri = r
 	case *api.NLRI_VpnFlowSpec:
 		v := n.VpnFlowSpec
 		rd, err := UnmarshalRD(v.Rd)
@@ -2109,7 +2145,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 		if err != nil {
 			return nil, err
 		}
-		nlri, _ = bgp.NewFlowSpecVPN(rf, rd, rules)
+		r, err := bgp.NewFlowSpecVPN(rf, rd, rules)
+		if err != nil {
+			return nil, err
+		}
+		nlri = r
 	case *api.NLRI_Opaque:
 		v := n.Opaque
 		nlri = bgp.NewOpaqueNLRI(v.Key, v.Value)
@@ -2177,6 +2217,11 @@ func UnmarshalNLRI(rf bgp.Family, an *api.NLRI) (bgp.NLRI, error) {
 		ea, err := netip.ParseAddr(v.EndpointAddress)
 		if err != nil {
 			return nil, err
+		}
+		// The length covers the endpoint address and up to 32 bits of
+		// TEID. The decoder takes the same range.
+		if l := int(v.EndpointAddressLength); l < ea.BitLen() || l > ea.BitLen()+32 {
+			return nil, fmt.Errorf("invalid endpoint address length %d for %s", v.EndpointAddressLength, ea)
 		}
 		b := make([]byte, 4)
 		binary.BigEndian.PutUint32(b, v.Teid)
