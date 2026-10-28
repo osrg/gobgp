@@ -17,6 +17,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"io"
 	"log/slog"
@@ -24,6 +25,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/rtr"
@@ -153,5 +155,35 @@ func TestROAManagerResetQueryReplacesROAs(t *testing.T) {
 	recv(rtr.NewRTREndOfData(1, 6))
 	if got := records(); got != 2 {
 		t.Fatalf("expected 2 ROAs after a Serial Query, got %d", got)
+	}
+}
+
+func TestDeleteRpki(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	add := func() error {
+		return s.AddRpki(context.Background(), &api.AddRpkiRequest{Address: "192.0.2.1", Port: 323})
+	}
+	del := func() error {
+		return s.DeleteRpki(context.Background(), &api.DeleteRpkiRequest{Address: "192.0.2.1", Port: 323})
+	}
+
+	if err := add(); err != nil {
+		t.Fatal(err)
+	}
+	if err := del(); err != nil {
+		t.Fatal(err)
+	}
+	// The server is gone, so it cannot be deleted twice, and it can be
+	// added again.
+	if err := del(); err == nil {
+		t.Fatal("deleted a server twice")
+	}
+	if err := add(); err != nil {
+		t.Fatal(err)
+	}
+	if err := del(); err != nil {
+		t.Fatal(err)
 	}
 }

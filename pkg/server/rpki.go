@@ -96,7 +96,7 @@ func (m *roaManager) AddServer(host string, lifetime int64) error {
 func (m *roaManager) DeleteServer(host string) error {
 	client, ok := m.clientMap[host]
 	if !ok {
-		return fmt.Errorf("ROA server doesn't exists %s", host)
+		return fmt.Errorf("ROA server does not exist %s", host)
 	}
 	client.stop()
 	m.table.DeleteAll(host)

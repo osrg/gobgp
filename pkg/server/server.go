@@ -5339,7 +5339,7 @@ func (s *BgpServer) DeleteRpki(ctx context.Context, r *api.DeleteRpkiRequest) er
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.roaManager.DeleteServer(r.Address)
+		return s.roaManager.DeleteServer(net.JoinHostPort(r.Address, strconv.Itoa(int(r.Port))))
 	}, false)
 }
 
