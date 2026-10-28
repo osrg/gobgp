@@ -2936,12 +2936,17 @@ func NewTunnelEncapAttributeFromNative(a *bgp.PathAttributeTunnelEncap) (*api.Tu
 				if err != nil {
 					return nil, err
 				}
+				// The Weight sub-TLV is optional, so Weight can be nil.
+				var weight *api.SRWeight
+				if sv.Weight != nil {
+					weight = &api.SRWeight{
+						Flags:  uint32(sv.Weight.Flags),
+						Weight: sv.Weight.Weight,
+					}
+				}
 				subTlv.Tlv = &api.TunnelEncapTLV_TLV_SrSegmentList{
 					SrSegmentList: &api.TunnelEncapSubTLVSRSegmentList{
-						Weight: &api.SRWeight{
-							Flags:  uint32(sv.Weight.Flags),
-							Weight: sv.Weight.Weight,
-						},
+						Weight:   weight,
 						Segments: s,
 					},
 				}

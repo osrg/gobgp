@@ -1725,6 +1725,43 @@ func TestFullCyclePrefixSID(t *testing.T) {
 	}
 }
 
+func Test_TunnelEncapSRSegmentListNoWeight(t *testing.T) {
+	// The Weight sub-TLV is optional. A segment list received without
+	// it must convert to the API type with a nil Weight.
+	segList := &bgp.TunnelEncapSubTLVSRSegmentList{
+		TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
+			Type: bgp.ENCAP_SUBTLV_TYPE_SRSEGMENT_LIST,
+		},
+		Segments: []bgp.TunnelEncapSubTLVInterface{
+			&bgp.SegmentTypeA{
+				TunnelEncapSubTLV: bgp.TunnelEncapSubTLV{
+					Type:   bgp.EncapSubTLVType(bgp.TypeA),
+					Length: 6,
+				},
+				Label: 21431 << 12,
+			},
+		},
+	}
+	attr := bgp.NewPathAttributeTunnelEncap([]*bgp.TunnelEncapTLV{
+		bgp.NewTunnelEncapTLV(bgp.TUNNEL_TYPE_SR_POLICY, []bgp.TunnelEncapSubTLVInterface{segList}),
+	})
+	buf, err := attr.Serialize()
+	require.NoError(t, err)
+	decoded, err := bgp.GetPathAttribute(buf)
+	require.NoError(t, err)
+	require.NoError(t, decoded.DecodeFromBytes(buf))
+
+	output, err := NewTunnelEncapAttributeFromNative(decoded.(*bgp.PathAttributeTunnelEncap))
+	require.NoError(t, err)
+	require.Len(t, output.Tlvs, 1)
+	require.Len(t, output.Tlvs[0].Tlvs, 1)
+	list := output.Tlvs[0].Tlvs[0].GetSrSegmentList()
+	require.NotNil(t, list)
+	assert.Nil(t, list.Weight)
+	require.Len(t, list.Segments, 1)
+	assert.Equal(t, uint32(21431<<12), list.Segments[0].GetA().Label)
+}
+
 func TestUnmarshalSRSegments_NilFlags(t *testing.T) {
 	// Flags is an optional protobuf sub-message. A caller that builds
 	// api.SegmentTypeA or api.SegmentTypeB without setting Flags must
