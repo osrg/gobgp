@@ -395,6 +395,10 @@ func NewBSID(v []byte) (*BSID, error) {
 	var bsid *BSID
 	switch len(v) {
 	case 0:
+		// No BSID, as in a Binding SID sub-TLV of length 2.
+		bsid = &BSID{
+			Value: make([]byte, 0),
+		}
 	case 4:
 		t := binary.BigEndian.Uint32(v)
 		t <<= 12

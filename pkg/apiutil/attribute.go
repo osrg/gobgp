@@ -569,11 +569,24 @@ func NewEthernetSegmentIdentifierFromNative(a *bgp.EthernetSegmentIdentifier) (*
 	}, nil
 }
 
+// unmarshalESI takes a missing ESI or an empty value as the zero ESI, which
+// a single-homed site uses. Any other value must be 9 octets.
 func unmarshalESI(a *api.EthernetSegmentIdentifier) (*bgp.EthernetSegmentIdentifier, error) {
-	return &bgp.EthernetSegmentIdentifier{
-		Type:  bgp.ESIType(a.Type),
-		Value: a.Value,
-	}, nil
+	esi := &bgp.EthernetSegmentIdentifier{
+		Value: make([]byte, 9),
+	}
+	if a == nil {
+		return esi, nil
+	}
+	esi.Type = bgp.ESIType(a.Type)
+	switch len(a.Value) {
+	case 0:
+	case 9:
+		copy(esi.Value, a.Value)
+	default:
+		return nil, fmt.Errorf("invalid ESI value length %d, must be 9", len(a.Value))
+	}
+	return esi, nil
 }
 
 func MarshalFlowSpecRules(values []bgp.FlowSpecComponentInterface) ([]*api.FlowSpecRule, error) {
@@ -3518,6 +3531,13 @@ func UnmarshalSRBSID(bsid *api.TunnelEncapSubTLVSRBindingSID) (bgp.TunnelEncapSu
 			Flags: flags,
 		}, nil
 	case *api.TunnelEncapSubTLVSRBindingSID_Srv6BindingSid:
+		// RFC 9830 Section 2.4.3 gives no length without the SID:
+		//
+		//	The value MUST be 26 when the SRv6 Endpoint Behavior and SID
+		//	Structure is present; else, it MUST be 18.
+		if len(v.Srv6BindingSid.Sid) != 16 {
+			return nil, fmt.Errorf("invalid SRv6 binding SID length %d, must be 16", len(v.Srv6BindingSid.Sid))
+		}
 		b, err := bgp.NewBSID(v.Srv6BindingSid.Sid)
 		if err != nil {
 			return nil, err

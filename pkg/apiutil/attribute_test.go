@@ -1585,6 +1585,63 @@ func Test_SRBSIDSRv6NotShifted(t *testing.T) {
 	assert.Equal(t, sid, out.Sid)
 }
 
+func Test_SRBSIDEmptySid(t *testing.T) {
+	// An SR-MPLS Binding SID sub-TLV may carry no SID.
+	native, err := UnmarshalSRBSID(&api.TunnelEncapSubTLVSRBindingSID{
+		Bsid: &api.TunnelEncapSubTLVSRBindingSID_SrBindingSid{
+			SrBindingSid: &api.SRBindingSID{},
+		},
+	})
+	require.NoError(t, err)
+	srbsid := native.(*bgp.TunnelEncapSubTLVSRBSID)
+	assert.Equal(t, uint16(2), srbsid.Length)
+	buf, err := srbsid.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{byte(bgp.ENCAP_SUBTLV_TYPE_SRBINDING_SID), 2, 0, 0}, buf)
+
+	// An SRv6 Binding SID must be 16 octets.
+	for _, sid := range [][]byte{nil, {0, 0, 0x64, 0}} {
+		_, err := UnmarshalSRBSID(&api.TunnelEncapSubTLVSRBindingSID{
+			Bsid: &api.TunnelEncapSubTLVSRBindingSID_Srv6BindingSid{
+				Srv6BindingSid: &api.SRv6BindingSID{Sid: sid},
+			},
+		})
+		assert.Error(t, err)
+	}
+}
+
+func Test_EVPNNilESI(t *testing.T) {
+	rd := &api.RouteDistinguisher{Rd: &api.RouteDistinguisher_TwoOctetAsn{
+		TwoOctetAsn: &api.RouteDistinguisherTwoOctetASN{Admin: 65000, Assigned: 100},
+	}}
+	macadv := func(esi *api.EthernetSegmentIdentifier) *api.NLRI {
+		return &api.NLRI{Nlri: &api.NLRI_EvpnMacadv{EvpnMacadv: &api.EVPNMACIPAdvertisementRoute{
+			Rd:         rd,
+			Esi:        esi,
+			MacAddress: "aa:bb:cc:dd:ee:ff",
+			IpAddress:  "10.0.0.1",
+			Labels:     []uint32{100},
+		}}}
+	}
+
+	// A missing ESI and an empty value are the zero ESI.
+	for _, esi := range []*api.EthernetSegmentIdentifier{nil, {}} {
+		n, err := UnmarshalNLRI(bgp.RF_EVPN, macadv(esi))
+		require.NoError(t, err)
+		r := n.(*bgp.EVPNNLRI).RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute)
+		assert.Equal(t, bgp.ESI_ARBITRARY, r.ESI.Type)
+		assert.Equal(t, make([]byte, 9), r.ESI.Value)
+		assert.NotEmpty(t, n.String())
+	}
+
+	// A value of any other length is an error.
+	_, err := UnmarshalNLRI(bgp.RF_EVPN, macadv(&api.EthernetSegmentIdentifier{
+		Type:  uint32(bgp.ESI_LACP),
+		Value: []byte{1, 2},
+	}))
+	assert.Error(t, err)
+}
+
 func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 	assert := assert.New(t)
 
