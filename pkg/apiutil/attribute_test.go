@@ -1733,6 +1733,97 @@ func Test_UnmarshalMUPType2EndpointAddressLength(t *testing.T) {
 	}
 }
 
+func Test_UnmarshalAttributeInvalidInput(t *testing.T) {
+	// Each of these used to leave a nil value behind and panic later.
+	extcom := func(c *api.ExtendedCommunity) *api.Attribute {
+		return &api.Attribute{Attr: &api.Attribute_ExtendedCommunities{
+			ExtendedCommunities: &api.ExtendedCommunitiesAttribute{
+				Communities: []*api.ExtendedCommunity{c},
+			},
+		}}
+	}
+	ip6extcom := func(c *api.IP6ExtendedCommunitiesAttribute_Community) *api.Attribute {
+		return &api.Attribute{Attr: &api.Attribute_Ip6ExtendedCommunities{
+			Ip6ExtendedCommunities: &api.IP6ExtendedCommunitiesAttribute{
+				Communities: []*api.IP6ExtendedCommunitiesAttribute_Community{c},
+			},
+		}}
+	}
+
+	for name, a := range map[string]*api.Attribute{
+		"IPv4 address specific with IPv6": extcom(&api.ExtendedCommunity{
+			Extcom: &api.ExtendedCommunity_Ipv4AddressSpecific{
+				Ipv4AddressSpecific: &api.IPv4AddressSpecificExtended{Address: "2001:db8::1"},
+			},
+		}),
+		"redirect IPv4 with IPv6": extcom(&api.ExtendedCommunity{
+			Extcom: &api.ExtendedCommunity_RedirectIpv4AddressSpecific{
+				RedirectIpv4AddressSpecific: &api.RedirectIPv4AddressSpecificExtended{Address: "2001:db8::1"},
+			},
+		}),
+		"ES-Import with bad MAC": extcom(&api.ExtendedCommunity{
+			Extcom: &api.ExtendedCommunity_EsImport{
+				EsImport: &api.ESImportRouteTarget{EsImport: "x"},
+			},
+		}),
+		"router MAC with bad MAC": extcom(&api.ExtendedCommunity{
+			Extcom: &api.ExtendedCommunity_RouterMac{
+				RouterMac: &api.RouterMacExtended{Mac: "x"},
+			},
+		}),
+		"IPv6 address specific with IPv4": ip6extcom(&api.IP6ExtendedCommunitiesAttribute_Community{
+			Extcom: &api.IP6ExtendedCommunitiesAttribute_Community_Ipv6AddressSpecific{
+				Ipv6AddressSpecific: &api.IPv6AddressSpecificExtended{Address: "192.0.2.1"},
+			},
+		}),
+		"redirect IPv6 with IPv4": ip6extcom(&api.IP6ExtendedCommunitiesAttribute_Community{
+			Extcom: &api.IP6ExtendedCommunitiesAttribute_Community_RedirectIpv6AddressSpecific{
+				RedirectIpv6AddressSpecific: &api.RedirectIPv6AddressSpecificExtended{Address: "192.0.2.1"},
+			},
+		}),
+		"MP_UNREACH_NLRI without family": {Attr: &api.Attribute_MpUnreach{
+			MpUnreach: &api.MpUnreachNLRIAttribute{},
+		}},
+	} {
+		_, err := UnmarshalAttribute(a)
+		assert.Error(t, err, name)
+	}
+
+	// An SR segment with neither type A nor type B.
+	_, err := UnmarshalSRSegments([]*api.TunnelEncapSubTLVSRSegmentList_Segment{{}})
+	assert.Error(t, err)
+
+	// SRv6 service sub-TLV and sub-sub-TLV without a value.
+	_, _, err = UnmarshalSubTLVs(map[uint32]*api.SRv6SubTLVs{
+		1: {Tlvs: []*api.SRv6SubTLV{{}}},
+	})
+	assert.Error(t, err)
+	_, _, err = UnmarshalSubSubTLVs(map[uint32]*api.SRv6SubSubTLVs{
+		1: {Tlvs: []*api.SRv6SubSubTLV{{}}},
+	})
+	assert.Error(t, err)
+
+	// SRv6 BGP peer node SID with a peer BGP ID that is not IPv4.
+	for _, id := range []string{"", "2001:db8::1"} {
+		_, err = UnmarshalLsAttribute(&api.LsAttribute{
+			Srv6Sid: &api.LsAttributeSrv6SID{
+				Srv6BgpPeerNodeSid: &api.LsSrv6BgpPeerNodeSID{PeerBgpId: id},
+			},
+		})
+		assert.Error(t, err, id)
+	}
+
+	// FlowSpec prefix with a prefix length too long for the address.
+	_, err = UnmarshalFlowSpecRules([]*api.FlowSpecRule{{
+		Rule: &api.FlowSpecRule_IpPrefix{IpPrefix: &api.FlowSpecIPPrefix{
+			Type:      uint32(bgp.FLOW_SPEC_TYPE_DST_PREFIX),
+			Prefix:    "10.0.0.0",
+			PrefixLen: 33,
+		}},
+	}})
+	assert.Error(t, err)
+}
+
 func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 	assert := assert.New(t)
 
