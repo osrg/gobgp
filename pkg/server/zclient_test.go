@@ -16,6 +16,7 @@
 package server
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"math"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -444,4 +446,26 @@ func TestZebraClientGlobalRibOptions(t *testing.T) {
 	selection, multiPaths = z.globalRibOptions()
 	assert.Equal(t, want, selection)
 	assert.True(t, multiPaths.Enabled)
+}
+
+func TestNexthopRegisterVrfID(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 5)
+	addVrf(t, s, "vrf2", "222:222", []string{"222:222"}, []string{"222:222"}, 7)
+
+	for _, tc := range []struct {
+		name     string
+		neighbor *oc.Neighbor
+		id       uint32
+	}{
+		// A path added through the API has no neighbor.
+		{"no neighbor", nil, 0},
+		{"global neighbor", &oc.Neighbor{}, 0},
+		{"vrf neighbor", &oc.Neighbor{Config: oc.NeighborConfig{Vrf: "vrf1"}}, 5},
+	} {
+		id, err := nexthopRegisterVrfID(s, tc.neighbor)
+		assert.NoError(t, err, tc.name)
+		assert.Equal(t, tc.id, id, tc.name)
+	}
 }

@@ -563,10 +563,7 @@ func (z *zebraClient) loop() {
 				body := newNexthopRegisterBody(msg.PathList, z.nexthopCache)
 				z.cacheLock.Unlock()
 				if body != nil {
-					vrfID := uint32(0)
-					err := z.server.ListVrf(context.Background(), &api.ListVrfRequest{Name: msg.Neighbor.Config.Vrf}, func(v *api.Vrf) {
-						vrfID = v.Id
-					})
+					vrfID, err := nexthopRegisterVrfID(z.server, msg.Neighbor)
 					if err != nil {
 						z.server.logger.Error("failed to get vrf id",
 							slog.String("Topic", "Zebra"),
@@ -585,6 +582,22 @@ func (z *zebraClient) loop() {
 			}
 		}
 	}
+}
+
+// nexthopRegisterVrfID returns the VRF ID to register the next hops of the
+// paths from n with. A path from no neighbor, such as one added through the
+// API, and a path from a neighbor in the global table use the default VRF.
+// ListVrf with an empty name lists all VRFs, so it is called only for a
+// neighbor in a VRF.
+func nexthopRegisterVrfID(s *BgpServer, n *oc.Neighbor) (uint32, error) {
+	if n == nil || n.Config.Vrf == "" {
+		return 0, nil
+	}
+	vrfID := uint32(0)
+	err := s.ListVrf(context.Background(), &api.ListVrfRequest{Name: n.Config.Vrf}, func(v *api.Vrf) {
+		vrfID = v.Id
+	})
+	return vrfID, err
 }
 
 func newZebraClient(s *BgpServer, url string, protos []string, version uint8, nhtEnable bool, nhtDelay uint8, mplsLabelRangeSize uint32, software zebra.Software) (*zebraClient, error) {
