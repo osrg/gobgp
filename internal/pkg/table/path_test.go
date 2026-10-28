@@ -132,6 +132,45 @@ func TestPathPrependAsnToExistingSeqAttr(t *testing.T) {
 	assert.Equal([]uint32{65000, 65001, 65002, 65003, 65004, 65005, 0, 0, 0}, p.GetAsSeqList())
 }
 
+func TestPathPrependAsnToFullSegment(t *testing.T) {
+	peer := PathCreatePeer()
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.50.1"))
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	newPath := func(n int) *Path {
+		asns := make([]uint32, n)
+		for i := range asns {
+			asns[i] = 65001
+		}
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, asns),
+		})
+		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), aspath, nexthop}
+		return NewPath(bgp.RF_IPv4_UC, peer[0], bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+
+	for _, tc := range []struct {
+		have   int
+		repeat uint8
+		first  int
+		second int
+	}{
+		{have: 250, repeat: 10, first: 5, second: 255},
+		{have: 255, repeat: 255, first: 255, second: 255},
+		{have: 300, repeat: 1, first: 1, second: 300},
+	} {
+		p := newPath(tc.have)
+		p.PrependAsn(65000, tc.repeat, false)
+		segs := p.GetAsPath().Value
+		require.Len(t, segs, 2, "have %d repeat %d", tc.have, tc.repeat)
+		assert.Len(t, segs[0].GetAS(), tc.first)
+		assert.Len(t, segs[1].GetAS(), tc.second)
+		for _, as := range segs[0].GetAS() {
+			assert.Equal(t, uint32(65000), as)
+		}
+		assert.Equal(t, tc.have+int(tc.repeat), len(p.GetAsSeqList()))
+	}
+}
+
 func TestPathPrependAsnToNewAsPathAttr(t *testing.T) {
 	assert := assert.New(t)
 	origin := bgp.NewPathAttributeOrigin(0)

@@ -983,12 +983,11 @@ func (path *Path) PrependAsn(asn uint32, repeat uint8, confed bool) {
 		param := asPath.Value[0]
 		asList := param.GetAS()
 		if param.GetType() == segType {
-			if int(repeat)+len(asList) > 255 {
-				repeat = uint8(255 - len(asList))
-			}
-			newAsList := append(asns[:int(repeat)], asList...)
-			asPath.Value[0] = bgp.NewAs4PathParam(segType, newAsList)
-			asns = asns[int(repeat):]
+			// A segment holds at most 255 AS numbers. Put what does not
+			// fit into a new segment in front.
+			n := min(int(repeat), max(255-len(asList), 0))
+			asPath.Value[0] = bgp.NewAs4PathParam(segType, slices.Concat(asns[:n], asList))
+			asns = asns[n:]
 		}
 	}
 
