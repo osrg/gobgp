@@ -824,14 +824,21 @@ func (lhs *singleAsPathMatch) String() string {
 	return ""
 }
 
-func (m *singleAsPathMatch) Match(aspath []uint32) bool {
+// Match reports whether the AS path matches. aspath is the list from
+// GetAsSeqList and segments are the segments of the AS_PATH attribute.
+func (m *singleAsPathMatch) Match(aspath []uint32, segments []bgp.AsPathParamInterface) bool {
 	if len(aspath) == 0 {
 		return false
 	}
 	switch m.mode {
 	case INCLUDE:
-		if slices.Contains(aspath, m.asn) {
-			return true
+		// The "_" of a regular expression also matches the delimiters
+		// of AS_SET and AS_CONFED_SEQUENCE, so look at the AS numbers
+		// of every segment, not only those of AS_SEQUENCE.
+		for _, s := range segments {
+			if slices.Contains(s.GetAS(), m.asn) {
+				return true
+			}
 		}
 	case LEFT_MOST:
 		if m.asn == aspath[0] {
@@ -2241,8 +2248,12 @@ func (c *AsPathCondition) Option() MatchOption {
 func (c *AsPathCondition) Evaluate(path *Path, _ *PolicyOptions) bool {
 	if len(c.set.singleList) > 0 {
 		aspath := path.GetAsSeqList()
+		var segments []bgp.AsPathParamInterface
+		if a := path.GetAsPath(); a != nil {
+			segments = a.Value
+		}
 		for _, m := range c.set.singleList {
-			result := m.Match(aspath)
+			result := m.Match(aspath, segments)
 			if c.option == MATCH_OPTION_ALL && !result {
 				return false
 			}

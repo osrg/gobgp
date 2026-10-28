@@ -4629,6 +4629,58 @@ func TestNewSingleAsPathMatch(t *testing.T) {
 	assert.Equal(t, r.mode, ONLY)
 }
 
+func TestSingleAsPathMatchIncludeSegments(t *testing.T) {
+	makePath := func(params ...bgp.AsPathParamInterface) *Path {
+		pattrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath(params)}
+		return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{}, false, pattrs, time.Time{}, false)
+	}
+	tests := []struct {
+		name   string
+		path   *Path
+		result bool
+	}{
+		{
+			name:   "as-sequence",
+			path:   makePath(bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{64512, 65100, 64999})),
+			result: true,
+		},
+		{
+			name: "as-set",
+			path: makePath(
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{64512}),
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65100, 64999})),
+			result: true,
+		},
+		{
+			name: "as-confed-sequence",
+			path: makePath(
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65100}),
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{64512})),
+			result: true,
+		},
+		{
+			name: "not-included",
+			path: makePath(
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{64512}),
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65101, 64999})),
+			result: false,
+		},
+	}
+
+	// "_65100_" takes the singleAsPathMatch fast path and "(_65100_)" the
+	// regular expression. Both must give the same result.
+	for _, exp := range []string{"_65100_", "(_65100_)"} {
+		s, err := NewAsPathSet(oc.AsPathSet{AsPathSetName: "s", AsPathList: []string{exp}})
+		require.NoError(t, err)
+		c, err := NewAsPathCondition(oc.MatchAsPathSet{AsPathSet: "s", MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY})
+		require.NoError(t, err)
+		c.set = s
+		for _, tt := range tests {
+			assert.Equal(t, tt.result, c.Evaluate(tt.path, nil), "%s %s", exp, tt.name)
+		}
+	}
+}
+
 func BenchmarkPrefixConditionEvaluate(b *testing.B) {
 	rt, _ := bgp.ParseRouteTarget("65000:100")
 	cases := []struct {
