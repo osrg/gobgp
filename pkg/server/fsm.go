@@ -2258,13 +2258,8 @@ func (h *fsmHandler) recvMessageloop(ctx context.Context, conn net.Conn, holdtim
 					if !h.fsm.twoByteAsTrans {
 						table.DiscardAs4Attrs(body)
 					}
+					table.UpdatePathAggregator4ByteAs(body)
 					table.UpdatePathAttrs4ByteAs(h.fsm.logger, body)
-
-					if err = table.UpdatePathAggregator4ByteAs(body); err != nil {
-						m := err.(*bgp.MessageError)
-						nonblockSendChannel(h.fsm.notification, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data))
-						return
-					}
 					fallthrough
 				case bgp.BGP_MSG_KEEPALIVE:
 					// if the length of holdtimerResetCh

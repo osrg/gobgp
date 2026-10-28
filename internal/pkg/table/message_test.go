@@ -514,7 +514,7 @@ func TestAggregator4BytesASes(t *testing.T) {
 	msg := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{attr}, nil).Body.(*bgp.BGPUpdate)
 
 	// 4byte capable to 4byte capable for 4 bytes AS
-	assert.Equal(t, UpdatePathAggregator4ByteAs(msg), nil)
+	UpdatePathAggregator4ByteAs(msg)
 	assert.Equal(t, getAggr(msg).Value.AS, as4)
 	assert.Equal(t, getAggr(msg).Value.Address, addr)
 
@@ -532,7 +532,7 @@ func TestAggregator4BytesASes(t *testing.T) {
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint16)
 
 	// non 4byte capable to 4byte capable for 4 bytes AS
-	assert.Equal(t, UpdatePathAggregator4ByteAs(msg), nil)
+	UpdatePathAggregator4ByteAs(msg)
 	assert.Equal(t, getAggr(msg).Value.AS, as4)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint32)
 	assert.Equal(t, getAggr(msg).Value.Address, addr)
@@ -550,7 +550,7 @@ func TestAggregator4BytesASes(t *testing.T) {
 	// 4byte capable to 4byte capable for 2 bytes AS
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint32)
-	assert.Equal(t, UpdatePathAggregator4ByteAs(msg), nil)
+	UpdatePathAggregator4ByteAs(msg)
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint32)
 
@@ -565,7 +565,7 @@ func TestAggregator4BytesASes(t *testing.T) {
 	// non 4byte capable to 4byte capable for 2 bytes AS
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint16)
-	assert.Equal(t, UpdatePathAggregator4ByteAs(msg), nil)
+	UpdatePathAggregator4ByteAs(msg)
 
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint32)
@@ -575,6 +575,78 @@ func TestAggregator4BytesASes(t *testing.T) {
 	assert.Equal(t, getAggr(msg).Value.AS, as)
 	assert.Equal(t, getAggr(msg).Value.Askind, reflect.Uint16)
 	assert.Equal(t, getAggr4(msg), (*bgp.PathAttributeAs4Aggregator)(nil))
+}
+
+// AGGREGATOR and AS4_AGGREGATOR from an OLD BGP speaker (RFC 6793
+// Section 4.2.3).
+func TestAggregator4BytesASFromOldSpeaker(t *testing.T) {
+	addr := netip.MustParseAddr("192.168.0.1")
+	as4 := uint32(100000)
+
+	newMsg := func(attrs ...bgp.PathAttributeInterface) *bgp.BGPUpdate {
+		aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAsPathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{1000, bgp.AS_TRANS}),
+		})
+		as4path := bgp.NewPathAttributeAs4Path([]*bgp.As4PathParam{
+			bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{as4}),
+		})
+		attrs = append([]bgp.PathAttributeInterface{aspath, as4path}, attrs...)
+		return bgp.NewBGPUpdateMessage(nil, attrs, nil).Body.(*bgp.BGPUpdate)
+	}
+	find := func(msg *bgp.BGPUpdate, typ bgp.BGPAttrType) bgp.PathAttributeInterface {
+		for _, attr := range msg.PathAttributes {
+			if attr.GetType() == typ {
+				return attr
+			}
+		}
+		return nil
+	}
+	process := func(msg *bgp.BGPUpdate) {
+		UpdatePathAggregator4ByteAs(msg)
+		UpdatePathAttrs4ByteAs(logger, msg)
+	}
+
+	t.Run("AGGREGATOR is AS_TRANS", func(t *testing.T) {
+		agg, _ := bgp.NewPathAttributeAggregator(uint16(bgp.AS_TRANS), addr)
+		agg4, _ := bgp.NewPathAttributeAs4Aggregator(as4, addr)
+		msg := newMsg(agg, agg4)
+		process(msg)
+
+		a := find(msg, bgp.BGP_ATTR_TYPE_AGGREGATOR).(*bgp.PathAttributeAggregator)
+		assert.Equal(t, as4, a.Value.AS)
+		assert.Nil(t, find(msg, bgp.BGP_ATTR_TYPE_AS4_AGGREGATOR))
+		assert.Nil(t, find(msg, bgp.BGP_ATTR_TYPE_AS4_PATH))
+		p := find(msg, bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		assert.Equal(t, []uint32{1000, as4}, p.Value[0].GetAS())
+	})
+
+	t.Run("AGGREGATOR is not AS_TRANS", func(t *testing.T) {
+		agg, _ := bgp.NewPathAttributeAggregator(uint16(2000), addr)
+		agg4, _ := bgp.NewPathAttributeAs4Aggregator(as4, addr)
+		msg := newMsg(agg, agg4)
+		process(msg)
+
+		// AS4_AGGREGATOR and AS4_PATH are ignored.
+		a := find(msg, bgp.BGP_ATTR_TYPE_AGGREGATOR).(*bgp.PathAttributeAggregator)
+		assert.Equal(t, uint32(2000), a.Value.AS)
+		assert.Nil(t, find(msg, bgp.BGP_ATTR_TYPE_AS4_AGGREGATOR))
+		assert.Nil(t, find(msg, bgp.BGP_ATTR_TYPE_AS4_PATH))
+		p := find(msg, bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		assert.Equal(t, []uint32{1000, bgp.AS_TRANS}, p.Value[0].GetAS())
+	})
+
+	t.Run("AS4_AGGREGATOR without AGGREGATOR", func(t *testing.T) {
+		agg4, _ := bgp.NewPathAttributeAs4Aggregator(as4, addr)
+		msg := newMsg(agg4)
+		process(msg)
+
+		// AS4_AGGREGATOR is dropped and AS4_PATH is still used.
+		assert.Nil(t, find(msg, bgp.BGP_ATTR_TYPE_AGGREGATOR))
+		assert.Nil(t, find(msg, bgp.BGP_ATTR_TYPE_AS4_AGGREGATOR))
+		assert.Nil(t, find(msg, bgp.BGP_ATTR_TYPE_AS4_PATH))
+		p := find(msg, bgp.BGP_ATTR_TYPE_AS_PATH).(*bgp.PathAttributeAsPath)
+		assert.Equal(t, []uint32{1000, as4}, p.Value[0].GetAS())
+	})
 }
 
 func TestBMP(t *testing.T) {

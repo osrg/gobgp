@@ -273,11 +273,24 @@ func UpdatePathAggregator2ByteAs(msg *bgp.BGPUpdate) {
 	}
 }
 
-func UpdatePathAggregator4ByteAs(msg *bgp.BGPUpdate) error {
+// UpdatePathAggregator4ByteAs merges AS4_AGGREGATOR into AGGREGATOR. It must
+// be called before UpdatePathAttrs4ByteAs because it can remove AS4_PATH.
+// RFC 6793 Section 4.2.3 says:
+//
+//	When both of the attributes are received, if the AS number in the
+//	AGGREGATOR attribute is not AS_TRANS, then:
+//
+//	   -  the AS4_AGGREGATOR attribute and the AS4_PATH attribute SHALL
+//	      be ignored,
+//
+// RFC 6793 does not cover AS4_AGGREGATOR without AGGREGATOR. A NEW BGP
+// speaker never sends it that way, so drop AS4_AGGREGATOR and keep the
+// UPDATE. Section 6 handles a malformed AS4_AGGREGATOR with "attribute
+// discard" too.
+func UpdatePathAggregator4ByteAs(msg *bgp.BGPUpdate) {
 	var aggAttr *bgp.PathAttributeAggregator
 	var agg4Attr *bgp.PathAttributeAs4Aggregator
-	agg4AttrPos := 0
-	for i, attr := range msg.PathAttributes {
+	for _, attr := range msg.PathAttributes {
 		switch agg := attr.(type) {
 		case *bgp.PathAttributeAggregator:
 			attr := agg
@@ -290,22 +303,29 @@ func UpdatePathAggregator4ByteAs(msg *bgp.BGPUpdate) error {
 			}
 		case *bgp.PathAttributeAs4Aggregator:
 			agg4Attr = agg
-			agg4AttrPos = i
 		}
 	}
-	if aggAttr == nil && agg4Attr == nil {
-		return nil
+	if agg4Attr == nil {
+		return
 	}
 
-	if aggAttr == nil && agg4Attr != nil {
-		return bgp.NewMessageError(bgp.BGP_ERROR_UPDATE_MESSAGE_ERROR, bgp.BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "AS4 AGGREGATOR attribute exists, but AGGREGATOR doesn't")
-	}
-
-	if agg4Attr != nil {
-		msg.PathAttributes = append(msg.PathAttributes[:agg4AttrPos], msg.PathAttributes[agg4AttrPos+1:]...)
+	ignoreAs4Path := false
+	switch {
+	case aggAttr == nil:
+	case aggAttr.Value.AS != bgp.AS_TRANS:
+		ignoreAs4Path = true
+	default:
 		aggAttr.Value.AS = agg4Attr.Value.AS
 	}
-	return nil
+	msg.PathAttributes = slices.DeleteFunc(msg.PathAttributes, func(attr bgp.PathAttributeInterface) bool {
+		switch attr.(type) {
+		case *bgp.PathAttributeAs4Aggregator:
+			return true
+		case *bgp.PathAttributeAs4Path:
+			return ignoreAs4Path
+		}
+		return false
+	})
 }
 
 // packer builds the UPDATE messages for the paths of one family.
