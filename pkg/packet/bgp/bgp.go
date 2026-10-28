@@ -2794,6 +2794,17 @@ func (er *EVPNMacIPAdvertisementRoute) DecodeFromBytes(data []byte) error {
 	er.ETag = binary.BigEndian.Uint32(data[:4])
 	data = data[4:]
 	er.MacAddressLength = data[0]
+	// RFC 7432 Section 9.2.1 says:
+	//
+	//	The MAC Address Length field is in bits, and it is set to 48.  MAC
+	//	address length values other than 48 bits are outside the scope of
+	//	this document.
+	//
+	// The MAC is read as 6 octets and the length is not in the route key,
+	// so a route with another length would get the key of the 48-bit one.
+	if er.MacAddressLength != 48 {
+		return malformedAttrListErr(fmt.Sprintf("Invalid MAC address length: %d", er.MacAddressLength))
+	}
 	er.MacAddress = net.HardwareAddr(data[1:7])
 	er.IPAddressLength = data[7]
 	data = data[8:]
@@ -2918,7 +2929,13 @@ func (er *EVPNMacIPAdvertisementRoute) rd() RouteDistinguisherInterface {
 }
 
 func NewEVPNMacIPAdvertisementRoute(rd RouteDistinguisherInterface, esi EthernetSegmentIdentifier, etag uint32, macAddress string, ipAddress netip.Addr, labels []uint32) (*EVPNNLRI, error) {
-	mac, _ := net.ParseMAC(macAddress)
+	mac, err := net.ParseMAC(macAddress)
+	if err != nil {
+		return nil, err
+	}
+	if len(mac) != 6 {
+		return nil, fmt.Errorf("invalid MAC address %s: not 48 bits", macAddress)
+	}
 	return NewEVPNNLRI(EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT, &EVPNMacIPAdvertisementRoute{
 		RD:               rd,
 		ESI:              esi,

@@ -1580,6 +1580,28 @@ func Test_EVPNMacIPAdvertisementRoute(t *testing.T) {
 		assert.Equal(t, uint8(128), r.IPAddressLength)
 		assert.Equal(t, ip, r.IPAddress)
 	})
+
+	t.Run("MAC that is not 48 bits", func(t *testing.T) {
+		for _, m := range []string{"x", "00:11:22:33:44:55:66:77"} {
+			_, err := NewEVPNMacIPAdvertisementRoute(rd, esi, 42, m, netip.Addr{}, nil)
+			assert.Error(t, err, m)
+		}
+	})
+
+	t.Run("MAC address length other than 48", func(t *testing.T) {
+		nl, err := NewEVPNMacIPAdvertisementRoute(rd, esi, 42, mac, netip.Addr{}, []uint32{200})
+		require.NoError(t, err)
+		buf, err := nl.RouteTypeData.Serialize()
+		require.NoError(t, err)
+		// RD (8) + ESI (10) + Ethernet Tag ID (4), then MAC Address Length.
+		off := 8 + 10 + 4
+		require.Equal(t, uint8(48), buf[off])
+		require.NoError(t, (&EVPNMacIPAdvertisementRoute{}).DecodeFromBytes(buf))
+		for _, l := range []uint8{47, 49} {
+			buf[off] = l
+			assert.Error(t, (&EVPNMacIPAdvertisementRoute{}).DecodeFromBytes(buf), "length %d", l)
+		}
+	})
 }
 
 func Test_EVPNMacIPAdvertisementRoute_MarshalJSON(t *testing.T) {
