@@ -1824,6 +1824,21 @@ func Test_UnmarshalAttributeInvalidInput(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func Test_AsPathSegmentLength(t *testing.T) {
+	aspath := func(n int) *api.Attribute {
+		return &api.Attribute{Attr: &api.Attribute_AsPath{AsPath: &api.AsPathAttribute{
+			Segments: []*api.AsSegment{{
+				Type:    api.AsSegment_TYPE_AS_SEQUENCE,
+				Numbers: make([]uint32, n),
+			}},
+		}}}
+	}
+	_, err := UnmarshalAttribute(aspath(255))
+	assert.NoError(t, err)
+	_, err = UnmarshalAttribute(aspath(256))
+	assert.Error(t, err)
+}
+
 func Test_IP6ExtendedCommunitiesAttribute(t *testing.T) {
 	assert := assert.New(t)
 

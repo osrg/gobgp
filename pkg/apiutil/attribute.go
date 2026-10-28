@@ -34,6 +34,10 @@ func UnmarshalAttribute(attr *api.Attribute) (bgp.PathAttributeInterface, error)
 	case *api.Attribute_AsPath:
 		params := make([]bgp.AsPathParamInterface, 0, len(a.AsPath.Segments))
 		for _, segment := range a.AsPath.Segments {
+			// The segment length is one octet.
+			if len(segment.Numbers) > 255 {
+				return nil, fmt.Errorf("too many AS numbers in an AS path segment: %d", len(segment.Numbers))
+			}
 			params = append(params, bgp.NewAs4PathParam(uint8(segment.Type), segment.Numbers))
 		}
 		return bgp.NewPathAttributeAsPath(params), nil
