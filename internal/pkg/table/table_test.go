@@ -504,6 +504,32 @@ func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 	}
 }
 
+func TestTableSelectFamilyMismatch(t *testing.T) {
+	tests := []struct {
+		family bgp.Family
+		prefix string
+		option apiutil.LookupOption
+	}{
+		{bgp.RF_IPv6_UC, "10.0.0.1", apiutil.LOOKUP_EXACT},
+		{bgp.RF_IPv6_UC, "10.0.0.0/24", apiutil.LOOKUP_EXACT},
+		{bgp.RF_IPv6_UC, "10.0.0.0/24", apiutil.LOOKUP_SHORTER},
+		{bgp.RF_IPv6_UC, "10.0.0.0/8", apiutil.LOOKUP_LONGER},
+		{bgp.RF_IPv4_UC, "2001:db8::1", apiutil.LOOKUP_EXACT},
+		{bgp.RF_IPv4_UC, "::ffff:10.0.0.1", apiutil.LOOKUP_EXACT},
+		{bgp.RF_IPv4_UC, "2001:db8::/64", apiutil.LOOKUP_SHORTER},
+	}
+	for _, tt := range tests {
+		table := NewTable(logger, tt.family)
+		_, err := table.Select(TableSelectOption{
+			LookupPrefixes: []*apiutil.LookupPrefix{{
+				Prefix:       tt.prefix,
+				LookupOption: tt.option,
+			}},
+		})
+		assert.Error(t, err, "%s %s %v", tt.family, tt.prefix, tt.option)
+	}
+}
+
 func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
 	table := NewTable(logger, bgp.RF_IPv6_UC)
 	assert.Equal(t, 0, len(table.GetDestinations()))

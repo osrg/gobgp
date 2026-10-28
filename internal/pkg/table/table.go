@@ -901,6 +901,25 @@ func mustIPAddrPrefix(prefix netip.Prefix) *bgp.IPAddrPrefix {
 	return nlri
 }
 
+// checkLookupFamily returns an error when key, an address or a prefix, is
+// not of the IPv4 or IPv6 unicast family f. An IPv4 address on an IPv6
+// table would give a prefix longer than the address. A key that does not
+// parse is left to the lookup, which reports it.
+func checkLookupFamily(f bgp.Family, key string) error {
+	addr, err := netip.ParseAddr(key)
+	if err != nil {
+		prefix, err := netip.ParsePrefix(key)
+		if err != nil {
+			return nil
+		}
+		addr = prefix.Addr()
+	}
+	if addr.Is4() != (f == bgp.RF_IPv4_UC) {
+		return fmt.Errorf("%s does not match the %s family", key, f)
+	}
+	return nil
+}
+
 // ContainsCIDR checks if one IPNet is a subnet of another.
 func containsCIDR(n1, n2 *net.IPNet) bool {
 	ones1, _ := n1.Mask.Size()
@@ -937,6 +956,9 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
 			for _, p := range prefixes {
 				key := p.Prefix
+				if err := checkLookupFamily(t.Family, key); err != nil {
+					return nil, err
+				}
 				switch p.LookupOption {
 				case apiutil.LOOKUP_LONGER:
 					ds, err := t.GetLongerPrefixDestinations(key)
