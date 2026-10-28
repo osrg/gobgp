@@ -15,7 +15,7 @@ the version you tested.
 
 We assign a CVE when input from an untrusted source alone breaks memory
 safety or availability of `gobgpd`. Untrusted sources are the BGP session,
-the RPKI-RTR connection, the ZAPI connection to zebra, and BFD packets.
+the RPKI-RTR connection, and BFD packets.
 
 Examples in scope:
 
@@ -44,6 +44,9 @@ request for them. We fix them, but we do not assign a CVE.
   a program must pass valid input, for example a body that matches its
   header, or a message that it builds itself. When a peer can reach the
   same bug through gobgpd, the Scope section applies.
+- Anything that requires control of zebra or of the ZAPI connection to it.
+  zebra runs under the same administration as gobgpd, so we treat it as
+  trusted.
 - Anything that requires a non-default configuration that grants the
   attacker the ability in question.
 - Protocol conformance bugs and wrong routing decisions. See Scope.
