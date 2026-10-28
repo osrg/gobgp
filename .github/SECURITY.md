@@ -39,6 +39,11 @@ request for them. We fix them, but we do not assign a CVE.
 - Anything in the `gobgp` command. It is a client of that API. It also
   parses local files that the operator chooses, such as the MRT file given
   to `gobgp mrt inject`. Those files are trusted input.
+- Anything that requires another program to call the Go packages of
+  this project, such as `pkg/packet/bgp`, in a way gobgpd does not. Such
+  a program must pass valid input, for example a body that matches its
+  header, or a message that it builds itself. When a peer can reach the
+  same bug through gobgpd, the Scope section applies.
 - Anything that requires a non-default configuration that grants the
   attacker the ability in question.
 - Protocol conformance bugs and wrong routing decisions. See Scope.
