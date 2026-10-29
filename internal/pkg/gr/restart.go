@@ -37,13 +37,17 @@ import "github.com/osrg/gobgp/v4/pkg/packet/bgp"
 //	| not started |          |  Waiting  |                      | Released |
 //	+-------------+          +-----------+                      +----------+
 //
+// These phases describe each family's own EOR wait. Non-RTC advertisement
+// waits for both that family's wait and the RTC wait to end.
+//
 // A family that was never waited for is not kept. Waiting keeps the peers
 // whose End-of-RIB marker is awaited. A peer leaves the set when its marker
 // is received, when its timer expires, when the session is established
 // without the Graceful Restart Capability or with the Restart State bit, when
 // its session ends, or when the peer is removed. When the set becomes empty,
-// the family is released: the caller advertises the family to its peers,
-// with the End-of-RIB marker. A peer added after that is not waited for in
+// the family's own wait is complete. Once the RTC wait is also complete
+// (or this family is RTC), the caller advertises it with the End-of-RIB
+// marker. A peer added after the family's own wait ends is not waited for in
 // that family. The restart is over when no family waits any more. A peer
 // added after that is not waited for at all, also in a family that was
 // never waited for: otherwise a peer added long after the restart, with a
@@ -111,15 +115,20 @@ func (r *Restart) waiting() bool {
 	return false
 }
 
-// Deferred reports whether family f is waiting: its routes are not
-// advertised yet.
+// Deferred reports whether family f is waiting for its own EORs or the
+// RTC barrier. Non-RTC families remain independent after RTC is ready.
 func (r *Restart) Deferred(f bgp.Family) bool {
+	if f != bgp.RF_RTC_UC {
+		if rtc := r.families[bgp.RF_RTC_UC]; rtc != nil && !rtc.released() {
+			return true
+		}
+	}
 	d, ok := r.families[f]
 	return ok && !d.released()
 }
 
-// remove stops waiting for peer p in family f, if it waits. The family is
-// released if p was the last peer.
+// remove stops waiting for peer p in family f, if it waits. The Released
+// action also waits for RTC to be released.
 func (r *Restart) remove(p string, f bgp.Family, d *deferredFamily, stopTimer bool, a *RestartActions) {
 	if _, ok := d.waiting[p]; !ok {
 		return
@@ -129,7 +138,16 @@ func (r *Restart) remove(p string, f bgp.Family, d *deferredFamily, stopTimer bo
 	}
 	delete(d.waiting, p)
 	if d.released() {
-		a.Released = append(a.Released, f)
+		if !r.Deferred(f) {
+			a.Released = append(a.Released, f)
+		}
+		if f == bgp.RF_RTC_UC {
+			for family, state := range r.families {
+				if family != bgp.RF_RTC_UC && state.released() {
+					a.Released = append(a.Released, family)
+				}
+			}
+		}
 		r.over = !r.waiting()
 	}
 }

@@ -3382,3 +3382,188 @@ func initialUpdatePeer(t *testing.T, s *BgpServer, address string) *peer {
 	})
 	return p
 }
+
+func deliverRestartUpdates(t *testing.T, target, receiver *peer) []*table.Path {
+	t.Helper()
+	var paths []*table.Path
+	for target.fsm.outgoingCh.Len() > 0 {
+		outgoing := (<-target.fsm.outgoingCh.Out()).(*fsmOutgoingMsg)
+		paths = append(paths, outgoing.Paths...)
+		for _, update := range table.CreateUpdateMsgFromPaths(outgoing.Paths) {
+			wire, err := update.Serialize()
+			require.NoError(t, err)
+			received, err := bgp.ParseBGPMessage(wire)
+			require.NoError(t, err)
+			receiver.handleUpdate(&fsmMsg{MsgType: fsmMsgBGPMessage, MsgData: received, timestamp: time.Now()}, nil)
+		}
+	}
+	return paths
+}
+
+func localRestartRTCPeer(t *testing.T, s *BgpServer, address string) *peer {
+	t.Helper()
+	p := localRestartPeer(t, s, address, 60)
+	require.NoError(t, s.mgmtOperation(func() error {
+		p.fsm.lock.Lock()
+		conf := p.fsm.pConf.ReadCopy()
+		conf.AfiSafis = append(conf.AfiSafis, grAfiSafi(oc.AFI_SAFI_TYPE_RTC, bgp.RF_RTC_UC))
+		p.fsm.pConf.Update(&conf)
+		p.fsm.lock.Unlock()
+		p.adjRibIn = table.NewAdjRib(s.logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_RTC_UC})
+		s.restartPeerAdded(p, &conf)
+		return nil
+	}, true))
+	return p
+}
+
+func queuedRestartPaths(p *peer) []*table.Path {
+	var paths []*table.Path
+	for p.fsm.outgoingCh.Len() > 0 {
+		paths = append(paths, (<-p.fsm.outgoingCh.Out()).(*fsmOutgoingMsg).Paths...)
+	}
+	return paths
+}
+
+func TestLocalRestartRTCBarrier(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartRTCPeer(t, s, "10.0.0.1")
+	b := localRestartPeer(t, s, "10.0.0.2", 60)
+	grEstablish(t, s, a, grOpen(t, grBoth(120), bgp.NewCapMultiProtocol(bgp.RF_RTC_UC)))
+	grEstablish(t, s, b, grOpen(t, grBoth(120)))
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("203.0.113.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	membership := table.NewPath(bgp.RF_RTC_UC, a.peerInfo.Load(), bgp.PathNLRI{NLRI: &bgp.RouteTargetMembershipNLRI{}}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}, time.Now(), false)
+	require.NoError(t, s.mgmtOperation(func() error { s.processRTCMembership(a, membership); return nil }, true))
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}, time.Now(), false)
+	require.NoError(t, s.mgmtOperation(func() error { s.propagateUpdate(nil, []*table.Path{path}); return nil }, true))
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	grEOR(s, b, bgp.RF_IPv4_UC)
+	require.Empty(t, queuedRestartPaths(a))
+	require.Empty(t, queuedRestartPaths(b))
+	require.True(t, s.deferred(bgp.RF_IPv4_UC))
+	grEOR(s, a, bgp.RF_RTC_UC)
+	got := queuedRestartPaths(a)
+	require.Len(t, got, 3)
+	var eors []bgp.Family
+	var routes []string
+	for _, path := range got {
+		if path.IsEOR() {
+			eors = append(eors, path.GetFamily())
+		} else {
+			routes = append(routes, path.GetNlri().String())
+		}
+	}
+	require.ElementsMatch(t, []bgp.Family{bgp.RF_RTC_UC, bgp.RF_IPv4_UC}, eors)
+	require.Equal(t, []string{"203.0.113.0/24"}, routes)
+	require.False(t, s.deferred(bgp.RF_IPv4_UC))
+	require.True(t, s.deferred(bgp.RF_IPv6_UC))
+	receiver := newPeerandInfo(t, 65001, 65000, "10.0.0.254", s.globalRib)
+	t.Cleanup(func() { cleanInfiniteChannel(receiver.fsm.outgoingCh) })
+	info := *receiver.peerInfo.Load()
+	info.LocalAddress = netip.MustParseAddr("198.51.100.1")
+	receiver.peerInfo.Store(&info)
+	deliverRestartUpdates(t, b, receiver)
+	require.Equal(t, 1, receiver.adjRibIn.Accepted([]bgp.Family{bgp.RF_IPv4_UC}))
+	require.NoError(t, s.mgmtOperation(func() error { s.propagateUpdate(nil, []*table.Path{path.Clone(true)}); return nil }, true))
+	deliverRestartUpdates(t, b, receiver)
+	require.Zero(t, receiver.adjRibIn.Accepted([]bgp.Family{bgp.RF_IPv4_UC}))
+	grEOR(s, a, bgp.RF_IPv6_UC)
+	grEOR(s, b, bgp.RF_IPv6_UC)
+	require.False(t, s.deferred(bgp.RF_IPv6_UC))
+	require.Equal(t, []bgp.Family{bgp.RF_IPv6_UC}, sentEORs(b))
+}
+
+func TestLocalRestartRTCBeforeOtherEOR(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartRTCPeer(t, s, "10.0.0.1")
+	b := localRestartRTCPeer(t, s, "10.0.0.2")
+	for _, p := range []*peer{a, b} {
+		p.fsm.lock.Lock()
+		conf := p.fsm.pConf.ReadCopy()
+		for i := range conf.AfiSafis {
+			if conf.AfiSafis[i].State.Family == bgp.RF_RTC_UC {
+				conf.AfiSafis[i].RouteTargetMembership.Config.DeferralTime = 30
+			}
+		}
+		p.fsm.pConf.Update(&conf)
+		p.fsm.lock.Unlock()
+		grEstablish(t, s, p, grOpen(t, grBoth(120), bgp.NewCapMultiProtocol(bgp.RF_RTC_UC)))
+	}
+	grEOR(s, a, bgp.RF_RTC_UC)
+	require.Empty(t, queuedRestartPaths(a))
+	require.Empty(t, queuedRestartPaths(b))
+	grEOR(s, b, bgp.RF_RTC_UC)
+	for _, p := range []*peer{a, b} {
+		require.Equal(t, []bgp.Family{bgp.RF_RTC_UC}, sentEORs(p))
+	}
+	require.True(t, s.deferred(bgp.RF_IPv4_UC))
+	require.True(t, s.deferred(bgp.RF_IPv6_UC))
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	grEOR(s, b, bgp.RF_IPv4_UC)
+	for _, p := range []*peer{a, b} {
+		require.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(p))
+	}
+	require.True(t, s.deferred(bgp.RF_IPv6_UC))
+}
+
+func TestLocalRestartRTCCatchUp(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartRTCPeer(t, s, "10.0.0.1")
+	grEstablish(t, s, a, grOpen(t, grBoth(120), bgp.NewCapMultiProtocol(bgp.RF_RTC_UC)))
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	grEOR(s, a, bgp.RF_IPv6_UC)
+	grEOR(s, a, bgp.RF_RTC_UC)
+	require.ElementsMatch(t, []bgp.Family{bgp.RF_RTC_UC, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, sentEORs(a))
+	grDown(t, s, a)
+	grEstablish(t, s, a, grOpen(t, grBoth(120), bgp.NewCapMultiProtocol(bgp.RF_RTC_UC)))
+	require.ElementsMatch(t, []bgp.Family{bgp.RF_RTC_UC, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, sentEORs(a))
+
+	late := localRestartRTCPeer(t, s, "10.0.0.2")
+	grEstablish(t, s, late, grOpen(t, grBoth(120), bgp.NewCapMultiProtocol(bgp.RF_RTC_UC)))
+	require.ElementsMatch(t, []bgp.Family{bgp.RF_RTC_UC, bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, sentEORs(late))
+	require.False(t, s.deferred(bgp.RF_IPv4_UC))
+	require.False(t, s.deferred(bgp.RF_IPv6_UC))
+}
+
+func TestLocalRestartRTCReleasedBeforeFSMStore(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 60)
+	b := localRestartRTCPeer(t, s, "10.0.0.2")
+	grEstablish(t, s, b, grOpen(t, grBoth(120), bgp.NewCapMultiProtocol(bgp.RF_RTC_UC)))
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("203.0.113.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}, time.Now(), false)
+	require.NoError(t, s.mgmtOperation(func() error { s.propagateUpdate(nil, []*table.Path{path}); return nil }, true))
+
+	a.fsm.state.Store(bgp.BGP_FSM_OPENCONFIRM)
+	a.fsm.recvOpen = grOpen(t, bgp.NewCapGracefulRestart(true, false, 120, nil))
+	reason := newfsmStateReason(fsmOpenMsgNegotiated, nil, nil)
+	a.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, reason)
+	s.handleFSMMessage(a, &fsmMsg{MsgType: fsmMsgStateChange, MsgData: bgp.BGP_FSM_ESTABLISHED, StateReason: reason})
+	require.Equal(t, bgp.BGP_FSM_ESTABLISHED, a.State())
+	require.Empty(t, queuedRestartPaths(a))
+
+	// Another session releases RTC after A's initial dump, before the FSM
+	// repeats the Established store. PeerUp has already published the state.
+	grEOR(s, b, bgp.RF_IPv4_UC)
+	grEOR(s, b, bgp.RF_RTC_UC)
+	a.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	receiver := newPeerandInfo(t, 65001, 65000, "10.0.0.254", s.globalRib)
+	t.Cleanup(func() { cleanInfiniteChannel(receiver.fsm.outgoingCh) })
+	info := *receiver.peerInfo.Load()
+	info.LocalAddress = netip.MustParseAddr("198.51.100.1")
+	receiver.peerInfo.Store(&info)
+	got := deliverRestartUpdates(t, a, receiver)
+	require.Len(t, got, 2)
+	require.Equal(t, "203.0.113.0/24", got[0].GetNlri().String())
+	require.True(t, got[1].IsEOR())
+	require.Equal(t, bgp.RF_IPv4_UC, got[1].GetFamily())
+	require.Equal(t, 1, receiver.adjRibIn.Accepted([]bgp.Family{bgp.RF_IPv4_UC}))
+	require.NoError(t, s.mgmtOperation(func() error { s.propagateUpdate(nil, []*table.Path{path.Clone(true)}); return nil }, true))
+	deliverRestartUpdates(t, a, receiver)
+	require.Zero(t, receiver.adjRibIn.Accepted([]bgp.Family{bgp.RF_IPv4_UC}))
+}
