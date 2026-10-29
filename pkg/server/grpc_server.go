@@ -439,6 +439,7 @@ func (s *server) watchEvent(ctx context.Context, r *api.WatchEventRequest, fn fu
 								NeighborAddress:   apiutil.AddrOrEmpty(p.Conf.NeighborAddress),
 								NeighborInterface: p.Conf.NeighborInterface,
 								PeerGroup:         p.Conf.PeerGroup,
+								Description:       p.Conf.Description,
 							},
 							State: &api.PeerState{
 								PeerAsn:         p.State.PeerASN,

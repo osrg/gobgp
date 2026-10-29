@@ -909,7 +909,7 @@ func TestGRPCWatchEventPeerUnsetAddresses(t *testing.T) {
 	// 192.0.2.1 is TEST-NET-1, so the session never comes up and the peer
 	// has no remote router ID.
 	err = s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
-		Conf: &api.PeerConf{NeighborAddress: "192.0.2.1", PeerAsn: 65001},
+		Conf: &api.PeerConf{NeighborAddress: "192.0.2.1", PeerAsn: 65001, Description: "test peer"},
 	}})
 	require.NoError(t, err)
 
@@ -921,6 +921,7 @@ func TestGRPCWatchEventPeerUnsetAddresses(t *testing.T) {
 			continue
 		}
 		assert.Equal(t, "", p.Peer.GetState().GetRouterId(), "state.router_id")
+		assert.Equal(t, "test peer", p.Peer.GetConf().GetDescription(), "conf.description")
 		assert.NotEqual(t, api.PeerState_SESSION_STATE_ESTABLISHED, p.Peer.GetState().GetSessionState())
 		return
 	}

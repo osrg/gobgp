@@ -1225,6 +1225,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t
 		RemoteCap:     capList,
 		LocalCap:      localCaps,
 		PeerGroup:     conf.Config.PeerGroup,
+		Description:   conf.Config.Description,
 	}
 
 	if m != nil {
@@ -5533,6 +5534,7 @@ func (s *BgpServer) watchEventQueued(ctx context.Context, callbacks WatchEventMe
 									NeighborAddress:   msg.PeerAddress,
 									NeighborInterface: msg.PeerInterface,
 									PeerGroup:         msg.PeerGroup,
+									Description:       msg.Description,
 								},
 								State: apiutil.PeerState{
 									PeerASN:           msg.PeerAS,
@@ -5642,6 +5644,7 @@ type watchEventPeer struct {
 	LocalPort     uint16
 	PeerID        netip.Addr
 	PeerGroup     string
+	Description   string
 	SentOpen      *bgp.BGPMessage
 	RecvOpen      *bgp.BGPMessage
 	State         bgp.FSMState
