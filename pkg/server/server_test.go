@@ -1821,6 +1821,46 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	assert.Nil(t, path)
 }
 
+// Two eBGP peers in different ASes share one router ID. RFC 6286 Section
+// 2.1 says "The BGP Identifier is a 4-octet, unsigned, non-zero integer
+// that should be unique within an AS.", so they are different routers and
+// a path from one of them is sent to the other.
+func TestFilterpathWitheBGPSameRouterID(t *testing.T) {
+	as := uint32(65000)
+	p1As := uint32(65001)
+	p2As := uint32(65002)
+	routerID := netip.MustParseAddr("10.0.0.1")
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+	p1 := newPeerandInfo(t, as, p1As, "192.168.0.1", rib)
+	p2 := newPeerandInfo(t, as, p2As, "192.168.0.2", rib)
+	for _, p := range []*peer{p1, p2} {
+		conf := p.fsm.pConf.ReadCopy()
+		conf.State.RemoteRouterId = routerID
+		p.fsm.pConf.Update(&conf)
+		info := *p.peerInfo.Load()
+		info.ID = routerID
+		p.peerInfo.Store(&info)
+	}
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})})}
+	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
+
+	new, old := process(rib, []*table.Path{path1})
+	assert.Equal(t, new, path1)
+	// p1 sent the path, so p1 does not get it back.
+	assert.Nil(t, filterpath(p1, new, old))
+	// p2 is another router with the same router ID and gets the path.
+	assert.Equal(t, path1, filterpath(p2, new, old))
+
+	new, old = process(rib, []*table.Path{path1.Clone(true)})
+	assert.True(t, new.IsWithdraw)
+	assert.Nil(t, filterpath(p1, new, old))
+	path := filterpath(p2, new, old)
+	assert.NotNil(t, path)
+	assert.True(t, path.IsWithdraw)
+}
+
 func TestFilterpathWithiBGP(t *testing.T) {
 	as := uint32(65000)
 

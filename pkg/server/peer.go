@@ -608,8 +608,15 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	// return early for one of the two sessions facing B
 	// (whichever is not the new best path), we fail to send a withdraw towards
 	// B, and the route is "stuck".
-	// TODO: considerations for RFC6286
-	if peer.routerID() != path.GetSource().ID {
+	//
+	// The router ID alone does not identify a router. RFC 6286 Section 2.1
+	// says "The BGP Identifier is a 4-octet, unsigned, non-zero integer that
+	// should be unique within an AS." Two eBGP peers in different ASes may
+	// use the same router ID, and a path from one of them must still be sent
+	// to the other. The AS is the one the peer sent in its OPEN message, so
+	// the two sessions facing B above still have the same AS and ID.
+	src := path.GetSource()
+	if peer.routerID() != src.ID || peer.AS() != src.AS {
 		return path
 	}
 
