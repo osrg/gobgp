@@ -2000,8 +2000,8 @@ func (s *BgpServer) grAbort(peer *peer) {
 }
 
 // restartEvent passes an event of our own graceful restart to restart and
-// runs the actions that come back. When the event ends the restart, the
-// LocalRestarting state of every peer is cleared.
+// runs the actions that come back. When the event ends the restart, clear
+// LocalRestarting only for peers whose sessions have been re-established.
 func (s *BgpServer) restartEvent(event func(*gr.Restart) gr.RestartActions) {
 	s.restartMu.Lock()
 	was := s.restart.Restarting()
@@ -2011,7 +2011,11 @@ func (s *BgpServer) restartEvent(event func(*gr.Restart) gr.RestartActions) {
 	s.runRestartActions(a, 0)
 	if ended {
 		for _, p := range s.neighborMap {
-			s.setLocalRestarting(p, false)
+			// RFC 4724 section 4.1 requires R in the OPEN that re-establishes
+			// a session after our restart, even if deferral expired first.
+			if p.fsm.pConf.ReadOnly().State.SessionState == oc.SESSION_STATE_ESTABLISHED {
+				s.setLocalRestarting(p, false)
+			}
 		}
 	}
 }
@@ -2043,8 +2047,8 @@ func (s *BgpServer) restartPeerAdded(peer *peer, c *oc.Neighbor) {
 }
 
 // setLocalRestarting sets the LocalRestarting state of the peer. The state
-// mirrors restart.Restarting() for the API and for the Restart State bit of
-// the OPEN message that the FSM sends.
+// controls the R-bit and per-family F-bits in the OPEN message.
+// An unconnected peer keeps it after the shared export deferral ends.
 func (s *BgpServer) setLocalRestarting(peer *peer, v bool) {
 	peer.fsm.lock.Lock()
 	conf := peer.fsm.pConf.ReadCopy()
@@ -2304,6 +2308,12 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			s.restartEvent(func(r *gr.Restart) gr.RestartActions {
 				return r.PeerEstablished(peer.ID(), n)
 			})
+			s.restartMu.Lock()
+			restartComplete := !s.restart.Restarting()
+			s.restartMu.Unlock()
+			if restartComplete {
+				s.setLocalRestarting(peer, false)
+			}
 
 			// When graceful-restart cap (which means intention
 			// of sending EOR) and route-target address family are negotiated,
