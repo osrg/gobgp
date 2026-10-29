@@ -720,9 +720,13 @@ jobs:
       - name: test
         run: |
           docker load < artifact/gobgp.tar
-          sudo apt-get update
-          sudo apt-get install -y linux-modules-extra-$(uname -r)
-          sudo modprobe vrf
+          # Kernels 7.0 and later ship vrf in linux-modules, and
+          # linux-modules-extra no longer exists for them.
+          if ! sudo modprobe vrf; then
+            sudo apt-get update
+            sudo apt-get install -y linux-modules-extra-$(uname -r)
+            sudo modprobe vrf
+          fi
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 -m pytest test/scenario_test/tcp_md5_test.py --gobgp-image gobgp -x -s
 
@@ -738,8 +742,12 @@ jobs:
       - name: test
         run: |
           docker load < artifact/gobgp.tar
-          sudo apt-get update
-          sudo apt-get install -y linux-modules-extra-$(uname -r)
-          sudo modprobe vrf
+          # Kernels 7.0 and later ship vrf in linux-modules, and
+          # linux-modules-extra no longer exists for them.
+          if ! sudo modprobe vrf; then
+            sudo apt-get update
+            sudo apt-get install -y linux-modules-extra-$(uname -r)
+            sudo modprobe vrf
+          fi
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 -m pytest test/scenario_test/tcp_ao_test.py --gobgp-image gobgp -x -s
