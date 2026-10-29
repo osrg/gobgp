@@ -2110,12 +2110,9 @@ func (s *BgpServer) restartReleased(released []bgp.Family) {
 		slog.String("Topic", "Server"),
 		slog.Any("Families", released))
 	for _, p := range s.neighborMap {
-		// The FSM stores the Established state after the server handles
-		// it, and the handling of another peer runs in parallel. The
-		// session state of the configuration is set at the start of the
-		// handling, so a peer whose initial dump is being built is not
-		// left out. Such a peer may get a family twice, which is harmless.
-		if p.fsm.pConf.ReadOnly().State.SessionState != oc.SESSION_STATE_ESTABLISHED {
+		// PeerUp publishes Established before building its initial update.
+		// A peer still being prepared catches up in that update.
+		if p.State() != bgp.BGP_FSM_ESTABLISHED {
 			continue
 		}
 		families := make([]bgp.Family, 0, len(released))
@@ -2301,9 +2298,6 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.peerInfo.Store(peerInfo)
 			n := peer.grNegotiated()
 			s.grSessionEstablished(peer, n)
-			s.restartEvent(func(r *gr.Restart) gr.RestartActions {
-				return r.PeerEstablished(peer.ID(), n)
-			})
 
 			// When graceful-restart cap (which means intention
 			// of sending EOR) and route-target address family are negotiated,
@@ -2316,8 +2310,17 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			// any routes (and EORs) before we send ours (or deferral-timer expires).
 			c := conf.GetAfiSafi(bgp.RF_RTC_UC)
 			notPeerRestarting := !peer.grRestarting()
-			if y := peer.IsFamilyEnabled(bgp.RF_RTC_UC); y && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0 {
-				peer.setRtcEORWait(true)
+			waitRTC := peer.IsFamilyEnabled(bgp.RF_RTC_UC) && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0
+			peer.setRtcEORWait(waitRTC)
+			// Publish Established after preparing the peer and before queuing
+			// the initial update, so subsequent withdrawals are not suppressed
+			// while the FSM is still returning from this callback.
+			peer.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+			s.restartEvent(func(r *gr.Restart) gr.RestartActions {
+				return r.PeerEstablished(peer.ID(), n)
+			})
+
+			if waitRTC {
 				s.getBestFromLocalCallback(peer, []bgp.Family{bgp.RF_RTC_UC}, true, true, func(paths []*table.Path, filtered []*table.Path) {
 					if len(paths) > 0 {
 						peer.updateRoutes(paths...)
