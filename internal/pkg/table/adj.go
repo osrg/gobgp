@@ -375,11 +375,21 @@ func (adj *AdjRib) TableInfo(family bgp.Family) (*TableInfo, error) {
 	if _, ok := adj.table[family]; !ok {
 		return nil, fmt.Errorf("%s unsupported", family)
 	}
-	c := adj.Count([]bgp.Family{family})
-	a := adj.Accepted([]bgp.Family{family})
+	rf := []bgp.Family{family}
+	// A peer with ADD-PATH sends several paths for one destination, so
+	// the path count is not the destination count. There is no counter
+	// for destinations; walk the table instead. This is a management
+	// operation and is not on the update path.
+	d := 0
+	adj.walkActive(rf, func(dest *destination) bool {
+		if len(dest.knownPathList) != 0 {
+			d++
+		}
+		return false
+	})
 	return &TableInfo{
-		NumDestination: c,
-		NumPath:        c,
-		NumAccepted:    a,
+		NumDestination: d,
+		NumPath:        adj.Count(rf),
+		NumAccepted:    adj.Accepted(rf),
 	}, nil
 }

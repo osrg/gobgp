@@ -467,6 +467,46 @@ func TestAdjRibCountMatchesWalk(t *testing.T) {
 	check("drop", 0)
 }
 
+func TestAdjRibTableInfoAddPath(t *testing.T) {
+	pi := &PeerInfo{Address: netip.MustParseAddr("192.0.2.1"), AS: 65001}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	family := bgp.RF_IPv4_UC
+	adj := NewAdjRib(logger, []bgp.Family{family})
+
+	newPath := func(prefix string, remoteID uint32, withdraw, rejected bool) *Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		require.NoError(t, err)
+		p := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri}, withdraw, attrs, time.Now(), false)
+		p.remoteID = remoteID
+		p.SetRejected(rejected)
+		return p
+	}
+	check := func(step string, dests, paths, accepted int) {
+		t.Helper()
+		info, err := adj.TableInfo(family)
+		require.NoError(t, err)
+		assert.Equal(t, dests, info.NumDestination, "%s: NumDestination", step)
+		assert.Equal(t, paths, info.NumPath, "%s: NumPath", step)
+		assert.Equal(t, accepted, info.NumAccepted, "%s: NumAccepted", step)
+	}
+
+	check("empty", 0, 0, 0)
+
+	// Two paths for one prefix with different path IDs, and one path
+	// for another prefix that the import policy rejected.
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, false, false), newPath("10.0.0.0/24", 2, false, false), newPath("10.0.1.0/24", 1, false, true)})
+	check("add", 2, 3, 2)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, true, false)})
+	check("withdraw one path ID", 2, 2, 1)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 2, true, false)})
+	check("withdraw the last path", 1, 1, 0)
+
+	_, err := adj.TableInfo(bgp.RF_IPv6_UC)
+	assert.Error(t, err)
+}
+
 func TestAdjRibCountUnknownFamily(t *testing.T) {
 	adj := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC})
 	assert.Equal(t, 0, adj.Count([]bgp.Family{bgp.RF_IPv6_UC}))
