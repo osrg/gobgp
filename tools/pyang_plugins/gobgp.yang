@@ -975,6 +975,11 @@ module gobgp {
     leaf deferral-time {
       type uint16;
     }
+    leaf local-restart-connection-wait-time {
+      type uint32;
+      units "seconds";
+      description "Passive connection wait during local restart; zero preserves the default deferral behavior.";
+    }
     leaf notification-enabled {
       type boolean;
     }
@@ -987,6 +992,11 @@ module gobgp {
     description "additional graceful-restart status";
     leaf deferral-time {
       type uint16;
+    }
+    leaf local-restart-connection-wait-time {
+      type uint32;
+      units "seconds";
+      description "Passive connection wait during local restart; zero preserves the default deferral behavior.";
     }
     leaf notification-enabled {
       type boolean;

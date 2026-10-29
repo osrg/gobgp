@@ -4674,6 +4674,9 @@ type GracefulRestartState struct {
 	Mode Mode `mapstructure:"mode" json:"mode,omitempty"`
 	// original -> gobgp:deferral-time
 	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
+	// original -> gobgp:local-restart-connection-wait-time
+	// Passive connection wait during local restart; zero preserves the default deferral behavior.
+	LocalRestartConnectionWaitTime uint32 `mapstructure:"local-restart-connection-wait-time" json:"local-restart-connection-wait-time,omitempty"`
 	// original -> gobgp:notification-enabled
 	// gobgp:notification-enabled's original type is boolean.
 	NotificationEnabled bool `mapstructure:"notification-enabled" json:"notification-enabled,omitempty"`
@@ -4715,6 +4718,9 @@ type GracefulRestartConfig struct {
 	HelperOnly bool `mapstructure:"helper-only" json:"helper-only,omitempty"`
 	// original -> gobgp:deferral-time
 	DeferralTime uint16 `mapstructure:"deferral-time" json:"deferral-time,omitempty"`
+	// original -> gobgp:local-restart-connection-wait-time
+	// Passive connection wait during local restart; zero preserves the default deferral behavior.
+	LocalRestartConnectionWaitTime uint32 `mapstructure:"local-restart-connection-wait-time" json:"local-restart-connection-wait-time,omitempty"`
 	// original -> gobgp:notification-enabled
 	// gobgp:notification-enabled's original type is boolean.
 	NotificationEnabled bool `mapstructure:"notification-enabled" json:"notification-enabled,omitempty"`
@@ -4740,6 +4746,9 @@ func (lhs *GracefulRestartConfig) Equal(rhs *GracefulRestartConfig) bool {
 		return false
 	}
 	if lhs.DeferralTime != rhs.DeferralTime {
+		return false
+	}
+	if lhs.LocalRestartConnectionWaitTime != rhs.LocalRestartConnectionWaitTime {
 		return false
 	}
 	if lhs.NotificationEnabled != rhs.NotificationEnabled {

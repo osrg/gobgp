@@ -206,7 +206,7 @@ type BgpServer struct {
 	// shared.mu for reading, and all of them reach restart.
 	restartMu     sync.Mutex
 	restart       gr.Restart
-	restartTimers map[gr.DeferralTimer]*time.Timer
+	restartTimers map[gr.DeferralTimer]*restartTimer
 	// manage lifecycle of the server
 	// isServing is set by Serve and is never cleared. It says that Serve was
 	// entered, not that it is still running. A server cannot be served twice:
@@ -2008,7 +2008,7 @@ func (s *BgpServer) restartEvent(event func(*gr.Restart) gr.RestartActions) {
 	a := event(&s.restart)
 	ended := was && !s.restart.Restarting()
 	s.restartMu.Unlock()
-	s.runRestartActions(a, 0)
+	s.runRestartActions(a, 0, false)
 	if ended {
 		for _, p := range s.neighborMap {
 			s.setLocalRestarting(p, false)
@@ -2031,6 +2031,10 @@ func (s *BgpServer) deferred(f bgp.Family) bool {
 func (s *BgpServer) restartPeerAdded(peer *peer, c *oc.Neighbor) {
 	families, _ := oc.AfiSafis(c.AfiSafis).ToRfList()
 	deferral := time.Duration(c.GracefulRestart.Config.DeferralTime) * time.Second
+	connectionWait := c.Transport.Config.PassiveMode && c.GracefulRestart.Config.LocalRestartConnectionWaitTime > 0
+	if connectionWait {
+		deferral = time.Duration(c.GracefulRestart.Config.LocalRestartConnectionWaitTime) * time.Second
+	}
 	s.restartMu.Lock()
 	a := s.restart.PeerAdded(peer.ID(), families)
 	s.restartMu.Unlock()
@@ -2039,7 +2043,7 @@ func (s *BgpServer) restartPeerAdded(peer *peer, c *oc.Neighbor) {
 		// the peer was released already.
 		s.setLocalRestarting(peer, false)
 	}
-	s.runRestartActions(a, deferral)
+	s.runRestartActions(a, deferral, connectionWait)
 }
 
 // setLocalRestarting sets the LocalRestarting state of the peer. The state
@@ -2055,24 +2059,23 @@ func (s *BgpServer) setLocalRestarting(peer *peer, v bool) {
 	peer.fsm.lock.Unlock()
 }
 
+type restartTimer struct {
+	timer          *time.Timer
+	connectionWait bool
+}
+
 // runRestartActions runs the actions that restart returned, in their order.
-// deferral is the duration of the timers to start: the deferral time of the
-// peer that was added. Only PeerAdded returns timers to start.
-func (s *BgpServer) runRestartActions(a gr.RestartActions, deferral time.Duration) {
+// Only PeerAdded starts timers, initially for connection wait or deferral.
+func (s *BgpServer) runRestartActions(a gr.RestartActions, deferral time.Duration, connectionWait bool) {
 	s.restartMu.Lock()
 	for _, d := range a.StopTimers {
 		if t, ok := s.restartTimers[d]; ok {
-			t.Stop()
+			t.timer.Stop()
 			delete(s.restartTimers, d)
 		}
 	}
 	for _, d := range a.StartTimers {
-		if s.restartTimers == nil {
-			s.restartTimers = make(map[gr.DeferralTimer]*time.Timer)
-		}
-		s.restartTimers[d] = time.AfterFunc(deferral, func() {
-			s.restartTimerExpired(d)
-		})
+		s.runRestartTimerLocked(d, deferral, connectionWait)
 	}
 	s.restartMu.Unlock()
 	if len(a.Released) > 0 {
@@ -2080,15 +2083,46 @@ func (s *BgpServer) runRestartActions(a gr.RestartActions, deferral time.Duratio
 	}
 }
 
+func (s *BgpServer) runRestartTimerLocked(d gr.DeferralTimer, duration time.Duration, connectionWait bool) {
+	if s.restartTimers == nil {
+		s.restartTimers = make(map[gr.DeferralTimer]*restartTimer)
+	}
+	t := &restartTimer{connectionWait: connectionWait}
+	t.timer = time.AfterFunc(duration, func() { s.restartTimerExpired(d, t) })
+	s.restartTimers[d] = t
+}
+
+func (s *BgpServer) runDeferralRestartTimer(peer *peer) {
+	s.restartMu.Lock()
+	defer s.restartMu.Unlock()
+	deferral := time.Duration(peer.fsm.pConf.ReadOnly().GracefulRestart.Config.DeferralTime) * time.Second
+	for _, family := range peer.configuredRFlist() {
+		d := gr.DeferralTimer{Peer: peer.ID(), Family: family}
+		if t := s.restartTimers[d]; t != nil && t.connectionWait {
+			t.timer.Stop()
+			s.runRestartTimerLocked(d, deferral, false)
+		}
+	}
+}
+
 // restartTimerExpired passes the expiry of a deferral timer of our own
 // graceful restart to restart, in the server loop.
-func (s *BgpServer) restartTimerExpired(d gr.DeferralTimer) {
+func (s *BgpServer) restartTimerExpired(d gr.DeferralTimer, timer *restartTimer) {
 	//nolint: errcheck // the server is stopping
 	s.mgmtOperation(func() error {
 		s.restartMu.Lock()
+		// Stop cannot cancel a callback already queued in mgmtOperation.
+		if s.restartTimers[d] != timer {
+			s.restartMu.Unlock()
+			return nil
+		}
 		delete(s.restartTimers, d)
 		s.restartMu.Unlock()
-		s.logger.Info("deferral timer expired",
+		reason := "deferral timer expired"
+		if timer.connectionWait {
+			reason = "local restart connection wait expired"
+		}
+		s.logger.Info(reason,
 			slog.String("Topic", "Server"),
 			slog.String("Key", d.Peer),
 			slog.String("Family", d.Family.String()))
@@ -2301,6 +2335,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.peerInfo.Store(peerInfo)
 			n := peer.grNegotiated()
 			s.grSessionEstablished(peer, n)
+			s.runDeferralRestartTimer(peer)
 			s.restartEvent(func(r *gr.Restart) gr.RestartActions {
 				return r.PeerEstablished(peer.ID(), n)
 			})

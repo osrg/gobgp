@@ -173,6 +173,32 @@ that peer is no longer waited for. The default is 360 seconds.
     deferral-time = 60
 ```
 
+For a passive peer, `local-restart-connection-wait-time` optionally gives the
+first connection its own wait, in seconds, starting when the peer is added during
+local restart. If the session becomes Established before this wait expires,
+`deferral-time` starts then, allowing the full interval for receiving EOR.
+If the connection wait expires first, this peer stops delaying advertisement.
+A late connection still receives the initial routes and EOR; it does not start
+another shared EOR wait.
+
+```toml
+  [neighbors.transport.config]
+    passive-mode = true
+  [neighbors.graceful-restart.config]
+    enabled = true
+    deferral-time = 60
+    local-restart-connection-wait-time = 30
+```
+
+The default, zero, preserves the existing behavior: `deferral-time` runs from
+peer creation. Active peers also retain that behavior. Connection wait applies
+only to the initial local restart, not to subsequent session flaps. It can be
+configured on a peer group; a neighbor can override it, including with zero.
+These settings delay route advertisement, not best-path selection or FIB updates.
+
+When connection wait is enabled, allow for both the connection wait and EOR
+deferral when choosing the overall restart budget.
+
 Note that the peers keep the routes of `gobgpd` only for the `restart-time`
 that `gobgpd` advertised. If `deferral-time` is longer than `restart-time`
 and a peer is slow to send its marker, the other peers withdraw the routes

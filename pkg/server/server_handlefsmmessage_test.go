@@ -2962,6 +2962,11 @@ func TestGetBestFromLocalSecondaryRouteBeforeEstablished(t *testing.T) {
 // ipv6-unicast with graceful restart, and a deferral time of deferral.
 func localRestartPeer(t *testing.T, s *BgpServer, address string, deferral uint16) *peer {
 	t.Helper()
+	return localRestartPeerWithConfig(t, s, address, oc.GracefulRestartConfig{Enabled: true, DeferralTime: deferral}, false)
+}
+
+func localRestartPeerWithConfig(t *testing.T, s *BgpServer, address string, grConfig oc.GracefulRestartConfig, passive bool) *peer {
+	t.Helper()
 	addr := netip.MustParseAddr(address)
 	p := newPeerandInfo(t, 65000, 65001, address, s.globalRib)
 	m := NewMockConnection()
@@ -2972,8 +2977,8 @@ func localRestartPeer(t *testing.T, s *BgpServer, address string, deferral uint1
 	p.fsm.lock.Lock()
 	conf := p.fsm.pConf.ReadCopy()
 	conf.Config.LocalAs = 65000
-	conf.GracefulRestart.Config.Enabled = true
-	conf.GracefulRestart.Config.DeferralTime = deferral
+	conf.GracefulRestart.Config = grConfig
+	conf.Transport.Config.PassiveMode = passive
 	conf.GracefulRestart.State.LocalRestarting = true
 	conf.AfiSafis = []oc.AfiSafi{
 		grAfiSafi(oc.AFI_SAFI_TYPE_IPV4_UNICAST, bgp.RF_IPv4_UC),
@@ -3274,4 +3279,98 @@ func TestHandleFSMMessage_LLGROnlyFamily(t *testing.T) {
 	p.grMu.Unlock()
 	assert.True(t, llgrTimer)
 	assert.True(t, restartTimer)
+}
+
+func restartTimerFor(s *BgpServer, p *peer, family bgp.Family) *restartTimer {
+	s.restartMu.Lock()
+	defer s.restartMu.Unlock()
+	return s.restartTimers[gr.DeferralTimer{Peer: p.ID(), Family: family}]
+}
+
+func TestLocalRestartConnectionWait(t *testing.T) {
+	t.Run("expires_without_connection", func(t *testing.T) {
+		s := localRestartServer(t)
+		p := localRestartPeerWithConfig(t, s, "10.0.0.1", oc.GracefulRestartConfig{Enabled: true, DeferralTime: 60, LocalRestartConnectionWaitTime: 1}, true)
+		require.True(t, restartTimerFor(s, p, bgp.RF_IPv4_UC).connectionWait)
+		require.Eventually(t, func() bool { return !s.deferred(bgp.RF_IPv4_UC) && !s.deferred(bgp.RF_IPv6_UC) }, 3*time.Second, 10*time.Millisecond)
+		require.NoError(t, s.mgmtOperation(func() error { return nil }, false))
+		grEstablish(t, s, p, grOpen(t, grBoth(120)))
+		require.False(t, localRestarting(p))
+		require.ElementsMatch(t, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, sentEORs(p))
+	})
+	t.Run("established_starts_full_deferral", func(t *testing.T) {
+		s := localRestartServer(t)
+		p := localRestartPeerWithConfig(t, s, "10.0.0.1", oc.GracefulRestartConfig{Enabled: true, DeferralTime: 1, LocalRestartConnectionWaitTime: 60}, true)
+		d := gr.DeferralTimer{Peer: p.ID(), Family: bgp.RF_IPv4_UC}
+		old := restartTimerFor(s, p, d.Family)
+		grEstablish(t, s, p, grOpen(t, grBoth(120)))
+		current := restartTimerFor(s, p, d.Family)
+		require.NotSame(t, old, current)
+		require.False(t, current.connectionWait)
+		s.restartTimerExpired(d, old)
+		require.Same(t, current, restartTimerFor(s, p, d.Family), "queued connection timeout must not expire EOR deferral")
+		require.True(t, s.deferred(d.Family))
+		require.Eventually(t, func() bool { return !s.deferred(d.Family) }, 3*time.Second, 10*time.Millisecond)
+	})
+	t.Run("EOR_cancels_deferral", func(t *testing.T) {
+		s := localRestartServer(t)
+		p := localRestartPeerWithConfig(t, s, "10.0.0.1", oc.GracefulRestartConfig{Enabled: true, DeferralTime: 60, LocalRestartConnectionWaitTime: 60}, true)
+		grEstablish(t, s, p, grOpen(t, grBoth(120)))
+		grEOR(s, p, bgp.RF_IPv4_UC)
+		require.Nil(t, restartTimerFor(s, p, bgp.RF_IPv4_UC))
+		require.False(t, s.deferred(bgp.RF_IPv4_UC))
+		require.True(t, s.deferred(bgp.RF_IPv6_UC))
+	})
+	for _, tc := range []struct {
+		name    string
+		passive bool
+		wait    uint32
+	}{{"zero_preserves_master", true, 0}, {"active_preserves_master", false, 60}} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := localRestartServer(t)
+			p := localRestartPeerWithConfig(t, s, "10.0.0.1", oc.GracefulRestartConfig{Enabled: true, DeferralTime: 60, LocalRestartConnectionWaitTime: tc.wait}, tc.passive)
+			before := restartTimerFor(s, p, bgp.RF_IPv4_UC)
+			require.False(t, before.connectionWait)
+			grEstablish(t, s, p, grOpen(t, grBoth(120)))
+			require.Same(t, before, restartTimerFor(s, p, bgp.RF_IPv4_UC))
+		})
+	}
+	t.Run("replacement_ignores_old_callback", func(t *testing.T) {
+		s := localRestartServer(t)
+		localRestartPeer(t, s, "10.0.0.2", 60)
+		add := func() *peer {
+			require.NoError(t, s.AddPeer(context.Background(), &api.AddPeerRequest{Peer: &api.Peer{
+				Conf:            &api.PeerConf{NeighborAddress: "10.0.0.1", PeerAsn: 65001},
+				Transport:       &api.Transport{PassiveMode: true},
+				GracefulRestart: &api.GracefulRestart{Enabled: true, LocalRestarting: true, DeferralTime: 60, LocalRestartConnectionWaitTime: 60},
+			}}))
+			var p *peer
+			require.NoError(t, s.mgmtOperation(func() error { p = s.neighborMap[netip.MustParseAddr("10.0.0.1")]; return nil }, true))
+			return p
+		}
+		p := add()
+		d := gr.DeferralTimer{Peer: p.ID(), Family: bgp.RF_IPv4_UC}
+		old := restartTimerFor(s, p, d.Family)
+		require.NotNil(t, old)
+		require.NoError(t, s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: p.ID()}))
+		replacement := add()
+		current := restartTimerFor(s, replacement, d.Family)
+		require.NotNil(t, current)
+		s.restartTimerExpired(d, old)
+		require.Same(t, current, restartTimerFor(s, replacement, d.Family))
+		require.True(t, s.deferred(d.Family))
+	})
+}
+
+func TestConnectionWaitAPI(t *testing.T) {
+	config := &oc.Neighbor{GracefulRestart: oc.GracefulRestart{Config: oc.GracefulRestartConfig{LocalRestartConnectionWaitTime: 17}}}
+	config.Config.NeighborAddress = netip.MustParseAddr("10.0.0.1")
+	a := oc.NewPeerFromConfigStruct(config)
+	restored, err := newNeighborFromAPIStruct(a)
+	require.NoError(t, err)
+	require.Equal(t, uint32(17), restored.GracefulRestart.Config.LocalRestartConnectionWaitTime)
+	group := &oc.PeerGroup{GracefulRestart: config.GracefulRestart}
+	restoredGroup, err := newPeerGroupFromAPIStruct(oc.NewPeerGroupFromConfigStruct(group))
+	require.NoError(t, err)
+	require.Equal(t, uint32(17), restoredGroup.GracefulRestart.Config.LocalRestartConnectionWaitTime)
 }

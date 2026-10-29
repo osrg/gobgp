@@ -956,6 +956,9 @@ message GracefulRestart {
   bool peer_restarting = 9;
   bool local_restarting = 10;
   string mode = 11;
+  // Seconds to wait for a passive peer to connect during local restart.
+  // Zero preserves the default deferral behavior.
+  uint32 local_restart_connection_wait_time = 12;
 }
 
 message MpGracefulRestartConfig {

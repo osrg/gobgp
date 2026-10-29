@@ -519,3 +519,24 @@ func TestOverwriteNeighborConfigWithPeerGroupGracefulRestart(t *testing.T) {
 		assert.Equal(t, uint16(300), n.GracefulRestart.Config.DeferralTime)
 	})
 }
+
+func TestOverwriteNeighborConnectionWait(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		configured bool
+		value      uint32
+		want       uint32
+	}{{"inherit", false, 0, 30}, {"override", true, 5, 5}, {"explicit_zero", true, 0, 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			fields := map[string]any{"config": map[string]any{"neighbor-address": testNeighborAddress, "peer-group": "g"}}
+			if tc.configured {
+				fields["graceful-restart"] = map[string]any{"config": map[string]any{"local-restart-connection-wait-time": tc.value}}
+			}
+			registerConfiguredFields(t, testNeighborAddress, fields)
+			n := &Neighbor{Config: NeighborConfig{NeighborAddress: netip.MustParseAddr(testNeighborAddress), PeerGroup: "g"}, GracefulRestart: GracefulRestart{Config: GracefulRestartConfig{LocalRestartConnectionWaitTime: tc.value}}}
+			pg := &PeerGroup{GracefulRestart: GracefulRestart{Config: GracefulRestartConfig{LocalRestartConnectionWaitTime: 30}}}
+			require.NoError(t, OverwriteNeighborConfigWithPeerGroup(n, pg))
+			require.Equal(t, tc.want, n.GracefulRestart.Config.LocalRestartConnectionWaitTime)
+		})
+	}
+}

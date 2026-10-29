@@ -1032,6 +1032,7 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.GracefulRestart.Config.RestartTime = uint16(a.GracefulRestart.RestartTime)
 		pconf.GracefulRestart.Config.HelperOnly = a.GracefulRestart.HelperOnly
 		pconf.GracefulRestart.Config.DeferralTime = uint16(a.GracefulRestart.DeferralTime)
+		pconf.GracefulRestart.Config.LocalRestartConnectionWaitTime = a.GracefulRestart.LocalRestartConnectionWaitTime
 		pconf.GracefulRestart.Config.NotificationEnabled = a.GracefulRestart.NotificationEnabled
 		pconf.GracefulRestart.Config.LongLivedEnabled = a.GracefulRestart.LonglivedEnabled
 		pconf.GracefulRestart.State.LocalRestarting = a.GracefulRestart.LocalRestarting
@@ -1195,6 +1196,7 @@ func newPeerGroupFromAPIStruct(a *api.PeerGroup) (*oc.PeerGroup, error) {
 		pconf.GracefulRestart.Config.RestartTime = uint16(a.GracefulRestart.RestartTime)
 		pconf.GracefulRestart.Config.HelperOnly = a.GracefulRestart.HelperOnly
 		pconf.GracefulRestart.Config.DeferralTime = uint16(a.GracefulRestart.DeferralTime)
+		pconf.GracefulRestart.Config.LocalRestartConnectionWaitTime = a.GracefulRestart.LocalRestartConnectionWaitTime
 		pconf.GracefulRestart.Config.NotificationEnabled = a.GracefulRestart.NotificationEnabled
 		pconf.GracefulRestart.Config.LongLivedEnabled = a.GracefulRestart.LonglivedEnabled
 		pconf.GracefulRestart.State.LocalRestarting = a.GracefulRestart.LocalRestarting
@@ -2214,13 +2216,14 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 	if a.GracefulRestart != nil {
 		global.GracefulRestart = oc.GracefulRestart{
 			Config: oc.GracefulRestartConfig{
-				Enabled:             a.GracefulRestart.Enabled,
-				RestartTime:         uint16(a.GracefulRestart.RestartTime),
-				StaleRoutesTime:     float64(a.GracefulRestart.StaleRoutesTime),
-				HelperOnly:          a.GracefulRestart.HelperOnly,
-				DeferralTime:        uint16(a.GracefulRestart.DeferralTime),
-				NotificationEnabled: a.GracefulRestart.NotificationEnabled,
-				LongLivedEnabled:    a.GracefulRestart.LonglivedEnabled,
+				Enabled:                        a.GracefulRestart.Enabled,
+				RestartTime:                    uint16(a.GracefulRestart.RestartTime),
+				StaleRoutesTime:                float64(a.GracefulRestart.StaleRoutesTime),
+				HelperOnly:                     a.GracefulRestart.HelperOnly,
+				DeferralTime:                   uint16(a.GracefulRestart.DeferralTime),
+				LocalRestartConnectionWaitTime: a.GracefulRestart.LocalRestartConnectionWaitTime,
+				NotificationEnabled:            a.GracefulRestart.NotificationEnabled,
+				LongLivedEnabled:               a.GracefulRestart.LonglivedEnabled,
 			},
 		}
 	}
