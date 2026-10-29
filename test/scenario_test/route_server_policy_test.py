@@ -490,13 +490,13 @@ class ExportPolicyIPv6Update(object):
 
 
 @register_scenario
-class ImportPolicyAsPathLengthCondition(object):
+class ExportPolicyAsPathLengthCondition(object):
     """
-    No.9 aspath length condition import-policy test
+    No.9 aspath length condition export-policy test
                               --------------------------------
     e1 ->(aspath_length=10)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                               |                              |
-                              | ->x q2-rib                   |
+                              | -> q2-rib ->x q2-adj-rib-out |
                               --------------------------------
     """
     @staticmethod
@@ -541,19 +541,19 @@ class ImportPolicyAsPathLengthCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathLengthCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathLengthCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathLengthCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathLengthCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathLengthCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathLengthCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathCondition(object):
+class ExportPolicyAsPathCondition(object):
     """
-    No.10 aspath from condition import-policy test
+    No.10 aspath from condition export-policy test
                                 --------------------------------
     e1 ->(aspath=[65100,...])-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                 |                              |
-                                | ->x q2-rib                   |
+                                | -> q2-rib ->x q2-adj-rib-out |
                                 --------------------------------
     """
     @staticmethod
@@ -593,19 +593,19 @@ class ImportPolicyAsPathCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathAnyCondition(object):
+class ExportPolicyAsPathAnyCondition(object):
     """
-    No.11 aspath any condition import-policy test
+    No.11 aspath any condition export-policy test
                                    --------------------------------
     e1 ->(aspath=[...65098,...])-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                    |                              |
-                                   | ->x q2-rib                   |
+                                   | -> q2-rib ->x q2-adj-rib-out |
                                    --------------------------------
     """
     @staticmethod
@@ -645,19 +645,19 @@ class ImportPolicyAsPathAnyCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathAnyCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathAnyCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathAnyCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathAnyCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathAnyCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathAnyCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathOriginCondition(object):
+class ExportPolicyAsPathOriginCondition(object):
     """
-    No.12 aspath origin condition import-policy test
+    No.12 aspath origin condition export-policy test
                                 --------------------------------
     e1 ->(aspath=[...,65090])-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                 |                              |
-                                | ->x q2-rib                   |
+                                | -> q2-rib ->x q2-adj-rib-out |
                                 --------------------------------
     """
     @staticmethod
@@ -697,19 +697,19 @@ class ImportPolicyAsPathOriginCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathOriginCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathOriginCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathOriginCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathOriginCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathOriginCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathOriginCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathOnlyCondition(object):
+class ExportPolicyAsPathOnlyCondition(object):
     """
-    No.13 aspath only condition import-policy test
+    No.13 aspath only condition export-policy test
                               --------------------------------
     e1 -> (aspath=[65100]) -> | ->  q1-rib -> q1-adj-rib-out | --> q1
                               |                              |
-                              | ->x q2-rib                   |
+                              | -> q2-rib ->x q2-adj-rib-out |
                               --------------------------------
     """
     @staticmethod
@@ -749,15 +749,15 @@ class ImportPolicyAsPathOnlyCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathOnlyCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathOnlyCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathOnlyCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathOnlyCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathOnlyCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathOnlyCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathMismatchCondition(object):
+class ExportPolicyAsPathMismatchCondition(object):
     """
-    No.14 aspath condition mismatch import-policy test
+    No.14 aspath condition mismatch export-policy test
                                    -------------------------------
     exabgp ->(aspath=[...,65090])->| -> q1-rib -> q1-adj-rib-out | --> q1
                                    |                             |
@@ -811,19 +811,19 @@ class ImportPolicyAsPathMismatchCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathMismatchCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathMismatchCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathMismatchCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathMismatchCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathMismatchCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathMismatchCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyCommunityCondition(object):
+class ExportPolicyCommunityCondition(object):
     """
-    No.15 community condition import-policy test
+    No.15 community condition export-policy test
                                 --------------------------------
     e1 ->(community=65100:10)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                 |                              |
-                                | ->x q2-rib                   |
+                                | -> q2-rib ->x q2-adj-rib-out |
                                 --------------------------------
     """
     @staticmethod
@@ -862,19 +862,19 @@ class ImportPolicyCommunityCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyCommunityCondition").boot(env)
-        lookup_scenario("ImportPolicyCommunityCondition").setup(env)
-        lookup_scenario("ImportPolicyCommunityCondition").check(env)
+        lookup_scenario("ExportPolicyCommunityCondition").boot(env)
+        lookup_scenario("ExportPolicyCommunityCondition").setup(env)
+        lookup_scenario("ExportPolicyCommunityCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyCommunityRegexp(object):
+class ExportPolicyCommunityRegexp(object):
     """
-    No.16 community condition regexp import-policy test
+    No.16 community condition regexp export-policy test
                                 --------------------------------
     e1 ->(community=65100:10)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                 |                              |
-                                | ->x q2-rib                   |
+                                | -> q2-rib ->x q2-adj-rib-out |
                                 --------------------------------
     """
     @staticmethod
@@ -913,9 +913,9 @@ class ImportPolicyCommunityRegexp(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyCommunityRegexp").boot(env)
-        lookup_scenario("ImportPolicyCommunityRegexp").setup(env)
-        lookup_scenario("ImportPolicyCommunityRegexp").check(env)
+        lookup_scenario("ExportPolicyCommunityRegexp").boot(env)
+        lookup_scenario("ExportPolicyCommunityRegexp").setup(env)
+        lookup_scenario("ExportPolicyCommunityRegexp").check(env)
 
 
 def community_exists(path, com):
@@ -928,14 +928,14 @@ def community_exists(path, com):
 
 
 @register_scenario
-class ImportPolicyCommunityRemove(object):
+class ExportPolicyCommunityRemoveMultipleRoutes(object):
     """
-    No.19 community remove action import-policy test
+    No.19 community remove action export-policy test
                                 -------------------------------
     e1 ->(community=65100:10)-> | -> q1-rib -> q1-adj-rib-out | ->(community=65100:10)-> q1
                                 |                             |
                                 | -> q2-rib -> q2-adj-rib-out | ->(community=null)->     q2
-                                |    apply action             |
+                                |              apply action   |
                                 -------------------------------
     """
     @staticmethod
@@ -1007,21 +1007,21 @@ class ImportPolicyCommunityRemove(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyCommunityRemove").boot(env)
-        lookup_scenario("ImportPolicyCommunityRemove").setup(env)
-        lookup_scenario("ImportPolicyCommunityRemove").check(env)
-        lookup_scenario("ImportPolicyCommunityRemove").check2(env)
+        lookup_scenario("ExportPolicyCommunityRemoveMultipleRoutes").boot(env)
+        lookup_scenario("ExportPolicyCommunityRemoveMultipleRoutes").setup(env)
+        lookup_scenario("ExportPolicyCommunityRemoveMultipleRoutes").check(env)
+        lookup_scenario("ExportPolicyCommunityRemoveMultipleRoutes").check2(env)
 
 
 @register_scenario
-class ImportPolicyCommunityNull(object):
+class ExportPolicyCommunityNullMultipleRoutes(object):
     """
-    No.20 community null action import-policy test
+    No.20 community null action export-policy test
                                 -------------------------------
     e1 ->(community=65100:10)-> | -> q1-rib -> q1-adj-rib-out | ->(community=65100:10)-> q1
                                 |                             |
                                 | -> q2-rib -> q2-adj-rib-out | ->(community=null)->     q2
-                                |    apply action             |
+                                |              apply action   |
                                 -------------------------------
     """
     @staticmethod
@@ -1059,7 +1059,7 @@ class ImportPolicyCommunityNull(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityRemove').check(env)
+        lookup_scenario('ExportPolicyCommunityRemoveMultipleRoutes').check(env)
 
     @staticmethod
     def check2(env):
@@ -1083,10 +1083,10 @@ class ImportPolicyCommunityNull(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyCommunityNull").boot(env)
-        lookup_scenario("ImportPolicyCommunityNull").setup(env)
-        lookup_scenario("ImportPolicyCommunityNull").check(env)
-        lookup_scenario("ImportPolicyCommunityNull").check2(env)
+        lookup_scenario("ExportPolicyCommunityNullMultipleRoutes").boot(env)
+        lookup_scenario("ExportPolicyCommunityNullMultipleRoutes").setup(env)
+        lookup_scenario("ExportPolicyCommunityNullMultipleRoutes").check(env)
+        lookup_scenario("ExportPolicyCommunityNullMultipleRoutes").check2(env)
 
 
 @register_scenario
@@ -1689,7 +1689,7 @@ class ExportPolicyAsPathPrependLastAS(object):
     e1 ->(aspath=[65001])-> | ->  p1-rib -> p1-adj-rib-out | -> p1
                             |                              |
                             | ->  p2-rib -> p2-adj-rib-out | -> p2
-                            |     apply action             |
+                            |               apply action   |
                             --------------------------------
     """
     @staticmethod
@@ -1759,13 +1759,13 @@ class ExportPolicyAsPathPrependLastAS(object):
 
 
 @register_scenario
-class ImportPolicyExCommunityOriginCondition(object):
+class ExportPolicyExCommunityOriginCondition(object):
     """
-    No.40 extended community origin condition import
+    No.40 extended community origin condition export
                                                  --------------------------------
     e1 ->(extcommunity=origin:65001.65100:200)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                                  |                              |
-                                                 | ->x q2-rib                   |
+                                                 | -> q2-rib ->x q2-adj-rib-out |
                                                  --------------------------------
     """
     @staticmethod
@@ -1804,19 +1804,19 @@ class ImportPolicyExCommunityOriginCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyExCommunityOriginCondition").boot(env)
-        lookup_scenario("ImportPolicyExCommunityOriginCondition").setup(env)
-        lookup_scenario("ImportPolicyExCommunityOriginCondition").check(env)
+        lookup_scenario("ExportPolicyExCommunityOriginCondition").boot(env)
+        lookup_scenario("ExportPolicyExCommunityOriginCondition").setup(env)
+        lookup_scenario("ExportPolicyExCommunityOriginCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyExCommunityTargetCondition(object):
+class ExportPolicyExCommunityTargetCondition(object):
     """
-    No.41 extended community origin condition import
+    No.41 extended community target condition export
                                            --------------------------------
     e1 ->(extcommunity=target:65010:320)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                            |                              |
-                                           | ->x q2-rib                   |
+                                           | -> q2-rib ->x q2-adj-rib-out |
                                            --------------------------------
     """
     @staticmethod
@@ -1855,9 +1855,9 @@ class ImportPolicyExCommunityTargetCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyExCommunityTargetCondition").boot(env)
-        lookup_scenario("ImportPolicyExCommunityTargetCondition").setup(env)
-        lookup_scenario("ImportPolicyExCommunityTargetCondition").check(env)
+        lookup_scenario("ExportPolicyExCommunityTargetCondition").boot(env)
+        lookup_scenario("ExportPolicyExCommunityTargetCondition").setup(env)
+        lookup_scenario("ExportPolicyExCommunityTargetCondition").check(env)
 
 
 def ext_community_exists(path, extcomm):
@@ -1872,14 +1872,14 @@ def ext_community_exists(path, extcomm):
 
 
 @register_scenario
-class ImportPolicyExCommunityAdd2(object):
+class ExportPolicyExCommunityAdd2(object):
     """
-    No.44 extended community add action import-policy test
+    No.44 extended community add action export-policy test
                                       --------------------------------
     e1 ->(extcommunity=RT:65000:1) -> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                       |                              |
                                       | ->  q2-rib -> q2-adj-rib-out | --> q2
-                                      |     add ext-community        |
+                                      |            add ext-community |
                                       --------------------------------
     """
     @staticmethod
@@ -1950,21 +1950,21 @@ class ImportPolicyExCommunityAdd2(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyExCommunityAdd2").boot(env)
-        lookup_scenario("ImportPolicyExCommunityAdd2").setup(env)
-        lookup_scenario("ImportPolicyExCommunityAdd2").check(env)
-        lookup_scenario("ImportPolicyExCommunityAdd2").check2(env)
+        lookup_scenario("ExportPolicyExCommunityAdd2").boot(env)
+        lookup_scenario("ExportPolicyExCommunityAdd2").setup(env)
+        lookup_scenario("ExportPolicyExCommunityAdd2").check(env)
+        lookup_scenario("ExportPolicyExCommunityAdd2").check2(env)
 
 
 @register_scenario
-class ImportPolicyExCommunityMultipleAdd(object):
+class ExportPolicyExCommunityMultipleAdd(object):
     """
-    No.45 extended community add action multiple import-policy test
+    No.45 extended community add action multiple export-policy test
                                    ---------------------------------------
     exabgp ->(extcommunity=none) ->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
                                    |                                     |
                                    | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
-                                   |     add ext-community               |
+                                   |                   add ext-community |
                                    ---------------------------------------
     """
     @staticmethod
@@ -2035,10 +2035,10 @@ class ImportPolicyExCommunityMultipleAdd(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyExCommunityMultipleAdd").boot(env)
-        lookup_scenario("ImportPolicyExCommunityMultipleAdd").setup(env)
-        lookup_scenario("ImportPolicyExCommunityMultipleAdd").check(env)
-        lookup_scenario("ImportPolicyExCommunityMultipleAdd").check2(env)
+        lookup_scenario("ExportPolicyExCommunityMultipleAdd").boot(env)
+        lookup_scenario("ExportPolicyExCommunityMultipleAdd").setup(env)
+        lookup_scenario("ExportPolicyExCommunityMultipleAdd").check(env)
+        lookup_scenario("ExportPolicyExCommunityMultipleAdd").check2(env)
 
 
 @register_scenario
