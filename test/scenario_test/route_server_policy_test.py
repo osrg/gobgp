@@ -316,7 +316,7 @@ class ImportPolicyUpdate(object):
         policy = {'name': 'policy0',
                   'statements': [st0]}
         g1.add_policy(policy, q2, 'export')
-        g1.reset(e1)
+        g1.softreset(q2, type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -449,8 +449,7 @@ class ExportPolicyUpdate(object):
                   'statements': [st0]}
         g1.add_policy(policy, q2, 'export')
 
-        # we need hard reset to flush q2's local rib
-        g1.reset(e1)
+        g1.softreset(q2, type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -739,7 +738,7 @@ class ImportPolicyIPV6Update(object):
         policy = {'name': 'policy0',
                   'statements': [st0]}
         g1.add_policy(policy, q2, 'export')
-        g1.reset(e1)
+        g1.softreset(q2, rf='ipv6', type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -862,7 +861,7 @@ class ExportPolicyIPv6Update(object):
         policy = {'name': 'policy0',
                   'statements': [st0]}
         g1.add_policy(policy, q2, 'export')
-        g1.reset(e1)
+        g1.softreset(q2, rf='ipv6', type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)

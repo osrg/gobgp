@@ -262,7 +262,7 @@ class ImportPolicyUpdate(object):
         q2 = env.q2
 
         g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
-        g1.reset(e1)
+        g1.softreset(q2, type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -365,8 +365,7 @@ class ExportPolicyUpdate(object):
         q2 = env.q2
 
         g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
-        # we need hard reset to flush q2's local rib
-        g1.reset(e1)
+        g1.softreset(q2, type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -667,7 +666,7 @@ class ImportPolicyIPV6Update(object):
         q2 = env.q2
 
         g1.local('gobgp policy prefix del ps0 2001:0:10:20::/64')
-        g1.reset(e1)
+        g1.softreset(q2, rf='ipv6', type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -761,7 +760,7 @@ class ExportPolicyIPv6Update(object):
         q2 = env.q2
 
         g1.local('gobgp policy prefix del ps0 2001:0:10:20::/64')
-        g1.reset(e1)
+        g1.softreset(q2, rf='ipv6', type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
