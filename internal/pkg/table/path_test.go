@@ -1112,3 +1112,53 @@ func TestUpdatePathAttrsReflectToNonClient(t *testing.T) {
 		assert.Empty(t, updated.GetClusterList())
 	})
 }
+
+// A PeerInfo built without the config defaults has no cluster ID. The
+// router ID is used then, and nothing panics.
+func TestUpdatePathAttrsClusterIDDefaultsToRouterID(t *testing.T) {
+	routerID := netip.MustParseAddr("10.0.0.1")
+	global := &oc.Global{Config: oc.GlobalConfig{As: 65000, RouterId: routerID}}
+
+	client := &PeerInfo{
+		AS:                   65000,
+		LocalAS:              65000,
+		PeerType:             oc.PEER_TYPE_INTERNAL,
+		ID:                   netip.MustParseAddr("10.0.0.2"),
+		Address:              netip.MustParseAddr("10.0.0.2"),
+		RouteReflectorClient: true,
+	}
+	nonClient := &PeerInfo{
+		AS:       65000,
+		LocalAS:  65000,
+		PeerType: oc.PEER_TYPE_INTERNAL,
+		ID:       netip.MustParseAddr("10.0.0.3"),
+		Address:  netip.MustParseAddr("10.0.0.3"),
+	}
+
+	newPath := func(source *PeerInfo, extra ...bgp.PathAttributeInterface) *Path {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+		nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+		attrs := append([]bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+			bgp.NewPathAttributeAsPath(nil),
+			nexthop,
+		}, extra...)
+		return NewPath(bgp.RF_IPv4_UC, source, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+
+	t.Run("to a client", func(t *testing.T) {
+		updated := UpdatePathAttrs(logger, global, client, newPath(nonClient))
+		assert.Equal(t, []netip.Addr{routerID}, updated.GetClusterList())
+	})
+
+	t.Run("to a non-client from a client", func(t *testing.T) {
+		updated := UpdatePathAttrs(logger, global, nonClient, newPath(client))
+		assert.Equal(t, []netip.Addr{routerID}, updated.GetClusterList())
+	})
+
+	t.Run("prepends to an existing list", func(t *testing.T) {
+		list, _ := bgp.NewPathAttributeClusterList([]netip.Addr{netip.MustParseAddr("10.0.0.200")})
+		updated := UpdatePathAttrs(logger, global, client, newPath(nonClient, list))
+		assert.Equal(t, []netip.Addr{routerID, netip.MustParseAddr("10.0.0.200")}, updated.GetClusterList())
+	})
+}

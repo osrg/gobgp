@@ -462,21 +462,32 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 			}
 			// When an RR reflects a route, it MUST prepend the local CLUSTER_ID to the CLUSTER_LIST.
 			// If the CLUSTER_LIST is empty, it MUST create a new one.
-			// TODO: needs to validated earlier.
 			clusterID := info.RouteReflectorClusterID
 			if !info.RouteReflectorClient {
 				// A non-client has no cluster. The route is reflected
 				// from the cluster of the client it was learned from.
 				clusterID = src.RouteReflectorClusterID
 			}
-			var pa *bgp.PathAttributeClusterList
-			if p := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); p == nil {
-				pa, _ = bgp.NewPathAttributeClusterList([]netip.Addr{clusterID})
-			} else {
-				clusterList := p.(*bgp.PathAttributeClusterList)
-				pa, _ = bgp.NewPathAttributeClusterList(append([]netip.Addr{clusterID}, clusterList.Value...))
+			if !clusterID.IsValid() {
+				// The config defaults set the cluster ID of a client to
+				// the router ID. A PeerInfo built without them has none.
+				// RFC 4456 7: "Usually, a cluster of clients will have a
+				// single RR. In that case, the cluster will be identified
+				// by the BGP Identifier of the RR."
+				clusterID = global.Config.RouterId
 			}
-			path.setPathAttr(pa)
+			list := []netip.Addr{clusterID}
+			if p := path.getPathAttr(bgp.BGP_ATTR_TYPE_CLUSTER_LIST); p != nil {
+				list = append(list, p.(*bgp.PathAttributeClusterList).Value...)
+			}
+			if pa, err := bgp.NewPathAttributeClusterList(list); err != nil {
+				logger.Warn("failed to build CLUSTER_LIST",
+					slog.String("Topic", "Peer"),
+					slog.String("Key", info.Address.String()),
+					slog.Any("Error", err))
+			} else {
+				path.setPathAttr(pa)
+			}
 		}
 	default:
 		logger.Warn("invalid peer type",
