@@ -241,6 +241,7 @@ const (
 	EC_SUBTYPE_ROUTER_MAC      ExtendedCommunityAttrSubType = 0x03 // EC_TYPE: 0x06
 	EC_SUBTYPE_L2_ATTRIBUTES   ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x06
 	EC_SUBTYPE_ETREE           ExtendedCommunityAttrSubType = 0x05 // EC_TYPE: 0x06
+	EC_SUBTYPE_ARP_ND          ExtendedCommunityAttrSubType = 0x08 // EC_TYPE: 0x06
 	EC_SUBTYPE_MULTICAST_FLAGS ExtendedCommunityAttrSubType = 0x09 // EC_TYPE: 0x06
 
 	EC_SUBTYPE_UUID_BASED_RT ExtendedCommunityAttrSubType = 0x11
@@ -14883,6 +14884,97 @@ func NewMulticastFlagsExtended(isIGMPProxy bool, isMLDProxy bool) *MulticastFlag
 	}
 }
 
+// ArpNdExtended is the EVPN ARP/ND Extended Community (RFC 9047).
+type ArpNdExtended struct {
+	IsRouter    bool // R flag
+	IsOverride  bool // O flag
+	IsProxy     bool // flags bit 5 (0x04), not assigned by RFC 9047; FRR sends it for proxy entries
+	IsImmutable bool // I flag
+}
+
+type ArpNdFlag uint8
+
+const (
+	ARP_ND_ROUTER    ArpNdFlag = 1 << 0
+	ARP_ND_OVERRIDE  ArpNdFlag = 1 << 1
+	ARP_ND_PROXY     ArpNdFlag = 1 << 2
+	ARP_ND_IMMUTABLE ArpNdFlag = 1 << 3
+)
+
+func (e *ArpNdExtended) flags() uint8 {
+	var f ArpNdFlag
+	if e.IsRouter {
+		f |= ARP_ND_ROUTER
+	}
+	if e.IsOverride {
+		f |= ARP_ND_OVERRIDE
+	}
+	if e.IsProxy {
+		f |= ARP_ND_PROXY
+	}
+	if e.IsImmutable {
+		f |= ARP_ND_IMMUTABLE
+	}
+	return uint8(f)
+}
+
+func (e *ArpNdExtended) Serialize() ([]byte, error) {
+	buf := make([]byte, 8)
+	buf[0] = byte(EC_TYPE_EVPN)
+	buf[1] = byte(EC_SUBTYPE_ARP_ND)
+	buf[2] = e.flags()
+	return buf, nil
+}
+
+func (e *ArpNdExtended) String() string {
+	ss := make([]string, 0, 4)
+	if e.IsRouter {
+		ss = append(ss, "router")
+	}
+	if e.IsOverride {
+		ss = append(ss, "override")
+	}
+	if e.IsProxy {
+		ss = append(ss, "proxy")
+	}
+	if e.IsImmutable {
+		ss = append(ss, "immutable")
+	}
+	return "arp-nd: " + strings.Join(ss, ",")
+}
+
+func (e *ArpNdExtended) MarshalJSON() ([]byte, error) {
+	t, s := e.GetTypes()
+	return json.Marshal(struct {
+		Type        ExtendedCommunityAttrType    `json:"type"`
+		Subtype     ExtendedCommunityAttrSubType `json:"subtype"`
+		IsRouter    bool                         `json:"is_router,omitempty"`
+		IsOverride  bool                         `json:"is_override,omitempty"`
+		IsProxy     bool                         `json:"is_proxy,omitempty"`
+		IsImmutable bool                         `json:"is_immutable,omitempty"`
+	}{
+		Type:        t,
+		Subtype:     s,
+		IsRouter:    e.IsRouter,
+		IsOverride:  e.IsOverride,
+		IsProxy:     e.IsProxy,
+		IsImmutable: e.IsImmutable,
+	})
+}
+
+func (e *ArpNdExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	return EC_TYPE_EVPN, EC_SUBTYPE_ARP_ND
+}
+
+func NewArpNdExtended(isRouter, isOverride, isProxy, isImmutable bool) *ArpNdExtended {
+	return &ArpNdExtended{
+		IsRouter:    isRouter,
+		IsOverride:  isOverride,
+		IsProxy:     isProxy,
+		IsImmutable: isImmutable,
+	}
+}
+
 func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 	if ExtendedCommunityAttrType(data[0]) != EC_TYPE_EVPN {
 		return nil, NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("ext comm type is not EC_TYPE_EVPN: %d", data[0]))
@@ -14941,6 +15033,14 @@ func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 		return &ETreeExtended{
 			IsLeaf: isLeaf,
 			Label:  label,
+		}, nil
+	case EC_SUBTYPE_ARP_ND:
+		flags := ArpNdFlag(data[2])
+		return &ArpNdExtended{
+			IsRouter:    flags&ARP_ND_ROUTER > 0,
+			IsOverride:  flags&ARP_ND_OVERRIDE > 0,
+			IsProxy:     flags&ARP_ND_PROXY > 0,
+			IsImmutable: flags&ARP_ND_IMMUTABLE > 0,
 		}, nil
 	case EC_SUBTYPE_MULTICAST_FLAGS:
 		if flags := data[3]; flags != 0 {
@@ -17924,6 +18024,10 @@ func (e *ESILabelExtended) Flat() map[string]string {
 }
 
 func (e *ETreeExtended) Flat() map[string]string {
+	return map[string]string{}
+}
+
+func (e *ArpNdExtended) Flat() map[string]string {
 	return map[string]string{}
 }
 
