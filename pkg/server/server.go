@@ -430,32 +430,7 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 			conn.Close()
 			return
 		}
-		conf := peer.fsm.pConf.ReadOnly()
-		localAddr := conf.Transport.Config.LocalAddress
-		bindInterface := conf.Transport.Config.BindInterface
-		localAddrValid := func(laddr netip.Addr) bool {
-			if !laddr.IsValid() || laddr.IsUnspecified() {
-				return true
-			}
-			l := conn.LocalAddr()
-			if l == nil {
-				// already closed
-				return false
-			}
-			a, _ := l.(*net.TCPAddr)
-			connLocalAddr, _ := netip.AddrFromSlice(a.IP)
-
-			if connLocalAddr.WithZone(a.Zone).Unmap() != laddr.Unmap() && bindInterface == "" {
-				peer.fsm.logger.Info("Mismatched local address",
-					slog.String("Configured addr", laddr.String()),
-					slog.String("Addr", connLocalAddr.String()),
-					slog.String("BindInterface", bindInterface))
-				return false
-			}
-			return true
-		}(localAddr)
-
-		if !localAddrValid {
+		if !peer.connLocalAddrValid(conn) {
 			conn.Close()
 			return
 		}
@@ -475,6 +450,8 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 
 		peer.fsm.logger.Debug("Accepted a new passive connection")
 		peer.PassConn(conn)
+	} else if s.moveInterfaceNeighbor(addr, conn) {
+		s.passConnToPeer(conn)
 	} else if pg := s.matchLongestDynamicNeighborPrefix(addr.WithZone("").String()); pg != nil {
 		s.logger.Debug("Accepted a new dynamic neighbor",
 			slog.String("Topic", "Peer"),
@@ -521,6 +498,91 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		)
 		conn.Close()
 	}
+}
+
+// connLocalAddrValid reports whether conn was accepted on the local address
+// that is configured for the peer.
+func (peer *peer) connLocalAddrValid(conn net.Conn) bool {
+	conf := peer.fsm.pConf.ReadOnly()
+	laddr := conf.Transport.Config.LocalAddress
+	bindInterface := conf.Transport.Config.BindInterface
+	if !laddr.IsValid() || laddr.IsUnspecified() {
+		return true
+	}
+	l := conn.LocalAddr()
+	if l == nil {
+		// already closed
+		return false
+	}
+	a, _ := l.(*net.TCPAddr)
+	connLocalAddr, _ := netip.AddrFromSlice(a.IP)
+
+	if connLocalAddr.WithZone(a.Zone).Unmap() != laddr.Unmap() && bindInterface == "" {
+		peer.fsm.logger.Info("Mismatched local address",
+			slog.String("Configured addr", laddr.String()),
+			slog.String("Addr", connLocalAddr.String()),
+			slog.String("BindInterface", bindInterface))
+		return false
+	}
+	return true
+}
+
+// moveInterfaceNeighbor moves an unnumbered neighbor to addr, a link-local
+// address on its interface that another peer does not have. The neighbor
+// got its address when it was added. When the MAC address of the remote
+// side changes, for example because the switch was replaced, its
+// link-local address changes too, and it connects from the new address.
+// Like FRR, accept it from any link-local address on the interface. The
+// neighbor is deleted and added again with the new address, so that
+// everything keyed by the address follows. It is not moved while it has a
+// session, or with authentication, because the keys were installed for the
+// old address only.
+func (s *BgpServer) moveInterfaceNeighbor(addr netip.Addr, conn net.Conn) bool {
+	if !addr.Is6() || !addr.IsLinkLocalUnicast() || addr.Zone() == "" {
+		return false
+	}
+	for _, peer := range s.neighborMap {
+		conf := peer.fsm.pConf.ReadOnly()
+		if conf.Config.NeighborInterface != addr.Zone() {
+			continue
+		}
+		if peer.State() >= bgp.BGP_FSM_OPENSENT || peer.AdminState() != adminStateUp ||
+			conf.Config.AuthPassword != "" || peer.fsm.tcpAoKeyBinding.Load() != nil ||
+			!peer.connLocalAddrValid(conn) {
+			return false
+		}
+		// Policy assignments changed through the API after the neighbor
+		// was added are only in s.policy.
+		ap, err := s.peerApplyPolicy(peer.ID(), true)
+		if err != nil {
+			peer.fsm.logger.Warn("failed to move the unnumbered neighbor",
+				slog.String("Addr", addr.String()),
+				slog.String("Err", err.Error()))
+			return false
+		}
+		c := cloneNeighborConfig(&peer.configuredConf)
+		c.State.NeighborAddress = addr
+		// Carry over the live state, not what was configured: the neighbor
+		// may have been enabled with EnablePeer.
+		live := func(n *oc.Neighbor) {
+			n.Config.AdminDown = false
+			n.State.AdminDown = false
+			n.ApplyPolicy = *ap
+		}
+		// Add the new neighbor first, so that the old one stays if it fails.
+		if err := s.addNeighbor(&c, live); err != nil {
+			peer.fsm.logger.Warn("failed to move the unnumbered neighbor",
+				slog.String("Addr", addr.String()),
+				slog.String("Err", err.Error()))
+			return false
+		}
+		peer.fsm.logger.Info("Moved the unnumbered neighbor to a new address",
+			slog.String("Addr", addr.String()))
+		s.dropAdjRIBIn(peer, peer.configuredRFlist())
+		s.stopNeighbor(peer, -1, nil)
+		return true
+	}
+	return false
 }
 
 func (s *BgpServer) Serve() {
@@ -2639,6 +2701,45 @@ func (s *BgpServer) StopBgp(ctx context.Context, r *api.StopBgpRequest) error {
 	return nil
 }
 
+// peerApplyPolicy returns the policy assignment of id in s.policy. With
+// inheritGlobal, an unset default stays unset, so that the global
+// assignment is used.
+func (s *BgpServer) peerApplyPolicy(id string, inheritGlobal bool) (*oc.ApplyPolicy, error) {
+	f := func(id string, dir table.PolicyDirection) (oc.DefaultPolicyType, []string, error) {
+		rt, policies, err := s.policy.GetPolicyAssignment(id, dir)
+		if err != nil {
+			return oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE, nil, err
+		}
+		names := make([]string, 0, len(policies))
+		for _, p := range policies {
+			names = append(names, p.Name)
+		}
+		t := oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+		if inheritGlobal && rt == table.ROUTE_TYPE_NONE {
+			t = ""
+		}
+		if rt == table.ROUTE_TYPE_REJECT {
+			t = oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE
+		}
+		return t, names, nil
+	}
+
+	c := &oc.ApplyPolicy{}
+	rt, policies, err := f(id, table.POLICY_DIRECTION_IMPORT)
+	if err != nil {
+		return nil, err
+	}
+	c.Config.ImportPolicyList = policies
+	c.Config.DefaultImportPolicy = rt
+	rt, policies, err = f(id, table.POLICY_DIRECTION_EXPORT)
+	if err != nil {
+		return nil, err
+	}
+	c.Config.ExportPolicyList = policies
+	c.Config.DefaultExportPolicy = rt
+	return c, nil
+}
+
 func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) error {
 	if r == nil {
 		return fmt.Errorf("nil request")
@@ -2648,45 +2749,9 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 		return err
 	}
 
-	getConfig := func(id string, inheritGlobal bool) (*oc.ApplyPolicy, error) {
-		f := func(id string, dir table.PolicyDirection) (oc.DefaultPolicyType, []string, error) {
-			rt, policies, err := s.policy.GetPolicyAssignment(id, dir)
-			if err != nil {
-				return oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE, nil, err
-			}
-			names := make([]string, 0, len(policies))
-			for _, p := range policies {
-				names = append(names, p.Name)
-			}
-			t := oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
-			if inheritGlobal && rt == table.ROUTE_TYPE_NONE {
-				t = ""
-			}
-			if rt == table.ROUTE_TYPE_REJECT {
-				t = oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE
-			}
-			return t, names, nil
-		}
-
-		c := &oc.ApplyPolicy{}
-		rt, policies, err := f(id, table.POLICY_DIRECTION_IMPORT)
-		if err != nil {
-			return nil, err
-		}
-		c.Config.ImportPolicyList = policies
-		c.Config.DefaultImportPolicy = rt
-		rt, policies, err = f(id, table.POLICY_DIRECTION_EXPORT)
-		if err != nil {
-			return nil, err
-		}
-		c.Config.ExportPolicyList = policies
-		c.Config.DefaultExportPolicy = rt
-		return c, nil
-	}
-
 	return s.mgmtOperation(func() error {
 		ap := make(map[string]oc.ApplyPolicy, len(s.neighborMap)+1)
-		a, err := getConfig(table.GLOBAL_RIB_NAME, false)
+		a, err := s.peerApplyPolicy(table.GLOBAL_RIB_NAME, false)
 		if err != nil {
 			return err
 		}
@@ -2694,7 +2759,7 @@ func (s *BgpServer) SetPolicies(ctx context.Context, r *api.SetPoliciesRequest) 
 		for _, peer := range s.neighborMap {
 			peer.fsm.logger.Info("call set policy")
 
-			a, err := getConfig(peer.ID(), !peer.isRouteServerClient())
+			a, err := s.peerApplyPolicy(peer.ID(), !peer.isRouteServerClient())
 			if err != nil {
 				return err
 			}
@@ -3958,7 +4023,9 @@ func (s *BgpServer) setPeerPolicy(peer *peer, a oc.ApplyPolicy) error {
 	return nil
 }
 
-func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
+// addNeighbor adds a neighbor. adjust, when it is not nil, changes the
+// merged configuration before the peer is created.
+func (s *BgpServer) addNeighbor(c *oc.Neighbor, adjust func(*oc.Neighbor)) error {
 	// Resolve config defaults BEFORE extracting/validating the neighbor address.
 	// For an unnumbered (interface-only) neighbor added via the gRPC AddPeer API
 	// - NeighborInterface set, NeighborAddress empty - SetDefaultNeighborConfigValues
@@ -3984,6 +4051,9 @@ func (s *BgpServer) addNeighbor(c *oc.Neighbor) error {
 
 	if err := oc.SetDefaultNeighborConfigValues(c, pgConf, &s.bgpConfig.Global); err != nil {
 		return err
+	}
+	if adjust != nil {
+		adjust(c)
 	}
 
 	addr, err := c.ExtractNeighborAddress()
@@ -4238,7 +4308,7 @@ func (s *BgpServer) AddPeer(ctx context.Context, r *api.AddPeerRequest) error {
 		if err != nil {
 			return err
 		}
-		return s.addNeighbor(c)
+		return s.addNeighbor(c, nil)
 	}, true)
 }
 
@@ -4586,7 +4656,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 			peer.fsm.logger.Error("failed to delete neighbor", slog.String("Err", err.Error()))
 			return needsSoftResetIn, err
 		}
-		err = s.addNeighbor(c)
+		err = s.addNeighbor(c, nil)
 		if err != nil {
 			// rollback to original ApplyPolicy
 			peer.fsm.pConf.Update(original)
