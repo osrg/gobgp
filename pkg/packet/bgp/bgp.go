@@ -1836,32 +1836,55 @@ func GetRouteDistinguisher(data []byte) RouteDistinguisherInterface {
 	return rd
 }
 
-func parseRdAndRt(input string) ([]string, error) {
+// parseRdAndRt parses the "<admin>:<value>" form shared by route
+// distinguishers and extended communities. The administrator is an IPv4
+// or IPv6 address, or an AS number in asplain or asdot form. fourOctetAS
+// is true for an AS number above 65535 or in asdot form. The caller
+// checks that value fits the field of the type that it builds.
+func parseRdAndRt(input string) (addr netip.Addr, asn uint32, fourOctetAS bool, value uint32, err error) {
 	elems := _regexpRouteDistinguisher.FindStringSubmatch(input)
 	if len(elems) != 11 {
-		return nil, fmt.Errorf("failed to parse RD %q", input)
+		return addr, 0, false, 0, fmt.Errorf("failed to parse RD %q", input)
 	}
-	return elems, nil
+	v, err := strconv.ParseUint(elems[10], 10, 32)
+	if err != nil {
+		return addr, 0, false, 0, fmt.Errorf("invalid value in %q: %w", input, err)
+	}
+	value = uint32(v)
+	if elems[2] != "" || elems[9] != "" {
+		addr, err = netip.ParseAddr(elems[1])
+		if err != nil {
+			return addr, 0, false, 0, fmt.Errorf("invalid address in %q: %w", input, err)
+		}
+		return addr, 0, false, value, nil
+	}
+	asn, err = ParseAs4Value(elems[1])
+	if err != nil {
+		return addr, 0, false, 0, fmt.Errorf("invalid AS number in %q: %w", input, err)
+	}
+	return addr, asn, elems[7] != "" || asn > math.MaxUint16, value, nil
 }
 
 func ParseRouteDistinguisher(rd string) (RouteDistinguisherInterface, error) {
-	elems, err := parseRdAndRt(rd)
+	addr, asn, fourOctetAS, assigned, err := parseRdAndRt(rd)
 	if err != nil {
 		return nil, err
 	}
-	assigned, _ := strconv.ParseUint(elems[10], 10, 32)
-	ip, _ := netip.ParseAddr(elems[1])
 	switch {
-	case ip.Is4():
-		return NewRouteDistinguisherIPAddressAS(ip, uint16(assigned))
-	case elems[6] == "" && elems[7] == "":
-		asn, _ := strconv.ParseUint(elems[8], 10, 16)
-		return NewRouteDistinguisherTwoOctetAS(uint16(asn), uint32(assigned)), nil
+	case addr.Is4():
+		if assigned > math.MaxUint16 {
+			return nil, fmt.Errorf("invalid RD %q: assigned number must be 0..65535 for an IPv4 address", rd)
+		}
+		return NewRouteDistinguisherIPAddressAS(addr, uint16(assigned))
+	case addr.IsValid():
+		return nil, fmt.Errorf("invalid RD %q: administrator must be an IPv4 address or an AS number", rd)
+	case fourOctetAS:
+		if assigned > math.MaxUint16 {
+			return nil, fmt.Errorf("invalid RD %q: assigned number must be 0..65535 for a 4-octet AS", rd)
+		}
+		return NewRouteDistinguisherFourOctetAS(asn, uint16(assigned)), nil
 	default:
-		fst, _ := strconv.ParseUint(elems[7], 10, 16)
-		snd, _ := strconv.ParseUint(elems[8], 10, 16)
-		asn := fst<<16 | snd
-		return NewRouteDistinguisherFourOctetAS(uint32(asn), uint16(assigned)), nil
+		return NewRouteDistinguisherTwoOctetAS(uint16(asn), assigned), nil
 	}
 }
 
@@ -14082,32 +14105,30 @@ func ParseExtendedCommunity(subtype ExtendedCommunityAttrSubType, com string) (E
 			State: state,
 		}, nil
 	}
-	elems, err := parseRdAndRt(com)
+	addr, asn, fourOctetAS, localAdmin, err := parseRdAndRt(com)
 	if err != nil {
 		return nil, err
 	}
-	localAdmin, _ := strconv.ParseUint(elems[10], 10, 32)
 	if subtype == EC_SUBTYPE_SOURCE_AS {
 		localAdmin = 0
 	}
-	addr, _ := netip.ParseAddr(elems[1])
 	isTransitive := true
 	switch {
 	case subtype == EC_SUBTYPE_LINK_BANDWIDTH:
-		asn, _ := strconv.ParseUint(elems[8], 10, 16)
+		if addr.IsValid() || fourOctetAS {
+			return nil, fmt.Errorf("invalid link bandwidth %q: AS number must be 0..65535", com)
+		}
 		return NewLinkBandwidthExtended(uint16(asn), float32(localAdmin)), nil
+	case !fourOctetAS && !addr.IsValid():
+		return NewTwoOctetAsSpecificExtended(subtype, uint16(asn), localAdmin, isTransitive), nil
+	case localAdmin > math.MaxUint16:
+		return nil, fmt.Errorf("invalid extended community %q: local administrator must be 0..65535 for an IP address or a 4-octet AS", com)
 	case addr.Is4():
 		return NewIPv4AddressSpecificExtended(subtype, addr, uint16(localAdmin), isTransitive)
 	case addr.Is6():
 		return NewIPv6AddressSpecificExtended(subtype, addr, uint16(localAdmin), isTransitive)
-	case elems[6] == "" && elems[7] == "":
-		asn, _ := strconv.ParseUint(elems[8], 10, 16)
-		return NewTwoOctetAsSpecificExtended(subtype, uint16(asn), uint32(localAdmin), isTransitive), nil
 	default:
-		fst, _ := strconv.ParseUint(elems[7], 10, 16)
-		snd, _ := strconv.ParseUint(elems[8], 10, 16)
-		asn := fst<<16 | snd
-		return NewFourOctetAsSpecificExtended(subtype, uint32(asn), uint16(localAdmin), isTransitive), nil
+		return NewFourOctetAsSpecificExtended(subtype, asn, uint16(localAdmin), isTransitive), nil
 	}
 }
 

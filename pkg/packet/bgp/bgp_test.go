@@ -2559,6 +2559,109 @@ func Test_ParseRouteDistinguisher(t *testing.T) {
 	assert.Equal(uint16(10000), rdType2.Assigned)
 }
 
+func TestParseRouteDistinguisherRange(t *testing.T) {
+	ip := netip.MustParseAddr("10.0.0.1")
+	ipRD := func(n uint16) RouteDistinguisherInterface {
+		rd, _ := NewRouteDistinguisherIPAddressAS(ip, n)
+		return rd
+	}
+	valid := []struct {
+		in   string
+		want RouteDistinguisherInterface
+	}{
+		{"0:0", NewRouteDistinguisherTwoOctetAS(0, 0)},
+		{"65535:4294967295", NewRouteDistinguisherTwoOctetAS(65535, math.MaxUint32)},
+		{"10.0.0.1:65535", ipRD(65535)},
+		{"65536:65535", NewRouteDistinguisherFourOctetAS(65536, 65535)},
+		{"4210000017:9", NewRouteDistinguisherFourOctetAS(4210000017, 9)},
+		{"4294967295:1", NewRouteDistinguisherFourOctetAS(math.MaxUint32, 1)},
+		{"1.2:3", NewRouteDistinguisherFourOctetAS(1<<16|2, 3)},
+		{"0.1:65535", NewRouteDistinguisherFourOctetAS(1, 65535)},
+		{"65535.65535:1", NewRouteDistinguisherFourOctetAS(math.MaxUint32, 1)},
+	}
+	for _, c := range valid {
+		rd, err := ParseRouteDistinguisher(c.in)
+		require.NoError(t, err, c.in)
+		assert.Equal(t, c.want, rd, c.in)
+	}
+	for _, in := range []string{
+		"10.0.0.1:70000",   // IPv4 admin, value > 65535
+		"65000:4294967296", // 2-octet AS, value > 2^32-1
+		"65536:65536",      // 4-octet AS, value > 65535
+		"4210000017:70000", // 4-octet AS, value > 65535
+		"1.2:65536",        // asdot, value > 65535
+		"65536.1:1",        // asdot high half > 65535
+		"1.65536:1",        // asdot low half > 65535
+		"4294967296:1",     // AS > 2^32-1
+		"300.0.0.1:1",      // invalid IPv4 address
+		"2001:db8::1:1",    // IPv6 admin has no RD type
+	} {
+		rd, err := ParseRouteDistinguisher(in)
+		assert.Error(t, err, "%s parsed as %v", in, rd)
+	}
+}
+
+func TestParseExtendedCommunityRange(t *testing.T) {
+	ip4 := netip.MustParseAddr("10.0.0.1")
+	ip6 := netip.MustParseAddr("2001:db8::1")
+	ip4EC := func(sub ExtendedCommunityAttrSubType, n uint16) ExtendedCommunityInterface {
+		ec, _ := NewIPv4AddressSpecificExtended(sub, ip4, n, true)
+		return ec
+	}
+	ip6EC := func(n uint16) ExtendedCommunityInterface {
+		ec, _ := NewIPv6AddressSpecificExtended(EC_SUBTYPE_ROUTE_TARGET, ip6, n, true)
+		return ec
+	}
+	rt, ro, src, bw := EC_SUBTYPE_ROUTE_TARGET, EC_SUBTYPE_ROUTE_ORIGIN, EC_SUBTYPE_SOURCE_AS, EC_SUBTYPE_LINK_BANDWIDTH
+	valid := []struct {
+		sub  ExtendedCommunityAttrSubType
+		in   string
+		want ExtendedCommunityInterface
+	}{
+		{rt, "65000:4294967295", NewTwoOctetAsSpecificExtended(rt, 65000, math.MaxUint32, true)},
+		{rt, "10.0.0.1:65535", ip4EC(rt, 65535)},
+		{rt, "2001:db8::1:65535", ip6EC(65535)},
+		{rt, "65536:65535", NewFourOctetAsSpecificExtended(rt, 65536, 65535, true)},
+		{rt, "4210000017:9", NewFourOctetAsSpecificExtended(rt, 4210000017, 9, true)},
+		{rt, "1.2:3", NewFourOctetAsSpecificExtended(rt, 1<<16|2, 3, true)},
+		{ro, "65000:4294967295", NewTwoOctetAsSpecificExtended(ro, 65000, math.MaxUint32, true)},
+		{ro, "1.2:3", NewFourOctetAsSpecificExtended(ro, 1<<16|2, 3, true)},
+		{ro, "10.0.0.1:3", ip4EC(ro, 3)},
+		{src, "65000:0", NewTwoOctetAsSpecificExtended(src, 65000, 0, true)},
+		{src, "4210000017:0", NewFourOctetAsSpecificExtended(src, 4210000017, 0, true)},
+		{bw, "65000:4294967295", NewLinkBandwidthExtended(65000, math.MaxUint32)},
+	}
+	for _, c := range valid {
+		ec, err := ParseExtendedCommunity(c.sub, c.in)
+		require.NoError(t, err, c.in)
+		assert.Equal(t, c.want, ec, c.in)
+	}
+	invalid := []struct {
+		sub ExtendedCommunityAttrSubType
+		in  string
+	}{
+		{rt, "4210000017:70000"},  // 4-octet AS, value > 65535
+		{rt, "65536:65536"},       // 4-octet AS, value > 65535
+		{rt, "1.2:65536"},         // asdot, value > 65535
+		{rt, "65536.1:1"},         // asdot high half > 65535
+		{rt, "65000:4294967296"},  // 2-octet AS, value > 2^32-1
+		{rt, "10.0.0.1:70000"},    // IPv4 admin, value > 65535
+		{rt, "2001:db8::1:70000"}, // IPv6 admin, value > 65535
+		{rt, "4294967296:1"},      // AS > 2^32-1
+		{rt, "300.0.0.1:1"},       // invalid IPv4 address
+		{ro, "4210000017:70000"},  // route origin shares the parser
+		{ro, "10.0.0.1:70000"},
+		{src, "4294967296:0"},
+		{bw, "70000:1"}, // link bandwidth AS is 2 octets
+		{bw, "1.2:1"},
+		{bw, "65000:4294967296"},
+	}
+	for _, c := range invalid {
+		ec, err := ParseExtendedCommunity(c.sub, c.in)
+		assert.Error(t, err, "%s parsed as %v", c.in, ec)
+	}
+}
+
 func TestParseVPNPrefix(t *testing.T) {
 	rdip, _ := NewRouteDistinguisherIPAddressAS(netip.MustParseAddr("1.1.1.1"), uint16(100))
 	tests := []struct {
