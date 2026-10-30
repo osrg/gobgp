@@ -2125,6 +2125,8 @@ func TestNextIdleHoldTime(t *testing.T) {
 		return &bgp.BGPNotification{ErrorCode: bgp.BGP_ERROR_CEASE, ErrorSubcode: subcode}
 	}
 	holdTimerExpired := &bgp.BGPNotification{ErrorCode: bgp.BGP_ERROR_HOLD_TIMER_EXPIRED}
+	fsmError := &bgp.BGPNotification{ErrorCode: bgp.BGP_ERROR_FSM_ERROR, ErrorSubcode: 1}
+	updateError := &bgp.BGPNotification{ErrorCode: bgp.BGP_ERROR_UPDATE_MESSAGE_ERROR, ErrorSubcode: bgp.BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST}
 
 	const afterReset = 30
 
@@ -2138,7 +2140,9 @@ func TestNextIdleHoldTime(t *testing.T) {
 		{"notification sent doubles", 1, newfsmStateReason(fsmNotificationSent, cease(bgp.BGP_ERROR_SUB_BFD_DOWN), nil), 2, 2},
 		{"notification received doubles", 2, newfsmStateReason(fsmNotificationRecv, cease(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET), nil), 4, 4},
 		{"hard reset received doubles", 1, newfsmStateReason(fsmHardReset, cease(bgp.BGP_ERROR_SUB_HARD_RESET), nil), 2, 2},
-		{"hold timer expired doubles", 4, newfsmStateReason(fsmHoldTimerExpired, holdTimerExpired, nil), 8, 8},
+		{"hold timer expired goes back to the initial value", 4, newfsmStateReason(fsmHoldTimerExpired, holdTimerExpired, nil), idleHoldTimeInitial, idleHoldTimeInitial},
+		{"FSM error for an unexpected message goes back to the initial value", 8, newfsmStateReason(fsmInvalidMsg, fsmError, nil), idleHoldTimeInitial, idleHoldTimeInitial},
+		{"message error doubles", 8, newfsmStateReason(fsmInvalidMsg, updateError, nil), 16, 16},
 		{"invalid message doubles", 8, newfsmStateReason(fsmInvalidMsg, nil, nil), 16, 16},
 		{"bad peer AS doubles", 16, newfsmStateReason(fsmBadPeerAS, nil, nil), 32, 32},
 		{"doubling stops at the maximum", 64, newfsmStateReason(fsmNotificationRecv, cease(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN), nil), idleHoldTimeMax, idleHoldTimeMax},
@@ -2606,7 +2610,7 @@ func requireAdminResetCease(t *testing.T, msg *bgp.BGPMessage) {
 	require.Equal(t, uint8(bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET), n.ErrorSubcode)
 }
 
-// ResetPeer in Idle restarts the idle hold timer with
+// ResetPeer in Idle shortens the idle hold timer to
 // idle-hold-time-after-reset and resets the backoff.
 // https://github.com/osrg/gobgp/issues/3740
 func TestFSMHandlerIdle_Reset(t *testing.T) {
@@ -2627,6 +2631,52 @@ func TestFSMHandlerIdle_Reset(t *testing.T) {
 	require.Equal(t, fsmIdleTimerExpired, reason.Type)
 	require.Less(t, time.Since(start), 5*time.Second)
 	require.Equal(t, float64(1), p.fsm.idleHoldTime)
+	require.Equal(t, float64(idleHoldTimeInitial), p.fsm.idleHoldBackoff)
+}
+
+// ResetPeer in Idle never makes the remaining wait longer, like FRR
+// peer_clear, which re-arms the start timer with 1 second.
+// https://github.com/osrg/gobgp/issues/3860
+func TestFSMHandlerIdle_ResetDoesNotLengthenWait(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Timers.Config.IdleHoldTimeAfterReset = 30
+	p.fsm.pConf.Update(&conf)
+	p.fsm.idleHoldTime = 1
+	p.fsm.idleHoldBackoff = 4
+
+	p.reset(nil)
+	start := time.Now()
+	state, reason := h.idle(t.Context())
+	require.Equal(t, bgp.BGP_FSM_ACTIVE, state)
+	require.Equal(t, fsmIdleTimerExpired, reason.Type)
+	require.Less(t, time.Since(start), 5*time.Second)
+	require.Equal(t, float64(idleHoldTimeInitial), p.fsm.idleHoldBackoff)
+}
+
+// DisablePeer of a peer in Idle sets the idle hold time and the backoff
+// back to 1 second, so that EnablePeer starts it after 1 second, like
+// "no neighbor shutdown" in FRR.
+// https://github.com/osrg/gobgp/issues/3860
+func TestFSMHandlerIdle_AdminDownResetsBackoff(t *testing.T) {
+	m := NewMockConnection()
+	p, h := makePeerAndHandler(m)
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+	p.fsm.idleHoldTime = 64
+	p.fsm.idleHoldBackoff = 64
+
+	p.fsm.adminStateCh <- adminStateOperation{adminStateDown, nil}
+	p.fsm.adminStateCh <- adminStateOperation{adminStateUp, nil}
+	start := time.Now()
+	state, reason := h.idle(t.Context())
+	require.Equal(t, bgp.BGP_FSM_ACTIVE, state)
+	require.Equal(t, fsmIdleTimerExpired, reason.Type)
+	require.Less(t, time.Since(start), 5*time.Second)
+	require.Equal(t, float64(idleHoldTimeInitial), p.fsm.idleHoldTime)
 	require.Equal(t, float64(idleHoldTimeInitial), p.fsm.idleHoldBackoff)
 }
 

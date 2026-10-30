@@ -6440,8 +6440,8 @@ func TestBfdDownWhileDownDoesNotResetNextSession(t *testing.T) {
 }
 
 // The idle hold time backs off like the start timer of FRR. A NOTIFICATION
-// doubles it, and a session that reaches Established sets it back to 1
-// second.
+// received in Established doubles it, and a session that reaches
+// Established sets it back to 1 second.
 func TestIdleHoldTimeBackoff(t *testing.T) {
 	const (
 		asn      = 65001

@@ -1073,6 +1073,13 @@ type fsmHandler struct {
 // nextIdleHoldTime returns the idle hold time of the Idle state that the
 // session enters for reason, and the new backoff value. backoff is the
 // current backoff value, and afterReset is idle-hold-time-after-reset.
+//
+// The backoff follows the start timer (v_start) of FRR. FRR doubles it for
+// a NOTIFICATION received in OpenConfirm or Established
+// (bgp_stop_with_error in bgp_fsm.c) and for a NOTIFICATION that it sends
+// (bgp_write_notify), for example for a message error. It sets it back to
+// 1 second for a hold timer expiry and for the FSM Error that answers an
+// unexpected message in OpenSent (bgp_stop_with_notify in bgp_fsm.c).
 func nextIdleHoldTime(backoff, afterReset float64, reason *fsmStateReason) (float64, float64) {
 	switch reason.Type {
 	case fsmAdminDown:
@@ -1081,7 +1088,14 @@ func nextIdleHoldTime(backoff, afterReset float64, reason *fsmStateReason) (floa
 		return idleHoldTimeInitial, idleHoldTimeInitial
 	case fsmAdminReset:
 		return afterReset, idleHoldTimeInitial
-	case fsmNotificationSent, fsmNotificationRecv, fsmHardReset, fsmHoldTimerExpired, fsmInvalidMsg, fsmBadPeerAS:
+	case fsmHoldTimerExpired:
+		return idleHoldTimeInitial, idleHoldTimeInitial
+	case fsmInvalidMsg:
+		if n := reason.BGPNotification; n != nil && n.ErrorCode == bgp.BGP_ERROR_FSM_ERROR {
+			return idleHoldTimeInitial, idleHoldTimeInitial
+		}
+		backoff = min(backoff*2, idleHoldTimeMax)
+	case fsmNotificationSent, fsmNotificationRecv, fsmHardReset, fsmBadPeerAS:
 		backoff = min(backoff*2, idleHoldTimeMax)
 	}
 	// The other reasons, for example a closed TCP connection, keep the
@@ -1093,6 +1107,8 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 	fsm := h.fsm
 
 	idleHoldTimer := time.NewTimer(time.Second * time.Duration(fsm.idleHoldTime))
+	// when the idle hold timer fires; zero while it is stopped
+	idleHoldDeadline := time.Now().Add(time.Second * time.Duration(fsm.idleHoldTime))
 
 	for {
 		select {
@@ -1118,7 +1134,13 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 			if fsm.adminState.Load() == adminStateUp {
 				conf := fsm.pConf.ReadOnly()
 				fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, newfsmStateReason(fsmAdminReset, nil, nil))
-				idleHoldTimer.Reset(time.Second * time.Duration(fsm.idleHoldTime))
+				// The reset never makes the remaining wait longer. FRR
+				// peer_clear re-arms the start timer with 1 second.
+				d := time.Second * time.Duration(fsm.idleHoldTime)
+				if deadline := time.Now().Add(d); deadline.Before(idleHoldDeadline) {
+					idleHoldTimer.Reset(d)
+					idleHoldDeadline = deadline
+				}
 			}
 		case stateOp := <-fsm.adminStateCh:
 			err := h.changeadminState(stateOp.State)
@@ -1127,10 +1149,16 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 				case adminStateDown:
 					// stop idle hold timer
 					idleHoldTimer.Stop()
+					idleHoldDeadline = time.Time{}
+					// As for a session that ends with an administrative
+					// shutdown, the next start waits 1 second, like "no
+					// neighbor shutdown" in FRR.
+					fsm.idleHoldTime, fsm.idleHoldBackoff = idleHoldTimeInitial, idleHoldTimeInitial
 
 				case adminStateUp:
 					// restart idle hold timer
 					idleHoldTimer.Reset(time.Second * time.Duration(fsm.idleHoldTime))
+					idleHoldDeadline = time.Now().Add(time.Second * time.Duration(fsm.idleHoldTime))
 				}
 			}
 		}
