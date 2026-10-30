@@ -7055,3 +7055,202 @@ func TestAdminStateRequestQueueFull(t *testing.T) {
 		return len(peer.fsm.adminStateCh) == 0 && peer.AdminState() == adminStateUp
 	}, 10*time.Second, 10*time.Millisecond)
 }
+
+// establishEnhancedRefreshSession is establishSession with the route
+// refresh and enhanced route refresh capabilities in the peer's OPEN.
+func establishEnhancedRefreshSession(t *testing.T, s *BgpServer, peer *peer, asn uint32, peerAddr string) *MockConnection {
+	t.Helper()
+	m := NewMockConnection()
+	m.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { m.Close() })
+	peer.fsm.connCh <- m
+	openMsg, err := bgp.NewBGPOpenMessage(uint16(asn), 90, netip.MustParseAddr(peerAddr),
+		[]bgp.OptionParameterInterface{
+			bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
+				bgp.NewCapMultiProtocol(bgp.RF_IPv4_UC),
+				bgp.NewCapRouteRefresh(),
+				bgp.NewCapEnhancedRouteRefresh(),
+			}),
+		})
+	require.NoError(t, err)
+	go func() {
+		m.PushBgpMessage(openMsg)
+		m.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
+	}()
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, 10*time.Second)
+	return m
+}
+
+func ipv4Update(t *testing.T, nexthop string, prefixes ...string) *bgp.BGPMessage {
+	t.Helper()
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath(nil),
+		nh,
+		bgp.NewPathAttributeLocalPref(100),
+	}
+	var nlri []bgp.PathNLRI
+	for _, p := range prefixes {
+		n, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(p))
+		require.NoError(t, err)
+		nlri = append(nlri, bgp.PathNLRI{NLRI: n})
+	}
+	return bgp.NewBGPUpdateMessage(nil, attrs, nlri)
+}
+
+// With Enhanced Route Refresh (RFC 7313) a route refresh request gets the
+// routes between BoRR and EoRR, and the peer's routes that it does not
+// send again between its BoRR and EoRR are withdrawn.
+func TestEnhancedRouteRefresh(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	local := ipv4Update(t, "10.0.0.2", "192.0.2.0/24").Body.(*bgp.BGPUpdate)
+	_, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{{
+		Family: bgp.RF_IPv4_UC, Nlri: local.NLRI[0].NLRI, Attrs: local.PathAttributes,
+	}}})
+	require.NoError(t, err)
+	m := establishEnhancedRefreshSession(t, s, peer, asn, peerAddr)
+	require.Eventually(t, func() bool { return countNLRIs(parseBGPUpdates(t, m.GetSentMessages())) == 1 },
+		5*time.Second, 10*time.Millisecond, "initial UPDATE")
+
+	// The peer asks for a refresh: BoRR, the route, EoRR.
+	sentAfter := len(m.GetSentMessages())
+	go m.PushBgpMessage(bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_NORMAL, bgp.SAFI_UNICAST))
+	var order []string
+	require.Eventually(t, func() bool {
+		order = order[:0]
+		for _, msg := range parseBGPUpdates(t, m.GetSentMessages()[sentAfter:]) {
+			switch b := msg.Body.(type) {
+			case *bgp.BGPRouteRefresh:
+				order = append(order, fmt.Sprintf("rr%d", b.Demarcation))
+			case *bgp.BGPUpdate:
+				for _, n := range b.NLRI {
+					order = append(order, n.NLRI.String())
+				}
+			}
+		}
+		return slices.Contains(order, "rr2")
+	}, 5*time.Second, 10*time.Millisecond, "sent %v", order)
+	require.Equal(t, []string{"rr1", "192.0.2.0/24", "rr2"}, order)
+
+	// The peer refreshes its routes and leaves 198.51.100.0/24 out.
+	peerRoutes := func() []string {
+		var out []string
+		_ = s.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Name: peerAddr, Family: bgp.RF_IPv4_UC},
+			func(prefix bgp.NLRI, _ []*apiutil.Path) { out = append(out, prefix.String()) })
+		slices.Sort(out)
+		return out
+	}
+	m.PushBgpMessage(ipv4Update(t, peerAddr, "198.51.100.0/24", "203.0.113.0/24"))
+	require.Eventually(t, func() bool { return len(peerRoutes()) == 2 }, 5*time.Second, 10*time.Millisecond)
+	m.PushBgpMessage(bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_BORR, bgp.SAFI_UNICAST))
+	m.PushBgpMessage(ipv4Update(t, peerAddr, "203.0.113.0/24"))
+	require.Never(t, func() bool { return len(peerRoutes()) != 2 }, 300*time.Millisecond, 10*time.Millisecond,
+		"routes must stay until EoRR")
+	m.PushBgpMessage(bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_EORR, bgp.SAFI_UNICAST))
+	require.Eventually(t, func() bool { return slices.Equal(peerRoutes(), []string{"203.0.113.0/24"}) },
+		5*time.Second, 10*time.Millisecond, "routes %v", peerRoutes())
+}
+
+// RFC 7313 Section 4: the routes that a BoRR marked stale are removed when
+// no EoRR comes within the stale routes time.
+func TestEnhancedRouteRefreshNoEoRR(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m := establishEnhancedRefreshSession(t, s, peer, asn, peerAddr)
+	conf := peer.fsm.pConf.ReadCopy()
+	conf.GracefulRestart.Config.StaleRoutesTime = 1
+	peer.fsm.pConf.Update(&conf)
+
+	peerRoutes := func() []string {
+		var out []string
+		_ = s.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Name: peerAddr, Family: bgp.RF_IPv4_UC},
+			func(prefix bgp.NLRI, _ []*apiutil.Path) { out = append(out, prefix.String()) })
+		slices.Sort(out)
+		return out
+	}
+	m.PushBgpMessage(ipv4Update(t, peerAddr, "198.51.100.0/24", "203.0.113.0/24"))
+	require.Eventually(t, func() bool { return len(peerRoutes()) == 2 }, 5*time.Second, 10*time.Millisecond)
+	m.PushBgpMessage(bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_BORR, bgp.SAFI_UNICAST))
+	m.PushBgpMessage(ipv4Update(t, peerAddr, "203.0.113.0/24"))
+	require.Never(t, func() bool { return len(peerRoutes()) != 2 }, 500*time.Millisecond, 10*time.Millisecond,
+		"routes must stay until the stale routes time")
+	require.Eventually(t, func() bool { return slices.Equal(peerRoutes(), []string{"203.0.113.0/24"}) },
+		5*time.Second, 10*time.Millisecond, "routes %v", peerRoutes())
+}
+
+// RFC 7313 Section 4: a BoRR from a graceful restart peer before its
+// End-of-RIB is ignored, so its routes are not marked stale.
+func TestEnhancedRouteRefreshBoRRBeforeEoR(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m := establishEnhancedRefreshSession(t, s, peer, asn, peerAddr)
+	conf := peer.fsm.pConf.ReadCopy()
+	for i, a := range conf.AfiSafis {
+		if a.State.Family == bgp.RF_IPv4_UC {
+			conf.AfiSafis[i].MpGracefulRestart.State.Enabled = true
+			conf.AfiSafis[i].MpGracefulRestart.State.Received = true
+			conf.AfiSafis[i].MpGracefulRestart.State.EndOfRibReceived = false
+		}
+	}
+	peer.fsm.pConf.Update(&conf)
+
+	peerRoutes := func() int {
+		n := 0
+		_ = s.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Name: peerAddr, Family: bgp.RF_IPv4_UC},
+			func(bgp.NLRI, []*apiutil.Path) { n++ })
+		return n
+	}
+	m.PushBgpMessage(ipv4Update(t, peerAddr, "198.51.100.0/24", "203.0.113.0/24"))
+	require.Eventually(t, func() bool { return peerRoutes() == 2 }, 5*time.Second, 10*time.Millisecond)
+	m.PushBgpMessage(bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_BORR, bgp.SAFI_UNICAST))
+	m.PushBgpMessage(ipv4Update(t, peerAddr, "203.0.113.0/24"))
+	m.PushBgpMessage(bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_EORR, bgp.SAFI_UNICAST))
+	require.Never(t, func() bool { return peerRoutes() != 2 }, 500*time.Millisecond, 10*time.Millisecond,
+		"a BoRR before End-of-RIB must not mark routes stale")
+	peer.fsm.lock.Lock()
+	n := len(peer.borrTimers)
+	peer.fsm.lock.Unlock()
+	require.Zero(t, n)
+}
+
+// RFC 7313 Section 4: an EoRR without a BoRR is ignored. Graceful restart
+// marks routes stale in the same Adj-RIB-In, so such an EoRR must not
+// remove them.
+func TestEnhancedRouteRefreshEoRRWithoutBoRR(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m := establishEnhancedRefreshSession(t, s, peer, asn, peerAddr)
+
+	peerRoutes := func() []string {
+		var out []string
+		_ = s.ListPath(apiutil.ListPathRequest{TableType: api.TableType_TABLE_TYPE_ADJ_IN, Name: peerAddr, Family: bgp.RF_IPv4_UC},
+			func(prefix bgp.NLRI, _ []*apiutil.Path) { out = append(out, prefix.String()) })
+		return out
+	}
+	m.PushBgpMessage(ipv4Update(t, peerAddr, "198.51.100.0/24", "203.0.113.0/24"))
+	require.Eventually(t, func() bool { return len(peerRoutes()) == 2 }, 5*time.Second, 10*time.Millisecond)
+
+	// Stale like the routes that graceful restart keeps.
+	require.NoError(t, s.mgmtOperation(func() error {
+		peer.adjRibIn.StaleAll([]bgp.Family{bgp.RF_IPv4_UC})
+		return nil
+	}, true))
+	m.PushBgpMessage(bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_EORR, bgp.SAFI_UNICAST))
+	require.Never(t, func() bool { return len(peerRoutes()) != 2 }, 500*time.Millisecond, 10*time.Millisecond,
+		"an EoRR without a BoRR must not remove stale routes")
+}
