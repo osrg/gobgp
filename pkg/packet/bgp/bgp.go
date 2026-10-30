@@ -17557,6 +17557,15 @@ func NewBGPKeepAliveMessage() *BGPMessage {
 	}
 }
 
+// Message Subtype of ROUTE-REFRESH (RFC 7313 Section 3.2): a normal
+// request, the Beginning of Route Refresh (BoRR) and the End of Route
+// Refresh (EoRR).
+const (
+	BGP_ROUTE_REFRESH_NORMAL uint8 = 0
+	BGP_ROUTE_REFRESH_BORR   uint8 = 1
+	BGP_ROUTE_REFRESH_EORR   uint8 = 2
+)
+
 type BGPRouteRefresh struct {
 	AFI         uint16
 	Demarcation uint8

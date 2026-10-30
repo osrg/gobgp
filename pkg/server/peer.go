@@ -139,6 +139,9 @@ type peer struct {
 	grHelper       gr.Helper
 	grRestartTimer *time.Timer
 	grLLGRTimers   map[bgp.Family]*time.Timer
+	// borrTimers bounds how long the routes that a BoRR marked stale stay
+	// without an EoRR (RFC 7313 Section 4), per family.
+	borrTimers map[bgp.Family]*time.Timer // protected by fsm.lock
 	// Route Target Membership handler after import policy (for constrained VPN distribution).
 	rtmHandler *table.RouteTargetMembershipHandler
 	// Route refresh in progress, during an established session or route refresh, this need to be atomic to avoid out of order updates
@@ -435,6 +438,33 @@ func (peer *peer) getRtcEORWait() bool {
 func (peer *peer) setRtcEORWait(waiting bool) {
 	peer.fsm.rtcEORWait.Store(waiting)
 	peer.fsm.logger.Debug("Set rtcEORWait", slog.Bool("Data", waiting))
+}
+
+// eorReceived reports whether a graceful restart peer has sent End-of-RIB
+// for rf. It is true for a peer without graceful restart for rf.
+func (peer *peer) eorReceived(rf bgp.Family) bool {
+	for _, a := range peer.fsm.pConf.ReadOnly().AfiSafis {
+		if s := a.MpGracefulRestart.State; a.State.Family == rf && s.Enabled && s.Received && !s.EndOfRibReceived {
+			return false
+		}
+	}
+	return true
+}
+
+// stopBorrTimers stops the BoRR timers of families, or all of them, and
+// reports whether one was running.
+func (peer *peer) stopBorrTimers(families ...bgp.Family) bool {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	stopped := false
+	for rf, t := range peer.borrTimers {
+		if len(families) == 0 || slices.Contains(families, rf) {
+			t.Stop()
+			delete(peer.borrTimers, rf)
+			stopped = true
+		}
+	}
+	return stopped
 }
 
 func (peer *peer) configuredRFlist() []bgp.Family {

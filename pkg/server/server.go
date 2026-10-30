@@ -607,6 +607,13 @@ func sendfsmOutgoingMsg(peer *peer, paths []*table.Path) {
 	}
 }
 
+// sendfsmOutgoingMsgRaw queues m after the paths queued before.
+func sendfsmOutgoingMsgRaw(peer *peer, m *bgp.BGPMessage) {
+	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
+		Message: m,
+	}
+}
+
 func isASLoop(peer *peer, path *table.Path) bool {
 	return slices.Contains(path.GetAsList(), peer.AS())
 }
@@ -1434,18 +1441,104 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) {
 
 	peer.fsm.lock.Lock()
 	_, ok := peer.fsm.capMap[bgp.BGP_CAP_ROUTE_REFRESH]
+	_, enhanced := peer.fsm.capMap[bgp.BGP_CAP_ENHANCED_ROUTE_REFRESH]
 	peer.fsm.lock.Unlock()
 	if !ok {
 		peer.fsm.logger.Warn("ROUTE_REFRESH received but the capability wasn't advertised")
 		return
 	}
 	rfList := []bgp.Family{rf}
+	// RFC 7313: with Enhanced Route Refresh the peer brackets its
+	// re-advertisement with BoRR and EoRR. The routes of the family that
+	// the peer does not send again by EoRR are gone.
+	switch rr.Demarcation {
+	case bgp.BGP_ROUTE_REFRESH_NORMAL:
+	case bgp.BGP_ROUTE_REFRESH_BORR:
+		if !enhanced {
+			peer.fsm.logger.Warn("BoRR received but the enhanced route refresh capability wasn't advertised", slog.String("Family", rf.String()))
+			return
+		}
+		if !peer.eorReceived(rf) {
+			// RFC 7313 Section 4: a BoRR from a graceful restart peer
+			// before its End-of-RIB is ignored.
+			peer.fsm.logger.Warn("BoRR before End-of-RIB from a graceful restart peer, ignored", slog.String("Family", rf.String()))
+			return
+		}
+		peer.adjRibIn.StaleAll(rfList)
+		s.startBorrTimer(peer, rf)
+		return
+	case bgp.BGP_ROUTE_REFRESH_EORR:
+		if !enhanced {
+			peer.fsm.logger.Warn("EoRR received but the enhanced route refresh capability wasn't advertised", slog.String("Family", rf.String()))
+			return
+		}
+		// RFC 7313 Section 4: "A BGP speaker MAY ignore any EoRR message
+		// received without a prior receipt of an associated BoRR
+		// message." Graceful restart marks routes stale too, so an EoRR
+		// without a BoRR must not remove them.
+		if !peer.stopBorrTimers(rf) {
+			peer.fsm.logger.Warn("EoRR without BoRR, ignored", slog.String("Family", rf.String()))
+			return
+		}
+		s.propagateUpdate(peer, peer.adjRibIn.DropStale(rfList))
+		return
+	default:
+		// RFC 7313 Section 5: ignore other subtypes.
+		peer.fsm.logger.Warn("ROUTE_REFRESH with an unknown subtype, ignored", slog.Int("Subtype", int(rr.Demarcation)), slog.String("Family", rf.String()))
+		return
+	}
+	if enhanced {
+		sendfsmOutgoingMsgRaw(peer, bgp.NewBGPRouteRefreshMessage(rf.Afi(), bgp.BGP_ROUTE_REFRESH_BORR, rf.Safi()))
+	}
 	s.getBestFromLocalCallback(peer, rfList, true, true, func(paths []*table.Path, filtered []*table.Path) {
 		if len(paths) > 0 {
 			peer.updateRoutes(paths...)
 			sendfsmOutgoingMsg(peer, paths)
 		}
 	})
+	if enhanced {
+		sendfsmOutgoingMsgRaw(peer, bgp.NewBGPRouteRefreshMessage(rf.Afi(), bgp.BGP_ROUTE_REFRESH_EORR, rf.Safi()))
+	}
+}
+
+// defaultBorrStaleTime is how long the routes that a BoRR marked stale stay
+// without an EoRR when the neighbor has no graceful restart
+// stale-routes-time, like FRR's default stalepath-time.
+const defaultBorrStaleTime = 360 * time.Second
+
+// startBorrTimer removes the routes of rf that are still stale when the peer
+// sends no EoRR in time (RFC 7313 Section 4: a local upper bound on how long
+// stale routes stay).
+func (s *BgpServer) startBorrTimer(peer *peer, rf bgp.Family) {
+	d := defaultBorrStaleTime
+	if t := peer.fsm.pConf.ReadOnly().GracefulRestart.Config.StaleRoutesTime; t > 0 {
+		d = time.Duration(t * float64(time.Second))
+	}
+	peer.stopBorrTimers(rf)
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	if peer.borrTimers == nil {
+		peer.borrTimers = make(map[bgp.Family]*time.Timer)
+	}
+	var timer *time.Timer
+	timer = time.AfterFunc(d, func() {
+		_ = s.mgmtOperation(func() error {
+			peer.fsm.lock.Lock()
+			current := peer.borrTimers[rf] == timer
+			if current {
+				delete(peer.borrTimers, rf)
+			}
+			peer.fsm.lock.Unlock()
+			if !current {
+				// stopped by an EoRR or the end of the session
+				return nil
+			}
+			peer.fsm.logger.Info("no EoRR after BoRR, removing the stale routes", slog.String("Family", rf.String()), slog.Duration("Duration", d))
+			s.propagateUpdate(peer, peer.adjRibIn.DropStale([]bgp.Family{rf}))
+			return nil
+		}, false)
+	})
+	peer.borrTimers[rf] = timer
 }
 
 // dropAdjRIBIn removes the peer's Adj-RIB-In for the given families and
@@ -1848,6 +1941,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 
 func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	peer.stopGRTimers()
+	peer.stopBorrTimers()
 	// Guard against the TOCTOU window between the RUnlock and write-Lock in
 	// handleFSMMessage: only delete if the map still holds this exact peer
 	key := netip.MustParseAddr(peer.ID())
@@ -2246,6 +2340,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			peer.fsm.pConf.Update(&conf)
 			peer.prefixLimitWarned = make(map[bgp.Family]bool)
 			peer.fsm.lock.Unlock()
+			peer.stopBorrTimers()
 
 			// Publish the down state before clearing advertised-route state.
 			// This avoids rebuilding RIB-out bookkeeping by propagation that starts after the reset.
