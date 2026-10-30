@@ -23,6 +23,7 @@ import (
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_MultiProtocolCapability(t *testing.T) {
@@ -179,6 +180,26 @@ func Test_AddPathCapability(t *testing.T) {
 
 	output := NewAddPathCapability(c)
 	assert.True(proto.Equal(input, output))
+}
+
+func Test_PathsLimitCapability(t *testing.T) {
+	input := &api.PathsLimitCapability{
+		Tuples: []*api.PathsLimitCapabilityTuple{
+			{Family: &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST}, Limit: 0},
+			{Family: &api.Family{Afi: api.Family_AFI_L2VPN, Safi: api.Family_SAFI_EVPN}, Limit: 8},
+		},
+	}
+	n, err := unmarshalCapability(&api.Capability{Cap: &api.Capability_PathsLimit{PathsLimit: input}})
+	require.NoError(t, err)
+	c := n.(*bgp.CapPathsLimit)
+	require.Equal(t, []*bgp.CapPathsLimitTuple{{Family: bgp.RF_IPv4_UC, Limit: 0}, {Family: bgp.RF_EVPN, Limit: 8}}, c.Tuples)
+	m, err := MarshalCapability(c)
+	require.NoError(t, err)
+	require.True(t, proto.Equal(input, m.GetPathsLimit()))
+
+	input.Tuples[1].Limit = 70000
+	_, err = unmarshalCapability(&api.Capability{Cap: &api.Capability_PathsLimit{PathsLimit: input}})
+	require.Error(t, err)
 }
 
 func Test_EnhancedRouteRefreshCapability(t *testing.T) {

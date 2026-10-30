@@ -420,6 +420,7 @@ const (
 	BGP_CAP_LONG_LIVED_GRACEFUL_RESTART BGPCapabilityCode = 71
 	BGP_CAP_FQDN                        BGPCapabilityCode = 73
 	BGP_CAP_SOFT_VERSION                BGPCapabilityCode = 75
+	BGP_CAP_PATHS_LIMIT                 BGPCapabilityCode = 76
 	BGP_CAP_ROUTE_REFRESH_CISCO         BGPCapabilityCode = 128
 )
 
@@ -437,6 +438,7 @@ var CapNameMap = map[BGPCapabilityCode]string{
 	BGP_CAP_LONG_LIVED_GRACEFUL_RESTART: "long-lived-graceful-restart",
 	BGP_CAP_FQDN:                        "fqdn",
 	BGP_CAP_SOFT_VERSION:                "software-version",
+	BGP_CAP_PATHS_LIMIT:                 "paths-limit",
 }
 
 func (c BGPCapabilityCode) String() string {
@@ -997,6 +999,93 @@ func NewCapAddPath(tuples []*CapAddPathTuple) *CapAddPath {
 	}
 }
 
+// CapPathsLimitTuple is the most paths per prefix that the speaker wants
+// to receive in a family with ADD-PATH; 0 is no limit.
+type CapPathsLimitTuple struct {
+	Family Family
+	Limit  uint16
+}
+
+func (t *CapPathsLimitTuple) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Family Family `json:"family"`
+		Limit  uint16 `json:"limit"`
+	}{
+		Family: t.Family,
+		Limit:  t.Limit,
+	})
+}
+
+func NewCapPathsLimitTuple(family Family, limit uint16) *CapPathsLimitTuple {
+	return &CapPathsLimitTuple{
+		Family: family,
+		Limit:  limit,
+	}
+}
+
+// CapPathsLimit is the Paths-Limit capability for ADD-PATH
+// (draft-abraitis-idr-addpath-paths-limit, code 76).
+type CapPathsLimit struct {
+	DefaultParameterCapability
+	Tuples []*CapPathsLimitTuple
+}
+
+func (c *CapPathsLimit) DecodeFromBytes(data []byte) error {
+	if err := c.DefaultParameterCapability.DecodeFromBytes(data); err != nil {
+		return err
+	}
+	data = data[2:]
+	capLen := int(c.CapLen)
+	// An empty capability is valid: the sender has no limit to tell.
+	if capLen%5 != 0 || len(data) < capLen {
+		return NewMessageError(BGP_ERROR_OPEN_MESSAGE_ERROR, BGP_ERROR_SUB_UNSUPPORTED_CAPABILITY, nil, "Not all CapabilityPathsLimit bytes available")
+	}
+
+	c.Tuples = []*CapPathsLimitTuple{}
+	for capLen >= 5 {
+		c.Tuples = append(c.Tuples, &CapPathsLimitTuple{
+			Family: NewFamily(binary.BigEndian.Uint16(data[:2]), data[2]),
+			Limit:  binary.BigEndian.Uint16(data[3:5]),
+		})
+		data = data[5:]
+		capLen -= 5
+	}
+	return nil
+}
+
+func (c *CapPathsLimit) Serialize() ([]byte, error) {
+	buf := make([]byte, len(c.Tuples)*5)
+	for i, t := range c.Tuples {
+		binary.BigEndian.PutUint16(buf[i*5:i*5+2], t.Family.Afi())
+		buf[i*5+2] = t.Family.Safi()
+		binary.BigEndian.PutUint16(buf[i*5+3:i*5+5], t.Limit)
+	}
+	return c.serializeValue(buf)
+}
+
+func (c *CapPathsLimit) Len() int {
+	return 2 + 5*len(c.Tuples)
+}
+
+func (c *CapPathsLimit) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Code   BGPCapabilityCode     `json:"code"`
+		Tuples []*CapPathsLimitTuple `json:"tuples"`
+	}{
+		Code:   c.Code(),
+		Tuples: c.Tuples,
+	})
+}
+
+func NewCapPathsLimit(tuples []*CapPathsLimitTuple) *CapPathsLimit {
+	return &CapPathsLimit{
+		DefaultParameterCapability: DefaultParameterCapability{
+			CapCode: BGP_CAP_PATHS_LIMIT,
+		},
+		Tuples: tuples,
+	}
+}
+
 type CapEnhancedRouteRefresh struct {
 	DefaultParameterCapability
 }
@@ -1296,6 +1385,8 @@ func DecodeCapability(data []byte) (ParameterCapabilityInterface, error) {
 		c = &CapFQDN{}
 	case BGP_CAP_SOFT_VERSION:
 		c = &CapSoftwareVersion{}
+	case BGP_CAP_PATHS_LIMIT:
+		c = &CapPathsLimit{}
 	default:
 		c = &CapUnknown{}
 	}

@@ -2877,6 +2877,37 @@ func TestCapSoftwareVersionRoundTrip(t *testing.T) {
 	}
 }
 
+// The Paths-Limit capability as FRR 10.2.1 sends it for IPv4 unicast
+// (limit 0) decodes, and a tuple encodes back to the same bytes.
+func TestCapPathsLimit(t *testing.T) {
+	frr := []byte{76, 5, 0, 1, 1, 0, 0}
+	c, err := DecodeCapability(frr)
+	require.NoError(t, err)
+	pl, ok := c.(*CapPathsLimit)
+	require.True(t, ok, "decoded as %T", c)
+	require.Equal(t, []*CapPathsLimitTuple{{Family: RF_IPv4_UC, Limit: 0}}, pl.Tuples)
+	buf, err := pl.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, frr, buf)
+
+	two := NewCapPathsLimit([]*CapPathsLimitTuple{NewCapPathsLimitTuple(RF_IPv4_UC, 3), NewCapPathsLimitTuple(RF_EVPN, 300)})
+	buf, err = two.Serialize()
+	require.NoError(t, err)
+	require.Equal(t, []byte{76, 10, 0, 1, 1, 0, 3, 0, 25, 70, 1, 44}, buf)
+	decoded := &CapPathsLimit{}
+	require.NoError(t, decoded.DecodeFromBytes(buf))
+	require.Equal(t, two.Tuples, decoded.Tuples)
+
+	// An empty capability is valid and has no tuples.
+	empty := &CapPathsLimit{}
+	require.NoError(t, empty.DecodeFromBytes([]byte{76, 0}))
+	require.Empty(t, empty.Tuples)
+
+	for _, bad := range [][]byte{{76, 4, 0, 1, 1, 0}, {76, 6, 0, 1, 1, 0, 0, 0}} {
+		require.Error(t, (&CapPathsLimit{}).DecodeFromBytes(bad), "%v", bad)
+	}
+}
+
 func TestCapabilityBoundaryEnforcement(t *testing.T) {
 	// Each fixed-size capability must reject a CapLen that does not match the
 	// required size. Before the fix, decoders used data[2:] (the full remaining
@@ -7533,6 +7564,10 @@ func capabilityLenTestCases() []capabilityTestCase {
 		})},
 		{"fqdn", NewCapFQDN("router1", "example.com")},
 		{"software-version", NewCapSoftwareVersion("GoBGP/4.0.0")},
+		{"paths-limit", NewCapPathsLimit([]*CapPathsLimitTuple{
+			NewCapPathsLimitTuple(RF_IPv4_UC, 0),
+			NewCapPathsLimitTuple(RF_EVPN, 8),
+		})},
 		{"unknown", NewCapUnknown(BGPCapabilityCode(199), []byte{0x11, 0x22, 0x33})},
 	}
 }

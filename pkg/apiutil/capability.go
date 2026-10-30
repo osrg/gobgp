@@ -17,6 +17,7 @@ package apiutil
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -87,6 +88,19 @@ func NewAddPathCapability(a *bgp.CapAddPath) *api.AddPathCapability {
 		})
 	}
 	return &api.AddPathCapability{
+		Tuples: tuples,
+	}
+}
+
+func NewPathsLimitCapability(a *bgp.CapPathsLimit) *api.PathsLimitCapability {
+	tuples := make([]*api.PathsLimitCapabilityTuple, 0, len(a.Tuples))
+	for _, t := range a.Tuples {
+		tuples = append(tuples, &api.PathsLimitCapabilityTuple{
+			Family: ToApiFamily(t.Family.Afi(), t.Family.Safi()),
+			Limit:  uint32(t.Limit),
+		})
+	}
+	return &api.PathsLimitCapability{
 		Tuples: tuples,
 	}
 }
@@ -162,6 +176,8 @@ func MarshalCapability(value bgp.ParameterCapabilityInterface) (*api.Capability,
 		m.Cap = &api.Capability_SoftwareVersion{SoftwareVersion: NewSoftwareVersionCapability(n)}
 	case *bgp.CapExtendedMessage:
 		m.Cap = &api.Capability_ExtendedMessage{ExtendedMessage: NewExtendedMessageCapability(n)}
+	case *bgp.CapPathsLimit:
+		m.Cap = &api.Capability_PathsLimit{PathsLimit: NewPathsLimitCapability(n)}
 	case *bgp.CapUnknown:
 		m.Cap = &api.Capability_Unknown{Unknown: NewUnknownCapability(n)}
 	default:
@@ -236,6 +252,16 @@ func unmarshalCapability(a *api.Capability) (bgp.ParameterCapabilityInterface, e
 			tuples = append(tuples, bgp.NewCapAddPathTuple(ToFamily(t.Family), bgp.BGPAddPathMode(t.Mode)))
 		}
 		return bgp.NewCapAddPath(tuples), nil
+	case *api.Capability_PathsLimit:
+		a := cap.PathsLimit
+		tuples := make([]*bgp.CapPathsLimitTuple, 0, len(a.Tuples))
+		for _, t := range a.Tuples {
+			if t.Limit > math.MaxUint16 {
+				return nil, fmt.Errorf("invalid paths limit %d in paths-limit capability", t.Limit)
+			}
+			tuples = append(tuples, bgp.NewCapPathsLimitTuple(ToFamily(t.Family), uint16(t.Limit)))
+		}
+		return bgp.NewCapPathsLimit(tuples), nil
 	case *api.Capability_EnhancedRouteRefresh:
 		return bgp.NewCapEnhancedRouteRefresh(), nil
 	case *api.Capability_LongLivedGracefulRestart:

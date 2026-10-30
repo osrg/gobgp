@@ -484,6 +484,20 @@ func showNeighbor(args []string) error {
 					fmt.Printf("         %s:\t%s\n", item.Family, item.Mode)
 				}
 			}
+		case bgp.BGP_CAP_PATHS_LIMIT:
+			fmt.Printf("    %s:\t%s\n", c.Code(), support)
+			if m := lookup(c, lcaps); m != nil {
+				fmt.Println("      Local:")
+				for _, item := range m.(*bgp.CapPathsLimit).Tuples {
+					fmt.Printf("         %s:\t%d\n", item.Family, item.Limit)
+				}
+			}
+			if m := lookup(c, rcaps); m != nil {
+				fmt.Println("      Remote:")
+				for _, item := range m.(*bgp.CapPathsLimit).Tuples {
+					fmt.Printf("         %s:\t%d\n", item.Family, item.Limit)
+				}
+			}
 		case bgp.BGP_CAP_FQDN:
 			fmt.Printf("    %s:\t%s\n", c.Code(), support)
 			if m := lookup(c, lcaps); m != nil {
