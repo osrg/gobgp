@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -64,21 +65,25 @@ type bfdRxInfo struct {
 type bfdListener struct {
 	network string // "udp4" or "udp6"
 	mhop    bool   // listens on the multihop port
+	// iface is the device the socket is bound to. "" means the global
+	// listenInterface.
+	iface string
 
 	conn *net.UDPConn
 	read func(b []byte) (int, bfdRxInfo, error)
+	stop chan struct{}
 
 	// failed is true when the last attempt to open the socket failed.
 	// Only the first failure in a row is logged at Error level.
 	failed bool
 }
 
-func newBfdListeners() []*bfdListener {
+func newBfdListeners(iface string) []*bfdListener {
 	return []*bfdListener{
-		{network: "udp4"},
-		{network: "udp6"},
-		{network: "udp4", mhop: true},
-		{network: "udp6", mhop: true},
+		{network: "udp4", iface: iface},
+		{network: "udp6", iface: iface},
+		{network: "udp4", mhop: true, iface: iface},
+		{network: "udp6", mhop: true, iface: iface},
 	}
 }
 
@@ -101,6 +106,11 @@ type bfdServer struct {
 
 	listeners       []*bfdListener
 	listenInterface string
+	// ifaceRefs counts the sessions bound to each interface other than
+	// listenInterface. Each such interface has its own listeners, because
+	// on Linux a socket that is not bound to a VRF does not receive the
+	// packets of that VRF unless net.ipv4.udp_l3mdev_accept is 1.
+	ifaceRefs map[string]int
 	// multihopPort is the UDP port of the multihop listeners. Tests
 	// replace it.
 	multihopPort uint16
@@ -124,7 +134,6 @@ type bfdServer struct {
 
 	shutdownWait sync.WaitGroup
 
-	serverStop chan struct{}
 	serverWait sync.WaitGroup
 
 	stats bfdServerStats
@@ -139,7 +148,8 @@ func NewBfdServer(ps peerState, logger *slog.Logger) *bfdServer {
 		discrs:              make(map[uint32]*bfdPeer),
 		randomDiscriminator: randomBFDMyDiscriminator,
 
-		listeners:    newBfdListeners(),
+		listeners:    newBfdListeners(""),
+		ifaceRefs:    make(map[string]int),
 		multihopPort: bfdMultihopPort,
 
 		eventStartStop:  time.NewTicker(time.Second),
@@ -330,10 +340,14 @@ func (s *bfdServer) startListener(l *bfdListener) bool {
 	addressString := ":" + strconv.FormatUint(uint64(port), 10)
 
 	var lc net.ListenConfig
+	iface := l.iface
+	if iface == "" {
+		iface = s.listenInterface
+	}
 	lc.Control = func(network, address string, sc syscall.RawConn) error {
-		if s.listenInterface != "" {
-			s.logger.Info("binding bfd listener to interface", slog.String("interface", s.listenInterface))
-			if err := netutils.SetBindToDevSockopt(sc, s.listenInterface); err != nil {
+		if iface != "" {
+			s.logger.Debug("binding bfd listener to interface", slog.String("interface", iface))
+			if err := netutils.SetBindToDevSockopt(sc, iface); err != nil {
 				return err
 			}
 		}
@@ -355,6 +369,7 @@ func (s *bfdServer) startListener(l *bfdListener) bool {
 	}
 
 	l.conn = conn
+	l.stop = make(chan struct{})
 	l.failed = false
 	if l.network == "udp4" {
 		l.read = s.ipv4Reader(conn, l.mhop)
@@ -366,14 +381,12 @@ func (s *bfdServer) startListener(l *bfdListener) bool {
 		slog.String("Topic", "bfd"),
 		slog.String("Network", l.network),
 		slog.String("Address", addressString),
+		slog.String("Interface", iface),
 		slog.Bool("Multihop", l.mhop),
 	)
 
-	if s.serverStop == nil {
-		s.serverStop = make(chan struct{})
-	}
 	s.serverWait.Add(1)
-	go s.serverLoop(l.read, s.serverStop)
+	go s.serverLoop(l.read, l.stop)
 	return true
 }
 
@@ -497,27 +510,63 @@ func ipToAddr(ip net.IP) netip.Addr {
 }
 
 func (s *bfdServer) stop() {
-	if s.serverStop == nil {
-		return
-	}
-
-	close(s.serverStop)
+	running := false
 	for _, l := range s.listeners {
 		if l.conn != nil {
-			l.conn.Close()
+			s.closeListener(l)
+			running = true
 		}
-	}
-	s.serverWait.Wait()
-	for _, l := range s.listeners {
-		l.conn = nil
-		l.read = nil
 		l.failed = false
 	}
-	s.serverStop = nil
+	// Listeners closed when their last session went away may still be
+	// exiting, so wait also when none was running.
+	s.serverWait.Wait()
+	if running {
+		s.logger.Info("BFD server is stopped",
+			slog.String("Topic", "bfd"),
+		)
+	}
+}
 
-	s.logger.Info("BFD server is stopped",
-		slog.String("Topic", "bfd"),
-	)
+func (s *bfdServer) closeListener(l *bfdListener) {
+	close(l.stop)
+	l.conn.Close()
+	l.conn, l.read, l.stop = nil, nil, nil
+}
+
+// refListeners adds the listeners of iface for a new session, unless the
+// global listeners or those of an earlier session already cover it. They
+// open on the next start.
+func (s *bfdServer) refListeners(iface string) {
+	if iface == "" || iface == s.listenInterface {
+		return
+	}
+	s.ifaceRefs[iface]++
+	if s.ifaceRefs[iface] == 1 {
+		s.listeners = append(s.listeners, newBfdListeners(iface)...)
+	}
+}
+
+// unrefListeners closes the listeners of iface when its last session is
+// removed.
+func (s *bfdServer) unrefListeners(iface string) {
+	if iface == "" || iface == s.listenInterface {
+		return
+	}
+	s.ifaceRefs[iface]--
+	if s.ifaceRefs[iface] > 0 {
+		return
+	}
+	delete(s.ifaceRefs, iface)
+	s.listeners = slices.DeleteFunc(s.listeners, func(l *bfdListener) bool {
+		if l.iface != iface {
+			return false
+		}
+		if l.conn != nil {
+			s.closeListener(l)
+		}
+		return true
+	})
 }
 
 func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, localAddress netip.Addr, bindInterface string, minTTL int) {
@@ -544,8 +593,12 @@ func (s *bfdServer) addBfdPeer(peerAddress netip.Addr, config oc.BfdConfig, loca
 		}
 		// A changed source, interface or session type replaces the session;
 		// retirement cancels its pending BFD-down operation so it cannot
-		// affect the replacement.
+		// affect the replacement. The new session takes its listeners
+		// first, so those of an unchanged interface stay open.
+		s.refListeners(bindInterface)
 		s.deleteBfdPeer(peerAddress)
+	} else {
+		s.refListeners(bindInterface)
 	}
 
 	bfdPeer := newBfdPeer(s.peerState, s.logger, peerAddress, config, localAddress, bindInterface, s.newDiscriminator(), minTTL)
@@ -599,6 +652,7 @@ func (s *bfdServer) deleteBfdPeer(peerAddress netip.Addr) {
 	delete(s.discrs, peer.myDiscriminator)
 	s.peersMutex.Unlock()
 	peer.Stop()
+	s.unrefListeners(peer.bindInterface)
 
 	s.logger.Info("Remove BFD peer",
 		slog.String("Topic", "bfd"),

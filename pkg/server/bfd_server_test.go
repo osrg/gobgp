@@ -592,7 +592,7 @@ func Test_BfdServerListenerFailureIsIndependent(t *testing.T) {
 	s := &bfdServer{
 		logger:    slog.Default(),
 		peers:     make(map[netip.Addr]*bfdPeer),
-		listeners: newBfdListeners(),
+		listeners: newBfdListeners(""),
 		config:    &oc.BfdConfig{Port: uint16(port)},
 	}
 	udp4, udp6 := s.listeners[0], s.listeners[1]
@@ -611,6 +611,70 @@ func Test_BfdServerListenerFailureIsIndependent(t *testing.T) {
 	s.stop()
 	assert.Nil(t, udp4.conn)
 	assert.Nil(t, udp6.conn)
+}
+
+// Test_BfdServerInterfaceListeners checks that a session bound to an
+// interface other than the global one gets its own listeners, shared by
+// the sessions on that interface and closed with the last of them.
+func Test_BfdServerInterfaceListeners(t *testing.T) {
+	// Build the server directly, without the loop goroutine, so start()
+	// runs only when the test calls it.
+	s := &bfdServer{
+		peerState:           &mockPeerState{},
+		logger:              slog.Default(),
+		peers:               make(map[netip.Addr]*bfdPeer),
+		discrs:              make(map[uint32]*bfdPeer),
+		randomDiscriminator: randomBFDMyDiscriminator,
+		listeners:           newBfdListeners(""),
+		ifaceRefs:           make(map[string]int),
+		listenInterface:     "global0",
+		config:              &oc.BfdConfig{},
+		eventStartStop:      time.NewTicker(time.Hour),
+	}
+	defer s.shutdown()
+
+	ifaceListeners := func(iface string) []*bfdListener {
+		var ls []*bfdListener
+		for _, l := range s.listeners {
+			if l.iface == iface {
+				ls = append(ls, l)
+			}
+		}
+		return ls
+	}
+	config := oc.BfdConfig{Enabled: true}
+	local := netip.MustParseAddr("127.0.0.1")
+	peer1 := netip.MustParseAddr("127.0.0.2")
+	peer2 := netip.MustParseAddr("127.0.0.3")
+
+	// No interface or the global one: the global listeners cover it.
+	s.addBfdPeer(netip.MustParseAddr("127.0.0.4"), config, local, "", 1)
+	s.addBfdPeer(netip.MustParseAddr("127.0.0.5"), config, local, "global0", 1)
+	assert.Len(t, s.listeners, 4)
+	assert.Empty(t, s.ifaceRefs)
+
+	s.addBfdPeer(peer1, config, local, "lo", 1)
+	vrf := ifaceListeners("lo")
+	assert.Len(t, vrf, 4)
+	s.start() // opens them where the platform can bind to a device
+
+	s.addBfdPeer(peer2, config, local, "lo", 1)
+	assert.Equal(t, vrf, ifaceListeners("lo"), "second session shares the listeners")
+
+	// Replacing a session on the same interface keeps the listeners.
+	s.addBfdPeer(peer1, config, netip.MustParseAddr("127.0.0.6"), "lo", 1)
+	assert.Equal(t, vrf, ifaceListeners("lo"))
+
+	s.deleteBfdPeer(peer1)
+	assert.Equal(t, vrf, ifaceListeners("lo"))
+
+	s.deleteBfdPeer(peer2)
+	assert.Empty(t, ifaceListeners("lo"))
+	assert.Empty(t, s.ifaceRefs)
+	assert.Len(t, s.listeners, 4)
+	for _, l := range vrf {
+		assert.Nil(t, l.conn)
+	}
 }
 
 func Test_BfdServerNewDiscriminatorSkipsUsed(t *testing.T) {
