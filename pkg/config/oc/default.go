@@ -90,6 +90,10 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 		}
 	}
 
+	// The server sets the address of an unnumbered neighbor that it learned
+	// from a connection. Keep it instead of looking up the interface again.
+	learnedAddress := n.Config.NeighborInterface != "" && n.State.NeighborAddress.IsValid()
+
 	if n.Config.LocalAs == 0 {
 		n.Config.LocalAs = getLocalAsForPeer(g, n.Config.PeerAs)
 	}
@@ -138,11 +142,13 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 		if n.RouteServer.Config.RouteServerClient {
 			return fmt.Errorf("configuring route server client as unnumbered peer is not supported")
 		}
-		addr, err := GetIPv6LinkLocalNeighborAddress(n.Config.NeighborInterface)
-		if err != nil {
-			return err
+		if !learnedAddress {
+			addr, err := GetIPv6LinkLocalNeighborAddress(n.Config.NeighborInterface)
+			if err != nil {
+				return err
+			}
+			n.State.NeighborAddress = netip.MustParseAddr(addr)
 		}
-		n.State.NeighborAddress = netip.MustParseAddr(addr)
 	}
 
 	if !n.Transport.Config.LocalAddress.IsValid() {

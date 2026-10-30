@@ -475,6 +475,8 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 
 		peer.fsm.logger.Debug("Accepted a new passive connection")
 		peer.PassConn(conn)
+	} else if s.moveInterfaceNeighbor(addr) {
+		s.passConnToPeer(conn)
 	} else if pg := s.matchLongestDynamicNeighborPrefix(addr.WithZone("").String()); pg != nil {
 		s.logger.Debug("Accepted a new dynamic neighbor",
 			slog.String("Topic", "Peer"),
@@ -521,6 +523,47 @@ func (s *BgpServer) passConnToPeer(conn net.Conn) {
 		)
 		conn.Close()
 	}
+}
+
+// moveInterfaceNeighbor moves an unnumbered neighbor to addr, a link-local
+// address on its interface that another peer does not have. The neighbor
+// got its address when it was added. When the MAC address of the remote
+// side changes, for example because the switch was replaced, its
+// link-local address changes too, and it connects from the new address.
+// Like FRR, accept it from any link-local address on the interface. The
+// neighbor is deleted and added again with the new address, so that
+// everything keyed by the address follows. It is not moved while it has a
+// session, or with authentication, because the keys were installed for the
+// old address only.
+func (s *BgpServer) moveInterfaceNeighbor(addr netip.Addr) bool {
+	if !addr.Is6() || !addr.IsLinkLocalUnicast() || addr.Zone() == "" {
+		return false
+	}
+	for _, peer := range s.neighborMap {
+		conf := peer.fsm.pConf.ReadOnly()
+		if conf.Config.NeighborInterface != addr.Zone() {
+			continue
+		}
+		if peer.State() >= bgp.BGP_FSM_OPENSENT || peer.AdminState() != adminStateUp ||
+			conf.Config.AuthPassword != "" || peer.fsm.tcpAoKeyBinding.Load() != nil {
+			return false
+		}
+		c := cloneNeighborConfig(&peer.configuredConf)
+		c.State.NeighborAddress = addr
+		// Add the new neighbor first, so that the old one stays if it fails.
+		if err := s.addNeighbor(&c); err != nil {
+			peer.fsm.logger.Warn("failed to move the unnumbered neighbor",
+				slog.String("Addr", addr.String()),
+				slog.String("Err", err.Error()))
+			return false
+		}
+		peer.fsm.logger.Info("Moved the unnumbered neighbor to a new address",
+			slog.String("Addr", addr.String()))
+		s.dropAdjRIBIn(peer, peer.configuredRFlist())
+		s.stopNeighbor(peer, -1, nil)
+		return true
+	}
+	return false
 }
 
 func (s *BgpServer) Serve() {

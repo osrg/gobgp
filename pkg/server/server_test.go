@@ -405,6 +405,110 @@ func TestAddPeerUnnumberedInterface(t *testing.T) {
 		"interface-only neighbor must reach interface resolution, not be rejected by the address gate")
 }
 
+const unnumberedTestIface = "gobgp-test0"
+
+var (
+	unnumberedOldAddr = netip.MustParseAddr("fe80::1%" + unnumberedTestIface)
+	unnumberedNewAddr = netip.MustParseAddr("fe80::2%" + unnumberedTestIface)
+)
+
+// addUnnumberedTestNeighbor adds an unnumbered neighbor with the address
+// that the interface lookup would have found.
+func addUnnumberedTestNeighbor(t *testing.T, s *BgpServer, modify func(*oc.Neighbor)) {
+	t.Helper()
+	n := &oc.Neighbor{
+		// iBGP avoids applying OS-specific eBGP TTL options to the mock socket.
+		Config: oc.NeighborConfig{NeighborInterface: unnumberedTestIface, PeerAs: 65000},
+		State:  oc.NeighborState{NeighborAddress: unnumberedOldAddr},
+		Transport: oc.Transport{Config: oc.TransportConfig{
+			LocalAddress: netip.IPv6Unspecified(),
+			PassiveMode:  true,
+		}},
+		ApplyPolicy: oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+			DefaultImportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE,
+		}},
+	}
+	if modify != nil {
+		modify(n)
+	}
+	require.NoError(t, s.mgmtOperation(func() error { return s.addNeighbor(n) }, true))
+}
+
+// TestUnnumberedNeighborFollowsNewAddress checks that an unnumbered neighbor
+// accepts a connection from a new link-local address on its interface and
+// moves to that address. See #3865.
+func TestUnnumberedNeighborFollowsNewAddress(t *testing.T) {
+	s := newPolicyTestServer(t)
+	addUnnumberedTestNeighbor(t, s, nil)
+
+	m := NewMockConnection()
+	m.SetRemoteAddr(unnumberedNewAddr.String())
+	t.Cleanup(func() { m.Close() })
+	var p *peer
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.passConnToPeer(m)
+		assert.NotContains(t, s.neighborMap, unnumberedOldAddr)
+		p = s.neighborMap[unnumberedNewAddr]
+		return nil
+	}, true))
+	require.NotNil(t, p)
+	conf := p.fsm.pConf.ReadOnly()
+	assert.Equal(t, unnumberedTestIface, conf.Config.NeighborInterface)
+	assert.Equal(t, unnumberedNewAddr.String(), p.ID())
+	assert.Equal(t, p.ID(), p.importPolicyID)
+	// The moved neighbor uses the connection that triggered the move.
+	require.Eventually(t, func() bool { return p.State() >= bgp.BGP_FSM_OPENSENT },
+		5*time.Second, time.Millisecond, "the moved peer did not reach OpenSent")
+}
+
+// TestUnnumberedNeighborMoveRefused checks that an unnumbered neighbor is
+// not moved when it has authentication, is administratively down or
+// already has a session.
+func TestUnnumberedNeighborMoveRefused(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		modify  func(*oc.Neighbor)
+		session bool
+	}{
+		{name: "auth password", modify: func(n *oc.Neighbor) { n.Config.AuthPassword = "secret" }},
+		{name: "admin down", modify: func(n *oc.Neighbor) { n.Config.AdminDown = true }},
+		{name: "OpenSent", session: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newPolicyTestServer(t)
+			addUnnumberedTestNeighbor(t, s, tc.modify)
+			var old *peer
+			require.NoError(t, s.mgmtOperation(func() error {
+				old = s.neighborMap[unnumberedOldAddr]
+				return nil
+			}, true))
+			require.NotNil(t, old)
+			if tc.session {
+				// A session from the old address.
+				m := NewMockConnection()
+				m.SetRemoteAddr(unnumberedOldAddr.String())
+				t.Cleanup(func() { m.Close() })
+				require.NoError(t, s.mgmtOperation(func() error {
+					s.passConnToPeer(m)
+					return nil
+				}, true))
+				require.Eventually(t, func() bool { return old.State() >= bgp.BGP_FSM_OPENSENT },
+					5*time.Second, time.Millisecond, "the old peer did not reach OpenSent")
+			}
+			m := NewMockConnection()
+			m.SetRemoteAddr(unnumberedNewAddr.String())
+			t.Cleanup(func() { m.Close() })
+			require.NoError(t, s.mgmtOperation(func() error {
+				s.passConnToPeer(m)
+				assert.Len(t, s.neighborMap, 1)
+				assert.Same(t, old, s.neighborMap[unnumberedOldAddr])
+				assert.NotContains(t, s.neighborMap, unnumberedNewAddr)
+				return nil
+			}, true))
+		})
+	}
+}
+
 func TestWatchUpdateCurrentDeliversInitBeforeLiveEvents(t *testing.T) {
 	ctx := context.Background()
 	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
@@ -6059,6 +6163,36 @@ func TestRouteServerPolicyDoesNotInheritGlobal(t *testing.T) {
 	check(false)
 	require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{}))
 	check(true)
+}
+
+// TestNewPeerTakesConnectionInIdle checks that a peer that was just added
+// takes a connection that arrives while it is still in Idle with an idle
+// hold time of 0. idle() selects between the connection and the expired
+// timer at random, so repeat it.
+func TestNewPeerTakesConnectionInIdle(t *testing.T) {
+	s := newPolicyTestServer(t)
+	addr := netip.MustParseAddr("192.0.2.80")
+	for i := range 200 {
+		m := NewMockConnection()
+		m.SetRemoteAddr(addr.String())
+		var p *peer
+		require.NoError(t, s.mgmtOperation(func() error {
+			// iBGP avoids applying OS-specific eBGP TTL options to the mock socket.
+			if err := s.addNeighbor(&oc.Neighbor{
+				Config:    oc.NeighborConfig{NeighborAddress: addr, PeerAs: 65000},
+				Transport: oc.Transport{Config: oc.TransportConfig{PassiveMode: true}},
+			}); err != nil {
+				return err
+			}
+			p = s.neighborMap[addr]
+			s.passConnToPeer(m)
+			return nil
+		}, true))
+		require.Eventually(t, func() bool { return p.State() >= bgp.BGP_FSM_OPENSENT },
+			5*time.Second, time.Millisecond, "iteration %d: the peer did not reach OpenSent", i)
+		require.NoError(t, s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: addr.String()}))
+		m.Close()
+	}
 }
 
 func TestDynamicRegularPeerInheritsGroupPolicy(t *testing.T) {
