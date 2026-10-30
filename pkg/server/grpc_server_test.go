@@ -1239,3 +1239,28 @@ func TestGRPCWatchEventInitTimestamp(t *testing.T) {
 		}
 	}
 }
+
+// TestStartBgpMultipathSameNeighborAs checks that the
+// multipath-same-neighbor-as route selection option of the configuration
+// file reaches the global RIB through the API.
+func TestStartBgpMultipathSameNeighborAs(t *testing.T) {
+	for _, want := range []bool{false, true} {
+		toml := fmt.Sprintf(`
+[global.config]
+  as = 65000
+  router-id = "1.1.1.1"
+  port = -1
+[global.route-selection-options.config]
+  multipath-same-neighbor-as = %v
+`, want)
+		c, err := oc.ReadConfig(strings.NewReader(toml), "toml")
+		require.NoError(t, err)
+		require.Equal(t, want, c.Global.RouteSelectionOptions.Config.MultipathSameNeighborAs)
+
+		s := NewBgpServer()
+		go s.Serve()
+		require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{Global: oc.NewGlobalFromConfigStruct(&c.Global)}))
+		assert.Equal(t, want, s.globalRib.SelectionOptions().MultipathSameNeighborAs)
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	}
+}

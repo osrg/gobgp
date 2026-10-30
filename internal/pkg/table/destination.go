@@ -292,11 +292,12 @@ func (dd *destination) GetBestPath(id string, as uint32) *Path {
 	return p
 }
 
-// GetMultiBestPath returns multiple best paths.
+// GetMultiBestPath returns multiple best paths. With sameNeighborAS, only
+// the paths from the neighbor AS of the best path are returned.
 // When called on an active (non-snapshot) destination, caller must hold the appropriate shard lock.
 // When called on a snapshot destination, no lock is required as the data is already a stable copy.
-func (dd *destination) GetMultiBestPath(id string) []*Path {
-	return getMultiBestPath(id, dd.knownPathList)
+func (dd *destination) GetMultiBestPath(id string, sameNeighborAS bool) []*Path {
+	return getMultiBestPath(id, dd.knownPathList, sameNeighborAS)
 }
 
 // Calculate computes best-path among known paths for this destination.
@@ -337,6 +338,7 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path, selection
 	return &Update{
 		KnownPathList:    l,
 		OldKnownPathList: oldKnownPathList,
+		sameNeighborAS:   selectionOptions.MultipathSameNeighborAs,
 	}, oldPath
 }
 
@@ -532,13 +534,16 @@ type Update struct {
 	// path it replaced. It is false when the same path is advertised again
 	// with the same attributes, which is what an inbound soft reset does.
 	Changed bool
+	// sameNeighborAS is the multipath-same-neighbor-as route selection
+	// option the update was calculated with.
+	sameNeighborAS bool
 }
 
 // GetMultiBestPathDiff returns multipath delta as update and withdraw lists.
 // update includes both newly added and changed paths.
 func (u *Update) GetMultiBestPathDiff(id string) (update []*Path, withdraw []*Path) {
-	oldM := getMultiBestPath(id, u.OldKnownPathList)
-	newM := getMultiBestPath(id, u.KnownPathList)
+	oldM := getMultiBestPath(id, u.OldKnownPathList, u.sameNeighborAS)
+	newM := getMultiBestPath(id, u.KnownPathList, u.sameNeighborAS)
 	if len(oldM) == 0 && len(newM) == 0 {
 		return nil, nil
 	}
@@ -569,7 +574,7 @@ func (u *Update) GetMultiBestPathDiff(id string) (update []*Path, withdraw []*Pa
 	return update, withdraw
 }
 
-func getMultiBestPath(id string, pathList []*Path) []*Path {
+func getMultiBestPath(id string, pathList []*Path, sameNeighborAS bool) []*Path {
 	// The path list of destinations in the global RIB are sorted
 	// in descending order. One of the criteria for being a better
 	// path is that it has a reachable next hop. Technically, if the
@@ -586,7 +591,12 @@ func getMultiBestPath(id string, pathList []*Path) []*Path {
 	index := sort.Search(len(pathList), func(i int) bool {
 		return pathList[i].IsNexthopInvalid || pathList[i].Compare(best) != 0
 	})
-	return pathList[:index]
+	if !sameNeighborAS {
+		return pathList[:index]
+	}
+	return slices.DeleteFunc(slices.Clone(pathList[:index]), func(p *Path) bool {
+		return !p.SameNeighborAS(best)
+	})
 }
 
 func (u *Update) GetWithdrawnPath() []*Path {
@@ -662,8 +672,8 @@ func (u *Update) GetChanges(id string, as uint32, peerDown, useMultiplePaths boo
 			}
 			return false
 		}
-		oldM := getMultiBestPath(id, u.OldKnownPathList)
-		newM := getMultiBestPath(id, u.KnownPathList)
+		oldM := getMultiBestPath(id, u.OldKnownPathList, u.sameNeighborAS)
+		newM := getMultiBestPath(id, u.KnownPathList, u.sameNeighborAS)
 		if diff(oldM, newM) {
 			multi = newM
 			if len(newM) == 0 {
