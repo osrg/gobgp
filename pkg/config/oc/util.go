@@ -896,6 +896,7 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 			EnableAigp:               c.RouteSelectionOptions.Config.EnableAigp,
 			IgnoreNextHopIgpMetric:   c.RouteSelectionOptions.Config.IgnoreNextHopIgpMetric,
 			DisableBestPathSelection: c.RouteSelectionOptions.Config.DisableBestPathSelection,
+			MultipathSameNeighborAs:  c.RouteSelectionOptions.Config.MultipathSameNeighborAs,
 		},
 		DefaultRouteDistance: &api.DefaultRouteDistance{
 			ExternalRouteDistance: uint32(c.DefaultRouteDistance.Config.ExternalRouteDistance),

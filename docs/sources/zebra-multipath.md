@@ -57,6 +57,12 @@ To enables ECMP features at GoBGP on R1, please confirm "use-multiple-paths"
 option is configured as following. With this option, GoBGP will redistribute BGP
 multipath routes to Zebra and Zebra will install them into Kernel routing table.
 
+By default, the multipath set includes eBGP paths from any neighbor AS, like
+`bgp bestpath as-path multipath-relax` in FRR. To use only the eBGP paths from
+the neighbor AS of the best path, set `multipath-same-neighbor-as` in
+`[global.route-selection-options.config]`. The OpenConfig option
+`use-multiple-paths.ebgp.config.allow-multiple-as` is not used.
+
 ```toml
 # gobgpd.toml on R1
 

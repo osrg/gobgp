@@ -3602,7 +3602,8 @@ func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.NLRI,
 						case api.TableType_TABLE_TYPE_LOCAL, api.TableType_TABLE_TYPE_GLOBAL:
 							p.Best = true
 						}
-					} else if s.globalRib.UseMultiplePathsEnabled() && path.Compare(knownPathList[0]) == 0 {
+					} else if s.globalRib.UseMultiplePathsEnabled() && path.Compare(knownPathList[0]) == 0 &&
+						(!s.globalRib.SelectionOptions().MultipathSameNeighborAs || path.SameNeighborAS(knownPathList[0])) {
 						p.Best = true
 					}
 				}

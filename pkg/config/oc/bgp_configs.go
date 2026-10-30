@@ -5138,6 +5138,12 @@ type RouteSelectionOptionsState struct {
 	// gobgp:disable-best-path-selection's original type is boolean.
 	// Disables best path selection process.
 	DisableBestPathSelection bool `mapstructure:"disable-best-path-selection" json:"disable-best-path-selection,omitempty"`
+	// original -> gobgp:multipath-same-neighbor-as
+	// gobgp:multipath-same-neighbor-as's original type is boolean.
+	// Use only eBGP paths from the neighbor AS of the best path
+	// for multipath. The default is to use eBGP paths from any
+	// neighbor AS.
+	MultipathSameNeighborAs bool `mapstructure:"multipath-same-neighbor-as" json:"multipath-same-neighbor-as,omitempty"`
 }
 
 // struct for container bgp-mp:config.
@@ -5183,6 +5189,12 @@ type RouteSelectionOptionsConfig struct {
 	// gobgp:disable-best-path-selection's original type is boolean.
 	// Disables best path selection process.
 	DisableBestPathSelection bool `mapstructure:"disable-best-path-selection" json:"disable-best-path-selection,omitempty"`
+	// original -> gobgp:multipath-same-neighbor-as
+	// gobgp:multipath-same-neighbor-as's original type is boolean.
+	// Use only eBGP paths from the neighbor AS of the best path
+	// for multipath. The default is to use eBGP paths from any
+	// neighbor AS.
+	MultipathSameNeighborAs bool `mapstructure:"multipath-same-neighbor-as" json:"multipath-same-neighbor-as,omitempty"`
 }
 
 func (lhs *RouteSelectionOptionsConfig) Equal(rhs *RouteSelectionOptionsConfig) bool {
@@ -5208,6 +5220,9 @@ func (lhs *RouteSelectionOptionsConfig) Equal(rhs *RouteSelectionOptionsConfig) 
 		return false
 	}
 	if lhs.DisableBestPathSelection != rhs.DisableBestPathSelection {
+		return false
+	}
+	if lhs.MultipathSameNeighborAs != rhs.MultipathSameNeighborAs {
 		return false
 	}
 	return true

@@ -1134,7 +1134,7 @@ func TestDestinationsShardsAllocatedOnFirstInsert(t *testing.T) {
 	assert.Empty(t, tbl.GetDestinations())
 	assert.Empty(t, tbl.GetKnownPathList(GLOBAL_RIB_NAME, 0))
 	assert.Empty(t, tbl.Bests(GLOBAL_RIB_NAME, 0))
-	assert.Empty(t, tbl.MultiBests(GLOBAL_RIB_NAME))
+	assert.Empty(t, tbl.MultiBests(GLOBAL_RIB_NAME, false))
 	assert.Equal(t, 0, tbl.Info().NumDestination)
 	sel, err := tbl.Select()
 	assert.NoError(t, err)
