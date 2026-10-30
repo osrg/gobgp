@@ -6483,6 +6483,38 @@ func TestIdleHoldTimeBackoff(t *testing.T) {
 	require.Less(t, d, 1500*time.Millisecond)
 }
 
+// A session that ends with BFD Down waits idle-hold-time-after-reset in Idle,
+// like ResetPeer, instead of the backoff that a NOTIFICATION doubles.
+func TestBfdDownIdleHoldTimeAfterReset(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	c := peer.fsm.pConf.ReadCopy()
+	c.Timers.Config.IdleHoldTimeAfterReset = 1
+	peer.fsm.pConf.Update(&c)
+
+	// Without the fix, the NOTIFICATION sent for BFD Down doubles the
+	// backoff of 1 second, so the peer waits 2 seconds.
+	m := establishSession(t, s, peer, asn, peerAddr)
+	idle := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+	active := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ACTIVE)
+	require.NoError(t, s.bfdDown(context.Background(), netip.MustParseAddr(peerAddr)))
+	idle.Wait(t, 10*time.Second)
+	start := time.Now()
+	active.Wait(t, 10*time.Second)
+	d := time.Since(start)
+	require.GreaterOrEqual(t, d, 500*time.Millisecond)
+	require.Less(t, d, 1500*time.Millisecond)
+
+	n := sentNotification(m)
+	require.NotNil(t, n)
+	require.Equal(t, uint8(bgp.BGP_ERROR_CEASE), n.ErrorCode)
+	require.Equal(t, uint8(bgp.BGP_ERROR_SUB_BFD_DOWN), n.ErrorSubcode)
+}
+
 func TestListPolicyOriginCondition(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
