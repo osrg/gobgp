@@ -1489,7 +1489,7 @@ func TestRecvMessageWithError_MalformedNextHop(t *testing.T) {
 		// handled inside recvMessageWithError. The panic only occurs when
 		// treat-as-withdraw is enabled and the malformed attribute survives
 		// into ValidateUpdateMsg.
-		h.fsm.isTreatAsWithdraw = true
+		h.fsm.isTreatAsWithdraw.Store(true)
 
 		go m.remote.Write(raw)
 
@@ -1513,7 +1513,7 @@ func TestRecvMessageWithError_MalformedNextHop(t *testing.T) {
 		})
 
 		// Without RFC 7606, the error should cause a session reset.
-		h.fsm.isTreatAsWithdraw = false
+		h.fsm.isTreatAsWithdraw.Store(false)
 
 		go m.remote.Write(raw)
 
@@ -2000,7 +2000,7 @@ func recvUpdate(t *testing.T, raw []byte) (*fsmMsg, *bgp.BGPMessage) {
 	p, h := makePeerAndHandler(m)
 	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
 
-	h.fsm.isTreatAsWithdraw = true
+	h.fsm.isTreatAsWithdraw.Store(true)
 	h.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
 
 	received := make(chan *fsmMsg, 1)
@@ -2359,9 +2359,13 @@ func TestFSMHandlerOpensent_OutgoingOpenFirst(t *testing.T) {
 			}()
 
 			if tt.wantOutgoing {
-				requireCollisionCease(t, sentMessage(t, incoming, 0))
 				msg := sentMessage(t, outgoing, 0)
 				require.Equal(t, uint8(bgp.BGP_MSG_KEEPALIVE), msg.Header.Type)
+				// The incoming connection is closed only when the
+				// peer's OPEN arrives on it (RFC 4271 Section 6.8).
+				require.Empty(t, incoming.GetSentMessages())
+				go incoming.PushBgpMessage(open)
+				requireCollisionCease(t, sentMessage(t, incoming, 0))
 			} else {
 				requireCollisionCease(t, sentMessage(t, outgoing, 0))
 				// Still in OpenSent: the OPEN on the incoming
