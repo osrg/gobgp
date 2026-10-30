@@ -2193,6 +2193,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 				EnableAigp:               a.RouteSelectionOptions.EnableAigp,
 				IgnoreNextHopIgpMetric:   a.RouteSelectionOptions.IgnoreNextHopIgpMetric,
 				DisableBestPathSelection: a.RouteSelectionOptions.DisableBestPathSelection,
+				MultipathSameNeighborAs:  a.RouteSelectionOptions.MultipathSameNeighborAs,
 			},
 		}
 	}

@@ -1384,6 +1384,25 @@ module gobgp {
     uses disable-best-path-selection-config;
   }
 
+  grouping multipath-same-neighbor-as-config {
+    leaf multipath-same-neighbor-as {
+      type boolean;
+      default "false";
+      description
+        "Use only eBGP paths from the neighbor AS of the best path
+        for multipath. The default is to use eBGP paths from any
+        neighbor AS.";
+    }
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:route-selection-options/bgp:config" {
+    uses multipath-same-neighbor-as-config;
+  }
+
+  augment "/bgp:bgp/bgp:global/bgp:route-selection-options/bgp:state" {
+    uses multipath-same-neighbor-as-config;
+  }
+
   augment "/bgp:bgp/bgp:global/bgp:afi-safis/bgp:afi-safi" {
       uses bgp-mp:all-afi-safi-common;
   }
