@@ -1929,8 +1929,10 @@ func (l *MPLSLabelStack) DecodeFromBytes(data []byte, options ...*MarshallingOpt
 
 	for len(data) >= 3 {
 		label := uint32(data[0])<<16 | uint32(data[1])<<8 | uint32(data[2])
-		if label == WITHDRAW_LABEL || label == ZERO_LABEL {
-			l.Labels = []uint32{label}
+		// RFC 8277 2.2 and 2.3: the Rsrv bits "MUST be ignored on
+		// reception". Serialize writes them as zero, so compare without them.
+		if v := label &^ 0xe; v == WITHDRAW_LABEL || v == ZERO_LABEL {
+			l.Labels = []uint32{v}
 			return nil
 		}
 		data = data[3:]
