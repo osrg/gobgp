@@ -3008,7 +3008,7 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 		{"admin down", adminDown, fsmAdminDown, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_SHUTDOWN, communication},
 		{"prefix limit", prefixLimit, fsmAdminDown, false, bgp.BGP_ERROR_SUB_MAXIMUM_NUMBER_OF_PREFIXES_REACHED, nil},
 		{"reset", reset, fsmAdminReset, false, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET, communication},
-		{"bfd down", bfdDown, fsmNotificationSent, false, bgp.BGP_ERROR_SUB_BFD_DOWN, nil},
+		{"bfd down", bfdDown, fsmAdminReset, false, bgp.BGP_ERROR_SUB_BFD_DOWN, nil},
 		{
 			"admin down with N bit", adminDown, fsmAdminDown,
 			true, bgp.BGP_ERROR_SUB_HARD_RESET,
@@ -3025,7 +3025,7 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 			append([]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET}, communication...),
 		},
 		{
-			"bfd down with N bit", bfdDown, fsmNotificationSent,
+			"bfd down with N bit", bfdDown, fsmAdminReset,
 			true, bgp.BGP_ERROR_SUB_HARD_RESET,
 			[]byte{bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_BFD_DOWN},
 		},

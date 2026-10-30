@@ -91,8 +91,8 @@ const (
 	fsmHardReset
 	fsmDeConfigured
 	fsmBadPeerAS
-	// ResetPeer. BGPNotification is the NOTIFICATION sent to the peer, or
-	// nil if the session had no connection to send it on.
+	// ResetPeer or BFD Down. BGPNotification is the NOTIFICATION sent to the
+	// peer, or nil if the session had no connection to send it on.
 	fsmAdminReset
 )
 
@@ -2347,8 +2347,15 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			}
 			return -1, newfsmStateReason(fsmDeConfigured, notificationBody(m), nil)
 		case m := <-fsm.notification:
+			reason := fsmNotificationSent
+			if body := m.Body.(*bgp.BGPNotification); body.ErrorCode == bgp.BGP_ERROR_CEASE && body.ErrorSubcode == bgp.BGP_ERROR_SUB_BFD_DOWN {
+				// BFD Down resets the session, so it waits
+				// idle-hold-time-after-reset like ResetPeer, as
+				// FRR does for clear bgp and BFD Down alike.
+				reason = fsmAdminReset
+			}
 			m, _ = fsm.sendEstablishedNotification(m)
-			return bgp.BGP_FSM_IDLE, newfsmStateReason(fsmNotificationSent, notificationBody(m), nil)
+			return bgp.BGP_FSM_IDLE, newfsmStateReason(reason, notificationBody(m), nil)
 		case conn, ok := <-fsm.connCh:
 			if !ok {
 				break
