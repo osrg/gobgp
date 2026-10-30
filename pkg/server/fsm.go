@@ -1102,6 +1102,20 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 			if !ok {
 				break
 			}
+			// Without an idle hold time the FSM leaves Idle at once, and
+			// the timer and the connection are ready together. A peer
+			// that was just added would lose a connection at random.
+			// active() takes the connection.
+			if fsm.idleHoldTime == 0 && fsm.adminState.Load() == adminStateUp {
+				select {
+				case fsm.connCh <- conn:
+				default:
+					// Another connection from the peer is queued.
+					// active() takes that one.
+					conn.Close()
+				}
+				return bgp.BGP_FSM_ACTIVE, newfsmStateReason(fsmNewConnection, nil, nil)
+			}
 			conn.Close()
 			fsm.logger.Warn("Closed an accepted connection", slog.String("State", fsm.state.String()))
 		case <-idleHoldTimer.C:

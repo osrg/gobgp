@@ -6061,6 +6061,36 @@ func TestRouteServerPolicyDoesNotInheritGlobal(t *testing.T) {
 	check(true)
 }
 
+// TestNewPeerTakesConnectionInIdle checks that a peer that was just added
+// takes a connection that arrives while it is still in Idle with an idle
+// hold time of 0. idle() selects between the connection and the expired
+// timer at random, so repeat it.
+func TestNewPeerTakesConnectionInIdle(t *testing.T) {
+	s := newPolicyTestServer(t)
+	addr := netip.MustParseAddr("192.0.2.80")
+	for i := range 200 {
+		m := NewMockConnection()
+		m.SetRemoteAddr(addr.String())
+		var p *peer
+		require.NoError(t, s.mgmtOperation(func() error {
+			// iBGP avoids applying OS-specific eBGP TTL options to the mock socket.
+			if err := s.addNeighbor(&oc.Neighbor{
+				Config:    oc.NeighborConfig{NeighborAddress: addr, PeerAs: 65000},
+				Transport: oc.Transport{Config: oc.TransportConfig{PassiveMode: true}},
+			}); err != nil {
+				return err
+			}
+			p = s.neighborMap[addr]
+			s.passConnToPeer(m)
+			return nil
+		}, true))
+		require.Eventually(t, func() bool { return p.State() >= bgp.BGP_FSM_OPENSENT },
+			5*time.Second, time.Millisecond, "iteration %d: the peer did not reach OpenSent", i)
+		require.NoError(t, s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: addr.String()}))
+		m.Close()
+	}
+}
+
 func TestDynamicRegularPeerInheritsGroupPolicy(t *testing.T) {
 	s := newPolicyTestServer(t)
 	ctx := context.Background()
