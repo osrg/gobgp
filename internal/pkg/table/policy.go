@@ -1664,6 +1664,11 @@ type extCommunityMatcher struct {
 }
 
 func compileExtCommunityMatcher(subtype bgp.ExtendedCommunityAttrSubType, re *regexp.Regexp) extCommunityMatcher {
+	// A Link Bandwidth community is a LinkBandwidthExtended, which only
+	// the regexp mode handles.
+	if subtype == bgp.EC_SUBTYPE_LINK_BANDWIDTH {
+		return extCommunityMatcher{subtype: subtype, mode: extCommMatchRegexp, re: re}
+	}
 	s := re.String()
 	body, anchored := anchoredBody(s)
 	if anchored {

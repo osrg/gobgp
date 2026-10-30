@@ -1099,6 +1099,31 @@ func Test_LinkBandwidthExtended(t *testing.T) {
 	assert.Equal(m1, m2)
 }
 
+func Test_LinkBandwidthExtendedKeepsTransitivity(t *testing.T) {
+	// RFC 10005 2: the Link Bandwidth community is transitive (type 0x00)
+	// or non-transitive (type 0x40). 3.3.2: a route sent on with the same
+	// next hop keeps the community as it is.
+	for _, raw := range [][]byte{
+		{0x00, 0x04, 0xfd, 0xe9, 0x47, 0xf4, 0x24, 0x00},
+		{0x40, 0x04, 0xfd, 0xe9, 0x47, 0xf4, 0x24, 0x00},
+	} {
+		t.Run(fmt.Sprintf("%x", raw[:2]), func(t *testing.T) {
+			e, err := ParseExtended(raw)
+			require.NoError(t, err)
+
+			lb, ok := e.(*LinkBandwidthExtended)
+			require.True(t, ok, "expected *LinkBandwidthExtended, got %T", e)
+			assert.Equal(t, uint16(65001), lb.AS)
+			assert.Equal(t, float32(125000.0), lb.Bandwidth)
+			assert.Equal(t, raw[0] == 0x00, lb.IsTransitive)
+
+			serialized, err := e.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, raw, serialized)
+		})
+	}
+}
+
 func Test_FlowSpecExtended(t *testing.T) {
 	assert := assert.New(t)
 	exts := make([]ExtendedCommunityInterface, 0)

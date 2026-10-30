@@ -3380,6 +3380,51 @@ func TestParseExtCommunityRegexpLiteral(t *testing.T) {
 	}
 }
 
+func TestExtCommunityLinkBandwidthCondition(t *testing.T) {
+	// A received Link Bandwidth community is a LinkBandwidthExtended, not
+	// a TwoOctetAsSpecificExtended. Every lb: pattern must match it.
+	newPath := func(ec bgp.ExtendedCommunityInterface) *Path {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{ec}),
+		}
+		return NewPath(bgp.RF_IPv4_UC, &PeerInfo{AS: 65001}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+	transitive := newPath(&bgp.LinkBandwidthExtended{AS: 65001, Bandwidth: 125000, IsTransitive: true})
+	nonTransitive := newPath(&bgp.LinkBandwidthExtended{AS: 65001, Bandwidth: 125000})
+
+	for _, tt := range []struct {
+		pattern string
+		want    bool
+	}{
+		{"lb:65001:125000", true},
+		{"lb:^65001:125000$", true},
+		{`lb:^65001:\d+$`, true},
+		{"lb:^65001:.*$", true},
+		{"lb:65001:125.*", true},
+		{"lb:65001:1", false},
+		{"lb:^65002:.*$", false},
+	} {
+		s, err := NewExtCommunitySet(oc.ExtCommunitySet{
+			ExtCommunitySetName: "lb",
+			ExtCommunityList:    []string{tt.pattern},
+		})
+		require.NoError(t, err)
+		for _, opt := range []oc.MatchSetOptionsType{oc.MATCH_SET_OPTIONS_TYPE_ANY, oc.MATCH_SET_OPTIONS_TYPE_ALL} {
+			c, err := NewExtCommunityCondition(oc.MatchExtCommunitySet{
+				ExtCommunitySet: "lb",
+				MatchSetOptions: opt,
+			})
+			require.NoError(t, err)
+			c.set = s
+			assert.Equal(t, tt.want, c.Evaluate(transitive, nil), "%s %s", tt.pattern, opt)
+			// RFC 7153: only a transitive community is matched.
+			assert.False(t, c.Evaluate(nonTransitive, nil), "%s %s", tt.pattern, opt)
+		}
+	}
+}
+
 func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	// setup
 	// create path
