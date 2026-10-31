@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -155,6 +156,71 @@ func TestROAManagerResetQueryReplacesROAs(t *testing.T) {
 	recv(rtr.NewRTREndOfData(1, 6))
 	if got := records(); got != 2 {
 		t.Fatalf("expected 2 ROAs after a Serial Query, got %d", got)
+	}
+}
+
+func TestROAManagerEndOfDataStopsLifetimeTimer(t *testing.T) {
+	// A canceled context keeps tryConnect from dialing.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	rt := table.NewROATable(slog.Default())
+	serverKey := net.JoinHostPort("192.0.2.1", "323")
+	eventCh := make(chan *roaEvent)
+	client := &roaClient{host: serverKey, eventCh: eventCh, lifetime: 1, ctx: ctx}
+	m := &roaManager{
+		clientMap: map[string]*roaClient{serverKey: client},
+		table:     rt,
+		logger:    slog.Default(),
+	}
+	recv := func(msg rtr.RTRMessage) {
+		data, err := msg.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.handleRTRMsg(client, &client.state, data)
+	}
+	reload := func(serial uint32) {
+		recv(rtr.NewRTRCacheResponse(1))
+		recv(rtr.NewRTRIPPrefix(netip.MustParseAddr("10.0.0.0"), 24, 24, 65000, 1))
+		recv(rtr.NewRTREndOfData(1, serial))
+	}
+	disconnect := func() {
+		m.HandleROAEvent(&roaEvent{EventType: roaDisconnected, Src: serverKey})
+	}
+	records := func() uint32 {
+		r, _ := rt.Info(bgp.RF_IPv4_UC)
+		return r[serverKey]
+	}
+
+	reload(1)
+
+	// The session drops, comes back and drops again before End of Data, and
+	// the next session reloads the ROAs. The Session ID stays the same, as
+	// it does unless the cache restarts.
+	disconnect()
+	disconnect()
+	reload(2)
+
+	select {
+	case ev := <-eventCh:
+		m.HandleROAEvent(ev)
+	case <-time.After(1500 * time.Millisecond):
+	}
+	if got := records(); got != 1 {
+		t.Fatalf("expected the reloaded ROA to outlive the lifetime, got %d", got)
+	}
+
+	// A cache that stays away still loses its ROAs.
+	disconnect()
+	select {
+	case ev := <-eventCh:
+		m.HandleROAEvent(ev)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the lifetime timer did not fire")
+	}
+	if got := records(); got != 0 {
+		t.Fatalf("expected the ROA to expire with the lifetime, got %d", got)
 	}
 }
 

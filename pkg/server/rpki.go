@@ -176,7 +176,13 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 		client.state.RpkiMessages = oc.RpkiMessages{}
 		client.conn = nil
 		go client.tryConnect()
-		client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
+		// The ROAs are stale from the first disconnect on, so a session
+		// that drops again before End of Data keeps the running timer.
+		// End of Data stops only client.timer: a timer replaced here
+		// would stay armed and delete the ROAs that were reloaded.
+		if client.timer == nil {
+			client.timer = time.AfterFunc(time.Duration(client.lifetime)*time.Second, client.lifetimeout)
+		}
 		client.oldSessionID = client.sessionID
 	case roaConnected:
 		m.logger.Info("ROA server is connected",
@@ -188,6 +194,7 @@ func (m *roaManager) HandleROAEvent(ev *roaEvent) {
 	case roaRTR:
 		m.handleRTRMsg(client, &client.state, ev.Data)
 	case roaLifetimeout:
+		client.timer = nil
 		// a) already reconnected but hasn't received
 		// EndOfData -> needs to delete stale ROAs
 		// b) not reconnected -> needs to delete stale ROAs
