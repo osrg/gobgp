@@ -364,11 +364,21 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 
 	// Match all withdrawals from destination paths.
 	isFound := -1
+	root := withdraw.RootPath()
 	for i, path := range dest.knownPathList {
-		// We have a match if the source and path-id are same.
-		if path.EqualBySourceAndPathID(withdraw) {
+		if path.RootPath() == root {
 			isFound = i
 			withdraw.localID = path.localID
+			break
+		}
+	}
+	if isFound == -1 {
+		for i, path := range dest.knownPathList {
+			// Detached withdrawals identify a path by source and path-id.
+			if path.EqualBySourceAndPathID(withdraw) {
+				isFound = i
+				withdraw.localID = path.localID
+			}
 		}
 	}
 
@@ -394,23 +404,35 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 // Returns the old path that was withdrawn.
 func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) *Path {
 	found := -1
+	// Internal updates retain the origin lineage, even when separate API
+	// paths with the same source/path-id use NoImplicitWithdraw.
+	root := newPath.RootPath()
 	for i, path := range dest.knownPathList {
-		if path.NoImplicitWithdraw() {
-			continue
-		}
-		// Here we just check if source is same and not check if path
-		// version num. as newPaths are implicit withdrawal of old
-		// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
-		// we get same paths again.
-		if newPath.EqualBySourceAndPathID(path) {
-			logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
-				slog.String("Topic", "Table"),
-				slog.String("Key", dest.GetNlri().String()),
-				slog.String("Path", path.String()))
-
+		if path.RootPath() == root {
 			found = i
 			newPath.localID = path.localID
 			break
+		}
+	}
+	if found == -1 {
+		for i, path := range dest.knownPathList {
+			if path.NoImplicitWithdraw() {
+				continue
+			}
+			// Here we just check if source is same and not check if path
+			// version num. as newPaths are implicit withdrawal of old
+			// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
+			// we get same paths again.
+			if newPath.EqualBySourceAndPathID(path) {
+				logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
+					slog.String("Topic", "Table"),
+					slog.String("Key", dest.GetNlri().String()),
+					slog.String("Path", path.String()))
+
+				found = i
+				newPath.localID = path.localID
+				break
+			}
 		}
 	}
 	if found != -1 {
