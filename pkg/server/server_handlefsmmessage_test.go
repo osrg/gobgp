@@ -3275,3 +3275,41 @@ func TestHandleFSMMessage_LLGROnlyFamily(t *testing.T) {
 	assert.True(t, llgrTimer)
 	assert.True(t, restartTimer)
 }
+
+func TestLocalRestartLateOpenKeepsRestartFlags(t *testing.T) {
+	s := localRestartServer(t)
+	p := localRestartPeer(t, s, "10.0.0.1", 1)
+	require.Eventually(t, func() bool {
+		s.restartMu.Lock()
+		defer s.restartMu.Unlock()
+		return !s.restart.Restarting()
+	}, 3*time.Second, 10*time.Millisecond)
+	require.NoError(t, s.mgmtOperation(func() error { return nil }, false))
+
+	checkFlags := func(want bool) {
+		t.Helper()
+		conf := p.fsm.pConf.ReadCopy()
+		msg := buildopen(&s.bgpConfig.Global, &conf)
+		wire, err := msg.Serialize()
+		require.NoError(t, err)
+		decoded, err := bgp.ParseBGPMessage(wire)
+		require.NoError(t, err)
+		caps, _ := open2Cap(decoded.Body.(*bgp.BGPOpen), &conf)
+		require.NotEmpty(t, caps[bgp.BGP_CAP_GRACEFUL_RESTART])
+		capability := caps[bgp.BGP_CAP_GRACEFUL_RESTART][0].(*bgp.CapGracefulRestart)
+		assert.Equal(t, want, capability.Flags&0x08 != 0, "R-bit in serialized OPEN")
+		require.Len(t, capability.Tuples, 2)
+		forwarding := make(map[bgp.Family]bool)
+		for _, tuple := range capability.Tuples {
+			forwarding[bgp.NewFamily(tuple.AFI, tuple.SAFI)] = tuple.Flags&0x80 != 0
+		}
+		assert.Equal(t, map[bgp.Family]bool{bgp.RF_IPv4_UC: want, bgp.RF_IPv6_UC: want}, forwarding, "per-family F-bits in serialized OPEN")
+	}
+	checkFlags(true)
+	grEstablish(t, s, p, grOpen(t, grBoth(120)))
+	require.False(t, localRestarting(p), "do not start another synchronization after global completion")
+	checkFlags(false)
+	require.False(t, s.deferred(bgp.RF_IPv4_UC))
+	require.False(t, s.deferred(bgp.RF_IPv6_UC))
+	require.ElementsMatch(t, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, sentEORs(p))
+}
