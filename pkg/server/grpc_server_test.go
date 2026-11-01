@@ -1006,9 +1006,10 @@ func TestGRPCAddStatementInvalidCommunity(t *testing.T) {
 				},
 			})
 			if err == nil {
-				s.ListStatement(context.Background(), &api.ListStatementRequest{Name: name}, func(st *api.Statement) {
+				err = s.ListStatement(context.Background(), &api.ListStatementRequest{Name: name}, func(st *api.Statement) {
 					t.Errorf("%q was accepted as %v", c, st.GetActions().GetCommunity().GetCommunities())
 				})
+				require.NoError(t, err)
 			}
 		})
 	}
