@@ -5352,7 +5352,7 @@ func (s *BgpServer) EnableRpki(ctx context.Context, r *api.EnableRpkiRequest) er
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.roaManager.Enable(r.Address)
+		return s.roaManager.Enable(r.Address, r.Port)
 	}, false)
 }
 
@@ -5361,7 +5361,7 @@ func (s *BgpServer) DisableRpki(ctx context.Context, r *api.DisableRpkiRequest) 
 		return fmt.Errorf("nil request")
 	}
 	return s.mgmtOperation(func() error {
-		return s.roaManager.Disable(r.Address)
+		return s.roaManager.Disable(r.Address, r.Port)
 	}, false)
 }
 
@@ -5371,9 +5371,9 @@ func (s *BgpServer) ResetRpki(ctx context.Context, r *api.ResetRpkiRequest) erro
 	}
 	return s.mgmtOperation(func() error {
 		if r.Soft {
-			return s.roaManager.SoftReset(r.Address)
+			return s.roaManager.SoftReset(r.Address, r.Port)
 		}
-		return s.roaManager.Reset(r.Address)
+		return s.roaManager.Reset(r.Address, r.Port)
 	}, false)
 }
 

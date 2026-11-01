@@ -75,7 +75,7 @@ func TestROAManagerDisableDeletesROAsByServerKey(t *testing.T) {
 		t.Fatalf("expected one ROA before disable, got %d", records[serverKey])
 	}
 
-	if err := m.Disable("192.0.2.1"); err != nil {
+	if err := m.Disable("192.0.2.1", 0); err != nil {
 		t.Fatalf("unexpected disable error: %v", err)
 	}
 
@@ -251,5 +251,44 @@ func TestDeleteRpki(t *testing.T) {
 	}
 	if err := del(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDisableRpkiWithPort(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	for _, port := range []uint32{323, 8282} {
+		if err := s.AddRpki(context.Background(), &api.AddRpkiRequest{Address: "192.0.2.1", Port: port}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keep := net.JoinHostPort("192.0.2.1", "323")
+	records := func() map[string]uint32 {
+		var r map[string]uint32
+		if err := s.mgmtOperation(func() error {
+			r, _ = s.roaManager.table.Info(bgp.RF_IPv4_UC)
+			return nil
+		}, false); err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+
+	// The server to disable is picked from a map, so repeat to make a
+	// lookup that ignores the port fail.
+	for range 20 {
+		if err := s.mgmtOperation(func() error {
+			s.roaManager.table.Add(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 65000, keep))
+			return nil
+		}, false); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.DisableRpki(context.Background(), &api.DisableRpkiRequest{Address: "192.0.2.1", Port: 8282}); err != nil {
+			t.Fatal(err)
+		}
+		if got := records()[keep]; got != 1 {
+			t.Fatalf("disabling 192.0.2.1 port 8282 deleted the ROAs of %s", keep)
+		}
 	}
 }

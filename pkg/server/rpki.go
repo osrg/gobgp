@@ -104,20 +104,25 @@ func (m *roaManager) DeleteServer(host string) error {
 	return nil
 }
 
-func (m *roaManager) Enable(address string) error {
+// matchRoaServer reports whether the server keyed by network has the
+// address, and the port unless port is 0.
+func matchRoaServer(network, address string, port uint32) bool {
+	add, p, _ := net.SplitHostPort(network)
+	return add == address && (port == 0 || p == strconv.FormatUint(uint64(port), 10))
+}
+
+func (m *roaManager) Enable(address string, port uint32) error {
 	for network, client := range m.clientMap {
-		add, _, _ := net.SplitHostPort(network)
-		if add == address {
+		if matchRoaServer(network, address, port) {
 			return client.enable(client.serialNumber)
 		}
 	}
 	return fmt.Errorf("ROA server not found %s", address)
 }
 
-func (m *roaManager) Disable(address string) error {
+func (m *roaManager) Disable(address string, port uint32) error {
 	for network, client := range m.clientMap {
-		add, _, _ := net.SplitHostPort(network)
-		if add == address {
+		if matchRoaServer(network, address, port) {
 			client.reset()
 			m.table.DeleteAll(network)
 			return nil
@@ -126,14 +131,13 @@ func (m *roaManager) Disable(address string) error {
 	return fmt.Errorf("ROA server not found %s", address)
 }
 
-func (m *roaManager) Reset(address string) error {
-	return m.Disable(address)
+func (m *roaManager) Reset(address string, port uint32) error {
+	return m.Disable(address, port)
 }
 
-func (m *roaManager) SoftReset(address string) error {
+func (m *roaManager) SoftReset(address string, port uint32) error {
 	for network, client := range m.clientMap {
-		add, _, _ := net.SplitHostPort(network)
-		if add == address {
+		if matchRoaServer(network, address, port) {
 			m.table.DeleteAll(network)
 			return client.softReset()
 		}
