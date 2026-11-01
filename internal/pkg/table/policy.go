@@ -1463,7 +1463,7 @@ func (s *CommunitySet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.ToConfig())
 }
 
-var _regexpCommunity = regexp.MustCompile(`(\d+):(\d+)`)
+var _regexpCommunity = regexp.MustCompile(`^(\d+):(\d+)$`)
 
 func ParseCommunity(arg string) (uint32, error) {
 	i, err := strconv.ParseUint(arg, 10, 32)
@@ -1473,8 +1473,14 @@ func ParseCommunity(arg string) (uint32, error) {
 
 	elems := _regexpCommunity.FindStringSubmatch(arg)
 	if len(elems) == 3 {
-		fst, _ := strconv.ParseUint(elems[1], 10, 16)
-		snd, _ := strconv.ParseUint(elems[2], 10, 16)
+		fst, err := strconv.ParseUint(elems[1], 10, 16)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse %s as community: %w", arg, err)
+		}
+		snd, err := strconv.ParseUint(elems[2], 10, 16)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse %s as community: %w", arg, err)
+		}
 		return uint32(fst<<16 | snd), nil
 	}
 	for i, v := range bgp.WellKnownCommunityNameMap {

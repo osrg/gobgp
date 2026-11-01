@@ -978,6 +978,42 @@ func TestGRPCListStatementCommunityActionType(t *testing.T) {
 	}
 }
 
+// A set-community action must reject a community that is not
+// <0..65535>:<0..65535> instead of storing a different one.
+func TestGRPCAddStatementInvalidCommunity(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        1,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	for i, c := range []string{"70000:1", "65000:70000", "65000:1:2"} {
+		t.Run(c, func(t *testing.T) {
+			name := fmt.Sprintf("st%d", i)
+			err := s.AddStatement(context.Background(), &api.AddStatementRequest{
+				Statement: &api.Statement{
+					Name: name,
+					Actions: &api.Actions{
+						RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+						Community:   &api.CommunityAction{Type: api.CommunityAction_TYPE_ADD, Communities: []string{c}},
+					},
+				},
+			})
+			if err == nil {
+				s.ListStatement(context.Background(), &api.ListStatementRequest{Name: name}, func(st *api.Statement) {
+					t.Errorf("%q was accepted as %v", c, st.GetActions().GetCommunity().GetCommunities())
+				})
+			}
+		})
+	}
+}
+
 // ListPolicy and ListStatement must describe the same statement the same way.
 // They used to have a converter each, and the two drifted apart.
 func TestGRPCListPolicyAndListStatementAgree(t *testing.T) {
