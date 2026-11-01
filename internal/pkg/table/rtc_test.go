@@ -62,6 +62,16 @@ func TestInterestedInMembershipPrefixes(t *testing.T) {
 		bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 100, false))
 	check := func(rtc *RouteTargetMembershipHandler) {
 		t.Helper()
+		if rtc != nil && rtc.s != nil {
+			seen := make(map[uint8]bool)
+			for _, entry := range rtc.s.masks {
+				assert.False(t, seen[entry.length], "duplicate mask length")
+				seen[entry.length] = true
+				assert.Positive(t, rtc.s.count[entry.length])
+				assert.Equal(t, rtMask(entry.length), entry.mask)
+			}
+			assert.Len(t, seen, len(rtc.s.count))
+		}
 		groups := [][]bgp.ExtendedCommunityInterface{nil, exts}
 		for _, ext := range exts {
 			groups = append(groups, []bgp.ExtendedCommunityInterface{ext})
@@ -566,9 +576,23 @@ func TestRTMSetCount(t *testing.T) {
 	s.reset()
 	assert.Empty(t, s.count)
 	assert.Empty(t, s.m)
+	assert.Empty(t, s.masks)
 	s.add(p96a)
 	assert.Equal(t, map[uint8]int{96: 1}, s.count, "the set is usable after reset")
+	assert.Equal(t, []rtMembershipMask{{length: 96, mask: rtMask(96)}}, s.masks)
 
+	// Both default lengths must stay ahead of ordinary masks, including
+	// when one default is withdrawn while the other is still present.
+	asOnly := rtcPathFromWire(t, 32, 65001, nil, 0)
+	s.add(def)
+	s.add(asOnly)
+	s.sub(asOnly.Clone(true))
+	assert.Equal(t, uint8(0), s.masks[0].length)
+	s.add(asOnly)
+	s.sub(def.Clone(true))
+	assert.Equal(t, uint8(32), s.masks[0].length)
+	s.sub(asOnly.Clone(true))
+	assert.Equal(t, []rtMembershipMask{{length: 96, mask: rtMask(96)}}, s.masks)
 }
 
 func TestRouteTargetMembershipHandlerSameRTAddPath(t *testing.T) {
