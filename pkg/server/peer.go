@@ -582,15 +582,7 @@ func (peer *peer) stopDeferralTimer() {
 // Returns true if the peer is interested in this path according to BGP RTC
 // (i.e., has advertised the relevant RT).
 func (peer *peer) interestedIn(path *table.Path) bool {
-	if peer.rtmHandler.HasDefaultRouteTarget() {
-		return true
-	}
-	for _, ext := range path.GetRouteTargets() {
-		if peer.rtmHandler.HasRouteTarget(ext) {
-			return true
-		}
-	}
-	return false
+	return peer.rtmHandler.InterestedIn(path)
 }
 
 func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
