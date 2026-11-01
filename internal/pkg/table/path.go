@@ -1200,10 +1200,15 @@ func (path *Path) SetIP6ExtCommunities(exts []bgp.ExtendedCommunityInterface, do
 	path.setPathAttr(bgp.NewPathAttributeIP6ExtendedCommunities(exts))
 }
 
+func isRouteTarget(ec bgp.ExtendedCommunityInterface) bool {
+	t, st := ec.GetTypes()
+	return t <= bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC && st == bgp.EC_SUBTYPE_ROUTE_TARGET
+}
+
 func (path *Path) GetRouteTargets() []bgp.ExtendedCommunityInterface {
 	rts := make([]bgp.ExtendedCommunityInterface, 0)
 	for _, ec := range path.GetExtCommunities() {
-		if t, st := ec.GetTypes(); t <= bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC && st == bgp.EC_SUBTYPE_ROUTE_TARGET {
+		if isRouteTarget(ec) {
 			rts = append(rts, ec)
 		}
 	}

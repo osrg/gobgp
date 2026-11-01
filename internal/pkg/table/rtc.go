@@ -245,7 +245,10 @@ func (idx *VPNPathIndex) RegisterPath(path *Path) {
 	}
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
-	for _, ext := range path.GetRouteTargets() {
+	for _, ext := range path.GetExtCommunities() {
+		if !isRouteTarget(ext) {
+			continue
+		}
 		rtHash, err := bgp.ExtCommRouteTargetKey(ext)
 		if err != nil {
 			continue
@@ -266,7 +269,10 @@ func (idx *VPNPathIndex) UnregisterPath(path *Path) {
 	}
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
-	for _, ext := range path.GetRouteTargets() {
+	for _, ext := range path.GetExtCommunities() {
+		if !isRouteTarget(ext) {
+			continue
+		}
 		rtHash, err := bgp.ExtCommRouteTargetKey(ext)
 		if err != nil {
 			continue
@@ -325,10 +331,16 @@ func (handler *RouteTargetMembershipHandler) InterestedIn(path *Path) bool {
 	s := handler.s
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if len(s.count) == 0 {
+		return false
+	}
 	if s.count[0] > 0 || s.count[32] > 0 {
 		return true
 	}
-	for _, ext := range path.GetRouteTargets() {
+	for _, ext := range path.GetExtCommunities() {
+		if !isRouteTarget(ext) {
+			continue
+		}
 		key, err := bgp.ExtCommRouteTargetKey(ext)
 		if err != nil {
 			continue
@@ -382,7 +394,10 @@ func RouteTargetMembershipContains(nlri *bgp.RouteTargetMembershipNLRI, path *Pa
 		return false
 	}
 	mask := rtMask(prefix.len)
-	for _, rt := range path.GetRouteTargets() {
+	for _, rt := range path.GetExtCommunities() {
+		if !isRouteTarget(rt) {
+			continue
+		}
 		key, err := bgp.ExtCommRouteTargetKey(rt)
 		if err != nil {
 			continue

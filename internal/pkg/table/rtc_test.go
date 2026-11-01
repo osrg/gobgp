@@ -701,14 +701,16 @@ func TestVPNPathIndexIgnoresNonRouteTargets(t *testing.T) {
 	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 1, true)
 	origin := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_ORIGIN, 65000, 1, true)
 	zero := bgp.NewTwoOctetAsSpecificExtended(0, 0, 0, true)
+	nonTransitive := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 1, false)
 
-	p := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt, origin, zero}, "10.6.0.0/24")
+	p := makeVPNPath(t, pi, []bgp.ExtendedCommunityInterface{rt, origin, zero, nonTransitive}, "10.6.0.0/24")
 
 	idx := NewVPNPathIndex()
 	idx.RegisterPath(p)
 	assert.Equal(t, []*Path{p}, idx.GetPathsByRT(rt))
 	assert.Empty(t, idx.GetPathsByRT(origin))
 	assert.Empty(t, idx.GetPathsByRT(zero))
+	assert.Empty(t, idx.GetPathsByRT(nonTransitive))
 	assert.Len(t, idx.rts, 1)
 
 	idx.UnregisterPath(p)
