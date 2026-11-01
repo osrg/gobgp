@@ -266,20 +266,24 @@ func TestDisableRpkiWithPort(t *testing.T) {
 	keep := net.JoinHostPort("192.0.2.1", "323")
 	records := func() map[string]uint32 {
 		var r map[string]uint32
-		s.mgmtOperation(func() error {
+		if err := s.mgmtOperation(func() error {
 			r, _ = s.roaManager.table.Info(bgp.RF_IPv4_UC)
 			return nil
-		}, false)
+		}, false); err != nil {
+			t.Fatal(err)
+		}
 		return r
 	}
 
 	// The server to disable is picked from a map, so repeat to make a
 	// lookup that ignores the port fail.
 	for range 20 {
-		s.mgmtOperation(func() error {
+		if err := s.mgmtOperation(func() error {
 			s.roaManager.table.Add(table.NewROA(bgp.AFI_IP, net.ParseIP("10.0.0.0").To4(), 24, 24, 65000, keep))
 			return nil
-		}, false)
+		}, false); err != nil {
+			t.Fatal(err)
+		}
 		if err := s.DisableRpki(context.Background(), &api.DisableRpkiRequest{Address: "192.0.2.1", Port: 8282}); err != nil {
 			t.Fatal(err)
 		}
