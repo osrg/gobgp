@@ -218,6 +218,51 @@ func (m *mrtWriter) dumpTable() []*mrt.MRTMessage {
 	return append([]*mrt.MRTMessage{bm}, msgs...)
 }
 
+// updateToMrt builds the BGP4MP record for a received UPDATE. It returns
+// nil when the record cannot be built. The event is logged and dropped,
+// so a bad address pair does not stop the writer.
+func (m *mrtWriter) updateToMrt(e *watchEventUpdate) *mrt.MRTMessage {
+	if len(e.PathList) == 0 {
+		return nil
+	}
+	// MRT encodes IP addresses and does not carry zone information. An
+	// IPv4-mapped IPv6 address names an IPv4 session, so record it as IPv4.
+	peerAddr := e.PeerAddress.WithZone("").Unmap()
+	localAddr := e.LocalAddress.WithZone("").Unmap()
+	mp, err := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, peerAddr, localAddr, e.FourBytesAs, nil)
+	if err != nil {
+		m.s.logger.Warn("Failed to create MRT BGP4MP header",
+			slog.String("Topic", "mrt"),
+			slog.String("Peer", peerAddr.String()),
+			slog.String("Local", localAddr.String()),
+			slog.String("Error", err.Error()),
+		)
+		return nil
+	}
+	mp.BGPMessagePayload = e.Payload
+	isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetFamily())
+	subtype := mrt.MESSAGE
+	switch {
+	case isAddPath && e.FourBytesAs:
+		subtype = mrt.MESSAGE_AS4_ADDPATH
+	case isAddPath:
+		subtype = mrt.MESSAGE_ADDPATH
+	case e.FourBytesAs:
+		subtype = mrt.MESSAGE_AS4
+	}
+	bm, err := mrt.NewMRTMessage(e.Timestamp, mrt.BGP4MP, subtype, mp)
+	if err != nil {
+		m.s.logger.Warn("Failed to create MRT BGP4MP message",
+			slog.String("Topic", "mrt"),
+			slog.Any("Data", e),
+			slog.String("Error", err.Error()),
+			slog.Any("Subtype", subtype),
+		)
+		return nil
+	}
+	return bm
+}
+
 func (m *mrtWriter) loop(ctx context.Context) error {
 	ops := []WatchOption{}
 	switch m.c.DumpType {
@@ -261,27 +306,7 @@ func (m *mrtWriter) loop(ctx context.Context) error {
 			if e.Init {
 				return nil
 			}
-			// MRT encodes IP addresses and does not carry zone information.
-			mp, _ := mrt.NewBGP4MPMessage(e.PeerAS, e.LocalAS, 0, e.PeerAddress.WithZone(""), e.LocalAddress.WithZone(""), e.FourBytesAs, nil)
-			mp.BGPMessagePayload = e.Payload
-			isAddPath := e.Neighbor.IsAddPathReceiveEnabled(e.PathList[0].GetFamily())
-			subtype := mrt.MESSAGE
-			switch {
-			case isAddPath && e.FourBytesAs:
-				subtype = mrt.MESSAGE_AS4_ADDPATH
-			case isAddPath:
-				subtype = mrt.MESSAGE_ADDPATH
-			case e.FourBytesAs:
-				subtype = mrt.MESSAGE_AS4
-			}
-			if bm, err := mrt.NewMRTMessage(e.Timestamp, mrt.BGP4MP, subtype, mp); err != nil {
-				m.s.logger.Warn("Failed to create MRT BGP4MP message",
-					slog.String("Topic", "mrt"),
-					slog.Any("Data", e),
-					slog.String("Error", err.Error()),
-					slog.Any("Subtype", subtype),
-				)
-			} else {
+			if bm := m.updateToMrt(e); bm != nil {
 				msg = append(msg, bm)
 			}
 		}

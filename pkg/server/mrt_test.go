@@ -266,3 +266,60 @@ func TestDisableMrt(t *testing.T) {
 	require.NoError(t, enable())
 	require.NoError(t, disable())
 }
+
+// The BGP4MP record of a received UPDATE needs the peer and the local
+// address in the same address family. A mismatch must drop the record,
+// not stop the writer. An IPv4-mapped IPv6 peer address is an IPv4
+// session and is recorded as IPv4.
+func TestMrtUpdateToMrtAddressFamily(t *testing.T) {
+	s := newMrtTestServer(t)
+	m := &mrtWriter{s: s}
+
+	src := &table.PeerInfo{AS: 65002, Address: netip.MustParseAddr("192.0.2.2")}
+	path := newMrtTestPath(t, src, "203.0.113.0/24", "100.64.0.1")
+	update := bgp.NewBGPUpdateMessage(nil, path.GetPathAttrs(), []bgp.PathNLRI{{NLRI: path.GetNlri()}})
+	payload, err := update.Serialize()
+	require.NoError(t, err)
+
+	newEvent := func(peer, local string) *watchEventUpdate {
+		return &watchEventUpdate{
+			Message:      update,
+			PeerAS:       65002,
+			LocalAS:      65001,
+			PeerAddress:  netip.MustParseAddr(peer),
+			LocalAddress: netip.MustParseAddr(local),
+			Timestamp:    time.Now(),
+			Payload:      payload,
+			PathList:     []*table.Path{path},
+			Neighbor:     &oc.Neighbor{},
+		}
+	}
+
+	for _, tt := range []struct {
+		name  string
+		peer  string
+		local string
+		want  uint16
+	}{
+		{"ipv4", "192.0.2.2", "192.0.2.1", bgp.AFI_IP},
+		{"ipv6", "2001:db8::2", "2001:db8::1", bgp.AFI_IP6},
+		{"ipv4-mapped peer", "::ffff:192.0.2.2", "192.0.2.1", bgp.AFI_IP},
+		{"ipv4-mapped local", "192.0.2.2", "::ffff:192.0.2.1", bgp.AFI_IP},
+		{"mixed", "2001:db8::2", "192.0.2.1", 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			bm := m.updateToMrt(newEvent(tt.peer, tt.local))
+			if tt.want == 0 {
+				assert.Nil(t, bm)
+				return
+			}
+			require.NotNil(t, bm)
+			body, ok := bm.Body.(*mrt.BGP4MPMessage)
+			require.True(t, ok)
+			assert.Equal(t, tt.want, body.AddressFamily)
+			assert.Equal(t, tt.want == bgp.AFI_IP, body.PeerIpAddress.Is4())
+		})
+	}
+
+	assert.Nil(t, m.updateToMrt(&watchEventUpdate{Neighbor: &oc.Neighbor{}}))
+}
