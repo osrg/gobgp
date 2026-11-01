@@ -14,6 +14,100 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
+// rtcInterestPath builds a path with the given communities. With none, only a
+// default membership can make InterestedIn return true.
+func rtcInterestPath(exts ...bgp.ExtendedCommunityInterface) *Path {
+	return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{}, false,
+		[]bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities(exts)}, time.Time{}, false)
+}
+
+// referenceRTCInterestedIn scans membership buckets directly, independently of
+// the active-length index and any cached masks used by InterestedIn.
+func referenceRTCInterestedIn(rtc *RouteTargetMembershipHandler, path *Path) bool {
+	if rtc == nil || rtc.s == nil {
+		return false
+	}
+	rtc.s.mu.RLock()
+	defer rtc.s.mu.RUnlock()
+	for prefix, members := range rtc.s.m {
+		if len(members) == 0 {
+			continue
+		}
+		if prefix.len <= 32 {
+			return true
+		}
+		for _, rt := range path.GetRouteTargets() {
+			key, err := bgp.ExtCommRouteTargetKey(rt)
+			if err != nil {
+				continue
+			}
+			shift := 96 - prefix.len
+			if key>>shift == prefix.bits>>shift {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestInterestedInMembershipPrefixes(t *testing.T) {
+	var exts []bgp.ExtendedCommunityInterface
+	for _, value := range []string{"65000:100", "65000:101", "65001:200", "10.0.0.1:1", "64000.1000:1"} {
+		rt, err := bgp.ParseRouteTarget(value)
+		assert.NoError(t, err)
+		exts = append(exts, rt)
+	}
+	exts = append(exts,
+		bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_ORIGIN, 65000, 100, true),
+		bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 100, false))
+	check := func(rtc *RouteTargetMembershipHandler) {
+		t.Helper()
+		groups := [][]bgp.ExtendedCommunityInterface{nil, exts}
+		for _, ext := range exts {
+			groups = append(groups, []bgp.ExtendedCommunityInterface{ext})
+		}
+		for _, group := range groups {
+			path := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{}, false,
+				[]bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities(group)}, time.Time{}, false)
+			want := referenceRTCInterestedIn(rtc, path)
+			assert.Equal(t, want, rtc.InterestedIn(path), "communities: %v", group)
+		}
+	}
+	check(nil)
+	check(&RouteTargetMembershipHandler{})
+	rtc := NewRouteTargetMembershipHandler()
+	check(rtc)
+	var paths []*Path
+	for _, ext := range exts[:5] {
+		wire, err := ext.Serialize()
+		assert.NoError(t, err)
+		for length := uint8(33); length <= 96; length++ {
+			path := rtcPathFromWire(t, length, 65001, wire, 0)
+			rtc.SyncAfterImport(path)
+			check(rtc)
+			rtc.SyncAfterImport(path.Clone(true))
+			check(rtc)
+			paths = append(paths, path)
+		}
+	}
+	// Exercise every supported mask together, then remove them incrementally.
+	for _, path := range paths {
+		rtc.SyncAfterImport(path)
+	}
+	check(rtc)
+	for _, path := range paths {
+		rtc.SyncAfterImport(path.Clone(true))
+		check(rtc)
+	}
+	for _, length := range []uint8{0, 32} {
+		path := rtcPathFromWire(t, length, 65001, nil, 0)
+		rtc.SyncAfterImport(path)
+		check(rtc)
+		rtc.SyncAfterImport(path.Clone(true))
+		check(rtc)
+	}
+}
+
 func TestRTMSetAddSubHas(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
@@ -92,13 +186,14 @@ func TestRTMSetConcurrent(t *testing.T) {
 
 	rt, _ := bgp.ParseRouteTarget("65520:1000000")
 	nlri := bgp.NewRouteTargetMembershipNLRI(65000, rt)
-	rtKey, err := nlri.RouteTargetKey()
-	assert.NoError(t, err)
 
 	s := newRtmSet()
 
 	const goroutines = 20
 	const iters = 500
+	handler := &RouteTargetMembershipHandler{s: s}
+	vpnPath := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{}, false,
+		[]bgp.PathAttributeInterface{bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt})}, time.Time{}, false)
 
 	var wg sync.WaitGroup
 
@@ -116,14 +211,13 @@ func TestRTMSetConcurrent(t *testing.T) {
 		}(uint32(i))
 	}
 
-	// Readers: concurrent has, running throughout the writes.
+	// Readers: concurrent interest checks, running throughout the writes.
 	for range goroutines {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for range iters {
-				_ = s.contains(rtKey)
-				_ = s.containsAll()
+				_ = handler.InterestedIn(vpnPath)
 			}
 		}()
 	}
@@ -156,23 +250,23 @@ func TestRouteTargetMembershipHandlerDefaultAndRTs(t *testing.T) {
 	rtc.SyncAfterImport(p2)
 	rtc.SyncAfterImport(p3)
 
-	assert.True(t, rtc.HasDefaultRouteTarget())
-	assert.True(t, rtc.HasRouteTarget(rt1))
-	assert.True(t, rtc.HasRouteTarget(rt2))
+	assert.True(t, rtc.InterestedIn(rtcInterestPath()))
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt1)))
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt2)))
 
 	// The default RT contains every Route Target, including a withdrawn one.
 	rtc.SyncAfterImport(p1.Clone(true))
-	assert.True(t, rtc.HasDefaultRouteTarget())
-	assert.True(t, rtc.HasRouteTarget(rt1))
-	assert.True(t, rtc.HasRouteTarget(rt2))
+	assert.True(t, rtc.InterestedIn(rtcInterestPath()))
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt1)))
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt2)))
 
 	rtc.SyncAfterImport(p3.Clone(true))
-	assert.False(t, rtc.HasDefaultRouteTarget())
-	assert.False(t, rtc.HasRouteTarget(rt1))
-	assert.True(t, rtc.HasRouteTarget(rt2))
+	assert.False(t, rtc.InterestedIn(rtcInterestPath()))
+	assert.False(t, rtc.InterestedIn(rtcInterestPath(rt1)))
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt2)))
 
 	rtc.SyncAfterImport(p2.Clone(true))
-	assert.False(t, rtc.HasRouteTarget(rt2))
+	assert.False(t, rtc.InterestedIn(rtcInterestPath(rt2)))
 }
 
 // rtcPathFromWire decodes an RTC NLRI of length l with the given origin AS
@@ -234,18 +328,18 @@ func TestRouteTargetMembershipHandlerPrefixMatch(t *testing.T) {
 			p := rtcPathFromWire(t, tt.len, 65001, advertised, 0)
 			rtc := NewRouteTargetMembershipHandler()
 			rtc.SyncAfterImport(p)
-			assert.Equal(t, tt.all, rtc.HasDefaultRouteTarget())
+			assert.Equal(t, tt.all, rtc.InterestedIn(rtcInterestPath()))
 			for _, s := range rts {
 				rt, err := bgp.ParseRouteTarget(s)
 				assert.NoError(t, err)
-				assert.Equal(t, slices.Contains(tt.match, s), rtc.HasRouteTarget(rt), s)
+				assert.Equal(t, slices.Contains(tt.match, s), rtc.InterestedIn(rtcInterestPath(rt)), s)
 			}
 
 			rtc.SyncAfterImport(p.Clone(true))
-			assert.False(t, rtc.HasDefaultRouteTarget())
+			assert.False(t, rtc.InterestedIn(rtcInterestPath()))
 			for _, s := range rts {
 				rt, _ := bgp.ParseRouteTarget(s)
-				assert.False(t, rtc.HasRouteTarget(rt), s)
+				assert.False(t, rtc.InterestedIn(rtcInterestPath(rt)), s)
 			}
 			assert.Empty(t, rtc.s.count)
 		})
@@ -279,15 +373,15 @@ func TestRouteTargetMembershipHandlerZeroRouteTarget(t *testing.T) {
 
 			rtc := NewRouteTargetMembershipHandler()
 			rtc.SyncAfterImport(p)
-			assert.False(t, rtc.HasDefaultRouteTarget())
-			assert.False(t, rtc.HasRouteTarget(other))
+			assert.False(t, rtc.InterestedIn(rtcInterestPath()))
+			assert.False(t, rtc.InterestedIn(rtcInterestPath(other)))
 
 			def := rtcPathFromWire(t, 0, 0, nil, 1)
 			rtc.SyncAfterImport(def)
-			assert.True(t, rtc.HasDefaultRouteTarget())
+			assert.True(t, rtc.InterestedIn(rtcInterestPath()))
 			rtc.SyncAfterImport(p.Clone(true))
-			assert.True(t, rtc.HasDefaultRouteTarget(), "withdrawing it must leave the default RT alone")
-			assert.True(t, rtc.HasRouteTarget(other))
+			assert.True(t, rtc.InterestedIn(rtcInterestPath()), "withdrawing it must leave the default RT alone")
+			assert.True(t, rtc.InterestedIn(rtcInterestPath(other)))
 		})
 	}
 }
@@ -311,12 +405,12 @@ func TestRouteTargetMembershipHandlerDefaultAndOriginASOnly(t *testing.T) {
 					withdrawn, other = asOnly, def
 				}
 				rtc.SyncAfterImport(withdrawn.Clone(true))
-				assert.True(t, rtc.HasDefaultRouteTarget())
-				assert.True(t, rtc.HasRouteTarget(rt))
+				assert.True(t, rtc.InterestedIn(rtcInterestPath()))
+				assert.True(t, rtc.InterestedIn(rtcInterestPath(rt)))
 
 				rtc.SyncAfterImport(other.Clone(true))
-				assert.False(t, rtc.HasDefaultRouteTarget())
-				assert.False(t, rtc.HasRouteTarget(rt))
+				assert.False(t, rtc.InterestedIn(rtcInterestPath()))
+				assert.False(t, rtc.InterestedIn(rtcInterestPath(rt)))
 			})
 		}
 	}
@@ -474,6 +568,7 @@ func TestRTMSetCount(t *testing.T) {
 	assert.Empty(t, s.m)
 	s.add(p96a)
 	assert.Equal(t, map[uint8]int{96: 1}, s.count, "the set is usable after reset")
+
 }
 
 func TestRouteTargetMembershipHandlerSameRTAddPath(t *testing.T) {
@@ -494,24 +589,24 @@ func TestRouteTargetMembershipHandlerSameRTAddPath(t *testing.T) {
 	rtc.SyncAfterImport(p1)
 	rtc.SyncAfterImport(p2)
 	rtc.SyncAfterImport(p3)
-	assert.True(t, rtc.HasRouteTarget(rt1))
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt1)))
 
 	// Withdraw p1 -- p2 and p3 still hold rt1 interest.
 	rtc.SyncAfterImport(p1.Clone(true))
-	assert.True(t, rtc.HasRouteTarget(rt1), "still has rt1 via p2 and p3")
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt1)), "still has rt1 via p2 and p3")
 
 	// Withdraw p3 -- p2 still holds rt1 interest.
 	rtc.SyncAfterImport(p3.Clone(true))
-	assert.True(t, rtc.HasRouteTarget(rt1), "still has rt1 via p2")
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt1)), "still has rt1 via p2")
 
 	// Spurious withdraw: same NLRI as p2 but unknown pathID -- must be a no-op.
 	pSpurious := NewPath(bgp.RF_RTC_UC, pi, bgp.PathNLRI{NLRI: nlri1a, ID: 99}, true, attrs, time.Now(), false)
 	rtc.SyncAfterImport(pSpurious)
-	assert.True(t, rtc.HasRouteTarget(rt1), "spurious withdraw must not remove rt1 interest")
+	assert.True(t, rtc.InterestedIn(rtcInterestPath(rt1)), "spurious withdraw must not remove rt1 interest")
 
 	// Withdraw p2 -- no more rt1 interest.
 	rtc.SyncAfterImport(p2.Clone(true))
-	assert.False(t, rtc.HasRouteTarget(rt1))
+	assert.False(t, rtc.InterestedIn(rtcInterestPath(rt1)))
 }
 
 func makeVPNNLRI(t *testing.T, prefix string, rdAS, rdVal uint16) bgp.PathNLRI {
