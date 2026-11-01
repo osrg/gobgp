@@ -112,6 +112,11 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 	if !n.State.NeighborAddress.IsValid() {
 		n.State.NeighborAddress = n.Config.NeighborAddress
 	}
+	// An IPv4-mapped IPv6 address such as ::ffff:192.0.2.2 names an IPv4
+	// peer, and the session runs over IPv4. Keep the IPv4 form, since the
+	// peer map and the MRT writer compare this address with addresses
+	// taken from the socket.
+	n.State.NeighborAddress = n.State.NeighborAddress.Unmap()
 
 	n.State.PeerAs = n.Config.PeerAs
 	n.AsPathOptions.State.AllowOwnAs = n.AsPathOptions.Config.AllowOwnAs

@@ -519,3 +519,21 @@ func TestOverwriteNeighborConfigWithPeerGroupGracefulRestart(t *testing.T) {
 		assert.Equal(t, uint16(300), n.GracefulRestart.Config.DeferralTime)
 	})
 }
+
+// A neighbor address written as IPv4-mapped IPv6 is an IPv4 peer. The state
+// keeps the IPv4 form, and the default address family follows it.
+func TestSetDefaultNeighborConfigValuesIPv4MappedAddress(t *testing.T) {
+	g := &Global{Config: GlobalConfig{As: 65000}}
+	n := &Neighbor{
+		Config: NeighborConfig{
+			NeighborAddress: netip.MustParseAddr("::ffff:192.0.2.2"),
+			PeerAs:          65001,
+		},
+	}
+	require.NoError(t, SetDefaultNeighborConfigValues(n, nil, g))
+	assert.Equal(t, netip.MustParseAddr("192.0.2.2"), n.State.NeighborAddress)
+	assert.Equal(t, netip.MustParseAddr("::ffff:192.0.2.2"), n.Config.NeighborAddress)
+	assert.Equal(t, netip.MustParseAddr("0.0.0.0"), n.Transport.Config.LocalAddress)
+	require.Len(t, n.AfiSafis, 1)
+	assert.Equal(t, AFI_SAFI_TYPE_IPV4_UNICAST, n.AfiSafis[0].Config.AfiSafiName)
+}
