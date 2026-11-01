@@ -96,6 +96,15 @@ type rtmSet struct {
 	// deleted when its count drops to zero, so that InterestedIn looks up only
 	// the lengths in use. There are only a few of them in practice.
 	count map[uint8]int
+	// masks contains one entry per active length. Default memberships come
+	// first so InterestedIn can recognize them without scanning the list.
+	// Like m and count, it is protected by mu.
+	masks []rtMembershipMask
+}
+
+type rtMembershipMask struct {
+	length uint8
+	mask   uint64
 }
 
 func newRtmSet() *rtmSet {
@@ -126,6 +135,14 @@ func (s *rtmSet) add(path *Path) {
 	if !ok {
 		keys = make(map[rtmKey]struct{})
 		s.m[prefix] = keys
+		if s.count[prefix.len] == 0 {
+			entry := rtMembershipMask{length: prefix.len, mask: rtMask(prefix.len)}
+			s.masks = append(s.masks, entry)
+			if prefix.len <= 32 {
+				copy(s.masks[1:], s.masks[:len(s.masks)-1])
+				s.masks[0] = entry
+			}
+		}
 		s.count[prefix.len]++
 	}
 	keys[rtmKey{as: nlri.AS, pathID: path.remoteID}] = struct{}{}
@@ -158,6 +175,13 @@ func (s *rtmSet) sub(path *Path) {
 		s.count[prefix.len]--
 		if s.count[prefix.len] == 0 {
 			delete(s.count, prefix.len)
+			for i, entry := range s.masks {
+				if entry.length == prefix.len {
+					copy(s.masks[i:], s.masks[i+1:])
+					s.masks = s.masks[:len(s.masks)-1]
+					break
+				}
+			}
 		}
 	}
 }
@@ -200,6 +224,7 @@ func (s *rtmSet) reset() {
 	defer s.mu.Unlock()
 	s.m = make(map[rtPrefix]map[rtmKey]struct{})
 	s.count = make(map[uint8]int)
+	s.masks = nil
 }
 
 // vpnPathKey identifies a VPN path without relying on *Path pointer identity.
@@ -331,10 +356,10 @@ func (handler *RouteTargetMembershipHandler) InterestedIn(path *Path) bool {
 	s := handler.s
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if len(s.count) == 0 {
+	if len(s.masks) == 0 {
 		return false
 	}
-	if s.count[0] > 0 || s.count[32] > 0 {
+	if s.masks[0].length <= 32 {
 		return true
 	}
 	for _, ext := range path.GetExtCommunities() {
@@ -345,8 +370,8 @@ func (handler *RouteTargetMembershipHandler) InterestedIn(path *Path) bool {
 		if err != nil {
 			continue
 		}
-		for length := range s.count {
-			if len(s.m[rtPrefix{len: length, bits: key & rtMask(length)}]) > 0 {
+		for _, entry := range s.masks {
+			if len(s.m[rtPrefix{len: entry.length, bits: key & entry.mask}]) > 0 {
 				return true
 			}
 		}
