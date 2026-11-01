@@ -20,6 +20,9 @@ still very experimental.
 - [YABGP](#yabgp)
   - [Configuration](#configuration-1)
   - [Advertising EVPN route](#advertising-evpn-route-1)
+- [FRR](#frr)
+  - [Configuration](#configuration-2)
+  - [Advertising EVPN route](#advertising-evpn-route-2)
 
 ## CLI Syntax
 
@@ -793,3 +796,92 @@ BGP neighbor is 10.0.0.2, remote AS 65002
     Received:               0
     Accepted:               0
 ```
+
+## FRR
+
+This example uses [FRRouting (FRR)](https://frrouting.org/) as the EVPN peer for GoBGP. The
+GoBGP speaker at one DCI site peers directly with FRR at the other site; GoBGP is not a route
+reflector in this topology. This example covers BGP peering and EVPN route exchange only; it
+does not configure or test a VXLAN dataplane.
+
+**NOTE:** This direct iBGP peering uses AS 64512 on both peers. The sample Type-2 route carries
+VXLAN label 1000 and route target `64512:1000`.
+
+### Configuration
+
+```text
+  Site A                                             Site B
++----------------------+      iBGP EVPN      +----------------------+
+| GoBGP                |<-------------------->| FRR                  |
+| AS 64512             |                      | AS 64512             |
++----------------------+                      +----------------------+
+```
+
+GoBGP on `192.0.2.1` has a direct EVPN neighbor at FRR on `192.0.2.2`:
+
+```toml
+[global.config]
+  as = 64512
+  router-id = "192.0.2.1"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "192.0.2.2"
+    peer-as = 64512
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
+```
+
+FRR configuration on site B enables the EVPN address family for the GoBGP neighbor:
+
+```text
+router bgp 64512
+ bgp router-id 192.0.2.2
+ neighbor 192.0.2.1 remote-as 64512
+ !
+ address-family l2vpn evpn
+  neighbor 192.0.2.1 activate
+ exit-address-family
+exit
+```
+
+Then, run GoBGP and FRR:
+
+```bash
+gobgpd -f gobgpd.toml
+
+# FRR
+vtysh
+```
+
+### Advertising EVPN route
+
+After the session is established, advertise a sample EVPN MAC/IP route from GoBGP to FRR.
+The VXLAN label and route target are carried in BGP attributes; this example does not set up
+a VNI interface or install forwarding state.
+
+```bash
+gobgp global rib -a evpn add macadv aa:bb:cc:dd:ee:ff \
+  10.100.0.1 etag 0 label 1000 rd 192.0.2.1:1000 \
+  rt 64512:1000 encap vxlan nexthop 192.0.2.1 origin igp
+```
+
+Check the routes at both peers:
+
+```bash
+# GoBGP
+gobgp neighbor
+gobgp global rib -a evpn
+
+# FRR
+vtysh -c 'show bgp l2vpn evpn summary'
+vtysh -c 'show bgp l2vpn evpn route'
+```
+
+FRR should receive the GoBGP-advertised Type-2 route with next hop `192.0.2.1` and route
+target `64512:1000`. The sample demonstrates BGP EVPN route exchange only.
+
+This direct-peering configuration was tested with GoBGP 4.11.0 and FRR 10.7.1 in two isolated
+runs. In both runs the BGP session established and FRR received the MAC/IP route advertised by
+GoBGP.
