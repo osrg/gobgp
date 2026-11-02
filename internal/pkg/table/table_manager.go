@@ -352,6 +352,14 @@ func (manager *TableManager) Update(newPath *Path) []*Update {
 // compare its own IP address with the IP address of the remote PE and
 // will select the lowest IP.  If its own route is not the best one, it
 // will withdraw the route.
+//
+// RFC7432 15.2. Sticky MAC Addresses
+//
+// There are scenarios in which it is desired to configure some MAC
+// addresses as static so that they are not subjected to MAC moves.  In
+// such scenarios, these MAC addresses are advertised with a MAC
+// Mobility extended community where the static flag is set to 1 and the
+// sequence number is set to zero.
 func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 	pathList := make([]*Path, 0)
 	nlri := path.GetNlri().(*bgp.EVPNNLRI)
@@ -386,6 +394,11 @@ func (manager *TableManager) handleMacMobility(path *Path) []*Path {
 
 	for _, path2 := range paths {
 		if !path2.IsLocal() || path2.GetNlri().(*bgp.EVPNNLRI).RouteType != bgp.EVPN_ROUTE_TYPE_MAC_IP_ADVERTISEMENT {
+			continue
+		}
+		// A local static MAC is not moved, whatever the received route
+		// carries.
+		if path2.IsStickyMac() {
 			continue
 		}
 		e2, et2, m2, s2, i2 := f(path2)

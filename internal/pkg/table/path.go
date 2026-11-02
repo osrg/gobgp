@@ -594,6 +594,15 @@ func (path *Path) IsLLGRStale() bool {
 	return slices.Contains(path.GetCommunities(), uint32(bgp.COMMUNITY_LLGR_STALE))
 }
 
+// IsStickyMac returns true if the path carries a MAC Mobility extended
+// community with the sticky (static) flag set.
+func (path *Path) IsStickyMac() bool {
+	return slices.ContainsFunc(path.GetExtCommunities(), func(ec bgp.ExtendedCommunityInterface) bool {
+		m, ok := ec.(*bgp.MacMobilityExtended)
+		return ok && m.IsSticky
+	})
+}
+
 func (path *Path) GetSourceAs() uint32 {
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_AS_PATH)
 	if attr != nil {

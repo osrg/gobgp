@@ -164,3 +164,32 @@ func TestEVPNMacMobilityWithdrawal(t *testing.T) {
 		})
 	}
 }
+
+// RFC 7432 15.2: a static MAC is not subjected to MAC moves. It can be added
+// with the sticky flag and sequence number zero while another PE advertises
+// the MAC with a higher sequence number, and a route received after it does
+// not withdraw it.
+func TestEVPNStickyMacIsNotMoved(t *testing.T) {
+	s, source, target := newEVPNMobilityServer(t, false)
+	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 1, true)
+
+	s.propagateUpdate(source, []*table.Path{addPathEVPNMacPath(t, source.peerInfo.Load(), 2, 2, 1)})
+	drainOutgoing(target)
+
+	local := addPathEVPNMacPath(t, nil, 1, 1, 0)
+	local.SetExtCommunities([]bgp.ExtendedCommunityInterface{rt, bgp.NewMacMobilityExtended(0, true)}, true)
+	require.NoError(t, s.addPathStream("", []*table.Path{local}))
+	sent := drainOutgoing(target)
+	require.Len(t, sent, 1, "the peer gets the static MAC")
+	require.False(t, sent[0].IsWithdraw)
+	require.Equal(t, local.GetNlri().String(), sent[0].GetNlri().String())
+	require.Equal(t, []bgp.ExtendedCommunityInterface{rt, bgp.NewMacMobilityExtended(0, true)}, sent[0].GetExtCommunities())
+
+	// The MAC is advertised again with a higher sequence number.
+	moved := addPathEVPNMacPath(t, source.peerInfo.Load(), 3, 2, 2)
+	s.propagateUpdate(source, []*table.Path{moved})
+	got := drainOutgoing(target)
+	require.Len(t, got, 1, "the static MAC is not withdrawn")
+	require.False(t, got[0].IsWithdraw)
+	require.Equal(t, moved.GetNlri().String(), got[0].GetNlri().String())
+}

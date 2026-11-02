@@ -2808,6 +2808,14 @@ func (s *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
 			switch r := nlri.RouteTypeData.(type) {
 			case *bgp.EVPNMacIPAdvertisementRoute:
 				// MAC Mobility Extended Community
+				//
+				// RFC7432 15.2: a static MAC is not subjected to MAC
+				// moves. It is advertised with the sticky flag and
+				// sequence number zero, whatever the other routes of
+				// the MAC carry.
+				if path.IsStickyMac() {
+					break
+				}
 				var paths []*table.Path
 				for _, ec := range path.GetRouteTargets() {
 					paths = append(paths, s.globalRib.GetPathListWithMac(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_EVPN}, ec, r.MacAddress)...)
