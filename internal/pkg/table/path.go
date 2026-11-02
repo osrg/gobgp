@@ -558,6 +558,13 @@ func (path *Path) GetFamily() bgp.Family {
 	return path.family
 }
 
+// SameNeighborAS reports whether path and other were received from peers in
+// the same AS. Paths that Compare finds equal are either both iBGP or both
+// eBGP, so in the multipath set this only separates eBGP paths.
+func (path *Path) SameNeighborAS(other *Path) bool {
+	return path.GetSource().AS == other.GetSource().AS
+}
+
 func (path *Path) GetSource() *PeerInfo {
 	return path.OriginInfo().source
 }

@@ -829,7 +829,7 @@ func (t *Table) Bests(id string, as uint32) []*Path {
 	return paths
 }
 
-func (t *Table) MultiBests(id string) [][]*Path {
+func (t *Table) MultiBests(id string, sameNeighborAS bool) [][]*Path {
 	paths := make([][]*Path, 0)
 
 	shards := t.destinations.loadShards()
@@ -838,7 +838,7 @@ func (t *Table) MultiBests(id string) [][]*Path {
 		shard.mu.RLock()
 		for _, dests := range shard.mp {
 			for _, dest := range dests {
-				path := dest.GetMultiBestPath(id)
+				path := dest.GetMultiBestPath(id, sameNeighborAS)
 				if path != nil {
 					paths = append(paths, path)
 				}

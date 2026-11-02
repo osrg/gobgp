@@ -9294,6 +9294,7 @@ type RouteSelectionOptionsConfig struct {
 	EnableAigp               bool                   `protobuf:"varint,5,opt,name=enable_aigp,json=enableAigp,proto3" json:"enable_aigp,omitempty"`
 	IgnoreNextHopIgpMetric   bool                   `protobuf:"varint,6,opt,name=ignore_next_hop_igp_metric,json=ignoreNextHopIgpMetric,proto3" json:"ignore_next_hop_igp_metric,omitempty"`
 	DisableBestPathSelection bool                   `protobuf:"varint,7,opt,name=disable_best_path_selection,json=disableBestPathSelection,proto3" json:"disable_best_path_selection,omitempty"`
+	MultipathSameNeighborAs  bool                   `protobuf:"varint,8,opt,name=multipath_same_neighbor_as,json=multipathSameNeighborAs,proto3" json:"multipath_same_neighbor_as,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -9373,6 +9374,13 @@ func (x *RouteSelectionOptionsConfig) GetIgnoreNextHopIgpMetric() bool {
 func (x *RouteSelectionOptionsConfig) GetDisableBestPathSelection() bool {
 	if x != nil {
 		return x.DisableBestPathSelection
+	}
+	return false
+}
+
+func (x *RouteSelectionOptionsConfig) GetMultipathSameNeighborAs() bool {
+	if x != nil {
+		return x.MultipathSameNeighborAs
 	}
 	return false
 }
@@ -14599,7 +14607,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\baccepted\x18\x04 \x01(\x04R\baccepted\x12\x1e\n" +
 	"\n" +
 	"advertised\x18\x05 \x01(\x04R\n" +
-	"advertised\"\x93\x03\n" +
+	"advertised\"\xd0\x03\n" +
 	"\x1bRouteSelectionOptionsConfig\x12,\n" +
 	"\x12always_compare_med\x18\x01 \x01(\bR\x10alwaysCompareMed\x121\n" +
 	"\x15ignore_as_path_length\x18\x02 \x01(\bR\x12ignoreAsPathLength\x12;\n" +
@@ -14608,7 +14616,8 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\venable_aigp\x18\x05 \x01(\bR\n" +
 	"enableAigp\x12:\n" +
 	"\x1aignore_next_hop_igp_metric\x18\x06 \x01(\bR\x16ignoreNextHopIgpMetric\x12=\n" +
-	"\x1bdisable_best_path_selection\x18\a \x01(\bR\x18disableBestPathSelection\"\x92\x03\n" +
+	"\x1bdisable_best_path_selection\x18\a \x01(\bR\x18disableBestPathSelection\x12;\n" +
+	"\x1amultipath_same_neighbor_as\x18\b \x01(\bR\x17multipathSameNeighborAs\"\x92\x03\n" +
 	"\x1aRouteSelectionOptionsState\x12,\n" +
 	"\x12always_compare_med\x18\x01 \x01(\bR\x10alwaysCompareMed\x121\n" +
 	"\x15ignore_as_path_length\x18\x02 \x01(\bR\x12ignoreAsPathLength\x12;\n" +

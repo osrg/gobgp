@@ -479,7 +479,7 @@ func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.Family
 
 	paths := make([][]*Path, 0, manager.maxPathCounted.Load())
 	for _, t := range manager.getTables(rfList...) {
-		paths = append(paths, t.MultiBests(id)...)
+		paths = append(paths, t.MultiBests(id, manager.selectionOptions.MultipathSameNeighborAs)...)
 	}
 	manager.updateMaxPathCounted(len(paths))
 	return paths
