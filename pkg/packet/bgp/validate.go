@@ -202,6 +202,18 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 					return false, NewMessageError(eCode, eSubCodeMalformedAspath, nil, fmt.Sprintf("segment type is not confederation seq (%d)", segType))
 				}
 			} else {
+				// rfc4271 5.1.2. A speaker puts its own AS in the AS_PATH of
+				// every UPDATE it sends to an external peer, so an empty one
+				// is malformed. An empty AS_PATH means the route started in
+				// the local AS: it counts as the shortest path, and RPKI
+				// origin validation takes the local AS as its origin.
+				if len(p.Value) == 0 {
+					err := NewMessageErrorWithErrorHandling(
+						eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, "empty AS_PATH for eBGP")
+					if err.(*MessageError).Stronger(strongestError) {
+						strongestError = err
+					}
+				}
 				for _, param := range p.Value {
 					segType := param.GetType()
 					switch segType {

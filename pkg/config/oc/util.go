@@ -126,8 +126,10 @@ func (g *Global) IsConfederation(peerAS uint32) bool {
 	return g.IsConfederationMember(peerAS)
 }
 
+// IsEBGPPeer uses State.PeerAs, the AS of the session, because Config.PeerAs
+// is 0 for a peer whose AS is learned from its OPEN.
 func (n *Neighbor) IsEBGPPeer(g *Global) bool {
-	return n.Config.PeerAs != n.Config.LocalAs
+	return n.State.PeerAs != n.Config.LocalAs
 }
 
 func (n *Neighbor) CreateRfMap() map[bgp.Family]bgp.BGPAddPathMode {
