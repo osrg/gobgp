@@ -3071,3 +3071,47 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 		})
 	}
 }
+
+// A raw message in the outgoing queue goes out after the UPDATEs of the
+// paths queued before it and before those queued after it, also when the
+// send loop coalesces paths.
+func TestSendMessageloop_MessageKeepsOrder(t *testing.T) {
+	m := NewMockConnection()
+	_, h := makePeerAndHandler(m)
+	t.Cleanup(func() { h.outgoing.Close(); m.Close() })
+
+	borr := bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_BORR, bgp.SAFI_UNICAST)
+	eorr := bgp.NewBGPRouteRefreshMessage(bgp.AFI_IP, bgp.BGP_ROUTE_REFRESH_EORR, bgp.SAFI_UNICAST)
+	h.outgoing.In() <- &fsmOutgoingMsg{Message: borr}
+	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{makePath(t, "10.0.0.0/24", "192.168.1.1", 0)}}
+	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{makePath(t, "10.0.1.0/24", "192.168.1.1", 0)}}
+	h.outgoing.In() <- &fsmOutgoingMsg{Message: eorr}
+	h.outgoing.In() <- &fsmOutgoingMsg{Paths: []*table.Path{makePath(t, "10.0.2.0/24", "192.168.1.1", 0)}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go h.sendMessageloop(ctx, m, make(chan fsmStateReason, 3), wg)
+
+	var order []string
+	require.Eventually(t, func() bool {
+		order = order[:0]
+		for _, msg := range parseBGPUpdates(t, m.GetSentMessages()) {
+			switch b := msg.Body.(type) {
+			case *bgp.BGPRouteRefresh:
+				order = append(order, fmt.Sprintf("rr%d", b.Demarcation))
+			case *bgp.BGPUpdate:
+				for _, n := range b.NLRI {
+					order = append(order, n.NLRI.String())
+				}
+			}
+		}
+		return len(order) == 5
+	}, 5*time.Second, 10*time.Millisecond)
+	cancel()
+	wg.Wait()
+
+	require.Equal(t, "rr1", order[0])
+	require.ElementsMatch(t, []string{"10.0.0.0/24", "10.0.1.0/24"}, order[1:3])
+	require.Equal(t, []string{"rr2", "10.0.2.0/24"}, order[3:])
+}
