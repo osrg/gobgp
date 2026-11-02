@@ -18,7 +18,9 @@ package table
 import (
 	_ "fmt"
 	"log/slog"
+	"net"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 
@@ -2818,6 +2820,62 @@ func TestProcessMessageExternalPeerOriginValidationStateDiscarded(t *testing.T) 
 			paths[0].updateHash()
 			assert.Equal(t, want, paths[0].GetHash())
 			assert.Equal(t, want, paths[1].GetHash())
+		})
+	}
+}
+
+// RFC 7432 15.2: a MAC address configured as static is advertised with the
+// sticky flag and is not subject to MAC moves. A route for the same MAC from
+// another Ethernet segment with a higher sequence number withdraws a local
+// route without the flag, but not a local route with it.
+func TestHandleMacMobilityKeepsStickyLocalPath(t *testing.T) {
+	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 1, true)
+	mac := "00:11:22:33:44:55"
+	newMacPath := func(source *PeerInfo, rdAdmin uint16, esiByte byte, seq uint32, sticky bool) *Path {
+		esi := bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY, Value: []byte{esiByte, esiByte, esiByte, esiByte, esiByte, esiByte, esiByte, esiByte, esiByte}}
+		nlri, err := bgp.NewEVPNMacIPAdvertisementRoute(bgp.NewRouteDistinguisherTwoOctetAS(rdAdmin, 1), esi, 0, mac, netip.Addr{}, []uint32{100})
+		assert.NoError(t, err)
+		mp, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_EVPN, []bgp.PathNLRI{{NLRI: nlri}}, netip.MustParseAddr("10.0.0.1"))
+		assert.NoError(t, err)
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			mp,
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt, bgp.NewMacMobilityExtended(seq, sticky)}),
+		}
+		return NewPath(bgp.RF_EVPN, source, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+	remote := &PeerInfo{AS: 65000, LocalAS: 65000, ID: netip.MustParseAddr("10.0.0.2"), Address: netip.MustParseAddr("10.0.0.2")}
+
+	for _, tc := range []struct {
+		name         string
+		localSticky  bool
+		remoteSticky bool
+		withdrawn    bool
+	}{
+		{name: "local", withdrawn: true},
+		{name: "sticky local", localSticky: true},
+		{name: "sticky local, sticky remote", localSticky: true, remoteSticky: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := NewTableManager(logger, []bgp.Family{bgp.RF_EVPN}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+			local := newMacPath(nil, 1, 1, 0, tc.localSticky)
+			manager.Update(local)
+
+			moved := newMacPath(remote, 2, 2, 1, tc.remoteSticky)
+			withdrawals := manager.handleMacMobility(moved)
+			manager.Update(moved)
+
+			if tc.withdrawn {
+				if assert.Len(t, withdrawals, 1) {
+					assert.True(t, withdrawals[0].IsWithdraw)
+					assert.Equal(t, local.GetNlri().String(), withdrawals[0].GetNlri().String())
+				}
+			} else {
+				assert.Empty(t, withdrawals)
+			}
+			hw, _ := net.ParseMAC(mac)
+			kept := slices.ContainsFunc(manager.GetPathListWithMac(GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_EVPN}, rt, hw), (*Path).IsLocal)
+			assert.Equal(t, !tc.withdrawn, kept, "the local path is in the table")
 		})
 	}
 }
