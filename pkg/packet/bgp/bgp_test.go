@@ -895,6 +895,40 @@ func TestMPLSLabelStackMissingBOS(t *testing.T) {
 	})
 }
 
+func TestMPLSLabelStackIgnoresRsrv(t *testing.T) {
+	// 0x000004 and 0x800004 differ from 0x000000 and 0x800000 only in
+	// the Rsrv bits, which RFC 8277 says to ignore on reception.
+	for _, tc := range []struct {
+		field []byte
+		want  uint32
+	}{
+		{[]byte{0x00, 0x00, 0x04}, ZERO_LABEL},
+		{[]byte{0x80, 0x00, 0x04}, WITHDRAW_LABEL},
+	} {
+		s := &MPLSLabelStack{}
+		require.NoError(t, s.DecodeFromBytes(append(tc.field, 0x00, 0x06, 0x41)))
+		assert.Equal(t, []uint32{tc.want}, s.Labels)
+	}
+
+	// Serialize writes the Rsrv bits as zero, so the NLRI must decode
+	// the same way after it is serialized again.
+	data := []byte{
+		120,              // length in bits
+		0x00, 0x00, 0x04, // label 0, Rsrv 2, S 0
+		0x00, 0x06, 0x41, // label 100, S 1
+		0x00, 0x00, 0xfd, 0xe8, 0x00, 0x00, 0x00, 0x01, // RD 65000:1
+		10, // 10.0.0.0/8
+	}
+	n1 := &LabeledVPNIPAddrPrefix{}
+	require.NoError(t, n1.decodeFromBytes(data, 4))
+	buf, err := n1.Serialize()
+	require.NoError(t, err)
+	n2 := &LabeledVPNIPAddrPrefix{}
+	require.NoError(t, n2.decodeFromBytes(buf, 4))
+	assert.Equal(t, n1.Labels.Labels, n2.Labels.Labels)
+	assert.Equal(t, n1.String(), n2.String())
+}
+
 func Test_FlowSpecNlri(t *testing.T) {
 	assert := assert.New(t)
 	cmp := make([]FlowSpecComponentInterface, 0)
