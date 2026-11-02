@@ -1052,7 +1052,9 @@ func (fsm *fsm) start(wg *sync.WaitGroup, callback func(*fsmMsg)) {
 		callback:  callback,
 	}
 	wg.Add(1)
-	go fsm.h.loop(ctx, wg)
+	// Read the initial state before start returns. The loop must not
+	// see a state that is stored after start, before the goroutine runs.
+	go fsm.h.loop(ctx, wg, fsm.state.Load())
 }
 
 func (fsm *fsm) stop() {
@@ -2463,11 +2465,10 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	}
 }
 
-func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup) {
+func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup, oldState bgp.FSMState) {
 	defer wg.Done()
 
 	fsm := h.fsm
-	oldState := fsm.state.Load()
 
 	var reason *fsmStateReason
 	nextState := bgp.FSMState(-1)
