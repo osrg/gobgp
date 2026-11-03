@@ -1195,8 +1195,24 @@ func (h *fsmHandler) connectLoop(ctx context.Context, delay time.Duration) net.C
 			timer.Stop()
 			return nil
 		case <-timer.C:
-			fsm.logger.Debug("try to connect")
 		}
+		// Do not dial while the FSM is in OpenConfirm. RFC 4271 Section
+		// 8.2.2 says that in OpenSent, when a valid OPEN arrives (Event
+		// 19), the local system "sets the BGP ConnectRetryTimer to zero".
+		// The RFC FSM is per connection, so we read this to cover our own
+		// connection as well.
+		//
+		// Do not return either. loop() calls keepForIdle() before it
+		// stores the next state in fsm.state, so the state read here can
+		// be stale: the handler may be going to Active. active() checks
+		// for a running manager only when it starts, so a manager that
+		// returns now can leave the peer with no outgoing connection.
+		if fsm.state.Load() == bgp.BGP_FSM_OPENCONFIRM {
+			fsm.logger.Debug("skip connect in OpenConfirm, retry later")
+			delay = connectRetryDelay(retryInterval)
+			continue
+		}
+		fsm.logger.Debug("try to connect")
 
 		laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
 		if err != nil {
