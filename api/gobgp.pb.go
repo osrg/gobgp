@@ -2339,6 +2339,10 @@ type ResetPeerRequest struct {
 	Communication string                     `protobuf:"bytes,2,opt,name=communication,proto3" json:"communication,omitempty"`
 	Soft          bool                       `protobuf:"varint,3,opt,name=soft,proto3" json:"soft,omitempty"`
 	Direction     ResetPeerRequest_Direction `protobuf:"varint,4,opt,name=direction,proto3,enum=api.ResetPeerRequest_Direction" json:"direction,omitempty"`
+	// bfd_down makes a hard reset send Cease/BFD Down (RFC 9384) instead of
+	// Cease/Administrative Reset, for an application that runs its own BFD.
+	// communication is ignored. Not allowed with soft.
+	BfdDown       bool `protobuf:"varint,5,opt,name=bfd_down,json=bfdDown,proto3" json:"bfd_down,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2399,6 +2403,13 @@ func (x *ResetPeerRequest) GetDirection() ResetPeerRequest_Direction {
 		return x.Direction
 	}
 	return ResetPeerRequest_DIRECTION_UNSPECIFIED
+}
+
+func (x *ResetPeerRequest) GetBfdDown() bool {
+	if x != nil {
+		return x.BfdDown
+	}
+	return false
 }
 
 type ResetPeerResponse struct {
@@ -14031,12 +14042,13 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x04peer\x18\x01 \x01(\v2\t.api.PeerR\x04peer\x12'\n" +
 	"\x10do_soft_reset_in\x18\x02 \x01(\bR\rdoSoftResetIn\"C\n" +
 	"\x12UpdatePeerResponse\x12-\n" +
-	"\x13needs_soft_reset_in\x18\x01 \x01(\bR\x10needsSoftResetIn\"\x86\x02\n" +
+	"\x13needs_soft_reset_in\x18\x01 \x01(\bR\x10needsSoftResetIn\"\xa1\x02\n" +
 	"\x10ResetPeerRequest\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12$\n" +
 	"\rcommunication\x18\x02 \x01(\tR\rcommunication\x12\x12\n" +
 	"\x04soft\x18\x03 \x01(\bR\x04soft\x12=\n" +
-	"\tdirection\x18\x04 \x01(\x0e2\x1f.api.ResetPeerRequest.DirectionR\tdirection\"_\n" +
+	"\tdirection\x18\x04 \x01(\x0e2\x1f.api.ResetPeerRequest.DirectionR\tdirection\x12\x19\n" +
+	"\bbfd_down\x18\x05 \x01(\bR\abfdDown\"_\n" +
 	"\tDirection\x12\x19\n" +
 	"\x15DIRECTION_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fDIRECTION_IN\x10\x01\x12\x11\n" +

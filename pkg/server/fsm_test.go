@@ -2620,7 +2620,7 @@ func TestFSMHandlerIdle_Reset(t *testing.T) {
 	p.fsm.idleHoldTime = 64
 	p.fsm.idleHoldBackoff = 64
 
-	p.reset(nil)
+	p.reset(resetNotification(nil, false))
 	start := time.Now()
 	state, reason := h.idle(t.Context())
 	require.Equal(t, bgp.BGP_FSM_ACTIVE, state)
@@ -2643,7 +2643,7 @@ func TestFSMHandlerIdle_ResetWhileAdminDown(t *testing.T) {
 	p.fsm.idleHoldTime = 1
 	p.fsm.idleHoldBackoff = 1
 
-	p.reset(nil)
+	p.reset(resetNotification(nil, false))
 	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 	defer cancel()
 	state, _ := h.idle(ctx)
@@ -2705,7 +2705,7 @@ func TestFSMHandlerActive_Reset(t *testing.T) {
 	require.Eventually(t, func() bool { return ocm.state.Load() == bgp.BGP_FSM_OPENSENT },
 		time.Second, 10*time.Millisecond)
 
-	fsm.resetCh <- nil
+	fsm.resetCh <- resetNotification(nil, false)
 	state, reason := fsm.h.active(t.Context())
 	require.Equal(t, bgp.BGP_FSM_IDLE, state)
 	require.Equal(t, fsmAdminReset, reason.Type)
@@ -2734,7 +2734,7 @@ func TestFSMHandler_ResetBeforeEstablished(t *testing.T) {
 			conf.Timers.Config.KeepaliveInterval = 10
 			p.fsm.pConf.Update(&conf)
 
-			p.reset(nil)
+			p.reset(resetNotification(nil, false))
 			state, reason := tt.state(h, t.Context())
 			require.Equal(t, bgp.BGP_FSM_IDLE, state)
 			require.Equal(t, fsmAdminReset, reason.Type)
@@ -2993,7 +2993,7 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 	communication := newAdministrativeCommunication("maintenance")
 	adminDown := func(f *fsm) { f.adminStateCh <- adminStateOperation{adminStateDown, communication} }
 	prefixLimit := func(f *fsm) { f.adminStateCh <- adminStateOperation{adminStatePfxCt, nil} }
-	reset := func(f *fsm) { f.resetCh <- communication }
+	reset := func(f *fsm) { f.resetCh <- resetNotification(communication, false) }
 	bfdDown := func(f *fsm) {
 		f.notification <- bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_BFD_DOWN, nil)
 	}

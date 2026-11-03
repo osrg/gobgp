@@ -34,6 +34,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -6417,6 +6419,47 @@ func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 			n.ErrorCode == bgp.BGP_ERROR_CEASE &&
 			n.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET
 	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// ResetPeer with bfd_down sends Cease/BFD Down (RFC 9384) with no data, for an
+// application that runs its own BFD. The communication is ignored: RFC 9003
+// defines it only for Administrative Shutdown and Administrative Reset.
+// https://github.com/osrg/gobgp/issues/3895
+func TestResetPeerBfdDown(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+
+	err := s.ResetPeer(context.Background(), &api.ResetPeerRequest{
+		Address:   peerAddr,
+		Soft:      true,
+		Direction: api.ResetPeerRequest_DIRECTION_BOTH,
+		BfdDown:   true,
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+	err = s.ResetPeer(context.Background(), &api.ResetPeerRequest{
+		Address:       peerAddr,
+		Communication: "ignored",
+		BfdDown:       true,
+	})
+	require.NoError(t, err)
+	w.Wait(t, 10*time.Second)
+
+	var n *bgp.BGPNotification
+	require.Eventually(t, func() bool {
+		n = sentNotification(m1)
+		return n != nil
+	}, 10*time.Second, 10*time.Millisecond)
+	require.Equal(t, uint8(bgp.BGP_ERROR_CEASE), n.ErrorCode)
+	require.Equal(t, uint8(bgp.BGP_ERROR_SUB_BFD_DOWN), n.ErrorSubcode)
+	require.Empty(t, n.Data)
 }
 
 // When BFD goes down on a live session, the server sends Cease/BFD Down

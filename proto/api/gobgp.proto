@@ -229,6 +229,10 @@ message ResetPeerRequest {
     DIRECTION_BOTH = 3;
   }
   Direction direction = 4;
+  // bfd_down makes a hard reset send Cease/BFD Down (RFC 9384) instead of
+  // Cease/Administrative Reset, for an application that runs its own BFD.
+  // communication is ignored. Not allowed with soft.
+  bool bfd_down = 5;
 }
 
 message ResetPeerResponse {}

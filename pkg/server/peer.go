@@ -655,8 +655,8 @@ func (peer *peer) sendNotification(msg *bgp.BGPMessage) {
 
 // reset passes ResetPeer to the FSM. A reset that is not handled yet makes
 // a new one unnecessary, so the new one is dropped.
-func (peer *peer) reset(communication []byte) {
-	nonblockSendChannel(peer.fsm.resetCh, communication)
+func (peer *peer) reset(notification *bgp.BGPMessage) {
+	nonblockSendChannel(peer.fsm.resetCh, notification)
 }
 
 // needs to be called under fsm.lock
