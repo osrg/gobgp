@@ -2902,7 +2902,8 @@ func TestFSMHandlerEstablished_NoGracefulRestartAfterCapabilityRemoved(t *testin
 // session when the peer advertised graceful restart or long-lived graceful
 // restart for one or more families (RFC 4724 Section 4.2). The old
 // connection is closed without a NOTIFICATION, and active() takes the new
-// one. Otherwise the new connection is closed.
+// one. Otherwise the new connection is closed. A Long-Lived Stale Time of 0
+// does not count (RFC 9494 Section 4.2).
 func TestFSMHandlerEstablished_NewConnection(t *testing.T) {
 	tests := []struct {
 		name string
@@ -2922,6 +2923,16 @@ func TestFSMHandlerEstablished_NewConnection(t *testing.T) {
 		}, true},
 		{"no family in the capability", []bgp.ParameterCapabilityInterface{
 			bgp.NewCapGracefulRestart(false, false, 120, nil),
+		}, false},
+		// What FRR sends in its default helper-only mode: the Graceful
+		// Restart Capability with no tuple, and the Long-Lived Graceful
+		// Restart Capability with a Long-Lived Stale Time of 0.
+		{"long-lived stale time zero", []bgp.ParameterCapabilityInterface{
+			bgp.NewCapGracefulRestart(false, false, 120, nil),
+			bgp.NewCapLongLivedGracefulRestart([]*bgp.CapLongLivedGracefulRestartTuple{
+				bgp.NewCapLongLivedGracefulRestartTuple(bgp.RF_IPv4_UC, true, 0),
+				bgp.NewCapLongLivedGracefulRestartTuple(bgp.RF_IPv6_UC, true, 0),
+			}),
 		}, false},
 		{"no graceful restart", nil, false},
 	}
