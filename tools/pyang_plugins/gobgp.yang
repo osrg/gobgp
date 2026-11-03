@@ -949,6 +949,15 @@ module gobgp {
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:config" {
     description "additional timer";
     uses gobgp-timer;
+
+    leaf connect-at-once {
+      type boolean;
+      default false;
+      description
+        "Start the first connect to the peer at once when the peer
+        leaves Idle, instead of after the jittered connect delay.
+        The retries still wait.";
+    }
    }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:timers/bgp:state" {

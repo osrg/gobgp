@@ -1056,7 +1056,7 @@ func (s *BgpServer) toConfig(peer *peer, getAdvertised bool) *oc.Neighbor {
 	conf.State.Messages.Sent.WithdrawUpdate = atomic.LoadUint32(&peer.fsm.counterStats.Sent.WithdrawUpdate)
 	conf.State.Messages.Sent.WithdrawPrefix = atomic.LoadUint32(&peer.fsm.counterStats.Sent.WithdrawPrefix)
 	conf.State.Messages.Sent.Discarded = atomic.LoadUint64(&peer.fsm.counterStats.Sent.Discarded)
-	conf.Timers.State.UpdateRecvTime = atomic.LoadInt64(&peer.fsm.timerStats.State.UpdateRecvTime)
+	conf.Timers.State.UpdateRecvTime = peer.fsm.updateRecvTime.Load()
 
 	if s.bfdServer != nil {
 		bfdPeer, err := s.bfdServer.GetPeerState(conf.State.NeighborAddress)

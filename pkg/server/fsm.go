@@ -54,13 +54,18 @@ const (
 	// wait there, and FRR connects at once. We still wait a little: when
 	// a session goes down, both sides leave Idle at about the same time,
 	// and connections made at the same time collide. Only the random part
-	// of the wait makes the two sides connect at different times.
+	// of the wait makes the two sides connect at different times. The
+	// timers option connect-at-once skips this wait.
 	firstConnectDelayMax = time.Second
 )
 
 // firstConnectDelay returns the wait before the first connection attempt
-// after the FSM leaves Idle.
-func firstConnectDelay() time.Duration {
+// after the FSM leaves Idle. With atOnce (timers connect-at-once) there is
+// no wait, like FRR, which connects when BGP_Start runs.
+func firstConnectDelay(atOnce bool) time.Duration {
+	if atOnce {
+		return 0
+	}
 	return time.Duration(rand.Float64() * float64(firstConnectDelayMax))
 }
 
@@ -544,7 +549,10 @@ func (b *tcpAoKeyBinding) socketKeys() (*tcpAoSocketKeys, error) {
 
 type fsm struct {
 	counterStats oc.Messages
-	timerStats   oc.Timers
+	// updateRecvTime is the time of the last UPDATE received, in Unix
+	// seconds. atomic.Int64 keeps it 64-bit aligned on 32-bit platforms,
+	// where a field inside oc.Timers is not.
+	updateRecvTime atomic.Int64
 
 	lock  sync.Mutex
 	gConf *oc.Global
@@ -673,7 +681,7 @@ func (fsm *fsm) bgpMessageResetStats() {
 	atomic.StoreUint32(&fsm.counterStats.Sent.WithdrawPrefix, 0)
 	atomic.StoreUint64(&fsm.counterStats.Sent.Discarded, 0)
 	// Reset timer stats
-	atomic.StoreInt64(&fsm.timerStats.State.UpdateRecvTime, 0)
+	fsm.updateRecvTime.Store(0)
 }
 
 func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
@@ -692,7 +700,7 @@ func (fsm *fsm) bgpMessageStateUpdate(MessageType uint8, isIn bool) {
 	case bgp.BGP_MSG_UPDATE:
 		if isIn {
 			atomic.AddUint64(&fsm.counterStats.Received.Update, 1)
-			atomic.StoreInt64(&fsm.timerStats.State.UpdateRecvTime, time.Now().Unix())
+			fsm.updateRecvTime.Store(time.Now().Unix())
 		} else {
 			atomic.AddUint64(&fsm.counterStats.Sent.Update, 1)
 		}
@@ -1250,7 +1258,7 @@ func (h *fsmHandler) active(ctx context.Context) (bgp.FSMState, *fsmStateReason)
 
 	if fsm.outgoingConnMgr == nil || fsm.outgoingConnMgr.ctx.Err() != nil {
 		fsm.logger.Info("starting outgoing connection manager")
-		fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm, firstConnectDelay())
+		fsm.outgoingConnMgr = newOutGoingConnManager(ctx, fsm, firstConnectDelay(fsm.pConf.ReadOnly().Timers.Config.ConnectAtOnce))
 	}
 
 	for {
