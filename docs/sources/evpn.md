@@ -804,14 +804,16 @@ GoBGP speaker at one DCI site peers directly with FRR at the other site; GoBGP i
 reflector in this topology. This example covers BGP peering and EVPN route exchange only; it
 does not configure or test a VXLAN dataplane.
 
-**NOTE:** This direct iBGP peering uses AS 64512 on both peers. The sample Type-2 route carries
+**NOTE:** The following supposes to use FRR version "10.7.1".
+
+This direct iBGP peering uses AS 64512 on both peers. The sample Type-2 route carries
 VXLAN label 1000 and route target `64512:1000`.
 
 ### Configuration
 
 ```text
   Site A                                             Site B
-+----------------------+      iBGP EVPN      +----------------------+
++----------------------+      iBGP EVPN       +----------------------+
 | GoBGP                |<-------------------->| FRR                  |
 | AS 64512             |                      | AS 64512             |
 +----------------------+                      +----------------------+
@@ -833,7 +835,8 @@ GoBGP on `192.0.2.1` has a direct EVPN neighbor at FRR on `192.0.2.2`:
       afi-safi-name = "l2vpn-evpn"
 ```
 
-FRR configuration on site B enables the EVPN address family for the GoBGP neighbor:
+Save the following FRR configuration on site B to `/etc/frr/frr.conf`. It enables the EVPN
+address family for the GoBGP neighbor:
 
 ```text
 router bgp 64512
@@ -846,13 +849,30 @@ router bgp 64512
 exit
 ```
 
-Then, run GoBGP and FRR:
+FRR disables `bgpd` by default. On site B, edit `/etc/frr/daemons` and enable `bgpd`:
+
+```text
+...
+bgpd=yes
+...
+```
+
+Then, start FRR and GoBGP:
 
 ```bash
-gobgpd -f gobgpd.toml
+# On site B
+systemctl enable --now frr
 
-# FRR
-vtysh
+# On site A
+gobgpd -f gobgpd.toml
+```
+
+After the session is established, `gobgp neighbor` shows the FRR peer:
+
+```text
+$ gobgp neighbor
+Peer         AS  Up/Down State       |#Received  Accepted
+192.0.2.2 64512 00:00:01 Establ      |        0         0
 ```
 
 ### Advertising EVPN route
@@ -881,7 +901,3 @@ vtysh -c 'show bgp l2vpn evpn route'
 
 FRR should receive the GoBGP-advertised Type-2 route with next hop `192.0.2.1` and route
 target `64512:1000`. The sample demonstrates BGP EVPN route exchange only.
-
-This direct-peering configuration was tested with GoBGP 4.11.0 and FRR 10.7.1 in two isolated
-runs. In both runs the BGP session established and FRR received the MAC/IP route advertised by
-GoBGP.
