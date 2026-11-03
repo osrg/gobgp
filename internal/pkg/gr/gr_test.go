@@ -68,6 +68,7 @@ func TestNegotiated_HasFamilies(t *testing.T) {
 		{"no family in the capability", Negotiated{Families: both, GR: grCap(120)}, false},
 		{"family not negotiated", Negotiated{Families: v4only, GR: grCap(120, grTuple(v6, true))}, false},
 		{"long-lived graceful restart only", Negotiated{Families: both, GR: grCap(0), LLGR: llgrCap(llgrTuple(v4, true, 60))}, true},
+		{"long-lived stale time zero", Negotiated{Families: both, GR: grCap(120), LLGR: llgrCap(llgrTuple(v4, true, 0), llgrTuple(v6, true, 0))}, false},
 		{"long-lived without graceful restart", Negotiated{Families: both, LLGR: llgrCap(llgrTuple(v4, true, 60))}, false},
 	}
 	for _, tt := range tests {

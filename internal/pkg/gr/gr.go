@@ -56,9 +56,20 @@ type Negotiated struct {
 }
 
 // HasFamilies reports whether n has one or more families in its Graceful
-// Restart Capability or its Long-Lived Graceful Restart Capability.
+// Restart Capability, or in its Long-Lived Graceful Restart Capability with
+// a nonzero Long-Lived Stale Time. RFC 9494 Section 4.2: "If both are zero,
+// none of these procedures would apply", as in Helper.SessionDown(). A peer
+// may send tuples with a Long-Lived Stale Time of 0, as FRR does by default.
 func (n *Negotiated) HasFamilies() bool {
-	return len(n.grFamilies()) > 0 || len(n.llgrTuples()) > 0
+	if len(n.grFamilies()) > 0 {
+		return true
+	}
+	for _, t := range n.llgrTuples() {
+		if t.RestartTime != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // grFamilies returns the families that n negotiated and that are in its

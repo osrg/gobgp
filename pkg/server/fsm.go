@@ -2416,7 +2416,8 @@ func (h *fsmHandler) established(ctx context.Context) (bgp.FSMState, *fsmStateRe
 			// collection, and processing of EoR as well as the
 			// finite-state-machine modifications and connection-reset
 			// logic introduced by GR." We read this as: the families in
-			// the Long-Lived Graceful Restart Capability count too.
+			// the Long-Lived Graceful Restart Capability with a nonzero
+			// Long-Lived Stale Time count too.
 			fsm.conn.Close()
 			// active() takes the connection. idle() would close it.
 			select {
