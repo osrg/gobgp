@@ -3071,3 +3071,52 @@ func TestFSMHandlerEstablished_SentNotification(t *testing.T) {
 		})
 	}
 }
+
+// RFC 4271 Section 8.2.2 has no ConnectRetryTimer in OpenConfirm:
+// connectLoop() does not dial while the FSM is in OpenConfirm, and dials
+// once the FSM is back in Active.
+func TestConnectLoopWaitsInOpenConfirm(t *testing.T) {
+	l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if c, err := l.Accept(); err == nil {
+			accepted <- c
+		}
+	}()
+
+	p, h := makePeerAndHandler(NewMockConnection())
+	t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.State.NeighborAddress = netip.MustParseAddr("127.0.0.1")
+	conf.Transport.Config.RemotePort = uint16(l.Addr().(*net.TCPAddr).Port)
+	conf.Transport.Config.LocalAddress = netip.MustParseAddr("127.0.0.1")
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	p.fsm.state.Store(bgp.BGP_FSM_OPENCONFIRM)
+
+	done := make(chan net.Conn, 1)
+	go func() { done <- h.connectLoop(t.Context(), 0) }()
+	select {
+	case c := <-accepted:
+		c.Close()
+		t.Fatal("the connect loop dialed in OpenConfirm")
+	case <-done:
+		t.Fatal("the connect loop returned in OpenConfirm")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	p.fsm.state.Store(bgp.BGP_FSM_ACTIVE)
+	select {
+	case conn := <-done:
+		require.NotNil(t, conn)
+		conn.Close()
+	case <-time.After(5 * time.Second):
+		t.Fatal("the connect loop did not dial after the FSM went back to Active")
+	}
+	if c := <-accepted; c != nil {
+		c.Close()
+	}
+}

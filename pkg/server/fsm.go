@@ -1195,8 +1195,18 @@ func (h *fsmHandler) connectLoop(ctx context.Context, delay time.Duration) net.C
 			timer.Stop()
 			return nil
 		case <-timer.C:
-			fsm.logger.Debug("try to connect")
 		}
+		// RFC 4271 Section 8.2.2 stops the ConnectRetryTimer in
+		// OpenConfirm: while the FSM goes on with the other connection,
+		// do not dial. Do not return either: the state can be stale (the
+		// handler may be in Active already), and active() starts a new
+		// manager only when the old one has ended.
+		if fsm.state.Load() == bgp.BGP_FSM_OPENCONFIRM {
+			fsm.logger.Debug("skip connect in OpenConfirm, retry later")
+			delay = connectRetryDelay(retryInterval)
+			continue
+		}
+		fsm.logger.Debug("try to connect")
 
 		laddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localAddress, strconv.Itoa(localPort)))
 		if err != nil {
