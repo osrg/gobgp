@@ -1180,6 +1180,25 @@ func MarshalLsTLVMultiTopoID(mti *bgp.LsTLVMultiTopoID) (*api.LsMultiTopologyIde
 	}, nil
 }
 
+func unmarshalLsMSDs(entries []*api.LsMSDEntry) ([]bgp.LsMSDEntry, error) {
+	var result []bgp.LsMSDEntry
+	for i, entry := range entries {
+		if entry == nil || entry.Type > 255 || entry.Value > 255 {
+			return nil, fmt.Errorf("MSD entry %d must contain an 8-bit type and value", i)
+		}
+		result = append(result, bgp.LsMSDEntry{Type: uint8(entry.Type), Value: uint8(entry.Value)})
+	}
+	return result, nil
+}
+
+func marshalLsMSDs(entries []bgp.LsMSDEntry) []*api.LsMSDEntry {
+	var result []*api.LsMSDEntry
+	for _, entry := range entries {
+		result = append(result, &api.LsMSDEntry{Type: uint32(entry.Type), Value: uint32(entry.Value)})
+	}
+	return result
+}
+
 func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 	lsAttr := &bgp.LsAttribute{
 		Node:           bgp.LsAttributeNode{},
@@ -1275,7 +1294,12 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			})
 		}
 
+		msds, err := unmarshalLsMSDs(a.Node.Msds)
+		if err != nil {
+			return nil, fmt.Errorf("node: %w", err)
+		}
 		lsAttr.Node = bgp.LsAttributeNode{
+			MSDs:            msds,
 			Flags:           flags,
 			Opaque:          nodeOpaque,
 			Name:            nodeName,
@@ -1409,7 +1433,12 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 				Srv6SIDStructure: srv6SIDStructure,
 			}
 		}
+		msds, err := unmarshalLsMSDs(a.Link.Msds)
+		if err != nil {
+			return nil, fmt.Errorf("link: %w", err)
+		}
 		lsAttr.Link = bgp.LsAttributeLink{
+			MSDs:                          msds,
 			Name:                          linkName,
 			LocalRouterID:                 linkLocalRouterID,
 			LocalRouterIDv6:               linkLocalRouterIDv6,
@@ -3275,6 +3304,7 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 
 	apiAttr := &api.LsAttribute{
 		Node: &api.LsAttributeNode{
+			Msds:            marshalLsMSDs(attr.Node.MSDs),
 			Name:            stringOrDefault(attr.Node.Name),
 			Opaque:          bytesOrDefault(attr.Node.Opaque),
 			IsisArea:        bytesOrDefault(attr.Node.IsisArea),
@@ -3284,6 +3314,7 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 			SrAlgorithms: bytesOrDefault(attr.Node.SrAlgorithms),
 		},
 		Link: &api.LsAttributeLink{
+			Msds:                                   marshalLsMSDs(attr.Link.MSDs),
 			Name:                                   stringOrDefault(attr.Link.Name),
 			Opaque:                                 bytesOrDefault(attr.Link.Opaque),
 			LocalRouterId:                          ipOrDefault(attr.Link.LocalRouterID),
