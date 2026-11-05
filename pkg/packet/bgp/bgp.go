@@ -6302,10 +6302,10 @@ const (
 	LS_TLV_UNIDIRECTIONAL_DELAY_VARIATION    = 1116 // RFC8571
 
 	LS_TLV_IGP_FLAGS              = 1152
-	LS_TLV_IGP_ROUTE_TAG          = 1153 // TODO
-	LS_TLV_EXTENDED_ROUTE_TAG     = 1154 // TODO
+	LS_TLV_IGP_ROUTE_TAG          = 1153
+	LS_TLV_EXTENDED_ROUTE_TAG     = 1154
 	LS_TLV_PREFIX_METRIC          = 1155
-	LS_TLV_OSPF_FORWARDING_ADDR   = 1156 // TODO
+	LS_TLV_OSPF_FORWARDING_ADDR   = 1156
 	LS_TLV_OPAQUE_PREFIX_ATTR     = 1157
 	LS_TLV_PREFIX_SID             = 1158 // draft-ietf-idr-bgp-ls-segment-routing-ext
 	LS_TLV_RANGE                  = 1159 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
@@ -6438,6 +6438,15 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 
 	if lsAttr.Prefix.IGPFlags != nil {
 		tlvs = append(tlvs, NewLsTLVIGPFlags(lsAttr.Prefix.IGPFlags))
+	}
+	if len(lsAttr.Prefix.IGPRouteTags) > 0 {
+		tlvs = append(tlvs, NewLsTLVIGPRouteTag(lsAttr.Prefix.IGPRouteTags))
+	}
+	if len(lsAttr.Prefix.ExtendedRouteTags) > 0 {
+		tlvs = append(tlvs, NewLsTLVExtendedRouteTag(lsAttr.Prefix.ExtendedRouteTags))
+	}
+	for _, address := range lsAttr.Prefix.OSPFForwardingAddresses {
+		tlvs = append(tlvs, NewLsTLVOSPFForwardingAddress(address))
 	}
 	if lsAttr.Prefix.PrefixMetric != nil {
 		tlvs = append(tlvs, NewLsTLVPrefixMetric(lsAttr.Prefix.PrefixMetric))
@@ -11340,6 +11349,14 @@ type LsAttributeLinkAdjacencySID struct {
 }
 
 type LsAttributePrefix struct {
+	// IGPRouteTags retains all 32-bit tags in TLV and entry order (RFC 9552).
+	IGPRouteTags []uint32 `json:"igp_route_tags,omitempty"`
+	// ExtendedRouteTags retains all 64-bit tags in TLV and entry order.
+	ExtendedRouteTags []uint64 `json:"extended_route_tags,omitempty"`
+	// OSPFForwardingAddresses retains forwarding addresses in TLV order,
+	// including zero addresses and repeated values.
+	OSPFForwardingAddresses []netip.Addr `json:"ospf_forwarding_addresses,omitempty"`
+
 	IGPFlags *LsIGPFlags `json:"igp_flags,omitempty"`
 	Opaque   *[]byte     `json:"opaque,omitempty"`
 	// PrefixMetric is the Prefix Metric TLV (RFC 9552 Section 5.3.3.4).
@@ -11510,6 +11527,15 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVIGPFlags:
 			l.Prefix.IGPFlags = v.Extract()
+
+		case *LsTLVIGPRouteTag:
+			l.Prefix.IGPRouteTags = append(l.Prefix.IGPRouteTags, v.Tags...)
+
+		case *LsTLVExtendedRouteTag:
+			l.Prefix.ExtendedRouteTags = append(l.Prefix.ExtendedRouteTags, v.Tags...)
+
+		case *LsTLVOSPFForwardingAddress:
+			l.Prefix.OSPFForwardingAddresses = append(l.Prefix.OSPFForwardingAddresses, v.Address)
 
 		case *LsTLVPrefixMetric:
 			l.Prefix.PrefixMetric = &v.Metric
@@ -11721,6 +11747,15 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 		// Prefix NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.3)
 		case LS_TLV_IGP_FLAGS:
 			tlv = &LsTLVIGPFlags{}
+
+		case LS_TLV_IGP_ROUTE_TAG:
+			tlv = &LsTLVIGPRouteTag{}
+
+		case LS_TLV_EXTENDED_ROUTE_TAG:
+			tlv = &LsTLVExtendedRouteTag{}
+
+		case LS_TLV_OSPF_FORWARDING_ADDR:
+			tlv = &LsTLVOSPFForwardingAddress{}
 
 		case LS_TLV_PREFIX_METRIC:
 			tlv = &LsTLVPrefixMetric{}
