@@ -1479,6 +1479,15 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 				PrefixMetric:     a.Prefix.PrefixMetric,
 			}
 		}
+		lsAttr.Prefix.IGPRouteTags = append([]uint32(nil), a.Prefix.IgpRouteTags...)
+		lsAttr.Prefix.ExtendedRouteTags = append([]uint64(nil), a.Prefix.ExtendedRouteTags...)
+		for i, value := range a.Prefix.OspfForwardingAddresses {
+			address, err := netip.ParseAddr(value)
+			if err != nil || address.Zone() != "" {
+				return nil, fmt.Errorf("invalid OSPF forwarding address at index %d: %q", i, value)
+			}
+			lsAttr.Prefix.OSPFForwardingAddresses = append(lsAttr.Prefix.OSPFForwardingAddresses, address)
+		}
 	}
 
 	// For AttributeBgpPeerSegment
@@ -3298,7 +3307,9 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 			ExtendedAdminGroup:  append([]uint32(nil), attr.Link.ExtendedAdminGroup...),
 		},
 		Prefix: &api.LsAttributePrefix{
-			Opaque: bytesOrDefault(attr.Prefix.Opaque),
+			IgpRouteTags:      append([]uint32(nil), attr.Prefix.IGPRouteTags...),
+			ExtendedRouteTags: append([]uint64(nil), attr.Prefix.ExtendedRouteTags...),
+			Opaque:            bytesOrDefault(attr.Prefix.Opaque),
 
 			SrPrefixSid:  uint32OrDefault(attr.Prefix.SrPrefixSID),
 			PrefixMetric: attr.Prefix.PrefixMetric,
@@ -3306,6 +3317,13 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 		BgpPeerSegment: bgpPeerSegment,
 		Srv6Sid:        srv6SID,
 		SrPolicy:       MarshalLsAttributeSrPolicy(&attr.SrPolicy),
+	}
+
+	for i, address := range attr.Prefix.OSPFForwardingAddresses {
+		if !address.IsValid() || address.Zone() != "" {
+			return nil, fmt.Errorf("invalid OSPF forwarding address at index %d: %v", i, address)
+		}
+		apiAttr.Prefix.OspfForwardingAddresses = append(apiAttr.Prefix.OspfForwardingAddresses, address.String())
 	}
 
 	if attr.Node.Flags != nil {

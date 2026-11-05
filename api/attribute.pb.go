@@ -4029,9 +4029,16 @@ type LsAttributePrefix struct {
 	// prefix_metric is the Prefix Metric TLV (TLV 1155, RFC 9552
 	// Section 5.3.3.4). Unset when the originator did not advertise it;
 	// 0 is a valid metric.
-	PrefixMetric  *uint32 `protobuf:"varint,6,opt,name=prefix_metric,json=prefixMetric,proto3,oneof" json:"prefix_metric,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PrefixMetric *uint32 `protobuf:"varint,6,opt,name=prefix_metric,json=prefixMetric,proto3,oneof" json:"prefix_metric,omitempty"`
+	// RFC 9552 Sections 5.3.3.2 and 5.3.3.3: tags in TLV and entry
+	// order, including duplicates and zero values.
+	IgpRouteTags      []uint32 `protobuf:"varint,7,rep,packed,name=igp_route_tags,json=igpRouteTags,proto3" json:"igp_route_tags,omitempty"`
+	ExtendedRouteTags []uint64 `protobuf:"varint,8,rep,packed,name=extended_route_tags,json=extendedRouteTags,proto3" json:"extended_route_tags,omitempty"`
+	// RFC 9552 Section 5.3.3.5: IPv4 or IPv6 forwarding addresses in
+	// TLV order, including duplicates and unspecified addresses.
+	OspfForwardingAddresses []string `protobuf:"bytes,9,rep,name=ospf_forwarding_addresses,json=ospfForwardingAddresses,proto3" json:"ospf_forwarding_addresses,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *LsAttributePrefix) Reset() {
@@ -4104,6 +4111,27 @@ func (x *LsAttributePrefix) GetPrefixMetric() uint32 {
 		return *x.PrefixMetric
 	}
 	return 0
+}
+
+func (x *LsAttributePrefix) GetIgpRouteTags() []uint32 {
+	if x != nil {
+		return x.IgpRouteTags
+	}
+	return nil
+}
+
+func (x *LsAttributePrefix) GetExtendedRouteTags() []uint64 {
+	if x != nil {
+		return x.ExtendedRouteTags
+	}
+	return nil
+}
+
+func (x *LsAttributePrefix) GetOspfForwardingAddresses() []string {
+	if x != nil {
+		return x.OspfForwardingAddresses
+	}
+	return nil
 }
 
 // LsAttributePrefixSID is one Prefix-SID TLV (RFC 9085 Section 2.1.1)
@@ -8387,14 +8415,17 @@ const file_api_attribute_proto_rawDesc = "" +
 	"\x1bLsAttributeLinkAdjacencySID\x12\x14\n" +
 	"\x05flags\x18\x01 \x01(\rR\x05flags\x12\x16\n" +
 	"\x06weight\x18\x02 \x01(\rR\x06weight\x12\x10\n" +
-	"\x03sid\x18\x03 \x01(\rR\x03sid\"\xc9\x02\n" +
+	"\x03sid\x18\x03 \x01(\rR\x03sid\"\xdb\x03\n" +
 	"\x11LsAttributePrefix\x12,\n" +
 	"\tigp_flags\x18\x01 \x01(\v2\x0f.api.LsIGPFlagsR\bigpFlags\x12\x16\n" +
 	"\x06opaque\x18\x02 \x01(\fR\x06opaque\x12\"\n" +
 	"\rsr_prefix_sid\x18\x03 \x01(\rR\vsrPrefixSid\x12?\n" +
 	"\x0esr_prefix_sids\x18\x04 \x03(\v2\x19.api.LsAttributePrefixSIDR\fsrPrefixSids\x12M\n" +
 	"\x12fad_prefix_metrics\x18\x05 \x03(\v2\x1f.api.LsAttributeFADPrefixMetricR\x10fadPrefixMetrics\x12(\n" +
-	"\rprefix_metric\x18\x06 \x01(\rH\x00R\fprefixMetric\x88\x01\x01B\x10\n" +
+	"\rprefix_metric\x18\x06 \x01(\rH\x00R\fprefixMetric\x88\x01\x01\x12$\n" +
+	"\x0eigp_route_tags\x18\a \x03(\rR\figpRouteTags\x12.\n" +
+	"\x13extended_route_tags\x18\b \x03(\x04R\x11extendedRouteTags\x12:\n" +
+	"\x19ospf_forwarding_addresses\x18\t \x03(\tR\x17ospfForwardingAddressesB\x10\n" +
 	"\x0e_prefix_metric\"\\\n" +
 	"\x14LsAttributePrefixSID\x12\x1c\n" +
 	"\talgorithm\x18\x01 \x01(\rR\talgorithm\x12\x14\n" +

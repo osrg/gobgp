@@ -508,6 +508,15 @@ message LsAttributePrefix {
   // Section 5.3.3.4). Unset when the originator did not advertise it;
   // 0 is a valid metric.
   optional uint32 prefix_metric = 6;
+
+  // RFC 9552 Sections 5.3.3.2 and 5.3.3.3: tags in TLV and entry
+  // order, including duplicates and zero values.
+  repeated uint32 igp_route_tags = 7;
+  repeated uint64 extended_route_tags = 8;
+
+  // RFC 9552 Section 5.3.3.5: IPv4 or IPv6 forwarding addresses in
+  // TLV order, including duplicates and unspecified addresses.
+  repeated string ospf_forwarding_addresses = 9;
 }
 
 // LsAttributePrefixSID is one Prefix-SID TLV (RFC 9085 Section 2.1.1)
