@@ -408,6 +408,13 @@ message LsSrLocalBlock {
   repeated LsSrRange ranges = 1;
 }
 
+// LsMSDEntry is one RFC 8814 Maximum SID Depth type/value pair.
+// Both fields are 8-bit values; unknown types and zero values are preserved.
+message LsMSDEntry {
+  uint32 type = 1;
+  uint32 value = 2;
+}
+
 message LsAttributeNode {
   string name = 1;
   LsNodeFlags flags = 2;
@@ -424,6 +431,9 @@ message LsAttributeNode {
   // observed for this Node NLRI. A node MAY advertise more than one
   // FAD, one per algorithm in the [128, 255] Flex-Algorithm range.
   repeated LsAttributeFlexAlgoDef flex_algo_defs = 10;
+
+  // Node MSD entries in TLV and entry order (RFC 8814).
+  repeated LsMSDEntry msds = 11;
 }
 
 // LsAttributeFlexAlgoDef is the structured projection of a single FAD
@@ -476,6 +486,9 @@ message LsAttributeLink {
   // (TLV 1173, RFC 9104): its 32-bit bitmasks as received, in order.
   // Empty when the TLV is absent.
   repeated uint32 extended_admin_group = 23;
+
+  // Link MSD entries in TLV and entry order (RFC 8814).
+  repeated LsMSDEntry msds = 24;
 }
 
 message LsAttributeLinkAdjacencySID {

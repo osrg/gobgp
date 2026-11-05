@@ -6240,6 +6240,8 @@ const (
 	LS_TLV_MULTI_TOPO_ID       = 263
 	LS_TLV_OSPF_ROUTE_TYPE     = 264
 	LS_TLV_IP_REACH_INFO       = 265
+	LS_TLV_NODE_MSD            = 266 // RFC8814
+	LS_TLV_LINK_MSD            = 267 // RFC8814
 
 	LS_TLV_AS                       = 512
 	LS_TLV_BGP_LS_ID                = 513
@@ -6350,6 +6352,9 @@ type LsTLVInterface interface {
 func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	tlvs := []LsTLVInterface{}
 
+	if len(lsAttr.Node.MSDs) > 0 {
+		tlvs = append(tlvs, NewLsTLVNodeMSD(lsAttr.Node.MSDs))
+	}
 	if lsAttr.Node.Flags != nil {
 		tlvs = append(tlvs, NewLsTLVNodeFlagbits(lsAttr.Node.Flags))
 	}
@@ -6378,6 +6383,9 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 		tlvs = append(tlvs, NewLsTLVSrLocalBlock(lsAttr.Node.SrLocalBlock))
 	}
 
+	if len(lsAttr.Link.MSDs) > 0 {
+		tlvs = append(tlvs, NewLsTLVLinkMSD(lsAttr.Link.MSDs))
+	}
 	if lsAttr.Link.Name != nil {
 		tlvs = append(tlvs, NewLsTLVLinkName(lsAttr.Link.Name))
 	}
@@ -11269,6 +11277,9 @@ func (l *LsAddrPrefix) Flat() map[string]string {
 }
 
 type LsAttributeNode struct {
+	// MSDs retains every Node MSD entry in TLV and entry order (RFC 8814).
+	MSDs []LsMSDEntry `json:"msds,omitempty"`
+
 	Flags           *LsNodeFlags `json:"flags,omitempty"`
 	Opaque          *[]byte      `json:"opaque,omitempty"`
 	Name            *string      `json:"name,omitempty"`
@@ -11307,6 +11318,9 @@ type LsAttributeFlexAlgoDef struct {
 }
 
 type LsAttributeLink struct {
+	// MSDs retains every Link MSD entry in TLV and entry order (RFC 8814).
+	MSDs []LsMSDEntry `json:"msds,omitempty"`
+
 	Name                          *string                          `json:"name,omitempty"`
 	LocalRouterID                 *netip.Addr                      `json:"local_router_id_ipv4,omitempty"`
 	LocalRouterIDv6               *netip.Addr                      `json:"local_router_id_ipv6,omitempty"`
@@ -11423,6 +11437,12 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 	for _, tlv := range p.TLVs {
 		switch v := tlv.(type) {
+		case *LsTLVNodeMSD:
+			l.Node.MSDs = append(l.Node.MSDs, v.Entries...)
+
+		case *LsTLVLinkMSD:
+			l.Link.MSDs = append(l.Link.MSDs, v.Entries...)
+
 		case *LsTLVNodeFlagBits:
 			l.Node.Flags = v.Extract()
 
@@ -11628,6 +11648,13 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		var tlv LsTLVInterface
 		switch t.Type {
+		// Node and Link MSD attributes (RFC 8814).
+		case LS_TLV_NODE_MSD:
+			tlv = &LsTLVNodeMSD{}
+
+		case LS_TLV_LINK_MSD:
+			tlv = &LsTLVLinkMSD{}
+
 		// Node NLRI-related TLVs (https://tools.ietf.org/html/rfc7752#section-3.3.1)
 		case LS_TLV_NODE_FLAG_BITS:
 			tlv = &LsTLVNodeFlagBits{}
