@@ -3265,6 +3265,44 @@ func TestExtCommunityConditionEvaluate(t *testing.T) {
 	assert.Equal(t, false, p15.Evaluate(path1, nil))
 }
 
+func TestExtCommunityDottedValueIsLiteral(t *testing.T) {
+	// A four-octet AS specific community is shown as asdot, so RT:1.0:100
+	// is the route target of AS 65536. The dot must not match RT:100:100.
+	as2 := &bgp.TwoOctetAsSpecificExtended{SubType: bgp.EC_SUBTYPE_ROUTE_TARGET, AS: 100, LocalAdmin: 100, IsTransitive: true}
+	as4 := &bgp.FourOctetAsSpecificExtended{SubType: bgp.EC_SUBTYPE_ROUTE_TARGET, AS: 65536, LocalAdmin: 100, IsTransitive: true}
+	newPath := func(ec bgp.ExtendedCommunityInterface) *Path {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{ec}),
+		}
+		return NewPath(bgp.RF_IPv4_UC, &PeerInfo{AS: 65001}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+
+	s, err := NewExtCommunitySet(oc.ExtCommunitySet{
+		ExtCommunitySetName: "asdot",
+		ExtCommunityList:    []string{"RT:1.0:100"},
+	})
+	require.NoError(t, err)
+	c, err := NewExtCommunityCondition(oc.MatchExtCommunitySet{
+		ExtCommunitySet: "asdot",
+		MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
+	})
+	require.NoError(t, err)
+	c.set = s
+	assert.True(t, c.Evaluate(newPath(as4), nil))
+	assert.False(t, c.Evaluate(newPath(as2), nil))
+
+	a, err := NewExtCommunityAction(oc.SetExtCommunity{
+		Options:               "remove",
+		SetExtCommunityMethod: oc.SetExtCommunityMethod{CommunitiesList: []string{"RT:1.0:100"}},
+	})
+	require.NoError(t, err)
+	p, err := a.Apply(newPath(as2), nil)
+	require.NoError(t, err)
+	assert.Equal(t, []bgp.ExtendedCommunityInterface{as2}, p.GetExtCommunities())
+}
+
 func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	// setup
 	// create path

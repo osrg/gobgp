@@ -1535,7 +1535,9 @@ func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	}
 
 	if _regexpCommunity2.MatchString(arg) {
-		return regexp.Compile(fmt.Sprintf("^%s$", arg))
+		// The dot of an asdot AS number or of an IPv4 address is part
+		// of the value, not a wildcard.
+		return regexp.Compile(fmt.Sprintf("^%s$", strings.ReplaceAll(arg, ".", `\.`)))
 	}
 
 	for i, v := range bgp.WellKnownCommunityNameMap {
