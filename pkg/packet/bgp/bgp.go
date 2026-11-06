@@ -6445,11 +6445,11 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	if len(lsAttr.Prefix.ExtendedRouteTags) > 0 {
 		tlvs = append(tlvs, NewLsTLVExtendedRouteTag(lsAttr.Prefix.ExtendedRouteTags))
 	}
-	for _, address := range lsAttr.Prefix.OSPFForwardingAddresses {
-		tlvs = append(tlvs, NewLsTLVOSPFForwardingAddress(address))
-	}
 	if lsAttr.Prefix.PrefixMetric != nil {
 		tlvs = append(tlvs, NewLsTLVPrefixMetric(lsAttr.Prefix.PrefixMetric))
+	}
+	for _, address := range lsAttr.Prefix.OSPFForwardingAddresses {
+		tlvs = append(tlvs, NewLsTLVOSPFForwardingAddress(address))
 	}
 	if lsAttr.Prefix.Opaque != nil {
 		tlvs = append(tlvs, NewLsTLVOpaquePrefixAttr(lsAttr.Prefix.Opaque))
