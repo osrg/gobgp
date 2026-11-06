@@ -3303,6 +3303,83 @@ func TestExtCommunityDottedValueIsLiteral(t *testing.T) {
 	assert.Equal(t, []bgp.ExtendedCommunityInterface{as2}, p.GetExtCommunities())
 }
 
+func TestExtCommunityAsplainLiteral(t *testing.T) {
+	// RT:65536:100 creates a four-octet AS specific community, which is
+	// shown as 1.0:100. A set entry and a remove action written in asplain
+	// must match it.
+	as4 := &bgp.FourOctetAsSpecificExtended{SubType: bgp.EC_SUBTYPE_ROUTE_TARGET, AS: 65536, LocalAdmin: 100, IsTransitive: true}
+	created, err := ParseExtCommunity("RT:65536:100")
+	require.NoError(t, err)
+	require.Equal(t, as4, created)
+
+	newPath := func(ec bgp.ExtendedCommunityInterface) *Path {
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{ec}),
+		}
+		return NewPath(bgp.RF_IPv4_UC, &PeerInfo{AS: 65001}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+
+	s, err := NewExtCommunitySet(oc.ExtCommunitySet{
+		ExtCommunitySetName: "asplain",
+		ExtCommunityList:    []string{"RT:65536:100"},
+	})
+	require.NoError(t, err)
+	c, err := NewExtCommunityCondition(oc.MatchExtCommunitySet{
+		ExtCommunitySet: "asplain",
+		MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY,
+	})
+	require.NoError(t, err)
+	c.set = s
+	assert.True(t, c.Evaluate(newPath(as4), nil))
+
+	a, err := NewExtCommunityAction(oc.SetExtCommunity{
+		Options:               "remove",
+		SetExtCommunityMethod: oc.SetExtCommunityMethod{CommunitiesList: []string{"RT:65536:100"}},
+	})
+	require.NoError(t, err)
+	p, err := a.Apply(newPath(as4), nil)
+	require.NoError(t, err)
+	assert.Empty(t, p.GetExtCommunities())
+}
+
+func TestParseExtCommunityRegexpLiteral(t *testing.T) {
+	for _, tt := range []struct {
+		arg  string
+		want string
+	}{
+		{"rt:65001:100", "^65001:100$"},
+		{"rt:100:70000", "^100:70000$"},
+		{"rt:065001:100", "^65001:100$"},
+		{"rt:65536:100", `^1\.0:100$`},
+		{"rt:1.0:100", `^1\.0:100$`},
+		{"rt:0.100:100", `^0\.100:100$`},
+		{"soo:10.0.0.1:300", `^10\.0\.0\.1:300$`},
+		// Not literal values: compiled as before.
+		{"rt:^65001:100$", "^65001:100$"},
+		{"rt:6[0-9]+:[0-9]+", "6[0-9]+:[0-9]+"},
+		{"rt:1+0:100", "1+0:100"},
+		{"lb:65001:125000", "^65001:125000$"},
+	} {
+		_, exp, err := ParseExtCommunityRegexp(tt.arg)
+		require.NoError(t, err, tt.arg)
+		assert.Equal(t, tt.want, exp.String(), tt.arg)
+	}
+
+	for _, arg := range []string{
+		"rt:65536:70000",
+		"rt:4294967296:100",
+		"rt:70000.0:100",
+		"rt:1.2.3:100",
+		"rt:256.0.0.1:100",
+		"soo:10.0.0.1:70000",
+	} {
+		_, _, err := ParseExtCommunityRegexp(arg)
+		assert.Error(t, err, arg)
+	}
+}
+
 func TestExtCommunityConditionEvaluateWithOtherCondition(t *testing.T) {
 	// setup
 	// create path

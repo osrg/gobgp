@@ -511,6 +511,13 @@ subtype of extended community and subtypes that can be used are as follows:
     geneve
 - LB: mean the link-bandwidth (in bytes).
 
+A RT or SoO value without regular expression characters, such as
+"RT:65001:200", "RT:65536:100", "RT:1.0:100" or "SoO:10.0.0.1:300", is
+parsed as one extended community and matches only that community. A
+four-octet AS can be written in asplain ("RT:65536:100") or in asdot
+("RT:1.0:100"). Both match the same community. A value that is not a valid
+extended community, such as "RT:65536:70000", is an error.
+
 ##### Examples
 
 - example 1

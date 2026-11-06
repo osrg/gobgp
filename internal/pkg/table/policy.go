@@ -1526,7 +1526,7 @@ func ParseExtCommunity(arg string) (bgp.ExtendedCommunityInterface, error) {
 	return bgp.ParseExtendedCommunity(subtype, value)
 }
 
-var _regexpCommunity2 = regexp.MustCompile(`^(\d+.)*\d+:\d+$`)
+var _regexpCommunity2 = regexp.MustCompile(`^(\d+\.)*\d+:\d+$`)
 
 func ParseCommunityRegexp(arg string) (*regexp.Regexp, error) {
 	i, err := strconv.ParseUint(arg, 10, 32)
@@ -1566,6 +1566,19 @@ func ParseExtCommunityRegexp(arg string) (bgp.ExtendedCommunityAttrSubType, *reg
 		subtype = bgp.EC_SUBTYPE_LINK_BANDWIDTH
 	default:
 		return subtype, nil, fmt.Errorf("unknown ext-community subtype. rt, soo, encap, lb is supported")
+	}
+	if (subtype == bgp.EC_SUBTYPE_ROUTE_TARGET || subtype == bgp.EC_SUBTYPE_ROUTE_ORIGIN) &&
+		_regexpCommunity2.MatchString(elems[1]) {
+		// A route target or a route origin is matched against the
+		// String() form of the community, which shows a four-octet AS
+		// in asdot. Convert a literal value to that form, so that
+		// RT:65536:100 matches the same community as RT:1.0:100.
+		ec, err := bgp.ParseExtendedCommunity(subtype, elems[1])
+		if err != nil {
+			return subtype, nil, fmt.Errorf("invalid ext-community %q: %w", arg, err)
+		}
+		exp, err := regexp.Compile("^" + regexp.QuoteMeta(ec.String()) + "$")
+		return subtype, exp, err
 	}
 	exp, err := ParseCommunityRegexp(elems[1])
 	return subtype, exp, err
