@@ -88,15 +88,24 @@ func rtPrefixOf(nlri *bgp.RouteTargetMembershipNLRI) (rtPrefix, bool) {
 // rtmSet tracks which (AS, pathID) pairs are present per rtPrefix.
 // Set semantics make ADD-PATH or different AS withdrawals safe: removing one path-ID does not
 // affect others sharing the same prefix, and spurious removes are no-ops.
-// Thread-safe: add/sub are called under a shard write-lock, contains is called from
-// interestedIn without any lock, so an internal RWMutex is required.
+// Thread-safe: add/sub are called under a shard write-lock, InterestedIn is called
+// without any lock, so an internal RWMutex is required.
 type rtmSet struct {
 	mu sync.RWMutex
 	m  map[rtPrefix]map[rtmKey]struct{}
 	// count[l] is the number of prefixes of length l in m. A length is
-	// deleted when its count drops to zero, so that contains looks up only
+	// deleted when its count drops to zero, so that InterestedIn looks up only
 	// the lengths in use. There are only a few of them in practice.
 	count map[uint8]int
+	// masks contains one entry per active length. Default memberships come
+	// first so InterestedIn can recognize them without scanning the list.
+	// Like m and count, it is protected by mu.
+	masks []rtMembershipMask
+}
+
+type rtMembershipMask struct {
+	length uint8
+	mask   uint64
 }
 
 func newRtmSet() *rtmSet {
@@ -127,6 +136,14 @@ func (s *rtmSet) add(path *Path) {
 	if !ok {
 		keys = make(map[rtmKey]struct{})
 		s.m[prefix] = keys
+		if s.count[prefix.len] == 0 {
+			entry := rtMembershipMask{length: prefix.len, mask: rtMask(prefix.len)}
+			s.masks = append(s.masks, entry)
+			if prefix.len <= 32 {
+				copy(s.masks[1:], s.masks[:len(s.masks)-1])
+				s.masks[0] = entry
+			}
+		}
 		s.count[prefix.len]++
 	}
 	keys[rtmKey{as: nlri.AS, pathID: path.remoteID}] = struct{}{}
@@ -159,6 +176,13 @@ func (s *rtmSet) sub(path *Path) {
 		s.count[prefix.len]--
 		if s.count[prefix.len] == 0 {
 			delete(s.count, prefix.len)
+			for i, entry := range s.masks {
+				if entry.length == prefix.len {
+					copy(s.masks[i:], s.masks[i+1:])
+					s.masks = s.masks[:len(s.masks)-1]
+					break
+				}
+			}
 		}
 	}
 }
@@ -171,34 +195,6 @@ func (s *rtmSet) has(prefix rtPrefix) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.m[prefix]) > 0
-}
-
-// contains reports whether a present prefix contains the Route Target whose
-// key is rtKey. A prefix of length 32 or less contains every Route Target.
-func (s *rtmSet) contains(rtKey uint64) bool {
-	if s == nil {
-		return false
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	// Any containing prefix is enough, so the order does not matter.
-	for l := range s.count {
-		if len(s.m[rtPrefix{len: l, bits: rtKey & rtMask(l)}]) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// containsAll reports whether a present prefix contains every Route Target:
-// the default RT (/0) or an NLRI without a Route Target (/32).
-func (s *rtmSet) containsAll() bool {
-	if s == nil {
-		return false
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.m[rtPrefix{len: 0}]) > 0 || len(s.m[rtPrefix{len: 32}]) > 0
 }
 
 // covers reports whether a present prefix contains every Route Target that
@@ -229,6 +225,7 @@ func (s *rtmSet) reset() {
 	defer s.mu.Unlock()
 	s.m = make(map[rtPrefix]map[rtmKey]struct{})
 	s.count = make(map[uint8]int)
+	s.masks = nil
 }
 
 // vpnPathKey identifies a VPN path without relying on *Path pointer identity.
@@ -274,7 +271,10 @@ func (idx *VPNPathIndex) RegisterPath(path *Path) {
 	}
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
-	for _, ext := range path.GetRouteTargets() {
+	for _, ext := range path.GetExtCommunities() {
+		if t, st := ext.GetTypes(); t > bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC || st != bgp.EC_SUBTYPE_ROUTE_TARGET {
+			continue
+		}
 		rtHash, err := bgp.ExtCommRouteTargetKey(ext)
 		if err != nil {
 			continue
@@ -295,7 +295,10 @@ func (idx *VPNPathIndex) UnregisterPath(path *Path) {
 	}
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
-	for _, ext := range path.GetRouteTargets() {
+	for _, ext := range path.GetExtCommunities() {
+		if t, st := ext.GetTypes(); t > bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC || st != bgp.EC_SUBTYPE_ROUTE_TARGET {
+			continue
+		}
 		rtHash, err := bgp.ExtCommRouteTargetKey(ext)
 		if err != nil {
 			continue
@@ -344,6 +347,38 @@ func NewRouteTargetMembershipHandler() *RouteTargetMembershipHandler {
 	return &RouteTargetMembershipHandler{s: newRtmSet()}
 }
 
+// InterestedIn reports whether a default membership or any Route Target of
+// path matches. The whole lookup uses one consistent membership snapshot.
+func (handler *RouteTargetMembershipHandler) InterestedIn(path *Path) bool {
+	if handler == nil || handler.s == nil {
+		return false
+	}
+	s := handler.s
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.masks) == 0 {
+		return false
+	}
+	if s.masks[0].length <= 32 {
+		return true
+	}
+	for _, ext := range path.GetExtCommunities() {
+		if t, st := ext.GetTypes(); t > bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC || st != bgp.EC_SUBTYPE_ROUTE_TARGET {
+			continue
+		}
+		key, err := bgp.ExtCommRouteTargetKey(ext)
+		if err != nil {
+			continue
+		}
+		for _, entry := range s.masks {
+			if len(s.m[rtPrefix{len: entry.length, bits: key & entry.mask}]) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // SyncAfterImport updates the set from the RTC path as seen after import policy:
 // accepted advertisements add membership; withdrawals (including import rejects
 // represented as withdrawals) remove it.
@@ -359,30 +394,6 @@ func (handler *RouteTargetMembershipHandler) SyncAfterImport(path *Path) {
 	} else {
 		handler.s.add(path)
 	}
-}
-
-// HasRouteTarget reports whether the peer advertised an RT membership that
-// contains routeTarget. A membership is a prefix, so it can contain more than
-// one Route Target, and the default RT contains every one of them.
-func (handler *RouteTargetMembershipHandler) HasRouteTarget(routeTarget bgp.ExtendedCommunityInterface) bool {
-	if handler == nil || handler.s == nil {
-		return false
-	}
-	key, err := bgp.ExtCommRouteTargetKey(routeTarget)
-	if err != nil {
-		return false
-	}
-	return handler.s.contains(key)
-}
-
-// HasDefaultRouteTarget reports whether the peer advertised an RT membership
-// that contains every Route Target. That is the default RT (/0), or an NLRI
-// that has the origin AS only (/32).
-func (handler *RouteTargetMembershipHandler) HasDefaultRouteTarget() bool {
-	if handler == nil || handler.s == nil {
-		return false
-	}
-	return handler.s.containsAll()
 }
 
 // Covers reports whether the peer advertised RT memberships that contain
@@ -408,7 +419,10 @@ func RouteTargetMembershipContains(nlri *bgp.RouteTargetMembershipNLRI, path *Pa
 		return false
 	}
 	mask := rtMask(prefix.len)
-	for _, rt := range path.GetRouteTargets() {
+	for _, rt := range path.GetExtCommunities() {
+		if t, st := rt.GetTypes(); t > bgp.EC_TYPE_TRANSITIVE_FOUR_OCTET_AS_SPECIFIC || st != bgp.EC_SUBTYPE_ROUTE_TARGET {
+			continue
+		}
 		key, err := bgp.ExtCommRouteTargetKey(rt)
 		if err != nil {
 			continue
