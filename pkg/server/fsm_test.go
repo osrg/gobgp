@@ -2817,6 +2817,35 @@ func grFirstSession(t *testing.T) (*peer, *fsmHandler, *MockConnection) {
 	return p, h, m
 }
 
+// A peer without a configured AS is external or internal depending on the AS
+// in its OPEN. The internal one sends an empty AS_PATH for its own routes.
+func TestFSMStateChange_IsEBGPWithoutConfiguredPeerAs(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		localAS uint32
+		want    bool
+	}{
+		{name: "internal", localAS: 65001, want: false},
+		{name: "external", localAS: 65000, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewMockConnection()
+			m.SetRemoteAddr("10.0.0.1")
+			p, h := makePeerAndHandler(m)
+			t.Cleanup(func() { cleanPeerAndHandler(p, h) })
+
+			conf := p.fsm.pConf.ReadCopy()
+			conf.Config.LocalAs = tc.localAS
+			p.fsm.pConf.Update(&conf)
+
+			p.fsm.recvOpen = grOpen(t)
+			p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
+
+			assert.Equal(t, tc.want, p.fsm.isEBGP)
+		})
+	}
+}
+
 // The next session has no graceful restart capability. Nothing of the
 // negotiated graceful restart State of the first session is kept.
 func TestFSMStateChange_GracefulRestartCapabilityRemoved(t *testing.T) {
