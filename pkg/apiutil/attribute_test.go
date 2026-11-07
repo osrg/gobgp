@@ -2668,10 +2668,13 @@ func Test_LsSrv6SIDNLRIMultiTopoIDRoundTrip(t *testing.T) {
 		0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // SID: fd00::1
 	}
-	withMultiTopoID := append(append([]byte{}, base...), []byte{
+	// TLVs are in ascending order by type (RFC 9552 Section 5.1), so the
+	// Multi-Topology Identifier goes before the SRv6 SID Information TLV.
+	sidInfo := len(base) - 20
+	withMultiTopoID := append(append(append([]byte{}, base[:sidInfo]...),
 		0x01, 0x07, 0x00, 0x02, // TLV Multi-Topology Identifier
 		0x00, 0x02, // Multi-Topology ID: 2
-	}...)
+	), base[sidInfo:]...)
 	withMultiTopoID[3] += 6 // Length
 
 	tests := []struct {

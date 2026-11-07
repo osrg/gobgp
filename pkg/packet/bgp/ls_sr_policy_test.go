@@ -1053,19 +1053,24 @@ func TestLsSrPolicyPCEHeadend(t *testing.T) {
 
 // RFC 9552 does not list the IPv4 and IPv6 Router-ID TLVs among the node
 // descriptor sub-TLVs; only RFC 9857 section 3 does, for the headend of an
-// SR Policy. A node descriptor of any other NLRI keeps skipping them.
+// SR Policy. A node descriptor of any other NLRI keeps them as opaque
+// sub-TLVs (RFC 9552 Section 5.1) without reading them.
 func TestLsSrPolicyHeadendRouterIDOnlyForSrPolicy(t *testing.T) {
 	desc := tlvBytes(256, tlvBytes(512, be32(65001)), tlvBytes(513, be32(0)), tlvBytes(516, ip4("1.1.1.1")), tlvBytes(1028, ip4("10.0.0.1")))
 
 	generic := LsTLVNodeDescriptor{}
 	require.NoError(t, generic.DecodeFromBytes(desc))
 	assert.False(t, generic.Extract().LocalRouterID.IsValid())
-	assert.Len(t, generic.SubTLVs, 3)
+	assert.Len(t, generic.SubTLVs, 4)
+	assert.IsType(t, &lsTLVUnknown{}, generic.SubTLVs[3])
+	got, err := generic.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, desc, got)
 
 	headend := LsTLVNodeDescriptor{}
 	require.NoError(t, headend.decodeFromBytes(desc, true))
 	assert.Equal(t, netip.MustParseAddr("10.0.0.1"), headend.Extract().LocalRouterID)
-	got, err := headend.Serialize()
+	got, err = headend.Serialize()
 	require.NoError(t, err)
 	assert.Equal(t, desc, got)
 
