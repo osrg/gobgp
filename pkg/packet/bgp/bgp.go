@@ -202,7 +202,7 @@ type ExtendedCommunityAttrSubType uint8
 const (
 	EC_SUBTYPE_ROUTE_TARGET            ExtendedCommunityAttrSubType = 0x02 // EC_TYPE: 0x00, 0x01, 0x02
 	EC_SUBTYPE_ROUTE_ORIGIN            ExtendedCommunityAttrSubType = 0x03 // EC_TYPE: 0x00, 0x01, 0x02
-	EC_SUBTYPE_LINK_BANDWIDTH          ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x40
+	EC_SUBTYPE_LINK_BANDWIDTH          ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x00, 0x40
 	EC_SUBTYPE_GENERIC                 ExtendedCommunityAttrSubType = 0x04 // EC_TYPE: 0x02, 0x42
 	EC_SUBTYPE_OSPF_DOMAIN_ID          ExtendedCommunityAttrSubType = 0x05 // EC_TYPE: 0x00, 0x01, 0x02
 	EC_SUBTYPE_OSPF_ROUTE_ID           ExtendedCommunityAttrSubType = 0x07 // EC_TYPE: 0x01
@@ -14296,11 +14296,17 @@ func NewValidationExtended(state ValidationState) *ValidationExtended {
 }
 
 type LinkBandwidthExtended struct {
-	AS        uint16
-	Bandwidth float32
+	AS           uint16
+	Bandwidth    float32
+	IsTransitive bool
 }
 
 func (e *LinkBandwidthExtended) GetTypes() (ExtendedCommunityAttrType, ExtendedCommunityAttrSubType) {
+	// RFC 10005 2: the community is transitive (type 0x00) or
+	// non-transitive (type 0x40).
+	if e.IsTransitive {
+		return EC_TYPE_TRANSITIVE_TWO_OCTET_AS_SPECIFIC, EC_SUBTYPE_LINK_BANDWIDTH
+	}
 	return EC_TYPE_NON_TRANSITIVE_LINK_BANDWIDTH, EC_SUBTYPE_LINK_BANDWIDTH
 }
 
@@ -15741,7 +15747,9 @@ func ParseExtended(data []byte) (ExtendedCommunityInterface, error) {
 		localAdmin := binary.BigEndian.Uint32(data[4:8])
 
 		if subtype == EC_SUBTYPE_LINK_BANDWIDTH {
-			return NewLinkBandwidthExtended(as, math.Float32frombits(localAdmin)), nil
+			e := NewLinkBandwidthExtended(as, math.Float32frombits(localAdmin))
+			e.IsTransitive = transitive
+			return e, nil
 		} else {
 			return NewTwoOctetAsSpecificExtended(subtype, as, localAdmin, transitive), nil
 		}
