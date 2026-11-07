@@ -5247,6 +5247,10 @@ func (l *LsNLRI) Type() LsNLRIType {
 type LsNodeNLRI struct {
 	LsNLRI
 	LocalNodeDesc LsTLVInterface
+	// TLVs holds every TLV of a decoded NLRI in wire order, the Local Node
+	// Descriptors included, so that unknown TLVs are preserved and
+	// propagated (RFC 9552 Section 5.1). It is empty for a hand-built NLRI.
+	TLVs []LsTLVInterface
 }
 
 func (l *LsNodeNLRI) DecodeFromBytes(data []byte) error {
@@ -5254,19 +5258,34 @@ func (l *LsNodeNLRI) DecodeFromBytes(data []byte) error {
 		return err
 	}
 
-	tlv := data[lsNLRIHdrLen:]
-	if len(tlv) < tlvHdrLen {
-		return malformedAttrListErr("Malformed Node NLRI")
+	tlvs := data[lsNLRIHdrLen:]
+
+	for len(tlvs) >= tlvHdrLen {
+		hdr := &LsTLV{}
+		if _, err := hdr.DecodeFromBytes(tlvs); err != nil {
+			return err
+		}
+
+		// Unknown and unexpected TLVs, a second Local Node Descriptors TLV
+		// included, are kept as opaque TLVs so that they are preserved and
+		// propagated (RFC 9552 Section 5.1).
+		var tlv LsTLVInterface = &lsTLVUnknown{}
+		if hdr.Type == LS_TLV_LOCAL_NODE_DESC && l.LocalNodeDesc == nil {
+			tlv = &LsTLVNodeDescriptor{}
+		}
+
+		if err := tlv.DecodeFromBytes(tlvs); err != nil {
+			return malformedAttrListErr(fmt.Sprintf("Malformed Node NLRI: %v", err))
+		}
+		if _, ok := tlv.(*LsTLVNodeDescriptor); ok {
+			l.LocalNodeDesc = tlv
+		}
+		l.TLVs = append(l.TLVs, tlv)
+		tlvs = tlvs[tlv.Len():]
 	}
 
-	tlvType := LsTLVType(binary.BigEndian.Uint16(tlv[:2]))
-	if tlvType != LS_TLV_LOCAL_NODE_DESC {
+	if l.LocalNodeDesc == nil {
 		return malformedAttrListErr("Mandatory TLV missing")
-	}
-
-	l.LocalNodeDesc = &LsTLVNodeDescriptor{}
-	if err := l.LocalNodeDesc.DecodeFromBytes(tlv); err != nil {
-		return malformedAttrListErr(fmt.Sprintf("Malformed Node NLRI: %v", err))
 	}
 
 	return nil
@@ -5296,12 +5315,24 @@ func (l *LsNodeNLRI) Serialize() ([]byte, error) {
 	if l.LocalNodeDesc == nil {
 		return nil, errors.New("local node descriptor missing")
 	}
-	ser, err := l.LocalNodeDesc.Serialize()
-	if err != nil {
-		return nil, err
+
+	// A hand-built NLRI carries only the descriptor; a decoded one
+	// serializes every received TLV in wire order.
+	tlvs := l.TLVs
+	if len(tlvs) == 0 {
+		tlvs = []LsTLVInterface{l.LocalNodeDesc}
 	}
 
-	return l.LsNLRI.Serialize(ser)
+	buf := make([]byte, 0)
+	for _, tlv := range tlvs {
+		s, err := tlv.Serialize()
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, s...)
+	}
+
+	return l.LsNLRI.Serialize(buf)
 }
 
 func (l *LsNodeNLRI) MarshalJSON() ([]byte, error) {
@@ -5529,11 +5560,9 @@ func (l *LsLinkNLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVMultiTopoID{}
 
 		default:
-			if sub.Len() > len(tlv) {
-				return malformedAttrListErr("sub-TLV length exceeds parent TLV length")
-			}
-			tlv = tlv[sub.Len():]
-			continue
+			// Unknown and unexpected TLVs are kept as opaque TLVs so that
+			// they are preserved and propagated (RFC 9552 Section 5.1).
+			subTLV = &lsTLVUnknown{}
 		}
 
 		if err := subTLV.DecodeFromBytes(tlv); err != nil {
@@ -5716,11 +5745,9 @@ func (l *LsPrefixV4NLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVMultiTopoID{}
 
 		default:
-			if sub.Len() > len(tlv) {
-				return malformedAttrListErr("sub-TLV length exceeds parent TLV length")
-			}
-			tlv = tlv[sub.Len():]
-			continue
+			// Unknown and unexpected TLVs are kept as opaque TLVs so that
+			// they are preserved and propagated (RFC 9552 Section 5.1).
+			subTLV = &lsTLVUnknown{}
 		}
 
 		if err := subTLV.DecodeFromBytes(tlv); err != nil {
@@ -5891,11 +5918,9 @@ func (l *LsPrefixV6NLRI) DecodeFromBytes(data []byte) error {
 			subTLV = &LsTLVMultiTopoID{}
 
 		default:
-			if sub.Len() > len(tlv) {
-				return malformedAttrListErr("sub-TLV length exceeds parent TLV length")
-			}
-			tlv = tlv[sub.Len():]
-			continue
+			// Unknown and unexpected TLVs are kept as opaque TLVs so that
+			// they are preserved and propagated (RFC 9552 Section 5.1).
+			subTLV = &lsTLVUnknown{}
 		}
 
 		if err := subTLV.DecodeFromBytes(tlv); err != nil {
@@ -6086,6 +6111,10 @@ type LsSrv6SIDNLRI struct {
 	LocalNodeDesc LsTLVInterface
 	MultiTopoID   LsTLVInterface
 	Srv6SIDInfo   LsTLVInterface
+	// TLVs holds every TLV of a decoded NLRI in wire order, the descriptors
+	// included, so that unknown TLVs are preserved and propagated (RFC 9552
+	// Section 5.1). It is empty for a hand-built NLRI.
+	TLVs []LsTLVInterface
 }
 
 func (l *LsSrv6SIDNLRI) String() string {
@@ -6130,15 +6159,16 @@ func (l *LsSrv6SIDNLRI) DecodeFromBytes(data []byte) error {
 		case LS_TLV_MULTI_TOPO_ID:
 			tLVInterface = &LsTLVMultiTopoID{}
 		default:
-			tlvs = tlvs[tlv.Len():]
-			l.Length -= uint16(tlv.Len())
-			continue
+			// Unknown and unexpected TLVs are kept as opaque TLVs so that
+			// they are preserved and propagated (RFC 9552 Section 5.1).
+			tLVInterface = &lsTLVUnknown{}
 		}
 
 		if err := tLVInterface.DecodeFromBytes(tlvs); err != nil {
 			return err
 		}
 		tlvs = tlvs[tLVInterface.Len():]
+		l.TLVs = append(l.TLVs, tLVInterface)
 
 		switch tlv.Type {
 		case LS_TLV_LOCAL_NODE_DESC:
@@ -6164,24 +6194,24 @@ func (l *LsSrv6SIDNLRI) Serialize() ([]byte, error) {
 	if l.LocalNodeDesc == nil || l.Srv6SIDInfo == nil {
 		return nil, errors.New("required TLV missing")
 	}
+
+	// A hand-built NLRI carries only the descriptor fields, written in
+	// ascending order of TLV type (RFC 9552 Section 5.1); a decoded one
+	// serializes every received TLV in wire order.
+	tlvs := l.TLVs
+	if len(tlvs) == 0 {
+		tlvs = []LsTLVInterface{l.LocalNodeDesc}
+		// The Multi-Topology Identifier TLV is optional (RFC 9514, Section
+		// 6), so it may legitimately be absent.
+		if l.MultiTopoID != nil {
+			tlvs = append(tlvs, l.MultiTopoID)
+		}
+		tlvs = append(tlvs, l.Srv6SIDInfo)
+	}
+
 	buf := make([]byte, 0)
-
-	s, err := l.LocalNodeDesc.Serialize()
-	if err != nil {
-		return nil, err
-	}
-	buf = append(buf, s...)
-
-	s, err = l.Srv6SIDInfo.Serialize()
-	if err != nil {
-		return nil, err
-	}
-	buf = append(buf, s...)
-
-	// The Multi-Topology Identifier TLV is optional (RFC 9514, Section 6), so
-	// it may legitimately be absent from a decoded NLRI.
-	if l.MultiTopoID != nil {
-		s, err = l.MultiTopoID.Serialize()
+	for _, tlv := range tlvs {
+		s, err := tlv.Serialize()
 		if err != nil {
 			return nil, err
 		}
@@ -10800,7 +10830,7 @@ func (l *LsTLVNodeDescriptor) DecodeFromBytes(data []byte) error {
 // decodeFromBytes decodes a node descriptor. With srPolicy set it applies
 // the RFC 9857 section 3 rules for the headend of an SR Policy: the node is
 // identified by an IPv4 or IPv6 Router-ID rather than by IGP or BGP
-// identifiers, and unknown sub-TLVs are kept for re-serialization.
+// identifiers.
 func (l *LsTLVNodeDescriptor) decodeFromBytes(data []byte, srPolicy bool) error {
 	tlv, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
@@ -10860,19 +10890,13 @@ func (l *LsTLVNodeDescriptor) decodeFromBytes(data []byte, srPolicy bool) error 
 			if srPolicy {
 				subTLV = &LsTLVLocalIPv6RouterID{}
 			}
-		default:
-			if srPolicy {
-				subTLV = &lsTLVUnknown{}
-			}
 		}
 
+		// Unknown and unexpected sub-TLVs are kept as opaque sub-TLVs so that
+		// they are preserved and propagated (RFC 9552 Section 5.1) and stay
+		// part of the NLRI they are compared by (Section 5.2.1.4).
 		if subTLV == nil {
-			// Unknown sub-TLVs are skipped.
-			if sub.Len() > len(tlv) {
-				return malformedAttrListErr("sub-TLV length exceeds parent TLV length")
-			}
-			tlv = tlv[sub.Len():]
-			continue
+			subTLV = &lsTLVUnknown{}
 		}
 
 		if err := subTLV.DecodeFromBytes(tlv); err != nil {

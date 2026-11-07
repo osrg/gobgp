@@ -6974,8 +6974,9 @@ func TestAsPathDecoding4Byte(t *testing.T) {
 // The previous implementation mutated the parent Length field as a side
 // effect when skipping unknown sub-TLVs and used a wrong upper bound for the
 // length sanity check (`l.Length` instead of `len(tlv)`). After the fix the
-// parent Length must remain unchanged and unknown sub-TLVs must be silently
-// skipped without affecting the parsing of known sub-TLVs.
+// parent Length must remain unchanged and unknown sub-TLVs must be kept as
+// opaque sub-TLVs (RFC 9552 Section 5.1) without affecting the parsing of
+// known sub-TLVs.
 
 func Test_LsTLVNodeDescriptor_UnknownSubTLV(t *testing.T) {
 	tests := []struct {
@@ -6990,10 +6991,10 @@ func Test_LsTLVNodeDescriptor_UnknownSubTLV(t *testing.T) {
 				0x01, 0x00, 0x00, 0x1a, // Local Node Desc TLV, value length=26
 				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
 				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
-				0x0f, 0xff, 0x00, 0x04, 0xaa, 0xbb, 0xcc, 0xdd, // Unknown sub-TLV (type 0x0fff): must be skipped
+				0x0f, 0xff, 0x00, 0x04, 0xaa, 0xbb, 0xcc, 0xdd, // Unknown sub-TLV (type 0x0fff): kept as is
 			},
 			wantLength:     26,
-			wantSubTLVsLen: 2,
+			wantSubTLVsLen: 3,
 		},
 		{
 			// Per RFC 7752 Section 3.2.1.4 sub-TLVs in a Node Descriptor must be in
@@ -7004,11 +7005,11 @@ func Test_LsTLVNodeDescriptor_UnknownSubTLV(t *testing.T) {
 				0x01, 0x00, 0x00, 0x20, // Local Node Desc TLV, value length=32
 				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
 				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
-				0x0f, 0xfe, 0x00, 0x02, 0x01, 0x02, // Unknown sub-TLV #1 (type 0x0ffe): must be skipped
-				0x0f, 0xff, 0x00, 0x04, 0x03, 0x04, 0x05, 0x06, // Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				0x0f, 0xfe, 0x00, 0x02, 0x01, 0x02, // Unknown sub-TLV #1 (type 0x0ffe): kept as is
+				0x0f, 0xff, 0x00, 0x04, 0x03, 0x04, 0x05, 0x06, // Unknown sub-TLV #2 (type 0x0fff): kept as is
 			},
 			wantLength:     32,
-			wantSubTLVsLen: 2,
+			wantSubTLVsLen: 4,
 		},
 	}
 
@@ -7019,8 +7020,8 @@ func Test_LsTLVNodeDescriptor_UnknownSubTLV(t *testing.T) {
 			assert.NoError(tlv.DecodeFromBytes(tt.data))
 			// unknown sub-TLVs in the default branch.
 			assert.Equal(tt.wantLength, tlv.Length,
-				"parent TLV Length must not be mutated when skipping unknown sub-TLVs")
-			// Known sub-TLVs must still be captured.
+				"parent TLV Length must not be mutated by unknown sub-TLVs")
+			// Known and unknown sub-TLVs must be captured.
 			assert.Len(tlv.SubTLVs, tt.wantSubTLVsLen)
 		})
 	}
@@ -7045,7 +7046,7 @@ func Test_LsLinkNLRI_UnknownSubTLV(t *testing.T) {
 				0x01, 0x01, 0x00, 0x12,
 				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
 				0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, // TLV IGP Router ID: 0a0b.0c0d.0e0f
-				// Unknown sub-TLV (type 0x0fff): must be skipped
+				// Unknown sub-TLV (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
 			},
 		},
@@ -7063,9 +7064,9 @@ func Test_LsLinkNLRI_UnknownSubTLV(t *testing.T) {
 				0x01, 0x01, 0x00, 0x12,
 				0x02, 0x00, 0x00, 0x04, 0x07, 0x07, 0x07, 0x07, // TLV ASN: 117901063
 				0x02, 0x03, 0x00, 0x06, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, // TLV IGP Router ID: 0a0b.0c0d.0e0f
-				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				// Unknown sub-TLV #1 (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
-				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				// Unknown sub-TLV #2 (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
 			},
 		},
@@ -7105,7 +7106,7 @@ func Test_LsPrefixV4NLRI_UnknownSubTLV(t *testing.T) {
 				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
 				// IP Reachability Info, value length=4: prefix-len=24, prefix=10.0.0
 				0x01, 0x09, 0x00, 0x04, 0x18, 0x0a, 0x00, 0x00,
-				// Unknown sub-TLV (type 0x0fff): must be skipped
+				// Unknown sub-TLV (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
 			},
 		},
@@ -7121,9 +7122,9 @@ func Test_LsPrefixV4NLRI_UnknownSubTLV(t *testing.T) {
 				0x02, 0x03, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // TLV IGP Router ID: 0102.0304.0506
 				// IP Reachability Info, value length=4: prefix-len=24, prefix=10.0.0
 				0x01, 0x09, 0x00, 0x04, 0x18, 0x0a, 0x00, 0x00,
-				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				// Unknown sub-TLV #1 (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
-				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				// Unknown sub-TLV #2 (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
 			},
 		},
@@ -7163,7 +7164,7 @@ func Test_LsPrefixV6NLRI_UnknownSubTLV(t *testing.T) {
 				0x01, 0x09, 0x00, 0x09,
 				0x40,
 				0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
-				// Unknown sub-TLV (type 0x0fff): must be skipped
+				// Unknown sub-TLV (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
 			},
 		},
@@ -7181,9 +7182,9 @@ func Test_LsPrefixV6NLRI_UnknownSubTLV(t *testing.T) {
 				0x01, 0x09, 0x00, 0x09,
 				0x40,
 				0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
-				// Unknown sub-TLV #1 (type 0x0fff): must be skipped
+				// Unknown sub-TLV #1 (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x02, 0xaa, 0xbb,
-				// Unknown sub-TLV #2 (type 0x0fff): must be skipped
+				// Unknown sub-TLV #2 (type 0x0fff): kept as is
 				0x0f, 0xff, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
 			},
 		},
@@ -8276,4 +8277,98 @@ func TestEVPNIPMSISerializeLayout(t *testing.T) {
 			t.Fatalf("round-trip changed route: %s", decoded.String())
 		}
 	}
+}
+
+// RFC 9552 Section 5.1: unknown and unsupported TLVs must be preserved and
+// propagated within the NLRI. The NLRI is the key of a link-state object,
+// and the RIB keys a BGP-LS destination on the serialized NLRI, so a TLV
+// dropped on decode merges two objects into one destination and is missing
+// from the NLRI that is re-advertised.
+func Test_LsAddrPrefixKeepsUnknownTLVs(t *testing.T) {
+	unknown := tlvBytes(65000, []byte{1, 2, 3, 4})
+	nodeDesc := func(typ uint16, sub ...[]byte) []byte {
+		return tlvBytes(typ, append([][]byte{tlvBytes(512, be32(65001)), tlvBytes(515, []byte{0, 0, 0, 0, 0, 1})}, sub...)...)
+	}
+	linkID := tlvBytes(258, be32(1), be32(2))
+	reach4 := tlvBytes(265, []byte{24, 10, 0, 0})
+	reach6 := tlvBytes(265, []byte{64}, ip6("2001:db8::")[:8])
+	sid := tlvBytes(518, ip6("2001:db8::1"))
+
+	for _, tt := range []struct {
+		name    string
+		with    []byte
+		without []byte
+	}{
+		{
+			"node",
+			lsNLRIBytes(1, 2, 0, nodeDesc(256), unknown),
+			lsNLRIBytes(1, 2, 0, nodeDesc(256)),
+		},
+		{
+			"node descriptor sub-TLV",
+			lsNLRIBytes(1, 2, 0, nodeDesc(256, unknown)),
+			lsNLRIBytes(1, 2, 0, nodeDesc(256)),
+		},
+		{
+			"link",
+			lsNLRIBytes(2, 2, 0, nodeDesc(256), nodeDesc(257), linkID, unknown),
+			lsNLRIBytes(2, 2, 0, nodeDesc(256), nodeDesc(257), linkID),
+		},
+		{
+			"prefix v4",
+			lsNLRIBytes(3, 2, 0, nodeDesc(256), reach4, unknown),
+			lsNLRIBytes(3, 2, 0, nodeDesc(256), reach4),
+		},
+		{
+			"prefix v6",
+			lsNLRIBytes(4, 2, 0, nodeDesc(256), reach6, unknown),
+			lsNLRIBytes(4, 2, 0, nodeDesc(256), reach6),
+		},
+		{
+			"srv6 sid",
+			lsNLRIBytes(6, 2, 0, nodeDesc(256), tlvBytes(263, []byte{0, 2}), unknown, sid),
+			lsNLRIBytes(6, 2, 0, nodeDesc(256), tlvBytes(263, []byte{0, 2}), sid),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			nlri := &LsAddrPrefix{}
+			require.NoError(t, nlri.decodeFromBytes(tt.with))
+			got, err := nlri.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, tt.with, got)
+
+			other := &LsAddrPrefix{}
+			require.NoError(t, other.decodeFromBytes(tt.without))
+			key, err := other.Serialize()
+			require.NoError(t, err)
+			assert.NotEqual(t, key, got)
+		})
+	}
+}
+
+// RFC 9552 Section 5.1: the TLVs within an NLRI are in ascending order by
+// type, so an SRv6 SID NLRI built from its descriptor fields must serialize
+// to the same key as the one decoded from the wire.
+func Test_LsSrv6SIDNLRIHandBuiltTLVOrder(t *testing.T) {
+	data := lsNLRIBytes(6, 2, 0,
+		tlvBytes(256, tlvBytes(512, be32(65001)), tlvBytes(515, []byte{0, 0, 0, 0, 0, 1})),
+		tlvBytes(263, []byte{0, 2}),
+		tlvBytes(518, ip6("2001:db8::1")))
+
+	decoded := &LsAddrPrefix{}
+	require.NoError(t, decoded.decodeFromBytes(data))
+	d := decoded.NLRI.(*LsSrv6SIDNLRI)
+
+	built := &LsAddrPrefix{
+		Type: LS_NLRI_TYPE_SRV6_SID,
+		NLRI: &LsSrv6SIDNLRI{
+			LsNLRI:        d.LsNLRI,
+			LocalNodeDesc: d.LocalNodeDesc,
+			MultiTopoID:   d.MultiTopoID,
+			Srv6SIDInfo:   d.Srv6SIDInfo,
+		},
+	}
+	got, err := built.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, data, got)
 }
