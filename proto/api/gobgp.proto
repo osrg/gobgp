@@ -915,6 +915,9 @@ message TimersConfig {
   uint64 keepalive_interval = 3;
   uint64 minimum_advertisement_interval = 4;
   uint64 idle_hold_time_after_reset = 5;
+  // connect_at_once starts the first connect to the peer at once when the
+  // peer leaves Idle, instead of after the jittered connect delay.
+  bool connect_at_once = 6;
 }
 
 message TimersState {

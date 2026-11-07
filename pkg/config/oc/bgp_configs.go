@@ -3184,6 +3184,12 @@ type TimersConfig struct {
 	// Time interval in seconds that a BGP session will be
 	// in idle state after neighbor reset operation.
 	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset" json:"idle-hold-time-after-reset,omitempty"`
+	// original -> gobgp:connect-at-once
+	// gobgp:connect-at-once's original type is boolean.
+	// Start the first connect to the peer at once when the peer
+	// leaves Idle, instead of after the jittered connect delay.
+	// The retries still wait.
+	ConnectAtOnce bool `mapstructure:"connect-at-once" json:"connect-at-once,omitempty"`
 }
 
 func (lhs *TimersConfig) Equal(rhs *TimersConfig) bool {
@@ -3203,6 +3209,9 @@ func (lhs *TimersConfig) Equal(rhs *TimersConfig) bool {
 		return false
 	}
 	if lhs.IdleHoldTimeAfterReset != rhs.IdleHoldTimeAfterReset {
+		return false
+	}
+	if lhs.ConnectAtOnce != rhs.ConnectAtOnce {
 		return false
 	}
 	return true
