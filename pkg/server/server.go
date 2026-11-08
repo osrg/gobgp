@@ -2874,8 +2874,8 @@ func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	return err
 }
 
-func (s *BgpServer) addPathStream(vrfId string, pathList []*table.Path) error {
-	err := s.mgmtOperation(func() error {
+func (s *BgpServer) addPathStream(ctx context.Context, vrfId string, pathList []*table.Path) error {
+	err := s.mgmtOperationWithContext(ctx, func() error {
 		return s.addPathList(vrfId, pathList)
 	}, true)
 	return err
@@ -2951,6 +2951,13 @@ func apiutil2Path(path *apiutil.Path, isVRFTable bool, isWithdraw ...bool) (*tab
 }
 
 func (s *BgpServer) AddPath(req apiutil.AddPathRequest) ([]apiutil.AddPathResponse, error) {
+	return s.addPath(context.Background(), req)
+}
+
+// addPath is AddPath bound to the context of the caller. A request whose
+// context ends before the management loop runs it is not applied, and the
+// context error is returned.
+func (s *BgpServer) addPath(ctx context.Context, req apiutil.AddPathRequest) ([]apiutil.AddPathResponse, error) {
 	if len(req.Paths) == 0 {
 		return []apiutil.AddPathResponse{}, fmt.Errorf("no path(s) to add")
 	}
@@ -2964,7 +2971,7 @@ func (s *BgpServer) AddPath(req apiutil.AddPathRequest) ([]apiutil.AddPathRespon
 
 	resps := make([]apiutil.AddPathResponse, len(req.Paths))
 	var lastErr error
-	err := s.mgmtOperation(func() error {
+	err := s.mgmtOperationWithContext(ctx, func() error {
 		for i, p := range req.Paths {
 			if p == nil {
 				lastErr = errors.New("path is nil")
@@ -3006,6 +3013,12 @@ func (s *BgpServer) AddPath(req apiutil.AddPathRequest) ([]apiutil.AddPathRespon
 // if uuids is not empty, it will delete paths with the given UUIDs otherwise it will delete specified paths
 // deleteAll == false and uuids is empty, paths must contain at least one path
 func (s *BgpServer) DeletePath(req apiutil.DeletePathRequest) error {
+	return s.deletePath(context.Background(), req)
+}
+
+// deletePath is DeletePath bound to the context of the caller, with the same
+// rule as addPath.
+func (s *BgpServer) deletePath(ctx context.Context, req apiutil.DeletePathRequest) error {
 	isVRF := false
 	if req.VRFID != "" {
 		if _, ok := s.globalRib.GetVrf(req.VRFID); !ok {
@@ -3013,7 +3026,7 @@ func (s *BgpServer) DeletePath(req apiutil.DeletePathRequest) error {
 		}
 		isVRF = true
 	}
-	return s.mgmtOperation(func() error {
+	return s.mgmtOperationWithContext(ctx, func() error {
 		deletePathList := make([]*table.Path, 0)
 		// delete by uuid
 		if len(req.UUIDs) > 0 {

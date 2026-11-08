@@ -579,7 +579,7 @@ func (s *server) AddPath(ctx context.Context, r *api.AddPathRequest) (*api.AddPa
 	if err != nil {
 		return &api.AddPathResponse{}, fmt.Errorf("invalid path: %w", err)
 	}
-	path, err := s.bgpServer.AddPath(apiutil.AddPathRequest{
+	path, err := s.bgpServer.addPath(ctx, apiutil.AddPathRequest{
 		VRFID: r.VrfId,
 		Paths: []*apiutil.Path{p},
 	})
@@ -607,7 +607,7 @@ func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api
 		if len(r.Uuid) > 0 {
 			// Delete locally generated path which has the given UUID
 			id, _ := uuid.FromBytes(r.Uuid)
-			if err := s.bgpServer.DeletePath(apiutil.DeletePathRequest{VRFID: r.VrfId, UUIDs: []uuid.UUID{id}}); err != nil {
+			if err := s.bgpServer.deletePath(ctx, apiutil.DeletePathRequest{VRFID: r.VrfId, UUIDs: []uuid.UUID{id}}); err != nil {
 				return err
 			}
 		} else if len(pathList) == 0 {
@@ -616,11 +616,11 @@ func (s *server) DeletePath(ctx context.Context, r *api.DeletePathRequest) (*api
 			if r.Family != nil {
 				family = bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
 			}
-			if err := s.bgpServer.DeletePath(apiutil.DeletePathRequest{VRFID: r.VrfId, DeleteAll: true, DeleteFamily: &family}); err != nil {
+			if err := s.bgpServer.deletePath(ctx, apiutil.DeletePathRequest{VRFID: r.VrfId, DeleteAll: true, DeleteFamily: &family}); err != nil {
 				return err
 			}
 		} else {
-			if err := s.bgpServer.DeletePath(apiutil.DeletePathRequest{VRFID: r.VrfId, Paths: pathList}); err != nil {
+			if err := s.bgpServer.deletePath(ctx, apiutil.DeletePathRequest{VRFID: r.VrfId, Paths: pathList}); err != nil {
 				return err
 			}
 		}
@@ -657,7 +657,7 @@ func (s *server) AddPathStream(stream api.GoBgpService_AddPathStreamServer) erro
 				pathList = append(pathList, path)
 			}
 		}
-		err = s.bgpServer.addPathStream(arg.VrfId, pathList)
+		err = s.bgpServer.addPathStream(stream.Context(), arg.VrfId, pathList)
 		if err != nil {
 			return err
 		}

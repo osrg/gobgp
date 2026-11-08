@@ -178,7 +178,7 @@ func TestEVPNStickyMacIsNotMoved(t *testing.T) {
 
 	local := addPathEVPNMacPath(t, nil, 1, 1, 0)
 	local.SetExtCommunities([]bgp.ExtendedCommunityInterface{rt, bgp.NewMacMobilityExtended(0, true)}, true)
-	require.NoError(t, s.addPathStream("", []*table.Path{local}))
+	require.NoError(t, s.addPathStream(context.Background(), "", []*table.Path{local}))
 	sent := drainOutgoing(target)
 	require.Len(t, sent, 1, "the peer gets the static MAC")
 	require.False(t, sent[0].IsWithdraw)

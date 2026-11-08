@@ -387,7 +387,7 @@ func TestNexthopAddPath(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					return s.addPathStream(vrfID, []*table.Path{p})
+					return s.addPathStream(context.Background(), vrfID, []*table.Path{p})
 				},
 			},
 		} {
