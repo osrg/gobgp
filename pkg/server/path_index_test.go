@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"net/netip"
 	"os"
 	"strconv"
@@ -589,4 +590,105 @@ func BenchmarkStreamWithIndex(b *testing.B) {
 			b.ReportMetric(float64(s.pathIndex.len()), "index-entries")
 		})
 	}
+}
+
+// Regression: a zebra next-hop refresh reinstalls a copy of each path it
+// changes (a new MED, or the next hop marked invalid). The UUID follows the
+// copy: ListPath still reports it, and a delete by it removes the path.
+func TestUUIDSurvivesZebraNexthopRefresh(t *testing.T) {
+	s := startContextServer(t)
+	g := &server{bgpServer: s, shared: s.shared}
+	id := addIndexed(t, s, "", indexPath(t, bgp.RF_IPv4_UC, "10.13.0.0/24", "10.0.0.1"))
+	nexthop := netip.MustParseAddr("10.0.0.1")
+	z := &zebraClient{server: s, nexthopCache: nexthopStateCache{}}
+	installed := func() []*table.Path {
+		var paths []*table.Path
+		require.NoError(t, s.mgmtOperation(func() error {
+			paths = s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC})
+			return nil
+		}, false))
+		return paths
+	}
+	reported := func() (id []byte, med uint32, invalid bool) {
+		require.NoError(t, g.listPath(context.Background(), &api.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_GLOBAL,
+			Family:    &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
+		}, func(d *api.Destination) {
+			p := d.Paths[0]
+			id, invalid = p.Uuid, p.IsNexthopInvalid
+			attrs, err := apiutil.GetNativePathAttributes(p)
+			require.NoError(t, err)
+			for _, a := range attrs {
+				if m, ok := a.(*bgp.PathAttributeMultiExitDisc); ok {
+					med = m.Value
+				}
+			}
+		}))
+		return
+	}
+
+	// The metric of the next hop changes.
+	z.nexthopCache[nexthop] = 100
+	before := installed()
+	z.updatePathByNexthopCache(before)
+	after := installed()
+	require.Len(t, after, 1)
+	require.NotSame(t, before[0], after[0], "the table holds a new copy")
+	u, med, invalid := reported()
+	require.Equal(t, id[:], u)
+	require.EqualValues(t, 100, med)
+	require.False(t, invalid)
+
+	// The next hop becomes unreachable.
+	z.nexthopCache[nexthop] = math.MaxUint32
+	z.updatePathByNexthopCache(installed())
+	u, _, invalid = reported()
+	require.Equal(t, id[:], u)
+	require.True(t, invalid)
+
+	require.NoError(t, deleteUUID(s, id), "the original UUID still deletes the path")
+	require.Empty(t, installed())
+	require.Zero(t, s.pathIndex.len())
+}
+
+// The copy an import policy makes of a written path keeps its UUID, and
+// so does the copy a later next-hop refresh makes of that copy.
+func TestUUIDFollowsPolicyCopy(t *testing.T) {
+	s := startContextServer(t)
+	ctx := context.Background()
+	require.NoError(t, s.AddDefinedSet(ctx, &api.AddDefinedSetRequest{DefinedSet: &api.DefinedSet{
+		DefinedType: api.DefinedType_DEFINED_TYPE_PREFIX,
+		Name:        "p",
+		Prefixes:    []*api.Prefix{{IpPrefix: "10.14.0.0/24", MaskLengthMin: 24, MaskLengthMax: 24}},
+	}}))
+	require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: &api.Policy{
+		Name: "med",
+		Statements: []*api.Statement{{
+			Name:       "s",
+			Conditions: &api.Conditions{PrefixSet: &api.MatchSet{Type: api.MatchSet_TYPE_ANY, Name: "p"}},
+			Actions: &api.Actions{
+				RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+				Med:         &api.MedAction{Type: api.MedAction_TYPE_REPLACE, Value: 7},
+			},
+		}},
+	}}))
+	require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+		Name: table.GLOBAL_RIB_NAME, Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+		Policies: []*api.Policy{{Name: "med"}}, DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+	}}))
+	written := indexPath(t, bgp.RF_IPv4_UC, "10.14.0.0/24", "10.0.0.1")
+	id := addIndexed(t, s, "", written)
+	var held *table.Path
+	require.NoError(t, s.mgmtOperation(func() error {
+		held = s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC})[0]
+		return nil
+	}, false))
+	med, err := held.GetMed()
+	require.NoError(t, err)
+	require.EqualValues(t, 7, med, "the table holds the policy's copy")
+	z := &zebraClient{server: s, nexthopCache: nexthopStateCache{netip.MustParseAddr("10.0.0.1"): 50}}
+	z.updatePathByNexthopCache([]*table.Path{held})
+	require.Equal(t, 1, s.pathIndex.len())
+	require.NoError(t, deleteUUID(s, id))
+	require.Zero(t, s.pathIndex.len())
 }

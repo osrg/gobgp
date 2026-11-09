@@ -3624,7 +3624,7 @@ func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.NLRI,
 
 			for i, path := range knownPathList {
 				p := toPathApiUtil(path)
-				if id, ok := ids[path]; ok {
+				if id, ok := ids[path.Root()]; ok {
 					p.UUID = id
 				}
 				if validation := getValidation(v, path); validation != nil {

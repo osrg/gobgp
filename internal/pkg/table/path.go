@@ -538,6 +538,13 @@ func (path *Path) root() *Path {
 	return p
 }
 
+// Root returns the path this one was cloned from, through every copy: the
+// copy an import policy makes, or a next-hop refresh of zebra. Paths with
+// the same root are versions of one written path.
+func (path *Path) Root() *Path {
+	return path.root()
+}
+
 func (path *Path) OriginInfo() *originInfo {
 	return path.root().info
 }
