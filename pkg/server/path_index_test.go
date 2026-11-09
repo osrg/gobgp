@@ -45,6 +45,21 @@ func noImplicitWithdraw(p *apiutil.Path) { p.NoImplicitWithdraw = true }
 
 func withdrawal(p *apiutil.Path) { p.Withdrawal = true }
 
+func withPathID(id uint32) indexPathOption {
+	return func(p *apiutil.Path) { p.RemoteID = id }
+}
+
+func withLabel(label uint32) indexPathOption {
+	return func(p *apiutil.Path) {
+		lu := p.Nlri.(*bgp.LabeledIPAddrPrefix)
+		nlri, err := bgp.NewLabeledIPAddrPrefix(lu.Prefix, *bgp.NewMPLSLabelStack(label))
+		if err != nil {
+			panic(err)
+		}
+		p.Nlri = nlri
+	}
+}
+
 func indexPath(t testing.TB, family bgp.Family, prefix, nexthop string, opts ...indexPathOption) *apiutil.Path {
 	t.Helper()
 	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nexthop))
@@ -208,8 +223,8 @@ func TestUUIDWithNoImplicitWithdraw(t *testing.T) {
 }
 
 // A path the global import policy rejects is never installed, and the
-// rejection withdraws the path that was in the slot. Neither UUID deletes
-// anything afterwards.
+// rejection withdraws the path that was in the slot. Both entries end at
+// once, and neither UUID deletes anything afterwards.
 func TestUUIDWhenImportPolicyRejects(t *testing.T) {
 	s := startContextServer(t)
 	ctx := context.Background()
@@ -223,9 +238,9 @@ func TestUUIDWhenImportPolicyRejects(t *testing.T) {
 	setImport(api.RouteAction_ROUTE_ACTION_REJECT)
 	rejected := addIndexed(t, s, "", indexPath(t, bgp.RF_IPv4_UC, "10.6.0.0/24", "10.0.0.2"))
 	require.Empty(t, localPaths(t, s, bgp.RF_IPv4_UC))
+	require.Zero(t, s.pathIndex.len(), "the rejection ended the installed entry and added none")
 	require.EqualError(t, deleteUUID(s, installed), cannotFind)
 	require.EqualError(t, deleteUUID(s, rejected), cannotFind)
-	require.Zero(t, s.pathIndex.len(), "the delete that found nothing ended the entry")
 	setImport(api.RouteAction_ROUTE_ACTION_ACCEPT)
 	again := addIndexed(t, s, "", indexPath(t, bgp.RF_IPv4_UC, "10.6.0.0/24", "10.0.0.3"))
 	require.NoError(t, deleteUUID(s, again))
@@ -363,4 +378,123 @@ func BenchmarkDeleteByUUID(b *testing.B) {
 	}
 	b.StopTimer()
 	b.ReportMetric(float64(n), "table-paths")
+}
+
+// Regression: one stream message withdraws a no_implicit_withdraw path and
+// adds an ordinary path in the same slot. Only the final table used to be
+// read, which still held a path in the slot, so the old UUID survived and
+// deleted the new path.
+func TestUUIDEndsInsideOneStreamMessage(t *testing.T) {
+	s := startContextServer(t)
+	g := &server{bgpServer: s, shared: s.shared}
+	old := addIndexed(t, s, "", indexPath(t, bgp.RF_IPv4_UC, "10.9.0.0/24", "10.0.0.1", noImplicitWithdraw))
+	w, err := apiutil2Path(indexPath(t, bgp.RF_IPv4_UC, "10.9.0.0/24", "10.0.0.1", withdrawal), false)
+	require.NoError(t, err)
+	add, err := apiutil2Path(indexPath(t, bgp.RF_IPv4_UC, "10.9.0.0/24", "10.0.0.2"), false)
+	require.NoError(t, err)
+	require.NoError(t, s.addPathStream(context.Background(), "", []*table.Path{w, add}))
+	require.Equal(t, []string{"10.9.0.0/24 10.0.0.2"}, localPaths(t, s, bgp.RF_IPv4_UC))
+	require.Zero(t, s.pathIndex.len())
+	var reported []byte
+	require.NoError(t, g.listPath(context.Background(), &api.ListPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Family:    &api.Family{Afi: api.Family_AFI_IP, Safi: api.Family_SAFI_UNICAST},
+	}, func(d *api.Destination) { reported = d.Paths[0].Uuid }))
+	require.Empty(t, reported, "ListPath reports no stale UUID")
+	require.EqualError(t, deleteUUID(s, old), cannotFind)
+	require.Equal(t, []string{"10.9.0.0/24 10.0.0.2"}, localPaths(t, s, bgp.RF_IPv4_UC), "the new path stays")
+}
+
+// The path identifier is part of the slot.
+func TestUUIDSlotHasThePathID(t *testing.T) {
+	s := startContextServer(t)
+	a := addIndexed(t, s, "", indexPath(t, bgp.RF_IPv4_UC, "10.10.0.0/24", "10.0.0.1", withPathID(1)))
+	b := addIndexed(t, s, "", indexPath(t, bgp.RF_IPv4_UC, "10.10.0.0/24", "10.0.0.2", withPathID(2)))
+	require.Len(t, localPaths(t, s, bgp.RF_IPv4_UC), 2)
+	require.NoError(t, deleteUUID(s, a))
+	require.Equal(t, []string{"10.10.0.0/24 10.0.0.2"}, localPaths(t, s, bgp.RF_IPv4_UC))
+	require.NoError(t, deleteUUID(s, b))
+}
+
+// A label is not part of a labeled-unicast slot: a path with another label
+// replaces the first, whose UUID ends.
+func TestUUIDLabelChange(t *testing.T) {
+	s := startContextServer(t)
+	a := addIndexed(t, s, "", indexPath(t, bgp.RF_IPv4_MPLS, "10.11.0.0/24", "10.0.0.1", withLabel(100)))
+	b := addIndexed(t, s, "", indexPath(t, bgp.RF_IPv4_MPLS, "10.11.0.0/24", "10.0.0.1", withLabel(200)))
+	require.Len(t, localPaths(t, s, bgp.RF_IPv4_MPLS), 1)
+	require.EqualError(t, deleteUUID(s, a), cannotFind)
+	require.Len(t, localPaths(t, s, bgp.RF_IPv4_MPLS), 1)
+	require.NoError(t, deleteUUID(s, b))
+	require.Empty(t, localPaths(t, s, bgp.RF_IPv4_MPLS))
+}
+
+// lsNodeOfArea is a BGP-LS node NLRI of the OSPF protocol whose descriptor
+// carries the given area, which NLRI.String omits.
+func lsNodeOfArea(t *testing.T, area byte) bgp.NLRI {
+	t.Helper()
+	nlri, err := bgp.NLRIFromSlice(bgp.RF_LS, []byte{
+		0x00, 0x01, 0x00, 0x25,
+		0x03,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x18,
+		0x02, 0x00, 0x00, 0x04, 0x00, 0x00, 0xfd, 0xe8,
+		0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, area,
+		0x02, 0x03, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x01,
+	})
+	require.NoError(t, err)
+	return nlri
+}
+
+// Two BGP-LS nodes whose NLRIs print alike, differing only in their OSPF
+// area, are two slots: the slot is keyed by the serialized NLRI.
+func TestUUIDBgpLsIdentity(t *testing.T) {
+	s := startContextServer(t)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	require.NoError(t, err)
+	lsPath := func(area byte) *apiutil.Path {
+		return &apiutil.Path{Family: bgp.RF_LS, Nlri: lsNodeOfArea(t, area), Attrs: []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}}
+	}
+	require.Equal(t, lsNodeOfArea(t, 1).String(), lsNodeOfArea(t, 2).String())
+	a := addIndexed(t, s, "", lsPath(1))
+	b := addIndexed(t, s, "", lsPath(2))
+	require.Len(t, localPaths(t, s, bgp.RF_LS), 2)
+	require.NoError(t, deleteUUID(s, a))
+	require.Len(t, localPaths(t, s, bgp.RF_LS), 1, "the node of the other area stays")
+	require.NoError(t, deleteUUID(s, b))
+	require.Empty(t, localPaths(t, s, bgp.RF_LS))
+}
+
+// DeleteVrf does not withdraw VPN FlowSpec paths, so the paths written to
+// a VRF in both FlowSpec families keep their UUIDs.
+func TestUUIDOfVrfFlowSpecOutlivesTheVrf(t *testing.T) {
+	s := startContextServer(t)
+	ctx := context.Background()
+	rd, err := apiutil.MarshalRD(bgp.NewRouteDistinguisherTwoOctetAS(65000, 20))
+	require.NoError(t, err)
+	rt, err := apiutil.MarshalRT(bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 20, true))
+	require.NoError(t, err)
+	require.NoError(t, s.AddVrf(ctx, &api.AddVrfRequest{Vrf: &api.Vrf{Name: "blue", Rd: rd, ImportRt: []*api.RouteTarget{rt}, ExportRt: []*api.RouteTarget{rt}, Id: 20}}))
+	fs := func(family bgp.Family, component bgp.FlowSpecComponentInterface) *apiutil.Path {
+		nlri, err := bgp.NewFlowSpecUnicast(family, []bgp.FlowSpecComponentInterface{component})
+		require.NoError(t, err)
+		mp, err := bgp.NewPathAttributeMpReachNLRI(family, []bgp.PathNLRI{{NLRI: nlri}})
+		require.NoError(t, err)
+		return &apiutil.Path{Family: family, Nlri: nlri, Attrs: []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), mp}}
+	}
+	p4, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.12.0.0/24"))
+	require.NoError(t, err)
+	p6, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8:12::/64"))
+	require.NoError(t, err)
+	id4 := addIndexed(t, s, "blue", fs(bgp.RF_FS_IPv4_UC, bgp.NewFlowSpecDestinationPrefix(p4)))
+	id6 := addIndexed(t, s, "blue", fs(bgp.RF_FS_IPv6_UC, bgp.NewFlowSpecDestinationPrefix6(p6, 0)))
+	require.Len(t, localPaths(t, s, bgp.RF_FS_IPv4_VPN), 1)
+	require.Len(t, localPaths(t, s, bgp.RF_FS_IPv6_VPN), 1)
+	require.NoError(t, s.DeleteVrf(ctx, &api.DeleteVrfRequest{Name: "blue"}))
+	require.Len(t, localPaths(t, s, bgp.RF_FS_IPv4_VPN), 1, "VPN FlowSpec outlives the VRF")
+	require.Equal(t, 2, s.pathIndex.len())
+	require.NoError(t, deleteUUID(s, id4))
+	require.NoError(t, deleteUUID(s, id6))
+	require.Empty(t, localPaths(t, s, bgp.RF_FS_IPv4_VPN))
+	require.Empty(t, localPaths(t, s, bgp.RF_FS_IPv6_VPN))
 }

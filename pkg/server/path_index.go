@@ -50,38 +50,42 @@ func localPathKeyOf(p *table.Path) localPathKey {
 	return k
 }
 
-// pathIndexEntry is the UUID AddPath gave one local path.
+// pathIndexEntry is the UUID AddPath gave one local path, and the path the
+// global table installed for it (the one AddPath wrote, or the copy the
+// import policy made of it).
 type pathIndexEntry struct {
-	id   uuid.UUID
-	key  localPathKey
-	path *table.Path
-	vrf  string
-	// coexisting is set for a path added with no_implicit_withdraw: a
-	// later path at the same key does not replace it.
-	coexisting bool
+	id        uuid.UUID
+	key       localPathKey
+	installed *table.Path
+	vrf       string
 }
 
-// pathIndex maps the UUIDs AddPath gives to the slots of the global table,
-// so that DeletePath by UUID reads one destination instead of walking the
-// table. It is touched only from management operations, which run one at a
-// time with shared.mu held, so it has no lock of its own.
+// pathIndex maps the UUIDs AddPath gives to the paths the global table holds
+// for them, so that DeletePath by UUID reads one destination instead of
+// walking the table. It is touched only from management operations, which
+// run one at a time with shared.mu held, so it has no lock of its own.
 //
-// An entry ends when another write takes its slot, when a withdrawal or a
-// delete leaves no local path in the slot, when its family or its VRF is
-// deleted, and when a delete by its UUID finds the slot empty. Some
-// withdrawals happen inside the table, such as an import policy that
-// rejects a path or an EVPN MAC mobility update; an entry left by one of
-// them stays until one of the events above, and a delete by its UUID finds
-// nothing, as before.
+// Every write the API or zebra makes to a slot that has an entry is applied
+// one path at a time, and after each the slot is read again: an entry whose
+// installed path is no longer there ends. So an entry ends when another
+// write replaces its path, when a withdrawal removes it, and also between
+// two writes of one stream message. A delete of all local paths of a family
+// ends the entries of that family, and DeleteVrf the entries whose path it
+// withdrew. Some withdrawals happen inside the table without a write of the
+// API, such as an EVPN MAC move caused by a received route; an entry left
+// by one of them stays until its slot is next written or read, and a delete
+// by its UUID finds its path gone, deletes nothing, and ends it.
 type pathIndex struct {
-	byUUID map[uuid.UUID]*pathIndexEntry
-	byKey  map[localPathKey][]*pathIndexEntry
+	byUUID      map[uuid.UUID]*pathIndexEntry
+	byKey       map[localPathKey][]*pathIndexEntry
+	byInstalled map[*table.Path]*pathIndexEntry
 }
 
 func newPathIndex() *pathIndex {
 	return &pathIndex{
-		byUUID: make(map[uuid.UUID]*pathIndexEntry),
-		byKey:  make(map[localPathKey][]*pathIndexEntry),
+		byUUID:      make(map[uuid.UUID]*pathIndexEntry),
+		byKey:       make(map[localPathKey][]*pathIndexEntry),
+		byInstalled: make(map[*table.Path]*pathIndexEntry),
 	}
 }
 
@@ -89,6 +93,7 @@ func (x *pathIndex) len() int { return len(x.byUUID) }
 
 func (x *pathIndex) remove(e *pathIndexEntry) {
 	delete(x.byUUID, e.id)
+	delete(x.byInstalled, e.installed)
 	l := slices.DeleteFunc(x.byKey[e.key], func(o *pathIndexEntry) bool { return o == e })
 	if len(l) == 0 {
 		delete(x.byKey, e.key)
@@ -97,28 +102,21 @@ func (x *pathIndex) remove(e *pathIndexEntry) {
 	}
 }
 
-// replaced ends the entry of the path a new path at key replaces. A new
-// path replaces the path of the same source and path identifier, unless
-// that one was added with no_implicit_withdraw.
-func (x *pathIndex) replaced(key localPathKey) {
-	for _, e := range slices.Clone(x.byKey[key]) {
-		if !e.coexisting {
-			x.remove(e)
-		}
-	}
-}
-
-// add records the UUID of a path AddPath put in the table.
-func (x *pathIndex) add(id uuid.UUID, p *table.Path, vrf string) {
-	e := &pathIndexEntry{id: id, key: localPathKeyOf(p), path: p, vrf: vrf, coexisting: p.NoImplicitWithdraw()}
+// add records the UUID of the path the table installed for an AddPath.
+func (x *pathIndex) add(id uuid.UUID, installed *table.Path, vrf string) {
+	e := &pathIndexEntry{id: id, key: localPathKeyOf(installed), installed: installed, vrf: vrf}
 	x.byUUID[id] = e
 	x.byKey[e.key] = append(x.byKey[e.key], e)
+	x.byInstalled[installed] = e
 }
 
-// endKey ends every entry of a slot.
-func (x *pathIndex) endKey(key localPathKey) {
+// reconcile ends the entries of a slot whose installed path is not among
+// the paths the slot holds now.
+func (x *pathIndex) reconcile(key localPathKey, held []*table.Path) {
 	for _, e := range slices.Clone(x.byKey[key]) {
-		x.remove(e)
+		if !slices.Contains(held, e.installed) {
+			x.remove(e)
+		}
 	}
 }
 
@@ -126,15 +124,6 @@ func (x *pathIndex) endKey(key localPathKey) {
 func (x *pathIndex) endFamilies(families []bgp.Family) {
 	for _, e := range x.byUUID {
 		if slices.Contains(families, e.key.family) {
-			x.remove(e)
-		}
-	}
-}
-
-// endVrf ends the entries of paths written to a VRF.
-func (x *pathIndex) endVrf(name string) {
-	for _, e := range x.byUUID {
-		if e.vrf == name {
 			x.remove(e)
 		}
 	}
@@ -156,71 +145,108 @@ func (s *BgpServer) localPathsAt(p *table.Path, key localPathKey) []*table.Path 
 	return out
 }
 
-// noteWrites keeps the index right after paths were written to the global
-// table: a path takes the slot of the path it replaces, and a withdrawal
-// that leaves the slot empty ends its entries.
-func (s *BgpServer) noteWrites(paths []*table.Path) {
-	if s.pathIndex.len() == 0 {
-		return
+// propagateLocal writes local paths to the global table and keeps the index
+// right. With no entry in a path's slot, and nothing to capture, the paths
+// go to the table as one list, as before. Otherwise each path is written on
+// its own and its slot read after it, so that every transition of the slot
+// is seen. With capture, it returns for each path the path the table
+// installed for it, or nil when it installed none (a withdrawal, or a path
+// the import policy rejected).
+func (s *BgpServer) propagateLocal(paths []*table.Path, capture bool) []*table.Path {
+	if !capture && s.pathIndex.len() == 0 {
+		s.propagateUpdate(nil, paths)
+		return nil
 	}
-	for _, p := range paths {
+	var installed []*table.Path
+	if capture {
+		installed = make([]*table.Path, len(paths))
+	}
+	for i, p := range paths {
 		key := localPathKeyOf(p)
-		if len(s.pathIndex.byKey[key]) == 0 {
+		watched := len(s.pathIndex.byKey[key]) > 0
+		take := capture && !p.IsWithdraw
+		if !watched && !take {
+			s.propagateUpdate(nil, []*table.Path{p})
 			continue
 		}
-		if !p.IsWithdraw {
-			s.pathIndex.replaced(key)
-		} else if len(s.localPathsAt(p, key)) == 0 {
-			s.pathIndex.endKey(key)
+		var before []*table.Path
+		if take {
+			before = s.localPathsAt(p, key)
+		}
+		s.propagateUpdate(nil, []*table.Path{p})
+		after := s.localPathsAt(p, key)
+		if watched {
+			s.pathIndex.reconcile(key, after)
+		}
+		if take {
+			for _, rp := range after {
+				if !slices.Contains(before, rp) {
+					installed[i] = rp
+				}
+			}
 		}
 	}
+	return installed
 }
 
-// deleteByUUIDs returns the withdrawals of the paths of the UUIDs. A UUID
-// deletes every local path in its slot, as several can share one with
-// no_implicit_withdraw. A UUID whose slot is empty ends.
-func (s *BgpServer) deleteByUUIDs(ids []uuid.UUID) []*table.Path {
-	var withdrawals []*table.Path
+// deleteByUUIDs withdraws the paths of the UUIDs and reports whether it
+// found any. A UUID deletes every local path in the slot of its path, as
+// several can share one with no_implicit_withdraw. A UUID whose path is
+// gone ends and deletes nothing.
+func (s *BgpServer) deleteByUUIDs(ids []uuid.UUID) bool {
+	found := false
 	for _, id := range ids {
 		e, ok := s.pathIndex.byUUID[id]
 		if !ok {
 			continue
 		}
-		key := e.key
-		for _, rp := range s.localPathsAt(e.path, key) {
-			withdrawals = append(withdrawals, rp.Clone(true))
+		held := s.localPathsAt(e.installed, e.key)
+		if !slices.Contains(held, e.installed) {
+			s.pathIndex.remove(e)
+			continue
 		}
-		s.pathIndex.endKey(key)
+		found = true
+		withdrawals := make([]*table.Path, len(held))
+		for i, rp := range held {
+			withdrawals[i] = rp.Clone(true)
+		}
+		s.propagateLocal(withdrawals, false)
 	}
-	return withdrawals
+	return found
 }
 
-// uuidsOf returns, by slot, the UUIDs of the local paths of a family for
-// ListPath. With a filter the selected table is small and is read;
-// without, the index is. A slot shared by several UUIDs, with
-// no_implicit_withdraw, reports none.
-func (s *BgpServer) uuidsOf(rib *table.Table, family bgp.Family, filtered bool) map[localPathKey]uuid.UUID {
+// reconcileVrf ends the entries of paths written to a VRF that the table no
+// longer holds. DeleteVrf does not withdraw every family: a VPN FlowSpec
+// path outlives its VRF, and keeps its UUID.
+func (s *BgpServer) reconcileVrf(name string) {
+	for _, e := range s.pathIndex.byUUID {
+		if e.vrf == name && !slices.Contains(s.localPathsAt(e.installed, e.key), e.installed) {
+			s.pathIndex.remove(e)
+		}
+	}
+}
+
+// uuidsOf returns the UUIDs of the paths of a table selected from the global
+// table, by path, for ListPath. With a filter the selection is small and is
+// read; without, the index is.
+func (s *BgpServer) uuidsOf(rib *table.Table, family bgp.Family, filtered bool) map[*table.Path]uuid.UUID {
 	if s.pathIndex.len() == 0 || rib == nil {
 		return nil
 	}
-	ids := make(map[localPathKey]uuid.UUID)
+	ids := make(map[*table.Path]uuid.UUID)
 	if filtered {
 		for _, d := range rib.GetDestinations() {
 			for _, rp := range d.GetAllKnownPathList() {
-				if !rp.IsLocal() {
-					continue
-				}
-				key := localPathKeyOf(rp)
-				if l := s.pathIndex.byKey[key]; len(l) == 1 {
-					ids[key] = l[0].id
+				if e, ok := s.pathIndex.byInstalled[rp]; ok {
+					ids[rp] = e.id
 				}
 			}
 		}
 		return ids
 	}
-	for key, l := range s.pathIndex.byKey {
-		if key.family == family && len(l) == 1 {
-			ids[key] = l[0].id
+	for p, e := range s.pathIndex.byInstalled {
+		if e.key.family == family {
+			ids[p] = e.id
 		}
 	}
 	return ids
