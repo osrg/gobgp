@@ -943,7 +943,7 @@ func lookupNLRI(f bgp.Family, prefix netip.Prefix) bgp.NLRI {
 
 // checkNLRILookup returns an error when an NLRI lookup also names a prefix
 // string, a route distinguisher or a longer or shorter lookup, or when the
-// NLRI is not of family f: it must serialize and parse back as f.
+// NLRI is not of family f, as CheckNLRIFamily decides.
 func checkNLRILookup(f bgp.Family, p *apiutil.LookupPrefix) error {
 	if p.Prefix != "" || p.RD != "" {
 		return fmt.Errorf("a lookup by NLRI takes no prefix string and no route distinguisher")
