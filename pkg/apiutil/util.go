@@ -99,6 +99,10 @@ type LookupPrefix struct {
 	Prefix string
 	RD     string
 	LookupOption
+	// NLRI, when set, looks up the one destination it names, in any family.
+	// The lookup is exact; Prefix and RD must be empty and LookupOption
+	// LOOKUP_EXACT.
+	NLRI bgp.NLRI
 }
 
 // used by server.WatchEventMessages API
