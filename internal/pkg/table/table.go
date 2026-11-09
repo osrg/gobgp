@@ -955,17 +955,26 @@ func checkNLRILookup(f bgp.Family, p *apiutil.LookupPrefix) error {
 	return CheckNLRIFamily(f, p.NLRI)
 }
 
-// CheckNLRIFamily returns an error unless nlri is an NLRI of family f. The
-// prefix types are checked by type and address family, so that a labeled
-// NLRI needs no label to name its destination. Any other NLRI must
-// serialize, parse back as f, and serialize to the same bytes.
+// CheckNLRIFamily returns an error unless nlri is an NLRI of family f. It
+// checks the concrete type of the NLRI and its own address family, never a
+// byte round trip, which can decode one type as another: an IPv4
+// encapsulation endpoint parses as an IPv4 host prefix, and as an IPv6
+// encapsulation endpoint too. A type it does not know is refused.
 func CheckNLRIFamily(f bgp.Family, nlri bgp.NLRI) error {
-	mismatch := fmt.Errorf("the NLRI %s is not of the %s family", nlri, f)
-	byAddress := func(addr netip.Addr, v4, v6 []bgp.Family) error {
-		if addr.Is4() && slices.Contains(v4, f) || addr.Is6() && slices.Contains(v6, f) {
+	want := func(families ...bgp.Family) error {
+		if slices.Contains(families, f) {
 			return nil
 		}
-		return mismatch
+		return fmt.Errorf("the NLRI %s is not of the %s family", nlri, f)
+	}
+	byAddress := func(addr netip.Addr, v4, v6 []bgp.Family) error {
+		switch {
+		case addr.Is4():
+			return want(v4...)
+		case addr.Is6():
+			return want(v6...)
+		}
+		return want()
 	}
 	switch n := nlri.(type) {
 	case *bgp.IPAddrPrefix:
@@ -974,20 +983,54 @@ func CheckNLRIFamily(f bgp.Family, nlri bgp.NLRI) error {
 		return byAddress(n.Prefix.Addr(), []bgp.Family{bgp.RF_IPv4_MPLS}, []bgp.Family{bgp.RF_IPv6_MPLS})
 	case *bgp.LabeledVPNIPAddrPrefix:
 		return byAddress(n.Prefix.Addr(), []bgp.Family{bgp.RF_IPv4_VPN, bgp.RF_IPv4_VPN_MC}, []bgp.Family{bgp.RF_IPv6_VPN, bgp.RF_IPv6_VPN_MC})
+	case *bgp.EncapNLRI:
+		return byAddress(n.Endpoint, []bgp.Family{bgp.RF_IPv4_ENCAP}, []bgp.Family{bgp.RF_IPv6_ENCAP})
+	case *bgp.FlowSpecNLRI:
+		if err := want(n.Family()); err != nil {
+			return err
+		}
+		v6 := f.Afi() == bgp.AFI_IP6
+		for _, c := range n.Value {
+			switch c.(type) {
+			case *bgp.FlowSpecDestinationPrefix, *bgp.FlowSpecSourcePrefix:
+				if v6 {
+					return fmt.Errorf("the NLRI %s has an IPv4 prefix in the %s family", nlri, f)
+				}
+			case *bgp.FlowSpecDestinationPrefix6, *bgp.FlowSpecSourcePrefix6:
+				if !v6 {
+					return fmt.Errorf("the NLRI %s has an IPv6 prefix in the %s family", nlri, f)
+				}
+			}
+		}
+		return nil
+	case *bgp.EVPNNLRI:
+		return want(bgp.RF_EVPN)
+	case *bgp.VPLSNLRI:
+		return want(bgp.RF_VPLS)
+	case *bgp.RouteTargetMembershipNLRI:
+		return want(bgp.RF_RTC_UC)
+	case *bgp.LsAddrPrefix:
+		return want(bgp.RF_LS)
+	case *bgp.OpaqueNLRI:
+		return want(bgp.RF_OPAQUE)
+	case *bgp.MUPNLRI:
+		switch n.Afi {
+		case bgp.AFI_IP:
+			return want(bgp.RF_MUP_IPv4)
+		case bgp.AFI_IP6:
+			return want(bgp.RF_MUP_IPv6)
+		}
+		return want()
+	case *bgp.SRPolicyNLRI:
+		switch len(n.Endpoint) {
+		case 4:
+			return want(bgp.RF_SR_POLICY_IPv4)
+		case 16:
+			return want(bgp.RF_SR_POLICY_IPv6)
+		}
+		return want()
 	}
-	b, err := nlri.Serialize()
-	if err != nil {
-		return fmt.Errorf("invalid NLRI: %w", err)
-	}
-	parsed, err := bgp.NLRIFromSlice(f, b)
-	if err != nil {
-		return fmt.Errorf("the NLRI %s is not of the %s family: %w", nlri, f, err)
-	}
-	pb, err := parsed.Serialize()
-	if err != nil || !bytes.Equal(b, pb) {
-		return mismatch
-	}
-	return nil
+	return fmt.Errorf("an NLRI of type %T cannot be looked up", nlri)
 }
 
 // ContainsCIDR checks if one IPNet is a subnet of another.

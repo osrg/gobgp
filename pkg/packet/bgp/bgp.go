@@ -4763,6 +4763,11 @@ func (n *FlowSpecNLRI) RD() RouteDistinguisherInterface {
 	return n.rd
 }
 
+// Family returns the address family the NLRI was built or decoded for.
+func (n *FlowSpecNLRI) Family() Family {
+	return n.rf
+}
+
 func (n *FlowSpecNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	if len(data) < 1 {
 		return malformedAttrListErr("not all flowspec component bytes available")

@@ -160,4 +160,24 @@ func TestCheckNLRIFamily(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, CheckNLRIFamily(bgp.RF_FS_IPv4_UC, fs))
 	require.Error(t, CheckNLRIFamily(bgp.RF_IPv4_UC, fs))
+	require.Error(t, CheckNLRIFamily(bgp.RF_FS_IPv6_UC, fs))
+
+	// An IPv4 encapsulation endpoint serializes like an IPv4 host prefix
+	// and like an IPv6 endpoint; only its type and address decide.
+	encap4, err := bgp.NewEncapNLRI(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	require.NoError(t, CheckNLRIFamily(bgp.RF_IPv4_ENCAP, encap4))
+	require.Error(t, CheckNLRIFamily(bgp.RF_IPv6_ENCAP, encap4))
+	require.Error(t, CheckNLRIFamily(bgp.RF_IPv4_UC, encap4))
+	encap6, err := bgp.NewEncapNLRI(netip.MustParseAddr("2001:db8::1"))
+	require.NoError(t, err)
+	require.NoError(t, CheckNLRIFamily(bgp.RF_IPv6_ENCAP, encap6))
+	require.Error(t, CheckNLRIFamily(bgp.RF_IPv4_ENCAP, encap6))
+
+	// A unicast host prefix is not an encapsulation endpoint.
+	require.Error(t, CheckNLRIFamily(bgp.RF_IPv4_ENCAP, ucNLRI("192.0.2.1/32")))
+
+	tbl := selectTable(t, bgp.RF_IPv6_ENCAP)
+	_, err = tbl.Select(TableSelectOption{LookupPrefixes: []*apiutil.LookupPrefix{{NLRI: encap4}}})
+	require.Error(t, err, "Select refuses an IPv4 endpoint on the IPv6 table")
 }
