@@ -292,13 +292,33 @@ func (s *server) listPath(ctx context.Context, r *api.ListPathRequest, fn func(*
 		SortType:       r.SortType,
 		EnableFiltered: r.EnableFiltered,
 	}
+	for _, p := range r.Prefixes {
+		if p.GetNlri() == nil {
+			continue
+		}
+		if r.TableType == api.TableType_TABLE_TYPE_VRF {
+			return status.Error(codes.InvalidArgument, "a lookup by NLRI is not supported for a VRF table")
+		}
+	}
+	// A VRF table ignores prefix strings, as it always has.
 	if r.TableType != api.TableType_TABLE_TYPE_UNSPECIFIED && r.TableType != api.TableType_TABLE_TYPE_VRF {
 		for _, p := range r.Prefixes {
-			req.Prefixes = append(req.Prefixes, &apiutil.LookupPrefix{
+			lp := &apiutil.LookupPrefix{
 				Prefix:       p.Prefix,
 				RD:           p.Rd,
 				LookupOption: apiutil.LookupOptionFromAPI(p.Type),
-			})
+			}
+			if p.GetNlri() != nil {
+				nlri, err := apiutil.UnmarshalNLRI(family, p.Nlri)
+				if err != nil {
+					return status.Errorf(codes.InvalidArgument, "invalid NLRI for the %s family: %v", family, err)
+				}
+				if nlri == nil {
+					return status.Errorf(codes.InvalidArgument, "the NLRI is not of the %s family", family)
+				}
+				lp.NLRI = nlri
+			}
+			req.Prefixes = append(req.Prefixes, lp)
 		}
 	}
 

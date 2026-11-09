@@ -3415,6 +3415,30 @@ func (s *BgpServer) validateTable(r *table.Table) (v map[*table.Path]*table.Vali
 	return v
 }
 
+// checkLookupPrefixes refuses, with INVALID_ARGUMENT, a lookup by NLRI that
+// also names a prefix string or a route distinguisher, asks for a longer or
+// shorter lookup, is not of the family of the request, or reads a VRF table.
+func checkLookupPrefixes(r apiutil.ListPathRequest) error {
+	for _, p := range r.Prefixes {
+		if p == nil || p.NLRI == nil {
+			continue
+		}
+		if r.TableType == api.TableType_TABLE_TYPE_VRF {
+			return status.Error(codes.InvalidArgument, "a lookup by NLRI is not supported for a VRF table")
+		}
+		if p.Prefix != "" || p.RD != "" {
+			return status.Error(codes.InvalidArgument, "a lookup by NLRI takes no prefix string and no route distinguisher")
+		}
+		if p.LookupOption != apiutil.LOOKUP_EXACT {
+			return status.Error(codes.InvalidArgument, "a lookup by NLRI is exact; a longer or shorter lookup takes a prefix string")
+		}
+		if err := table.CheckNLRIFamily(r.Family, p.NLRI); err != nil {
+			return status.Error(codes.InvalidArgument, err.Error())
+		}
+	}
+	return nil
+}
+
 func (s *BgpServer) getRib(addr string, family bgp.Family, prefixes []*apiutil.LookupPrefix) (rib *table.Table, v map[*table.Path]*table.Validation, err error) {
 	err = s.mgmtOperation(func() error {
 		m := s.globalRib
@@ -3583,6 +3607,9 @@ func (s *BgpServer) getAdjRib(addr string, family bgp.Family, in bool, enableFil
 }
 
 func (s *BgpServer) ListPath(r apiutil.ListPathRequest, fn func(prefix bgp.NLRI, paths []*apiutil.Path)) error {
+	if err := checkLookupPrefixes(r); err != nil {
+		return err
+	}
 	in := false
 	family := r.Family
 

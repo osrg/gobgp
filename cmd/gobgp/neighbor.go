@@ -906,6 +906,16 @@ func showNeighborRib(r string, name string, args []string) error {
 	}
 
 	var filter []*api.TableLookupPrefix
+	if len(args) > 0 && args[0] == "nlri" {
+		// "nlri" takes the NLRI in the syntax of "rib add" and looks up
+		// that one destination, in any family.
+		path, err := parsePath(rf, args[1:])
+		if err != nil {
+			return err
+		}
+		filter = []*api.TableLookupPrefix{{Nlri: path.Nlri}}
+		args = nil
+	}
 	if len(args) > 0 {
 		target := args[0]
 		switch rf {

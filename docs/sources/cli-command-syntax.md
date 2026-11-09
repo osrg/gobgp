@@ -48,6 +48,8 @@ gobgp has the following subcommands.
 % gobgp global rib [-a <address family>]
 # show a specific route information
 % gobgp global rib [<prefix>|<host>] [rd <rd>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+# show the one destination an NLRI names, in any family; the NLRI takes the syntax of "rib add"
+% gobgp global rib nlri <nlri> [-a <address family>]
 # show table summary
 % gobgp global rib summary [-a <address family>]
 ```
@@ -158,6 +160,8 @@ The following options can be specified in the neighbor subcommand:
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [-a <address family>]
 # show a specific route in [local|adj-in|adj-out] table
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] [<prefix>|<host>] [rd <rd>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+# show the one destination an NLRI names in [local|adj-in|adj-out] table
+% gobgp neighbor <neighbor address> [local|adj-in|adj-out] nlri <nlri> [-a <address family>]
 # show table summary
 % gobgp neighbor <neighbor address> [local|adj-in|adj-out] summary [-a <address family>]
 # show RPKI detailed information in adj-in table

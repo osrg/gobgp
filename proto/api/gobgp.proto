@@ -335,6 +335,15 @@ message TableLookupPrefix {
   string prefix = 1;
   Type type = 2;
   string rd = 3;
+  // Optional. Looks up the one destination this NLRI names, in any family:
+  // an exact lookup by the identity the table keys the destination by (a
+  // label is not part of a labeled-unicast key), never a longest-prefix
+  // match. It is of the family of the request, its type is UNSPECIFIED or
+  // EXACT, and prefix and rd are empty; otherwise the request is refused with
+  // INVALID_ARGUMENT. Not supported for TABLE_TYPE_VRF. Servers that predate
+  // this field ignore it and read the entry as an empty prefix string, so a
+  // client matches answers to its keys by NLRI identity.
+  NLRI nlri = 4;
 }
 
 message ListPathRequest {
