@@ -63,6 +63,14 @@ func addrPrefixOnlySerialize(nlri bgp.NLRI) []byte {
 	return []byte(nlri.String())
 }
 
+// DestinationIdentity returns the identity the table keys the destination
+// of nlri by: two NLRIs of one family name the same destination exactly
+// when their identities are equal. A label is not part of it; the full
+// serialized form of a BGP-LS NLRI is.
+func DestinationIdentity(nlri bgp.NLRI) string {
+	return string(addrPrefixOnlySerialize(nlri))
+}
+
 func AddrPrefixOnlyCompare(a, b bgp.NLRI) int {
 	return bytes.Compare(addrPrefixOnlySerialize(a), addrPrefixOnlySerialize(b))
 }

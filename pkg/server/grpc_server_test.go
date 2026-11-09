@@ -633,8 +633,8 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 
 	id, err := uuid.FromBytes(resp.Uuid)
 	assert.NoError(err)
-	assert.Len(s.uuidMap, 1)
-	for _, v := range s.uuidMap {
+	assert.Equal(1, s.pathIndex.len())
+	for v := range s.pathIndex.byUUID {
 		assert.Equal(id, v)
 	}
 }

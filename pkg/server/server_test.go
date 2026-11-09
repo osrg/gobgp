@@ -1605,7 +1605,7 @@ func TestMonitor(test *testing.T) {
 	}
 	for {
 		// Waits for the initial route will be advertised.
-		rib, _, err := s.getRib("", bgp.RF_IPv4_UC, nil)
+		rib, _, _, err := s.getRib("", bgp.RF_IPv4_UC, nil)
 		if err != nil {
 			test.Error(err)
 		}
@@ -3814,12 +3814,12 @@ func TestAddDeletePath(t *testing.T) {
 	err = s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{r[0].UUID}})
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 0)
-	assert.Equal(t, len(s.uuidMap), 0)
+	assert.Equal(t, s.pathIndex.len(), 0)
 
 	r, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(p2)}})
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
-	assert.Equal(t, len(s.uuidMap), 1)
+	assert.Equal(t, s.pathIndex.len(), 1)
 	u := r[0].UUID
 
 	asPath := &api.Attribute{Attr: &api.Attribute_AsPath{AsPath: &api.AsPathAttribute{
@@ -3835,7 +3835,7 @@ func TestAddDeletePath(t *testing.T) {
 	r, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(p2)}})
 	assert.NoError(t, err)
 	assert.Equal(t, len(listRib(family)), 1)
-	assert.Equal(t, len(s.uuidMap), 1)
+	assert.Equal(t, s.pathIndex.len(), 1)
 	assert.NotEqual(t, u, r[0].UUID)
 }
 
