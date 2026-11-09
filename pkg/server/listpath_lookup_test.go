@@ -124,20 +124,23 @@ func TestListPathLookupByNLRIRefusals(t *testing.T) {
 	uc := lookupPath(t, bgp.RF_IPv4_UC, "10.0.0.0/8").Nlri
 	lu := lookupPath(t, bgp.RF_IPv4_MPLS, "10.0.0.0/8", 1).Nlri
 	evpn := &api.NLRI{Nlri: &api.NLRI_EvpnEthernetSegment{EvpnEthernetSegment: &api.EVPNEthernetSegmentRoute{Rd: nil, IpAddress: "10.0.0.1"}}}
+	encap4 := &api.NLRI{Nlri: &api.NLRI_Encapsulation{Encapsulation: &api.EncapsulationNLRI{Address: "192.0.2.1"}}}
 	global := api.TableType_TABLE_TYPE_GLOBAL
 	for name, tc := range map[string]struct {
 		family bgp.Family
 		table  api.TableType
 		key    *api.TableLookupPrefix
 	}{
-		"prefix with an NLRI":    {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: uc, Prefix: "10.0.0.0/8"}},
-		"rd with an NLRI":        {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: uc, Rd: "65000:1"}},
-		"longer with an NLRI":    {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: uc, Type: api.TableLookupPrefix_TYPE_LONGER}},
-		"shorter with an NLRI":   {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: uc, Type: api.TableLookupPrefix_TYPE_SHORTER}},
-		"labeled on unicast":     {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: lu}},
-		"unicast on labeled":     {bgp.RF_IPv4_MPLS, global, &api.TableLookupPrefix{Nlri: uc}},
-		"EVPN NLRI on unicast":   {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: evpn}},
-		"an NLRI on a VRF table": {bgp.RF_IPv4_UC, api.TableType_TABLE_TYPE_VRF, &api.TableLookupPrefix{Nlri: uc}},
+		"prefix with an NLRI":      {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: uc, Prefix: "10.0.0.0/8"}},
+		"rd with an NLRI":          {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: uc, Rd: "65000:1"}},
+		"longer with an NLRI":      {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: uc, Type: api.TableLookupPrefix_TYPE_LONGER}},
+		"shorter with an NLRI":     {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: uc, Type: api.TableLookupPrefix_TYPE_SHORTER}},
+		"labeled on unicast":       {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: lu}},
+		"unicast on labeled":       {bgp.RF_IPv4_MPLS, global, &api.TableLookupPrefix{Nlri: uc}},
+		"EVPN NLRI on unicast":     {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: evpn}},
+		"an NLRI on a VRF table":   {bgp.RF_IPv4_UC, api.TableType_TABLE_TYPE_VRF, &api.TableLookupPrefix{Nlri: uc}},
+		"IPv4 encap on IPv6 encap": {bgp.RF_IPv6_ENCAP, global, &api.TableLookupPrefix{Nlri: encap4}},
+		"IPv4 encap on unicast":    {bgp.RF_IPv4_UC, global, &api.TableLookupPrefix{Nlri: encap4}},
 	} {
 		_, err := listKeys(t, g, tc.family, tc.table, tc.key)
 		require.Equal(t, codes.InvalidArgument, status.Code(err), "%s: %v", name, err)
@@ -149,6 +152,16 @@ func TestListPathLookupByNLRIRefusals(t *testing.T) {
 		Prefixes:  []*apiutil.LookupPrefix{{NLRI: mustNLRI(t, lookupPath(t, bgp.RF_IPv4_MPLS, "10.0.0.0/8", 1))}},
 	}, func(bgp.NLRI, []*apiutil.Path) {})
 	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	nativeEncap, err := bgp.NewEncapNLRI(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	for _, family := range []bgp.Family{bgp.RF_IPv6_ENCAP, bgp.RF_IPv4_UC} {
+		err = s.ListPath(apiutil.ListPathRequest{
+			TableType: global,
+			Family:    family,
+			Prefixes:  []*apiutil.LookupPrefix{{NLRI: nativeEncap}},
+		}, func(bgp.NLRI, []*apiutil.Path) {})
+		require.Equal(t, codes.InvalidArgument, status.Code(err), "%s", family)
+	}
 }
 
 // On a large table, 1,000 keys cost less than one walk of the table.
