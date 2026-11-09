@@ -75,6 +75,9 @@
         connect-retry = 5 #unit of measurement is seconds
         hold-time = 9 #unit of measurement is seconds
         keepalive-interval = 3 #unit of measurement is seconds
+        # Start the first connection after Idle at once instead of after a
+        # random wait of up to 1 second, default: disabled.
+        #connect-at-once = true
     [neighbors.transport.config]
         passive-mode = true
         local-address = "192.168.10.1"
