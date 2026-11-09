@@ -77,14 +77,14 @@ type pathIndexEntry struct {
 // by its UUID finds its path gone, deletes nothing, and ends it.
 type pathIndex struct {
 	byUUID      map[uuid.UUID]*pathIndexEntry
-	byKey       map[localPathKey][]*pathIndexEntry
+	byKey       map[localPathKey]map[*pathIndexEntry]struct{}
 	byInstalled map[*table.Path]*pathIndexEntry
 }
 
 func newPathIndex() *pathIndex {
 	return &pathIndex{
 		byUUID:      make(map[uuid.UUID]*pathIndexEntry),
-		byKey:       make(map[localPathKey][]*pathIndexEntry),
+		byKey:       make(map[localPathKey]map[*pathIndexEntry]struct{}),
 		byInstalled: make(map[*table.Path]*pathIndexEntry),
 	}
 }
@@ -94,11 +94,11 @@ func (x *pathIndex) len() int { return len(x.byUUID) }
 func (x *pathIndex) remove(e *pathIndexEntry) {
 	delete(x.byUUID, e.id)
 	delete(x.byInstalled, e.installed)
-	l := slices.DeleteFunc(x.byKey[e.key], func(o *pathIndexEntry) bool { return o == e })
-	if len(l) == 0 {
-		delete(x.byKey, e.key)
-	} else {
-		x.byKey[e.key] = l
+	if set := x.byKey[e.key]; set != nil {
+		delete(set, e)
+		if len(set) == 0 {
+			delete(x.byKey, e.key)
+		}
 	}
 }
 
@@ -106,15 +106,28 @@ func (x *pathIndex) remove(e *pathIndexEntry) {
 func (x *pathIndex) add(id uuid.UUID, installed *table.Path, vrf string) {
 	e := &pathIndexEntry{id: id, key: localPathKeyOf(installed), installed: installed, vrf: vrf}
 	x.byUUID[id] = e
-	x.byKey[e.key] = append(x.byKey[e.key], e)
+	set := x.byKey[e.key]
+	if set == nil {
+		set = make(map[*pathIndexEntry]struct{})
+		x.byKey[e.key] = set
+	}
+	set[e] = struct{}{}
 	x.byInstalled[installed] = e
 }
 
 // reconcile ends the entries of a slot whose installed path is not among
-// the paths the slot holds now.
+// the paths the slot holds now. It is linear in the size of the slot.
 func (x *pathIndex) reconcile(key localPathKey, held []*table.Path) {
-	for _, e := range slices.Clone(x.byKey[key]) {
-		if !slices.Contains(held, e.installed) {
+	set := x.byKey[key]
+	if len(set) == 0 {
+		return
+	}
+	in := make(map[*table.Path]struct{}, len(held))
+	for _, p := range held {
+		in[p] = struct{}{}
+	}
+	for e := range set {
+		if _, ok := in[e.installed]; !ok {
 			x.remove(e)
 		}
 	}
@@ -146,9 +159,11 @@ func (s *BgpServer) localPathsAt(p *table.Path, key localPathKey) []*table.Path 
 }
 
 // propagateLocal writes local paths to the global table and keeps the index
-// right. With no entry in a path's slot, and nothing to capture, the paths
-// go to the table as one list, as before. Otherwise each path is written on
-// its own and its slot read after it, so that every transition of the slot
+// right. With an empty index and nothing to capture, the paths go to the
+// table as one list, as before. Otherwise the paths whose slot has no entry
+// still go as lists, in runs between the others, and only a path whose slot
+// has an entry, or whose installed path is captured, is written on its own
+// with its slot read after it, so that every transition of a watched slot
 // is seen. With capture, it returns for each path the path the table
 // installed for it, or nil when it installed none (a withdrawal, or a path
 // the import policy rejected).
@@ -161,17 +176,27 @@ func (s *BgpServer) propagateLocal(paths []*table.Path, capture bool) []*table.P
 	if capture {
 		installed = make([]*table.Path, len(paths))
 	}
+	run := 0
+	flush := func(end int) {
+		if run < end {
+			s.propagateUpdate(nil, paths[run:end])
+		}
+	}
 	for i, p := range paths {
 		key := localPathKeyOf(p)
 		watched := len(s.pathIndex.byKey[key]) > 0
 		take := capture && !p.IsWithdraw
 		if !watched && !take {
-			s.propagateUpdate(nil, []*table.Path{p})
 			continue
 		}
-		var before []*table.Path
+		flush(i)
+		run = i + 1
+		var before map[*table.Path]struct{}
 		if take {
-			before = s.localPathsAt(p, key)
+			before = make(map[*table.Path]struct{})
+			for _, rp := range s.localPathsAt(p, key) {
+				before[rp] = struct{}{}
+			}
 		}
 		s.propagateUpdate(nil, []*table.Path{p})
 		after := s.localPathsAt(p, key)
@@ -180,12 +205,13 @@ func (s *BgpServer) propagateLocal(paths []*table.Path, capture bool) []*table.P
 		}
 		if take {
 			for _, rp := range after {
-				if !slices.Contains(before, rp) {
+				if _, ok := before[rp]; !ok {
 					installed[i] = rp
 				}
 			}
 		}
 	}
+	flush(len(paths))
 	return installed
 }
 
@@ -210,7 +236,10 @@ func (s *BgpServer) deleteByUUIDs(ids []uuid.UUID) bool {
 		for i, rp := range held {
 			withdrawals[i] = rp.Clone(true)
 		}
-		s.propagateLocal(withdrawals, false)
+		// The whole slot is withdrawn, so its entries are reconciled once,
+		// after the list, not after each withdrawal.
+		s.propagateUpdate(nil, withdrawals)
+		s.pathIndex.reconcile(e.key, s.localPathsAt(e.installed, e.key))
 	}
 	return found
 }

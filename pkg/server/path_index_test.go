@@ -498,3 +498,95 @@ func TestUUIDOfVrfFlowSpecOutlivesTheVrf(t *testing.T) {
 	require.Empty(t, localPaths(t, s, bgp.RF_FS_IPv4_VPN))
 	require.Empty(t, localPaths(t, s, bgp.RF_FS_IPv6_VPN))
 }
+
+func benchIndexServer(b *testing.B) *BgpServer {
+	b.Helper()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(b, s.StartBgp(context.Background(), &api.StartBgpRequest{Global: &api.Global{Asn: 1, RouterId: "1.1.1.1", ListenPort: -1}}))
+	b.Cleanup(s.Stop)
+	return s
+}
+
+// hostPaths returns n /32 paths of 20.0.0.0/8 and beyond, offset by base,
+// as the table holds them.
+func hostPaths(base uint32, n int, withdraw bool) []*table.Path {
+	nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}
+	paths := make([]*table.Path, n)
+	for j := range paths {
+		a := base + uint32(j)
+		nlri, _ := bgp.NewIPAddrPrefix(netip.PrefixFrom(netip.AddrFrom4([4]byte{byte(a >> 24), byte(a >> 16), byte(a >> 8), byte(a)}), 32))
+		paths[j] = table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, withdraw, attrs, time.Now(), false)
+	}
+	return paths
+}
+
+// BenchmarkDeleteCoexistingSlot deletes by one UUID a slot of k coexisting
+// no_implicit_withdraw paths, each with its UUID: the whole slot is
+// withdrawn and its entries reconciled once.
+func BenchmarkDeleteCoexistingSlot(b *testing.B) {
+	for _, k := range []int{1, 10, 100, 1000} {
+		b.Run("k="+strconv.Itoa(k), func(b *testing.B) {
+			s := benchIndexServer(b)
+			for range b.N {
+				b.StopTimer()
+				var first uuid.UUID
+				for j := range k {
+					nh := netip.AddrFrom4([4]byte{10, 1, byte(j >> 8), byte(j)}).String()
+					id := addIndexed(b, s, "", indexPath(b, bgp.RF_IPv4_UC, "30.0.0.0/24", nh, noImplicitWithdraw))
+					if j == 0 {
+						first = id
+					}
+				}
+				b.StartTimer()
+				if err := deleteUUID(s, first); err != nil {
+					b.Fatal(err)
+				}
+			}
+			b.StopTimer()
+			if s.pathIndex.len() != 0 {
+				b.Fatalf("%d entries left", s.pathIndex.len())
+			}
+		})
+	}
+}
+
+// BenchmarkStreamWithIndex writes 10,000 new paths with AddPathStream to a
+// table of GOBGP_INDEX_TABLE_PATHS (default 1M) local paths, of which none,
+// one or all have a UUID. The written slots have no entry, so they go to the
+// table in runs; the cost of a non-empty index is the slot key of each path.
+func BenchmarkStreamWithIndex(b *testing.B) {
+	n := indexTablePaths(1000000)
+	for _, indexed := range []string{"none", "one", "all"} {
+		b.Run("index="+indexed, func(b *testing.B) {
+			s := benchIndexServer(b)
+			ctx := context.Background()
+			if indexed == "all" {
+				fillLocal(b, s, n)
+			} else {
+				for i := 0; i < n; i += 10000 {
+					require.NoError(b, s.addPathStream(ctx, "", hostPaths(uint32(20)<<24+uint32(i), min(10000, n-i), false)))
+				}
+				if indexed == "one" {
+					addIndexed(b, s, "", indexPath(b, bgp.RF_IPv4_UC, "30.0.0.0/32", "10.0.0.1"))
+				}
+			}
+			const batch = 10000
+			base := uint32(40) << 24
+			b.ResetTimer()
+			for range b.N {
+				add := hostPaths(base, batch, false)
+				if err := s.addPathStream(ctx, "", add); err != nil {
+					b.Fatal(err)
+				}
+				b.StopTimer()
+				require.NoError(b, s.addPathStream(ctx, "", hostPaths(base, batch, true)))
+				b.StartTimer()
+			}
+			b.StopTimer()
+			b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*batch), "ns/path")
+			b.ReportMetric(float64(s.pathIndex.len()), "index-entries")
+		})
+	}
+}
