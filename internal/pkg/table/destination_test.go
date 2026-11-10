@@ -20,6 +20,7 @@ import (
 
 	"fmt"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDestinationNewIPv4(t *testing.T) {
@@ -545,7 +547,7 @@ func TestDestination_Select_MultiPathExcludesLLGRStale(t *testing.T) {
 	d.Calculate(logger, stale, oc.RouteSelectionOptionsConfig{})
 	d.Calculate(logger, fresh, oc.RouteSelectionOptionsConfig{})
 
-	assert.Equal(t, []*Path{fresh}, d.GetMultiBestPath(GLOBAL_RIB_NAME))
+	assert.Equal(t, []*Path{fresh}, d.GetMultiBestPath(GLOBAL_RIB_NAME, false))
 
 	selected := d.Select(DestinationSelectOption{Best: true, MultiPath: true})
 	assert.NotNil(t, selected)
@@ -686,7 +688,7 @@ func BenchmarkMultiPath(b *testing.B) {
 		}
 		for range b.N {
 			b.StartTimer()
-			d.GetMultiBestPath(GLOBAL_RIB_NAME)
+			d.GetMultiBestPath(GLOBAL_RIB_NAME, false)
 			b.StopTimer()
 		}
 	})
@@ -965,4 +967,82 @@ func TestGetChanges_NonKeyNlriOrNexthopOnlyChange(t *testing.T) {
 	u4, _ := d.Calculate(logger, p4, oc.RouteSelectionOptionsConfig{})
 	best4, _, _ := u4.GetChanges(GLOBAL_RIB_NAME, 0, false, false)
 	assert.Nil(t, best4, "identical re-add should stay suppressed")
+}
+
+// newNeighborASTestPath returns an eBGP path for nlri from peer in peerAS,
+// with the AS path "peerAS 100".
+func newNeighborASTestPath(nlri bgp.NLRI, peerAS uint32, peer, nh string) *Path {
+	aspath := bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{peerAS, 100})})
+	nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(nh))
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), aspath, nexthop}
+	msg := bgp.NewBGPUpdateMessage(nil, attrs, []bgp.PathNLRI{{NLRI: nlri}})
+	pi := &PeerInfo{AS: peerAS, LocalAS: 65000, Address: netip.MustParseAddr(peer), ID: netip.MustParseAddr(peer)}
+	return ProcessMessage(msg, pi, time.Now(), false)[0]
+}
+
+// TestMultipathSameNeighborAS checks that eBGP paths from different neighbor
+// ASes are combined only without the multipath-same-neighbor-as option
+// (issue #3864).
+func TestMultipathSameNeighborAS(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	mk := func(peerAS uint32, peer, nh string) *Path {
+		return newNeighborASTestPath(nlri, peerAS, peer, nh)
+	}
+
+	for _, sameNeighborAS := range []bool{false, true} {
+		t.Run(fmt.Sprintf("sameNeighborAS=%v", sameNeighborAS), func(t *testing.T) {
+			opts := oc.RouteSelectionOptionsConfig{MultipathSameNeighborAs: sameNeighborAS}
+			p1 := mk(65001, "1.1.1.1", "192.168.0.1")
+			p2 := mk(65002, "2.2.2.2", "192.168.0.2")
+			p3 := mk(65001, "3.3.3.3", "192.168.0.3")
+
+			d := newDestination(nlri, 0)
+			d.Calculate(logger, p1, opts)
+			u, _ := d.Calculate(logger, p2, opts)
+			_, _, multi := u.GetChanges(GLOBAL_RIB_NAME, 0, false, true)
+			update, _ := u.GetMultiBestPathDiff(GLOBAL_RIB_NAME)
+			if sameNeighborAS {
+				// The second path is from another neighbor AS, so the
+				// multipath set does not change.
+				assert.Nil(t, multi)
+				assert.Empty(t, update)
+			} else {
+				assert.ElementsMatch(t, []*Path{p1, p2}, multi)
+				assert.Equal(t, []*Path{p2}, update)
+			}
+
+			// The path from the other neighbor AS sorts between the two
+			// paths from the neighbor AS of the best path.
+			u, _ = d.Calculate(logger, p3, opts)
+			_, _, multi = u.GetChanges(GLOBAL_RIB_NAME, 0, false, true)
+			require.NotEmpty(t, u.KnownPathList)
+			bestAS := u.KnownPathList[0].GetSource().AS
+			want := []*Path{p1, p2, p3}
+			if sameNeighborAS {
+				want = slices.DeleteFunc(want, func(p *Path) bool { return p.GetSource().AS != bestAS })
+				assert.Len(t, want, 2)
+			}
+			assert.ElementsMatch(t, want, multi)
+			assert.ElementsMatch(t, want, d.GetMultiBestPath(GLOBAL_RIB_NAME, sameNeighborAS))
+		})
+	}
+}
+
+// TestTableManagerMultipathSameNeighborAS checks that the table manager
+// passes its multipath-same-neighbor-as option to the multipath selection.
+func TestTableManagerMultipathSameNeighborAS(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	for _, tc := range []struct {
+		sameNeighborAS bool
+		want           int
+	}{{false, 2}, {true, 1}} {
+		tm := NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC},
+			oc.RouteSelectionOptionsConfig{MultipathSameNeighborAs: tc.sameNeighborAS},
+			oc.UseMultiplePathsConfig{Enabled: true})
+		tm.Update(newNeighborASTestPath(nlri, 65001, "1.1.1.1", "192.168.0.1"))
+		tm.Update(newNeighborASTestPath(nlri, 65002, "2.2.2.2", "192.168.0.2"))
+		multi := tm.GetBestMultiPathList(GLOBAL_RIB_NAME, []bgp.Family{bgp.RF_IPv4_UC})
+		require.Len(t, multi, 1)
+		assert.Len(t, multi[0], tc.want, "sameNeighborAS=%v", tc.sameNeighborAS)
+	}
 }
