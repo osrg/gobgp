@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"net/netip"
 	"testing"
 	"time"
@@ -22,6 +23,39 @@ func TestRTCRepeatedLearnedMembershipDoesNotReflect(t *testing.T) {
 
 	s.propagateUpdate(source, []*table.Path{p.Clone(false)})
 	requireNoRTCPropagationTestMessage(t, target)
+}
+
+// A cached next-hop update changes reachability without changing attributes.
+// The internal update boundary must reflect the resulting selection and recovery.
+func TestRTCCachedNexthopChangesPropagate(t *testing.T) {
+	s, source, target := newRTCPropagationTestServer(t)
+	p := rtcPropagationTestPath(t, source, 0)
+	s.propagateUpdate(source, []*table.Path{p})
+	requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.1", 0, false)
+
+	other := newPeerandInfo(t, 25046, 65001, "10.0.0.3", s.globalRib)
+	t.Cleanup(func() { cleanInfiniteChannel(other.fsm.outgoingCh) })
+	other.policy = s.policy
+	s.propagateUpdate(other, []*table.Path{rtcPropagationTestPath(t, other, 100)})
+	requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.1", 0, false)
+
+	cache := nexthopStateCache{netip.MustParseAddr("10.0.0.1"): math.MaxUint32}
+	invalid := cache.applyToPathList([]*table.Path{p})
+	require.Len(t, invalid, 1)
+	require.NoError(t, s.updatePath("", invalid))
+	best := s.globalRib.GetDestination(p).GetBestPath(table.GLOBAL_RIB_NAME, 0)
+	require.NotNil(t, best)
+	require.Equal(t, netip.MustParseAddr("10.0.0.3"), best.GetSource().Address)
+	requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 100, false)
+
+	cache[netip.MustParseAddr("10.0.0.1")] = 0
+	recovered := cache.applyToPathList(invalid)
+	require.Len(t, recovered, 1)
+	require.NoError(t, s.updatePath("", recovered))
+	best = s.globalRib.GetDestination(p).GetBestPath(table.GLOBAL_RIB_NAME, 0)
+	require.NotNil(t, best)
+	require.Equal(t, netip.MustParseAddr("10.0.0.1"), best.GetSource().Address)
+	requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.1", 0, false)
 }
 
 func TestRTCRealMembershipChangesPropagate(t *testing.T) {
