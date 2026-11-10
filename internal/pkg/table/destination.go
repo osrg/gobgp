@@ -311,7 +311,12 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path, selection
 	var oldPath *Path
 	if newPath.IsWithdraw {
 		oldPath = dest.explicitWithdraw(logger, newPath)
-		if oldPath != nil && newPath.IsDropped() {
+		// The local path ID stays reserved while the path can come back
+		// with it: a path in an Adj-RIB-In that the import policy rejects
+		// is installed again by a soft reset. A locally originated path has
+		// no Adj-RIB-In, so nothing can bring it back, and an ID kept for
+		// it would also keep the empty destination in the table.
+		if oldPath != nil && (newPath.IsDropped() || oldPath.IsLocal()) {
 			if id := oldPath.localID; id != 0 {
 				dest.localIdMap.Unflag(uint(id))
 			}

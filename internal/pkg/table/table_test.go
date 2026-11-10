@@ -217,6 +217,74 @@ func TestTableDeleteDestKeepsDestinationWhilePathIDsReserved(t *testing.T) {
 	assert.NotNil(t, gdest)
 }
 
+// TestTableWithdrawReleasesDestination checks that the destination of a
+// withdrawn path leaves the table, unless the path ID stays reserved because
+// the path is still in an Adj-RIB-In.
+func TestTableWithdrawReleasesDestination(t *testing.T) {
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}
+	peer := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("192.0.2.1"), ID: netip.MustParseAddr("192.0.2.1")}
+
+	tests := []struct {
+		name     string
+		source   *PeerInfo
+		withdraw func(installed *Path) *Path
+		keep     bool
+	}{
+		{
+			name:   "local path, withdrawal built from the prefix",
+			source: nil,
+			withdraw: func(installed *Path) *Path {
+				return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: installed.GetNlri()}, true, attrs, time.Now(), false)
+			},
+		},
+		{
+			name:     "local path, withdrawal cloned from the installed path",
+			source:   nil,
+			withdraw: func(installed *Path) *Path { return installed.Clone(true) },
+		},
+		{
+			name:   "peer path removed from the Adj-RIB-In",
+			source: peer,
+			withdraw: func(installed *Path) *Path {
+				w := installed.Clone(true)
+				w.SetDropped(true)
+				return w
+			},
+		},
+		{
+			name:     "peer path rejected by the import policy",
+			source:   peer,
+			withdraw: func(installed *Path) *Path { return installed.Clone(true) },
+			keep:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tbl := NewTable(logger, bgp.RF_IPv4_UC)
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.1/32"))
+			require.NoError(t, err)
+			path := NewPath(bgp.RF_IPv4_UC, tt.source, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+			require.NotNil(t, tbl.update(path, oc.RouteSelectionOptionsConfig{}))
+			require.NotZero(t, path.LocalID())
+
+			require.NotNil(t, tbl.update(tt.withdraw(path), oc.RouteSelectionOptionsConfig{}))
+
+			n := 0
+			shards := tbl.destinations.loadShards()
+			for i := range shards {
+				n += len(shards[i].mp)
+			}
+			if tt.keep {
+				assert.Equal(t, 1, n, "the destination must keep the reserved path ID")
+			} else {
+				assert.Zero(t, n, "the empty destination stays in the table")
+			}
+		})
+	}
+}
+
 func TestTableGetFamily(t *testing.T) {
 	ipv4t := NewTable(logger, bgp.RF_IPv4_UC)
 	rf := ipv4t.GetFamily()
