@@ -56,13 +56,13 @@ def lookup_scenario(name):
 
 
 @register_scenario
-class ImportPolicy(object):
+class ExportPolicy(object):
     """
-    No.1 import-policy test
+    No.2 export-policy test
                             --------------------------------
-    e1 ->(192.168.2.0/24)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
+    e1 ->(192.168.2.0/24)-> | -> q1-rib ->  q1-adj-rib-out | --> q1
                             |                              |
-                            | ->x q2-rib                   |
+                            | -> q2-rib ->x q2-adj-rib-out |
                             --------------------------------
     """
     @staticmethod
@@ -124,169 +124,9 @@ class ImportPolicy(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicy").boot(env)
-        lookup_scenario("ImportPolicy").setup(env)
-        lookup_scenario("ImportPolicy").check(env)
-
-
-@register_scenario
-class ExportPolicy(object):
-    """
-    No.2 export-policy test
-                            --------------------------------
-    e1 ->(192.168.2.0/24)-> | -> q1-rib ->  q1-adj-rib-out | --> q1
-                            |                              |
-                            | -> q2-rib ->x q2-adj-rib-out |
-                            --------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy prefix add ps0 192.168.0.0/16 16..24')
-        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add condition prefix ps0')
-        g1.local('gobgp policy statement st0 add condition neighbor ns0')
-        g1.local('gobgp policy statement st0 add action reject')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        # this will be blocked
-        e1.add_route('192.168.2.0/24')
-        # this will pass
-        e1.add_route('192.168.2.0/15')
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        g1 = env.g1
-        q1 = env.q1
-        q2 = env.q2
-        wait_for(lambda: len(g1.get_local_rib(q1)) == 2)
-        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 2)
-        wait_for(lambda: len(q1.get_global_rib()) == 2)
-        wait_for(lambda: len(g1.get_local_rib(q2)) == 2)
-        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
-        wait_for(lambda: len(q2.get_global_rib()) == 1)
-
-    @staticmethod
-    def executor(env):
         lookup_scenario("ExportPolicy").boot(env)
         lookup_scenario("ExportPolicy").setup(env)
         lookup_scenario("ExportPolicy").check(env)
-
-
-@register_scenario
-class ImportPolicyUpdate(object):
-    """
-    No.3 import-policy update test
-
-    r1:192.168.2.0/24
-    r2:192.168.20.0/24
-    r3:192.168.200.0/24
-                      -------------------------------------------------
-                      | q1                                            |
-    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                      |                                               |
-                      | q2                                            |
-                      | ->(r1)->       rib ->(r1)->       adj-rib-out | ->(r1)-> q2
-                      -------------------------------------------------
-                 |
-         update gobgp.conf
-                 |
-                 V
-                      -------------------------------------------------
-                      | q1                                            |
-    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                      |                                               |
-                      | q2                                            |
-                      | ->(r1,r3)->    rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
-                      -------------------------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy prefix add ps0 192.168.20.0/24')
-        g1.local('gobgp policy prefix add ps0 192.168.200.0/24')
-        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add condition prefix ps0')
-        g1.local('gobgp policy statement st0 add condition neighbor ns0')
-        g1.local('gobgp policy statement st0 add action reject')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('192.168.2.0/24')
-        e1.add_route('192.168.20.0/24')
-        e1.add_route('192.168.200.0/24')
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        g1 = env.g1
-        # e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-        wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
-        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 3)
-        wait_for(lambda: len(q1.get_global_rib()) == 3)
-        wait_for(lambda: len(g1.get_local_rib(q2)) == 3)
-        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
-        wait_for(lambda: len(q2.get_global_rib()) == 1)
-
-    @staticmethod
-    def setup2(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
-        g1.reset(e1)
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        # e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-        wait_for(lambda: len(g1.get_local_rib(q1)) == 3)
-        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 3)
-        wait_for(lambda: len(q1.get_global_rib()) == 3)
-        wait_for(lambda: len(g1.get_local_rib(q2)) == 3)
-        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 2)
-        wait_for(lambda: len(q2.get_global_rib()) == 2)
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyUpdate").boot(env)
-        lookup_scenario("ImportPolicyUpdate").setup(env)
-        lookup_scenario("ImportPolicyUpdate").check(env)
-        lookup_scenario("ImportPolicyUpdate").setup2(env)
-        lookup_scenario("ImportPolicyUpdate").check2(env)
 
 
 @register_scenario
@@ -318,7 +158,7 @@ class ExportPolicyUpdate(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -365,8 +205,7 @@ class ExportPolicyUpdate(object):
         q2 = env.q2
 
         g1.local('gobgp policy prefix del ps0 192.168.200.0/24')
-        # we need hard reset to flush q2's local rib
-        g1.reset(e1)
+        g1.softreset(q2, type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -460,16 +299,16 @@ class ExportPolicyUpdateRouteRefresh(object):
 
 
 @register_scenario
-class ImportPolicyIPV6(object):
+class ExportPolicyIPV6(object):
     """
-    No.5 IPv6 import-policy test
+    No.6 IPv6 export-policy test
 
     r1=2001::/64
     r2=2001::/63
                    -------------------------------------------------
     e1 ->(r1,r2)-> | ->(r1,r2)-> q1-rib ->(r1,r2)-> q1-adj-rib-out | ->(r1,r2)-> q1
                    |                                               |
-                   | ->(r2)   -> q2-rib ->(r2)   -> q2-adj-rib-out | ->(r2)-> q2
+                   | ->(r1,r2)-> q2-rib ->(r2)   -> q2-adj-rib-out | ->(r2)-> q2
                    -------------------------------------------------
     """
     @staticmethod
@@ -534,160 +373,9 @@ class ImportPolicyIPV6(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyIPV6").boot(env)
-        lookup_scenario("ImportPolicyIPV6").setup(env)
-        lookup_scenario("ImportPolicyIPV6").check(env)
-
-
-@register_scenario
-class ExportPolicyIPV6(object):
-    """
-    No.6 IPv6 export-policy test
-
-    r1=2001::/64
-    r2=2001::/63
-                   -------------------------------------------------
-    e1 ->(r1,r2)-> | ->(r1,r2)-> q1-rib ->(r1,r2)-> q1-adj-rib-out | ->(r1,r2)-> q1
-                   |                                               |
-                   | ->(r1,r2)-> q2-rib ->(r2)   -> q2-adj-rib-out | ->(r2)-> q2
-                   -------------------------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario('ImportPolicyIPV6').boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy prefix add ps0 2001::/32 64..128')
-        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add condition prefix ps0')
-        g1.local('gobgp policy statement st0 add condition neighbor ns0')
-        g1.local('gobgp policy statement st0 add action reject')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        # this will be blocked
-        e1.add_route('2001::/64', rf='ipv6')
-        # this will pass
-        e1.add_route('2001::/63', rf='ipv6')
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 2)
-        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 2)
-        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 2)
-        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 2)
-        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
-        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
-
-    @staticmethod
-    def executor(env):
         lookup_scenario("ExportPolicyIPV6").boot(env)
         lookup_scenario("ExportPolicyIPV6").setup(env)
         lookup_scenario("ExportPolicyIPV6").check(env)
-
-
-@register_scenario
-class ImportPolicyIPV6Update(object):
-    """
-    No.7 IPv6 import-policy update test
-    r1=2001:0:10:2::/64
-    r2=2001:0:10:20::/64
-    r3=2001:0:10:200::/64
-                      -------------------------------------------------
-                      | q1                                            |
-    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                      |                                               |
-                      | q2                                            |
-                      | ->(r1)->       rib ->(r1)->       adj-rib-out | ->(r1)-> q2
-                      -------------------------------------------------
-                 |
-         update gobgp.conf
-                 |
-                 V
-                      -------------------------------------------------
-                      | q1                                            |
-    e1 ->(r1,r2,r3)-> | ->(r1,r2,r3)-> rib ->(r1,r2,r3)-> adj-rib-out | ->(r1,r2,r3)-> q1
-                      |                                               |
-                      | q2                                            |
-                      | ->(r1,r3)->    rib ->(r1,r3)->    adj-rib-out | ->(r1,r3)-> q2
-                      -------------------------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario('ImportPolicyIPV6').boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy prefix add ps0 2001:0:10:2::/64')
-        g1.local('gobgp policy prefix add ps0 2001:0:10:20::/64')
-        g1.local('gobgp policy neighbor add ns0 {0}'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add condition prefix ps0')
-        g1.local('gobgp policy statement st0 add condition neighbor ns0')
-        g1.local('gobgp policy statement st0 add action reject')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('2001:0:10:2::/64', rf='ipv6')
-        e1.add_route('2001:0:10:20::/64', rf='ipv6')
-        e1.add_route('2001:0:10:200::/64', rf='ipv6')
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
-        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
-        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
-        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 3)
-        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 1)
-        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 1)
-
-    @staticmethod
-    def setup2(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy prefix del ps0 2001:0:10:20::/64')
-        g1.reset(e1)
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check2(env):
-        wait_for(lambda: len(env.g1.get_local_rib(env.q1, rf='ipv6')) == 3)
-        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q1, rf='ipv6')) == 3)
-        wait_for(lambda: len(env.q1.get_global_rib(rf='ipv6')) == 3)
-        wait_for(lambda: len(env.g1.get_local_rib(env.q2, rf='ipv6')) == 3)
-        wait_for(lambda: len(env.g1.get_adj_rib_out(env.q2, rf='ipv6')) == 2)
-        wait_for(lambda: len(env.q2.get_global_rib(rf='ipv6')) == 2)
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyIPV6Update").boot(env)
-        lookup_scenario("ImportPolicyIPV6Update").setup(env)
-        lookup_scenario("ImportPolicyIPV6Update").check(env)
-        lookup_scenario("ImportPolicyIPV6Update").setup2(env)
-        lookup_scenario("ImportPolicyIPV6Update").check2(env)
 
 
 @register_scenario
@@ -718,7 +406,7 @@ class ExportPolicyIPv6Update(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicyIPV6').boot(env)
+        lookup_scenario('ExportPolicyIPV6').boot(env)
 
     @staticmethod
     def setup(env):
@@ -761,7 +449,7 @@ class ExportPolicyIPv6Update(object):
         q2 = env.q2
 
         g1.local('gobgp policy prefix del ps0 2001:0:10:20::/64')
-        g1.reset(e1)
+        g1.softreset(q2, rf='ipv6', type='out')
 
         for c in [e1, q1, q2]:
             g1.wait_for(BGP_FSM_ESTABLISHED, c)
@@ -785,18 +473,18 @@ class ExportPolicyIPv6Update(object):
 
 
 @register_scenario
-class ImportPolicyAsPathLengthCondition(object):
+class ExportPolicyAsPathLengthCondition(object):
     """
-    No.9 aspath length condition import-policy test
+    No.9 aspath length condition export-policy test
                               --------------------------------
     e1 ->(aspath_length=10)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                               |                              |
-                              | ->x q2-rib                   |
+                              | -> q2-rib ->x q2-adj-rib-out |
                               --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -834,24 +522,24 @@ class ImportPolicyAsPathLengthCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathLengthCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathLengthCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathLengthCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathLengthCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathLengthCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathLengthCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathCondition(object):
+class ExportPolicyAsPathCondition(object):
     """
-    No.10 aspath from condition import-policy test
+    No.10 aspath from condition export-policy test
                                 --------------------------------
     e1 ->(aspath=[65100,...])-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                 |                              |
-                                | ->x q2-rib                   |
+                                | -> q2-rib ->x q2-adj-rib-out |
                                 --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -878,28 +566,28 @@ class ImportPolicyAsPathCondition(object):
     @staticmethod
     def check(env):
         # same check function as previous No.1 scenario
-        lookup_scenario("ImportPolicy").check(env)
+        lookup_scenario("ExportPolicy").check(env)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathAnyCondition(object):
+class ExportPolicyAsPathAnyCondition(object):
     """
-    No.11 aspath any condition import-policy test
+    No.11 aspath any condition export-policy test
                                    --------------------------------
     e1 ->(aspath=[...65098,...])-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                    |                              |
-                                   | ->x q2-rib                   |
+                                   | -> q2-rib ->x q2-adj-rib-out |
                                    --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -926,28 +614,28 @@ class ImportPolicyAsPathAnyCondition(object):
     @staticmethod
     def check(env):
         # same check function as previous No.1 scenario
-        lookup_scenario("ImportPolicy").check(env)
+        lookup_scenario("ExportPolicy").check(env)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathAnyCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathAnyCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathAnyCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathAnyCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathAnyCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathAnyCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathOriginCondition(object):
+class ExportPolicyAsPathOriginCondition(object):
     """
-    No.12 aspath origin condition import-policy test
+    No.12 aspath origin condition export-policy test
                                 --------------------------------
     e1 ->(aspath=[...,65090])-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                 |                              |
-                                | ->x q2-rib                   |
+                                | -> q2-rib ->x q2-adj-rib-out |
                                 --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -974,28 +662,28 @@ class ImportPolicyAsPathOriginCondition(object):
     @staticmethod
     def check(env):
         # same check function as previous No.1 scenario
-        lookup_scenario("ImportPolicy").check(env)
+        lookup_scenario("ExportPolicy").check(env)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathOriginCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathOriginCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathOriginCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathOriginCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathOriginCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathOriginCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathOnlyCondition(object):
+class ExportPolicyAsPathOnlyCondition(object):
     """
-    No.13 aspath only condition import-policy test
+    No.13 aspath only condition export-policy test
                               --------------------------------
     e1 -> (aspath=[65100]) -> | ->  q1-rib -> q1-adj-rib-out | --> q1
                               |                              |
-                              | ->x q2-rib                   |
+                              | -> q2-rib ->x q2-adj-rib-out |
                               --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -1022,19 +710,19 @@ class ImportPolicyAsPathOnlyCondition(object):
     @staticmethod
     def check(env):
         # same check function as previous No.1 scenario
-        lookup_scenario("ImportPolicy").check(env)
+        lookup_scenario("ExportPolicy").check(env)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathOnlyCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathOnlyCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathOnlyCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathOnlyCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathOnlyCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathOnlyCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyAsPathMismatchCondition(object):
+class ExportPolicyAsPathMismatchCondition(object):
     """
-    No.14 aspath condition mismatch import-policy test
+    No.14 aspath condition mismatch export-policy test
                                    -------------------------------
     exabgp ->(aspath=[...,65090])->| -> q1-rib -> q1-adj-rib-out | --> q1
                                    |                             |
@@ -1044,7 +732,7 @@ class ImportPolicyAsPathMismatchCondition(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -1083,24 +771,24 @@ class ImportPolicyAsPathMismatchCondition(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyAsPathMismatchCondition").boot(env)
-        lookup_scenario("ImportPolicyAsPathMismatchCondition").setup(env)
-        lookup_scenario("ImportPolicyAsPathMismatchCondition").check(env)
+        lookup_scenario("ExportPolicyAsPathMismatchCondition").boot(env)
+        lookup_scenario("ExportPolicyAsPathMismatchCondition").setup(env)
+        lookup_scenario("ExportPolicyAsPathMismatchCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyCommunityCondition(object):
+class ExportPolicyCommunityCondition(object):
     """
-    No.15 community condition import-policy test
+    No.15 community condition export-policy test
                                 --------------------------------
     e1 ->(community=65100:10)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                 |                              |
-                                | ->x q2-rib                   |
+                                | -> q2-rib ->x q2-adj-rib-out |
                                 --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -1126,28 +814,28 @@ class ImportPolicyCommunityCondition(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario("ImportPolicy").check(env)
+        lookup_scenario("ExportPolicy").check(env)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyCommunityCondition").boot(env)
-        lookup_scenario("ImportPolicyCommunityCondition").setup(env)
-        lookup_scenario("ImportPolicyCommunityCondition").check(env)
+        lookup_scenario("ExportPolicyCommunityCondition").boot(env)
+        lookup_scenario("ExportPolicyCommunityCondition").setup(env)
+        lookup_scenario("ExportPolicyCommunityCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyCommunityRegexp(object):
+class ExportPolicyCommunityRegexp(object):
     """
-    No.16 community condition regexp import-policy test
+    No.16 community condition regexp export-policy test
                                 --------------------------------
     e1 ->(community=65100:10)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                 |                              |
-                                | ->x q2-rib                   |
+                                | -> q2-rib ->x q2-adj-rib-out |
                                 --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -1172,13 +860,13 @@ class ImportPolicyCommunityRegexp(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario("ImportPolicy").check(env)
+        lookup_scenario("ExportPolicy").check(env)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyCommunityRegexp").boot(env)
-        lookup_scenario("ImportPolicyCommunityRegexp").setup(env)
-        lookup_scenario("ImportPolicyCommunityRegexp").check(env)
+        lookup_scenario("ExportPolicyCommunityRegexp").boot(env)
+        lookup_scenario("ExportPolicyCommunityRegexp").setup(env)
+        lookup_scenario("ExportPolicyCommunityRegexp").check(env)
 
 
 def community_exists(path, com):
@@ -1191,146 +879,19 @@ def community_exists(path, com):
 
 
 @register_scenario
-class ImportPolicyCommunityAction(object):
+class ExportPolicyCommunityRemoveMultipleRoutes(object):
     """
-    No.17 community add action import-policy test
-                                -------------------------------
-    e1 ->(community=65100:10)-> | -> q1-rib -> q1-adj-rib-out | ->(community=65100:10)->          q1
-                                |                             |
-                                | -> q2-rib -> q2-adj-rib-out | ->(community=65100:10,65100:20)-> q2
-                                |    apply action             |
-                                -------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-        g1.local('gobgp policy community add cs0 65100:10')
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add condition community cs0')
-        g1.local('gobgp policy statement st0 add action accept')
-        g1.local('gobgp policy statement st0 add action community add 65100:20')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('192.168.100.0/24', community=['65100:10'])
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        g1 = env.g1
-        # e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-        wait_for(lambda: len(g1.get_local_rib(q1)) == 1)
-        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 1)
-        wait_for(lambda: len(q1.get_global_rib()) == 1)
-        wait_for(lambda: len(g1.get_local_rib(q2)) == 1)
-        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
-        wait_for(lambda: len(q2.get_global_rib()) == 1)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        q1 = env.q1
-        q2 = env.q2
-        path = g1.get_adj_rib_out(q1)[0]
-        assert community_exists(path, '65100:10')
-        assert not community_exists(path, '65100:20')
-        path = g1.get_adj_rib_out(q2)[0]
-        assert community_exists(path, '65100:10')
-        assert community_exists(path, '65100:20')
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyCommunityAction").boot(env)
-        lookup_scenario("ImportPolicyCommunityAction").setup(env)
-        lookup_scenario("ImportPolicyCommunityAction").check(env)
-        lookup_scenario("ImportPolicyCommunityAction").check2(env)
-
-
-@register_scenario
-class ImportPolicyCommunityReplace(object):
-    """
-    No.18 community replace action import-policy test
-                                -------------------------------
-    e1 ->(community=65100:10)-> | -> q1-rib -> q1-adj-rib-out | ->(community=65100:10)-> q1
-                                |                             |
-                                | -> q2-rib -> q2-adj-rib-out | ->(community=65100:20)-> q2
-                                |    apply action             |
-                                -------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy community add cs0 65100:10')
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add condition community cs0')
-        g1.local('gobgp policy statement st0 add action accept')
-        g1.local('gobgp policy statement st0 add action community replace 65100:20')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('192.168.100.0/24', community=['65100:10'])
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        # e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-        path = g1.get_adj_rib_out(q1)[0]
-        assert community_exists(path, '65100:10')
-        assert not community_exists(path, '65100:20')
-        path = g1.get_adj_rib_out(q2)[0]
-        assert not community_exists(path, '65100:10')
-        assert community_exists(path, '65100:20')
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyCommunityReplace").boot(env)
-        lookup_scenario("ImportPolicyCommunityReplace").setup(env)
-        lookup_scenario("ImportPolicyCommunityReplace").check(env)
-        lookup_scenario("ImportPolicyCommunityReplace").check2(env)
-
-
-@register_scenario
-class ImportPolicyCommunityRemove(object):
-    """
-    No.19 community remove action import-policy test
+    No.19 community remove action export-policy test
                                 -------------------------------
     e1 ->(community=65100:10)-> | -> q1-rib -> q1-adj-rib-out | ->(community=65100:10)-> q1
                                 |                             |
                                 | -> q2-rib -> q2-adj-rib-out | ->(community=null)->     q2
-                                |    apply action             |
+                                |              apply action   |
                                 -------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -1390,26 +951,26 @@ class ImportPolicyCommunityRemove(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyCommunityRemove").boot(env)
-        lookup_scenario("ImportPolicyCommunityRemove").setup(env)
-        lookup_scenario("ImportPolicyCommunityRemove").check(env)
-        lookup_scenario("ImportPolicyCommunityRemove").check2(env)
+        lookup_scenario("ExportPolicyCommunityRemoveMultipleRoutes").boot(env)
+        lookup_scenario("ExportPolicyCommunityRemoveMultipleRoutes").setup(env)
+        lookup_scenario("ExportPolicyCommunityRemoveMultipleRoutes").check(env)
+        lookup_scenario("ExportPolicyCommunityRemoveMultipleRoutes").check2(env)
 
 
 @register_scenario
-class ImportPolicyCommunityNull(object):
+class ExportPolicyCommunityNullMultipleRoutes(object):
     """
-    No.20 community null action import-policy test
+    No.20 community null action export-policy test
                                 -------------------------------
     e1 ->(community=65100:10)-> | -> q1-rib -> q1-adj-rib-out | ->(community=65100:10)-> q1
                                 |                             |
                                 | -> q2-rib -> q2-adj-rib-out | ->(community=null)->     q2
-                                |    apply action             |
+                                |              apply action   |
                                 -------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -1434,7 +995,7 @@ class ImportPolicyCommunityNull(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityRemove').check(env)
+        lookup_scenario('ExportPolicyCommunityRemoveMultipleRoutes').check(env)
 
     @staticmethod
     def check2(env):
@@ -1458,10 +1019,10 @@ class ImportPolicyCommunityNull(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyCommunityNull").boot(env)
-        lookup_scenario("ImportPolicyCommunityNull").setup(env)
-        lookup_scenario("ImportPolicyCommunityNull").check(env)
-        lookup_scenario("ImportPolicyCommunityNull").check2(env)
+        lookup_scenario("ExportPolicyCommunityNullMultipleRoutes").boot(env)
+        lookup_scenario("ExportPolicyCommunityNullMultipleRoutes").setup(env)
+        lookup_scenario("ExportPolicyCommunityNullMultipleRoutes").check(env)
+        lookup_scenario("ExportPolicyCommunityNullMultipleRoutes").check2(env)
 
 
 @register_scenario
@@ -1477,7 +1038,7 @@ class ExportPolicyCommunityAdd(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -1501,7 +1062,16 @@ class ExportPolicyCommunityAdd(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        g1 = env.g1
+        # e1 = env.e1
+        q1 = env.q1
+        q2 = env.q2
+        wait_for(lambda: len(g1.get_local_rib(q1)) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_out(q1)) == 1)
+        wait_for(lambda: len(q1.get_global_rib()) == 1)
+        wait_for(lambda: len(g1.get_local_rib(q2)) == 1)
+        wait_for(lambda: len(g1.get_adj_rib_out(q2)) == 1)
+        wait_for(lambda: len(q2.get_global_rib()) == 1)
 
     @staticmethod
     def check2(env):
@@ -1545,7 +1115,7 @@ class ExportPolicyCommunityReplace(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -1569,7 +1139,7 @@ class ExportPolicyCommunityReplace(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):
@@ -1613,7 +1183,7 @@ class ExportPolicyCommunityRemove(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -1637,7 +1207,7 @@ class ExportPolicyCommunityRemove(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):
@@ -1684,7 +1254,7 @@ class ExportPolicyCommunityNull(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -1708,7 +1278,7 @@ class ExportPolicyCommunityNull(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):
@@ -1750,186 +1320,6 @@ def metric(path):
 
 
 @register_scenario
-class ImportPolicyMedReplace(object):
-    """
-    No.25 med replace action import-policy test
-                     -------------------------------
-    e1 ->(med=300)-> | -> q1-rib -> q1-adj-rib-out | ->(med=300)-> q1
-                     |                             |
-                     | -> q2-rib -> q2-adj-rib-out | ->(med=100)-> q2
-                     |    apply action             |
-                     -------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add action accept')
-        g1.local('gobgp policy statement st0 add action med set 100')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('192.168.100.0/24', med=300)
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        q1 = env.q1
-        q2 = env.q2
-
-        adj_out = g1.get_adj_rib_out(q1)
-        assert metric(adj_out[0]) == 300
-
-        local_rib = g1.get_local_rib(q2)
-        assert metric(local_rib[0]['paths'][0]) == 300
-
-        adj_out = g1.get_adj_rib_out(q2)
-        assert metric(adj_out[0]) == 100
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyMedReplace").boot(env)
-        lookup_scenario("ImportPolicyMedReplace").setup(env)
-        lookup_scenario("ImportPolicyMedReplace").check(env)
-        lookup_scenario("ImportPolicyMedReplace").check2(env)
-
-
-@register_scenario
-class ImportPolicyMedAdd(object):
-    """
-    No.26 med add action import-policy test
-                     -------------------------------
-    e1 ->(med=300)-> | -> q1-rib -> q1-adj-rib-out | ->(med=300)->     q1
-                     |                             |
-                     | -> q2-rib -> q2-adj-rib-out | ->(med=300+100)-> q2
-                     |    apply action             |
-                     -------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add action accept')
-        g1.local('gobgp policy statement st0 add action med add 100')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('192.168.100.0/24', med=300)
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        q1 = env.q1
-        q2 = env.q2
-
-        adj_out = g1.get_adj_rib_out(q1)
-        assert metric(adj_out[0]) == 300
-
-        local_rib = g1.get_local_rib(q2)
-        assert metric(local_rib[0]['paths'][0]) == 300
-
-        adj_out = g1.get_adj_rib_out(q2)
-        assert metric(adj_out[0]) == 400
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyMedAdd").boot(env)
-        lookup_scenario("ImportPolicyMedAdd").setup(env)
-        lookup_scenario("ImportPolicyMedAdd").check(env)
-        lookup_scenario("ImportPolicyMedAdd").check2(env)
-
-
-@register_scenario
-class ImportPolicyMedSub(object):
-    """
-    No.27 med subtract action import-policy test
-                     -------------------------------
-    e1 ->(med=300)-> | -> q1-rib -> q1-adj-rib-out | ->(med=300)->     q1
-                     |                             |
-                     | -> q2-rib -> q2-adj-rib-out | ->(med=300-100)-> q2
-                     |    apply action             |
-                     -------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy statement add st0')
-        g1.local('gobgp policy statement st0 add action accept')
-        g1.local('gobgp policy statement st0 add action med sub 100')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('192.168.100.0/24', med=300)
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        q1 = env.q1
-        q2 = env.q2
-
-        adj_out = g1.get_adj_rib_out(q1)
-        assert metric(adj_out[0]) == 300
-
-        local_rib = g1.get_local_rib(q2)
-        assert metric(local_rib[0]['paths'][0]) == 300
-
-        adj_out = g1.get_adj_rib_out(q2)
-        assert metric(adj_out[0]) == 200
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyMedSub").boot(env)
-        lookup_scenario("ImportPolicyMedSub").setup(env)
-        lookup_scenario("ImportPolicyMedSub").check(env)
-        lookup_scenario("ImportPolicyMedSub").check2(env)
-
-
-@register_scenario
 class ExportPolicyMedReplace(object):
     """
     No.28 med replace action export-policy test
@@ -1942,7 +1332,7 @@ class ExportPolicyMedReplace(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -1964,7 +1354,7 @@ class ExportPolicyMedReplace(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):
@@ -2002,7 +1392,7 @@ class ExportPolicyMedAdd(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -2024,7 +1414,7 @@ class ExportPolicyMedAdd(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):
@@ -2062,7 +1452,7 @@ class ExportPolicyMedSub(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -2084,7 +1474,7 @@ class ExportPolicyMedSub(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):
@@ -2122,7 +1512,7 @@ class ExportPolicyAsPathPrepend(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -2189,75 +1579,6 @@ class ExportPolicyAsPathPrepend(object):
 
 
 @register_scenario
-class ImportPolicyAsPathPrependLastAS(object):
-    """
-    No.38 aspath prepend action lastas import
-                            --------------------------------
-    e1 ->(aspath=[65001])-> | ->  p1-rib -> p1-adj-rib-out | -> p1
-                            |                              |
-                            | ->  p2-rib -> p2-adj-rib-out | -> p2
-                            |     apply action             |
-                            --------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy prefix add ps0 192.168.20.0/24')
-        g1.local('gobgp policy statement st0 add condition prefix ps0')
-        g1.local('gobgp policy statement st0 add action accept')
-        g1.local('gobgp policy statement st0 add action as-prepend last-as 5')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('192.168.20.0/24')
-        e1.add_route('192.168.200.0/24')
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        lookup_scenario('ExportPolicyAsPathPrepend').check(env)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        path = g1.get_adj_rib_out(q1, prefix='192.168.20.0/24')[0]
-        assert path['aspath'] == [e1.asn]
-
-        path = g1.get_adj_rib_out(q1, prefix='192.168.200.0/24')[0]
-        assert path['aspath'] == [e1.asn]
-
-        path = g1.get_local_rib(q2, prefix='192.168.20.0/24')[0]['paths'][0]
-        assert path['aspath'] == [e1.asn]
-
-        path = g1.get_adj_rib_out(q2, prefix='192.168.20.0/24')[0]
-        assert path['aspath'] == ([e1.asn] * 5 + [e1.asn])
-
-        path = g1.get_adj_rib_out(q2, prefix='192.168.200.0/24')[0]
-        assert path['aspath'] == [e1.asn]
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyAsPathPrependLastAS").boot(env)
-        lookup_scenario("ImportPolicyAsPathPrependLastAS").setup(env)
-        lookup_scenario("ImportPolicyAsPathPrependLastAS").check(env)
-        lookup_scenario("ImportPolicyAsPathPrependLastAS").check2(env)
-
-
-@register_scenario
 class ExportPolicyAsPathPrependLastAS(object):
     """
     No.39 aspath prepend action lastas export
@@ -2265,12 +1586,12 @@ class ExportPolicyAsPathPrependLastAS(object):
     e1 ->(aspath=[65001])-> | ->  p1-rib -> p1-adj-rib-out | -> p1
                             |                              |
                             | ->  p2-rib -> p2-adj-rib-out | -> p2
-                            |     apply action             |
+                            |               apply action   |
                             --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -2327,18 +1648,18 @@ class ExportPolicyAsPathPrependLastAS(object):
 
 
 @register_scenario
-class ImportPolicyExCommunityOriginCondition(object):
+class ExportPolicyExCommunityOriginCondition(object):
     """
-    No.40 extended community origin condition import
+    No.40 extended community origin condition export
                                                  --------------------------------
     e1 ->(extcommunity=origin:65001.65100:200)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                                  |                              |
-                                                 | ->x q2-rib                   |
+                                                 | -> q2-rib ->x q2-adj-rib-out |
                                                  --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario("ImportPolicy").boot(env)
+        lookup_scenario("ExportPolicy").boot(env)
 
     @staticmethod
     def setup(env):
@@ -2361,28 +1682,28 @@ class ImportPolicyExCommunityOriginCondition(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario("ImportPolicy").check(env)
+        lookup_scenario("ExportPolicy").check(env)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyExCommunityOriginCondition").boot(env)
-        lookup_scenario("ImportPolicyExCommunityOriginCondition").setup(env)
-        lookup_scenario("ImportPolicyExCommunityOriginCondition").check(env)
+        lookup_scenario("ExportPolicyExCommunityOriginCondition").boot(env)
+        lookup_scenario("ExportPolicyExCommunityOriginCondition").setup(env)
+        lookup_scenario("ExportPolicyExCommunityOriginCondition").check(env)
 
 
 @register_scenario
-class ImportPolicyExCommunityTargetCondition(object):
+class ExportPolicyExCommunityTargetCondition(object):
     """
-    No.41 extended community origin condition import
+    No.41 extended community target condition export
                                            --------------------------------
     e1 ->(extcommunity=target:65010:320)-> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                            |                              |
-                                           | ->x q2-rib                   |
+                                           | -> q2-rib ->x q2-adj-rib-out |
                                            --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -2405,13 +1726,13 @@ class ImportPolicyExCommunityTargetCondition(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario("ImportPolicy").check(env)
+        lookup_scenario("ExportPolicy").check(env)
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyExCommunityTargetCondition").boot(env)
-        lookup_scenario("ImportPolicyExCommunityTargetCondition").setup(env)
-        lookup_scenario("ImportPolicyExCommunityTargetCondition").check(env)
+        lookup_scenario("ExportPolicyExCommunityTargetCondition").boot(env)
+        lookup_scenario("ExportPolicyExCommunityTargetCondition").setup(env)
+        lookup_scenario("ExportPolicyExCommunityTargetCondition").check(env)
 
 
 def ext_community_exists(path, extcomm):
@@ -2426,76 +1747,19 @@ def ext_community_exists(path, extcomm):
 
 
 @register_scenario
-class ImportPolicyExCommunityAdd(object):
+class ExportPolicyExCommunityAdd2(object):
     """
-    No.43 extended community add action import-policy test
-                               ---------------------------------
-    e1 ->(extcommunity=none) ->| ->  q1-rib ->  q1-adj-rib-out | --> q1
-                               |                               |
-                               | ->  q2-rib ->  q2-adj-rib-out | --> q2
-                               |     add ext-community         |
-                               ---------------------------------
-    """
-    @staticmethod
-    def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
-
-    @staticmethod
-    def setup(env):
-        g1 = env.g1
-        e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-
-        g1.local('gobgp policy prefix add ps0 192.168.10.0/24')
-        g1.local('gobgp policy statement st0 add condition prefix ps0')
-        g1.local('gobgp policy statement st0 add action accept')
-        g1.local('gobgp policy statement st0 add action ext-community add rt:65000:1')
-        g1.local('gobgp policy add policy0 st0')
-        g1.local('gobgp neighbor {0} policy export add policy0'.format(g1.peers[q2]['neigh_addr'].split('/')[0]))
-
-        e1.add_route('192.168.10.0/24')
-
-        for c in [e1, q1, q2]:
-            g1.wait_for(BGP_FSM_ESTABLISHED, c)
-
-    @staticmethod
-    def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
-
-    @staticmethod
-    def check2(env):
-        g1 = env.g1
-        # e1 = env.e1
-        q1 = env.q1
-        q2 = env.q2
-        path = g1.get_adj_rib_out(q1)[0]
-        assert not ext_community_exists(path, 'RT:65000:1')
-        path = g1.get_adj_rib_out(q2)[0]
-        assert ext_community_exists(path, 'RT:65000:1')
-
-    @staticmethod
-    def executor(env):
-        lookup_scenario("ImportPolicyExCommunityAdd").boot(env)
-        lookup_scenario("ImportPolicyExCommunityAdd").setup(env)
-        lookup_scenario("ImportPolicyExCommunityAdd").check(env)
-        lookup_scenario("ImportPolicyExCommunityAdd").check2(env)
-
-
-@register_scenario
-class ImportPolicyExCommunityAdd2(object):
-    """
-    No.44 extended community add action import-policy test
+    No.44 extended community add action export-policy test
                                       --------------------------------
     e1 ->(extcommunity=RT:65000:1) -> | ->  q1-rib -> q1-adj-rib-out | --> q1
                                       |                              |
                                       | ->  q2-rib -> q2-adj-rib-out | --> q2
-                                      |     add ext-community        |
+                                      |            add ext-community |
                                       --------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -2518,7 +1782,7 @@ class ImportPolicyExCommunityAdd2(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):
@@ -2538,26 +1802,26 @@ class ImportPolicyExCommunityAdd2(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyExCommunityAdd2").boot(env)
-        lookup_scenario("ImportPolicyExCommunityAdd2").setup(env)
-        lookup_scenario("ImportPolicyExCommunityAdd2").check(env)
-        lookup_scenario("ImportPolicyExCommunityAdd2").check2(env)
+        lookup_scenario("ExportPolicyExCommunityAdd2").boot(env)
+        lookup_scenario("ExportPolicyExCommunityAdd2").setup(env)
+        lookup_scenario("ExportPolicyExCommunityAdd2").check(env)
+        lookup_scenario("ExportPolicyExCommunityAdd2").check2(env)
 
 
 @register_scenario
-class ImportPolicyExCommunityMultipleAdd(object):
+class ExportPolicyExCommunityMultipleAdd(object):
     """
-    No.45 extended community add action multiple import-policy test
+    No.45 extended community add action multiple export-policy test
                                    ---------------------------------------
     exabgp ->(extcommunity=none) ->| ->  peer1-rib ->  peer1-adj-rib-out | --> peer1
                                    |                                     |
                                    | ->  peer2-rib ->  peer2-adj-rib-out | --> peer2
-                                   |     add ext-community               |
+                                   |                   add ext-community |
                                    ---------------------------------------
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -2580,7 +1844,7 @@ class ImportPolicyExCommunityMultipleAdd(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):
@@ -2600,10 +1864,10 @@ class ImportPolicyExCommunityMultipleAdd(object):
 
     @staticmethod
     def executor(env):
-        lookup_scenario("ImportPolicyExCommunityMultipleAdd").boot(env)
-        lookup_scenario("ImportPolicyExCommunityMultipleAdd").setup(env)
-        lookup_scenario("ImportPolicyExCommunityMultipleAdd").check(env)
-        lookup_scenario("ImportPolicyExCommunityMultipleAdd").check2(env)
+        lookup_scenario("ExportPolicyExCommunityMultipleAdd").boot(env)
+        lookup_scenario("ExportPolicyExCommunityMultipleAdd").setup(env)
+        lookup_scenario("ExportPolicyExCommunityMultipleAdd").check(env)
+        lookup_scenario("ExportPolicyExCommunityMultipleAdd").check2(env)
 
 
 @register_scenario
@@ -2619,7 +1883,7 @@ class ExportPolicyExCommunityAdd(object):
     """
     @staticmethod
     def boot(env):
-        lookup_scenario('ImportPolicy').boot(env)
+        lookup_scenario('ExportPolicy').boot(env)
 
     @staticmethod
     def setup(env):
@@ -2642,7 +1906,7 @@ class ExportPolicyExCommunityAdd(object):
 
     @staticmethod
     def check(env):
-        lookup_scenario('ImportPolicyCommunityAction').check(env)
+        lookup_scenario('ExportPolicyCommunityAdd').check(env)
 
     @staticmethod
     def check2(env):

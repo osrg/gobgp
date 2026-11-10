@@ -63,9 +63,9 @@ For the normal iBGP peer's adj-rib-out
 ```bash
 $ gobgp neighbor 192.168.10.4 adj-out
 Network              Next Hop             AS_PATH              Attrs
-10.0.1.0/24          192.168.10.2                              [{Origin: i} {Med: 0} {LocalPref: 100}]
-10.0.2.0/24          192.168.10.3                              [{Origin: i} {Med: 0} {LocalPref: 100}]
+10.0.1.0/24          192.168.10.2                              [{Origin: i} {Med: 0} {LocalPref: 100} {Originator: 192.168.0.2} {ClusterList: [192.168.0.1]}]
+10.0.2.0/24          192.168.10.3                              [{Origin: i} {Med: 0} {LocalPref: 100} {Originator: 192.168.0.3} {ClusterList: [192.168.0.1]}]
 ```
 
 Only the routes from route reflector clients are advertised via GoBGP.
-Originator and ClusterList path attributes are not added.
+They are reflected, so Originator and ClusterList path attributes are added too.

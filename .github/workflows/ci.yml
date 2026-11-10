@@ -720,8 +720,34 @@ jobs:
       - name: test
         run: |
           docker load < artifact/gobgp.tar
-          sudo apt-get update
-          sudo apt-get install -y linux-modules-extra-$(uname -r)
-          sudo modprobe vrf
+          # Kernels 7.0 and later ship vrf in linux-modules, and
+          # linux-modules-extra no longer exists for them.
+          if ! sudo modprobe vrf; then
+            sudo apt-get update
+            sudo apt-get install -y linux-modules-extra-$(uname -r)
+            sudo modprobe vrf
+          fi
           sudo pip3 install -r test/pip-requires.txt
           PYTHONPATH=test python3 -m pytest test/scenario_test/tcp_md5_test.py --gobgp-image gobgp -x -s
+
+  tcp-ao:
+    name: tcp-ao
+    runs-on: ${{ vars.ACTIONS_RUNNER }}
+    needs: build
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifact
+      - name: test
+        run: |
+          docker load < artifact/gobgp.tar
+          # Kernels 7.0 and later ship vrf in linux-modules, and
+          # linux-modules-extra no longer exists for them.
+          if ! sudo modprobe vrf; then
+            sudo apt-get update
+            sudo apt-get install -y linux-modules-extra-$(uname -r)
+            sudo modprobe vrf
+          fi
+          sudo pip3 install -r test/pip-requires.txt
+          PYTHONPATH=test python3 -m pytest test/scenario_test/tcp_ao_test.py --gobgp-image gobgp -x -s

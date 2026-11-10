@@ -33,6 +33,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSetPeerPolicyAtomic(t *testing.T) {
+	for _, names := range [][]string{{"missing"}, {"new", "new"}} {
+		t.Run(strings.Join(names, ","), func(t *testing.T) {
+			r := NewRoutingPolicy(logger)
+			r.policyMap["old"] = &Policy{Name: "old"}
+			r.policyMap["new"] = &Policy{Name: "new"}
+			initial := oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+				ImportPolicyList: []string{"old"}, ExportPolicyList: []string{"old"},
+				DefaultImportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE,
+				DefaultExportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE,
+			}}
+			require.NoError(t, r.SetPeerPolicy("peer", initial))
+			before := *r.assignmentMap["peer"]
+			invalid := oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+				ImportPolicyList: []string{"new"}, ExportPolicyList: names,
+			}}
+			require.Error(t, r.SetPeerPolicy("peer", invalid))
+			require.Equal(t, before, *r.assignmentMap["peer"])
+			require.Error(t, r.SetPeerPolicy("new-peer", invalid))
+			require.NotContains(t, r.assignmentMap, "new-peer")
+
+			invalid.Config.ExportPolicyList = []string{"new"}
+			require.NoError(t, r.SetPeerPolicy("peer", invalid))
+			for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+				def, ps, err := r.GetPolicyAssignment("peer", dir)
+				require.NoError(t, err)
+				require.Equal(t, ROUTE_TYPE_NONE, def, "implicit accept is not stored as an explicit assignment default")
+				require.Equal(t, []*Policy{r.policyMap["new"]}, ps)
+			}
+		})
+	}
+}
+
 func TestGetStatement(t *testing.T) {
 	r := NewRoutingPolicy(logger)
 	r.statementMap["statement1"] = &Statement{Name: "statement1"}
@@ -176,6 +209,101 @@ func TestDeletePolicyUnknownStatement(t *testing.T) {
 
 	assert.Len(t, r.GetPolicy("p1")[0].Statements, 1)
 	assert.Len(t, r.GetStatement("st1"), 0)
+}
+
+func TestRegularPeerPolicyDirections(t *testing.T) {
+	r := NewRoutingPolicy(logger)
+	require.NoError(t, r.Initialize())
+	c := oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{DefaultImportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE}}
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", c))
+	rt, _, err := r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_REJECT, rt)
+	rt, policies, err := r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_EXPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_NONE, rt)
+	require.Empty(t, policies)
+	c.Config.DefaultImportPolicy = oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE
+	c.Config.ExportPolicyList = []string{"missing"}
+	require.ErrorContains(t, r.SetPeerPolicy("192.0.2.1", c), "not found policy missing")
+	rt, _, err = r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_REJECT, rt, "invalid export leaves the import assignment unchanged")
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", oc.ApplyPolicy{}))
+	rt, policies, err = r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_NONE, rt)
+	require.Empty(t, policies)
+}
+
+func TestPolicyAssignmentConfigDefaults(t *testing.T) {
+	r := NewRoutingPolicy(logger)
+	require.NoError(t, r.Initialize())
+	check := func() {
+		t.Helper()
+		for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+			rt, _, err := r.GetPolicyAssignment(GLOBAL_RIB_NAME, dir)
+			require.NoError(t, err)
+			require.Equal(t, ROUTE_TYPE_ACCEPT, rt, "global resolves an absent assignment to accept")
+			rt, _, err = r.GetPolicyAssignment("192.0.2.1", dir)
+			require.NoError(t, err)
+			require.Equal(t, ROUTE_TYPE_NONE, rt, "regular-peer directions remain unset")
+		}
+	}
+	require.NoError(t, r.SetPeerPolicy(GLOBAL_RIB_NAME, oc.ApplyPolicy{}))
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", oc.ApplyPolicy{}))
+	check()
+	require.NoError(t, r.Reset(&oc.RoutingPolicy{}, map[string]oc.ApplyPolicy{
+		GLOBAL_RIB_NAME: {}, "192.0.2.1": {},
+	}))
+	check()
+	require.NoError(t, r.AddPolicy(&Policy{Name: "continue"}, false))
+	require.NoError(t, r.SetPeerPolicy("192.0.2.1", oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+		ImportPolicyList: []string{"continue"}, DefaultExportPolicy: oc.DEFAULT_POLICY_TYPE_REJECT_ROUTE,
+	}}))
+	rt, policies, err := r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_IMPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_NONE, rt, "an implicit accept default is not stored")
+	require.Len(t, policies, 1)
+	rt, _, err = r.GetPolicyAssignment("192.0.2.1", POLICY_DIRECTION_EXPORT)
+	require.NoError(t, err)
+	require.Equal(t, ROUTE_TYPE_REJECT, rt)
+}
+
+func TestResetUnresolvedPeerPolicy(t *testing.T) {
+	for _, dir := range []PolicyDirection{POLICY_DIRECTION_IMPORT, POLICY_DIRECTION_EXPORT} {
+		t.Run(dir.String(), func(t *testing.T) {
+			r := NewRoutingPolicy(logger)
+			c := oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+				ImportPolicyList: []string{"missing"}, ExportPolicyList: []string{"valid"},
+				DefaultImportPolicy: oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
+				DefaultExportPolicy: oc.DEFAULT_POLICY_TYPE_ACCEPT_ROUTE,
+			}}
+			other := POLICY_DIRECTION_EXPORT
+			if dir == POLICY_DIRECTION_EXPORT {
+				c.Config.ImportPolicyList, c.Config.ExportPolicyList = c.Config.ExportPolicyList, c.Config.ImportPolicyList
+				other = POLICY_DIRECTION_IMPORT
+			}
+			require.NoError(t, r.Reset(&oc.RoutingPolicy{PolicyDefinitions: []oc.PolicyDefinition{{Name: "valid"}}}, map[string]oc.ApplyPolicy{
+				"peer": c, GLOBAL_RIB_NAME: c,
+			}))
+			def, policies, err := r.GetPolicyAssignment("peer", dir)
+			require.NoError(t, err)
+			require.Equal(t, ROUTE_TYPE_REJECT, def)
+			require.Empty(t, policies)
+			for _, id := range []string{"peer", GLOBAL_RIB_NAME} {
+				def, policies, err := r.GetPolicyAssignment(id, other)
+				require.NoError(t, err)
+				require.Equal(t, ROUTE_TYPE_ACCEPT, def, "the valid direction is unchanged")
+				require.Len(t, policies, 1)
+				require.Equal(t, "valid", policies[0].Name)
+			}
+			def, policies, err = r.GetPolicyAssignment(GLOBAL_RIB_NAME, dir)
+			require.NoError(t, err)
+			require.Equal(t, ROUTE_TYPE_ACCEPT, def, "retain the existing global error behavior")
+			require.Empty(t, policies)
+		})
+	}
 }
 
 func TestDeletePeerPolicy(t *testing.T) {
@@ -598,6 +726,24 @@ func TestPolicyRejectOnlyPrefixSet(t *testing.T) {
 	pType4, newPath4 := p2.Apply(logger, rtcNoMatch, nil)
 	assert.Equal(t, ROUTE_TYPE_NONE, pType4)
 	assert.Equal(t, newPath4, rtcNoMatch)
+
+	// ip-prefix set against EVPN type-5: reject the matching route, pass the non-matching one.
+	ds3 := oc.DefinedSets{PrefixSets: []oc.PrefixSet{createPrefixSet("ps3", "10.10.1.0/24", "24..32")}}
+	pd3 := createPolicyDefinition("pd3", createStatement("statement3", "ps3", "", false))
+	r3 := NewRoutingPolicy(logger)
+	err = r3.reload(createRoutingPolicy(ds3, pd3))
+	assert.NoError(t, err)
+	p3 := r3.policyMap["pd3"]
+
+	evpnMatch := newEVPNIPPrefixPath(t, "10.10.1.101/32")
+	pType5, newPath5 := p3.Apply(logger, evpnMatch, nil)
+	assert.Equal(t, ROUTE_TYPE_REJECT, pType5)
+	assert.Equal(t, newPath5, evpnMatch)
+
+	evpnNoMatch := newEVPNIPPrefixPath(t, "10.20.1.101/32")
+	pType6, newPath6 := p3.Apply(logger, evpnNoMatch, nil)
+	assert.Equal(t, ROUTE_TYPE_NONE, pType6)
+	assert.Equal(t, newPath6, evpnNoMatch)
 }
 
 func TestPolicyRejectOnlyNeighborSet(t *testing.T) {
@@ -3914,6 +4060,79 @@ func createAs4Value(s string) uint32 {
 	return uint32(upper<<16 | lower)
 }
 
+func TestNeighborSetZone(t *testing.T) {
+	for _, tt := range []struct {
+		in   string
+		want string
+	}{
+		{"10.0.0.1", "10.0.0.1/32"},
+		{"10.0.0.1/24", "10.0.0.0/24"},
+		{"fe80::1", "fe80::1/128"},
+		{"fe80::1%eth0", "fe80::1%eth0/128"},
+		{"fe80::1%eth0/128", "fe80::1%eth0/128"},
+		{"fe80::%eth0/10", "fe80::%eth0/10"},
+		{"fe80::1%eth0/64", "fe80::%eth0/64"},
+	} {
+		ns, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: []string{tt.in}})
+		require.NoError(t, err, tt.in)
+		assert.Equal(t, []string{tt.want}, ns.List(), tt.in)
+
+		// The output is accepted again and gives the same entry.
+		ns2, err := NewNeighborSetFromApiStruct("ns", ns.List())
+		require.NoError(t, err, tt.in)
+		assert.Equal(t, ns.List(), ns2.List(), tt.in)
+	}
+
+	for _, in := range []string{
+		"fe80::1%",
+		"fe80::1%/128",
+		"fe80::1/128%eth0",
+		"10.0.0.1%eth0",
+		"2001:db8::1%eth0",
+		"fe80::%eth0/8",
+		"::ffff:169.254.0.1%eth0",
+	} {
+		_, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: []string{in}})
+		assert.Error(t, err, in)
+		_, err = NewNeighborSetFromApiStruct("ns", []string{in})
+		assert.Error(t, err, in)
+	}
+
+	// Removing an entry without a zone keeps the entry with a zone.
+	ns, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: []string{"fe80::1", "fe80::1%eth0"}})
+	require.NoError(t, err)
+	del, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: []string{"fe80::1"}})
+	require.NoError(t, err)
+	require.NoError(t, ns.Remove(del))
+	assert.Equal(t, []string{"fe80::1%eth0/128"}, ns.List())
+}
+
+func TestNeighborConditionZone(t *testing.T) {
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	match := func(entries []string, option MatchOption, neighbor string) bool {
+		ns, err := NewNeighborSet(oc.NeighborSet{NeighborSetName: "ns", NeighborInfoList: entries})
+		require.NoError(t, err)
+		cond := &NeighborCondition{set: ns, option: option}
+		src := &PeerInfo{Address: netip.MustParseAddr(neighbor)}
+		path := NewPath(bgp.RF_IPv4_UC, src, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+		return cond.Evaluate(path, &PolicyOptions{Info: src})
+	}
+
+	// An entry with a zone matches only the neighbor on that interface.
+	assert.True(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_ANY, "fe80::1%eth0"))
+	assert.False(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_ANY, "fe80::1%eth1"))
+	assert.False(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_ANY, "fe80::1"))
+	assert.True(t, match([]string{"fe80::%eth0/10"}, MATCH_OPTION_ANY, "fe80::2%eth0"))
+	assert.False(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_INVERT, "fe80::1%eth0"))
+	assert.True(t, match([]string{"fe80::1%eth0"}, MATCH_OPTION_INVERT, "fe80::1%eth1"))
+
+	// An entry without a zone matches the neighbor on any interface.
+	assert.True(t, match([]string{"fe80::1"}, MATCH_OPTION_ANY, "fe80::1%eth0"))
+	assert.True(t, match([]string{"fe80::1"}, MATCH_OPTION_ANY, "fe80::1%eth1"))
+	assert.True(t, match([]string{"fe80::1"}, MATCH_OPTION_ANY, "fe80::1"))
+}
+
 func TestPrefixSetOperation(t *testing.T) {
 	// tryp to create prefixset with multiple families
 	p1 := oc.Prefix{
@@ -4410,6 +4629,58 @@ func TestNewSingleAsPathMatch(t *testing.T) {
 	assert.Equal(t, r.mode, ONLY)
 }
 
+func TestSingleAsPathMatchIncludeSegments(t *testing.T) {
+	makePath := func(params ...bgp.AsPathParamInterface) *Path {
+		pattrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath(params)}
+		return NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{}, false, pattrs, time.Time{}, false)
+	}
+	tests := []struct {
+		name   string
+		path   *Path
+		result bool
+	}{
+		{
+			name:   "as-sequence",
+			path:   makePath(bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{64512, 65100, 64999})),
+			result: true,
+		},
+		{
+			name: "as-set",
+			path: makePath(
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{64512}),
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65100, 64999})),
+			result: true,
+		},
+		{
+			name: "as-confed-sequence",
+			path: makePath(
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65100}),
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{64512})),
+			result: true,
+		},
+		{
+			name: "not-included",
+			path: makePath(
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{64512}),
+				bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_SET, []uint32{65101, 64999})),
+			result: false,
+		},
+	}
+
+	// "_65100_" takes the singleAsPathMatch fast path and "(_65100_)" the
+	// regular expression. Both must give the same result.
+	for _, exp := range []string{"_65100_", "(_65100_)"} {
+		s, err := NewAsPathSet(oc.AsPathSet{AsPathSetName: "s", AsPathList: []string{exp}})
+		require.NoError(t, err)
+		c, err := NewAsPathCondition(oc.MatchAsPathSet{AsPathSet: "s", MatchSetOptions: oc.MATCH_SET_OPTIONS_TYPE_ANY})
+		require.NoError(t, err)
+		c.set = s
+		for _, tt := range tests {
+			assert.Equal(t, tt.result, c.Evaluate(tt.path, nil), "%s %s", exp, tt.name)
+		}
+	}
+}
+
 func BenchmarkPrefixConditionEvaluate(b *testing.B) {
 	rt, _ := bgp.ParseRouteTarget("65000:100")
 	cases := []struct {
@@ -4577,4 +4848,54 @@ func TestApplyPolicyRpkiConditionUnvalidatedFamily(t *testing.T) {
 
 	options := &PolicyOptions{Validate: NewROATable(logger).Validate}
 	assert.Equal(t, path, r.ApplyPolicy(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT, path, options))
+}
+
+func newEVPNIPPrefixPath(t *testing.T, prefix string) *Path {
+	t.Helper()
+	p := netip.MustParsePrefix(prefix)
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	n, err := bgp.NewEVPNIPPrefixRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, uint8(p.Bits()), p.Addr(), netip.IPv4Unspecified(), 100)
+	assert.NoError(t, err)
+	return NewPath(bgp.RF_EVPN, nil, bgp.PathNLRI{NLRI: n}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+}
+
+func newEVPNMacIPPath(t *testing.T, ip string) *Path {
+	t.Helper()
+	var addr netip.Addr
+	if ip != "" {
+		addr = netip.MustParseAddr(ip)
+	}
+	rd, _ := bgp.ParseRouteDistinguisher("100:100")
+	n, err := bgp.NewEVPNMacIPAdvertisementRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, "00:11:22:33:44:55", addr, nil)
+	assert.NoError(t, err)
+	return NewPath(bgp.RF_EVPN, nil, bgp.PathNLRI{NLRI: n}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+}
+
+func TestPrefixSetMatchEVPN(t *testing.T) {
+	ps4, err := NewPrefixSet(createPrefixSet("ps4", "10.10.10.0/24", "24..32"))
+	assert.NoError(t, err)
+	ps6, err := NewPrefixSet(createPrefixSet("ps6", "2001:123:123:1::/64", "64..128"))
+	assert.NoError(t, err)
+	v4, v6 := &PrefixCondition{set: ps4}, &PrefixCondition{set: ps6}
+
+	tests := []struct {
+		name string
+		cond *PrefixCondition
+		path *Path
+		want bool
+	}{
+		{"type 5 v4 match", v4, newEVPNIPPrefixPath(t, "10.10.10.10/32"), true},
+		{"type 5 v6 match", v6, newEVPNIPPrefixPath(t, "2001:123:123:1::10/128"), true},
+		{"type 5 v4 set, v6 route", v4, newEVPNIPPrefixPath(t, "2001:123:123:1::10/128"), false},
+		{"type 5 v6 set, v4 route", v6, newEVPNIPPrefixPath(t, "10.10.10.10/32"), false},
+		{"type 2 v4 match", v4, newEVPNMacIPPath(t, "10.10.10.10"), true},
+		{"type 2 v6 match", v6, newEVPNMacIPPath(t, "2001:123:123:1::10"), true},
+		{"type 2 v4 set, v6 route", v4, newEVPNMacIPPath(t, "2001:123:123:1::10"), false},
+		{"type 2 mac only", v4, newEVPNMacIPPath(t, ""), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.cond.Evaluate(tt.path, nil))
+		})
+	}
 }

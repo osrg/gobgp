@@ -80,9 +80,13 @@ class GoBGPTestBase(unittest.TestCase):
         self.g2.local('ip netns add ns02')
 
         self.g1.local('ip netns exec ns01 ip li set up dev lo')
+        self.g1.local('ip netns exec ns01 ip addr add 192.168.100.1/24 dev lo')
         self.g1.local('ip netns exec ns02 ip li set up dev lo')
+        self.g1.local('ip netns exec ns02 ip addr add 192.168.100.1/24 dev lo')
         self.g2.local('ip netns exec ns01 ip li set up dev lo')
+        self.g2.local('ip netns exec ns01 ip addr add 192.168.100.1/24 dev lo')
         self.g2.local('ip netns exec ns02 ip li set up dev lo')
+        self.g2.local('ip netns exec ns02 ip addr add 192.168.100.1/24 dev lo')
 
         self.g1.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 1 netns ns01'")
         self.g1.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 2 netns ns02'")
@@ -94,8 +98,8 @@ class GoBGPTestBase(unittest.TestCase):
         self.g2.local("gobgp vrf add vrf01 id 1 rd 1:1 rt both 1:1")
         self.g2.local("gobgp vrf add vrf02 id 2 rd 2:2 rt both 2:2")
 
-        self.g1.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 127.0.0.1")
-        self.g1.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 127.0.0.1")
+        self.g1.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 192.168.100.1")
+        self.g1.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 192.168.100.1")
 
         assert_several_times(
             f=lambda: self._assert_netns_routes(self.g2, 'ns01', {'10.0.0.0/24'}),
@@ -105,8 +109,8 @@ class GoBGPTestBase(unittest.TestCase):
             t=30)
 
     def test_03_vrf_routes_del(self):
-        self.g1.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 127.0.0.1")
-        self.g1.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 127.0.0.1")
+        self.g1.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 192.168.100.1")
+        self.g1.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 192.168.100.1")
 
         assert_several_times(
             f=lambda: self._assert_netns_routes(self.g2, 'ns01', set()),
@@ -120,8 +124,8 @@ class GoBGPTestBase(unittest.TestCase):
         # Import vrf2 routes into vrf1
         self.g1.local("gobgp vrf add vrf01 id 1 rd 1:1 rt import 1:1 2:2 export 1:1")
 
-        self.g1.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 127.0.0.1")
-        self.g1.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 127.0.0.1")
+        self.g1.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 192.168.100.1")
+        self.g1.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 192.168.100.1")
 
         # g1 has the vrf2 route imported to vrf1 and updated on zebra
         assert_several_times(
@@ -141,7 +145,7 @@ class GoBGPTestBase(unittest.TestCase):
             t=30)
 
         # Routes imported from another vrf are cleaned up properly
-        self.g1.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 127.0.0.1")
+        self.g1.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 192.168.100.1")
 
         assert_several_times(
             f=lambda: self._assert_netns_routes(self.g1, 'ns01', {'10.0.0.0/24'}),

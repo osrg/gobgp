@@ -26,6 +26,7 @@ import (
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/netutils"
+	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -350,9 +351,7 @@ func startTcpAoTestServer(t *testing.T, opts ...ServerOption) *BgpServer {
 		ListenPort: -1,
 	}}))
 	t.Cleanup(func() {
-		if s.isServing.Load() {
-			require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
-		}
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
 	})
 	return s
 }
@@ -364,6 +363,50 @@ func addTcpAoTestKeychain(t *testing.T, s *BgpServer, name string, sendID, recei
 	chain.Keys[0].ReceiveId = receiveID
 	err := s.AddTcpAoKeychain(context.Background(), &api.AddTcpAoKeychainRequest{Keychain: chain})
 	require.NoError(t, err)
+}
+
+func TestTcpAoAddPeerPolicyFailureCleanup(t *testing.T) {
+	s := startTcpAoTestServer(t)
+	ctx := context.Background()
+	addTcpAoTestKeychain(t, s, "chain", 1, 2)
+	require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: &api.Policy{Name: "valid"}}))
+
+	// A closed listener makes key installation fail without requiring TCP-AO
+	// support from the host kernel.
+	listener, err := netutils.NewTCPListener(s.logger, "127.0.0.1", 0, "", make(chan net.Conn))
+	require.NoError(t, err)
+	listener.Close()
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.listeners = append(s.listeners, listener)
+		s.bgpConfig.Global.Config.Port = 1
+		return nil
+	}, true))
+
+	for _, tc := range []struct {
+		name, policy, wantError string
+	}{
+		{"invalid policy", "missing", "not found policy missing"},
+		{"listener failure", "valid", "failed to configure TCP-AO listener"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := tcpAoTestPeer("192.0.2.1", "chain", 1)
+			p.RouteServer = &api.RouteServer{RouteServerClient: true}
+			p.ApplyPolicy = &api.ApplyPolicy{ImportPolicy: &api.PolicyAssignment{
+				Policies: []*api.Policy{{Name: tc.policy}}, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			}}
+			require.ErrorContains(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: p}), tc.wantError)
+			for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
+				def, policies, err := s.policy.GetPolicyAssignment("192.0.2.1", dir)
+				require.NoError(t, err)
+				require.Equal(t, table.ROUTE_TYPE_NONE, def)
+				require.Empty(t, policies)
+			}
+			require.NoError(t, s.mgmtOperation(func() error {
+				assert.NotContains(t, s.neighborMap, netip.MustParseAddr("192.0.2.1"))
+				return nil
+			}, true))
+		})
+	}
 }
 
 func TestTcpAoPeerOperations(t *testing.T) {
@@ -564,4 +607,41 @@ func TestTcpAoPeerOperations(t *testing.T) {
 	require.NotNil(t, keyBinding)
 	assert.Equal(t, "group-chain", keyBinding.keychain.name)
 	assert.Equal(t, "group-chain", string(peer.fsm.pConf.ReadOnly().TcpAo.Config.Keychain))
+}
+
+func TestTcpAoUpdatePeerWithClosedConnection(t *testing.T) {
+	s := startTcpAoTestServer(t)
+	addTcpAoTestKeychain(t, s, "primary", 1, 1)
+	_, err := s.UpdateTcpAoKeychain(t.Context(), &api.UpdateTcpAoKeychainRequest{
+		Name:    "primary",
+		AddKeys: []*api.TcpAoKey{{SendId: 2, ReceiveId: 2, Algorithm: api.TcpAoAlgorithm_TCP_AO_ALGORITHM_HMAC_SHA1_96, MasterKey: []byte("next")}},
+	})
+	require.NoError(t, err)
+	err = s.AddPeer(t.Context(), &api.AddPeerRequest{Peer: tcpAoTestPeer("192.0.2.1", "primary", 1)})
+	require.NoError(t, err)
+
+	peer := s.neighborMap[netip.MustParseAddr("192.0.2.1")]
+	require.NotNil(t, peer)
+
+	// The FSM can close a TCP connection while retaining it in fsm.conn.
+	// Model a later peer update that encounters the closed connection.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	require.NoError(t, err)
+
+	peer.fsm.lock.Lock()
+	peer.fsm.conn = conn
+	peer.fsm.lock.Unlock()
+
+	err = conn.Close()
+	require.NoError(t, err)
+
+	_, err = s.UpdatePeer(t.Context(), &api.UpdatePeerRequest{Peer: tcpAoTestPeer("192.0.2.1", "primary", 2)})
+	require.NoError(t, err)
+	keyBinding := peer.fsm.tcpAoKeyBinding.Load()
+	require.NotNil(t, keyBinding)
+	assert.Equal(t, "primary", keyBinding.keychain.name)
+	assert.EqualValues(t, 2, keyBinding.preferredSendID)
 }

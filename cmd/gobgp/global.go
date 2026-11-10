@@ -1151,11 +1151,13 @@ func parseEvpnIPMSIArgs(args []string) (bgp.NLRI, []string, error) {
 		extcomms = append(extcomms, "encap", m["encap"][0])
 	}
 
+	//nolint:staticcheck // removed in v5 (issue #3803)
 	r := &bgp.EVPNIPMSIRoute{
 		RD:   rd,
 		ETag: etag,
 		EC:   ec,
 	}
+	//nolint:staticcheck // removed in v5 (issue #3803)
 	return bgp.NewEVPNNLRI(bgp.EVPN_I_PMSI, r), extcomms, nil
 }
 

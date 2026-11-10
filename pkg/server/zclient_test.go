@@ -16,6 +16,8 @@
 package server
 
 import (
+	"context"
+	"io"
 	"log/slog"
 	"math"
 	"net/netip"
@@ -23,8 +25,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/zebra"
 )
@@ -70,7 +75,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		logger := slog.Default()
 		zebra.BackwardIPv6RouteDelete.ToEach(v, software)
 		path := newPathFromIPRouteMessage(logger, m, v, software)
-		pp := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetFullPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("0.0.0.0", pp.GetNexthop().String())
 		assert.Equal("192.168.100.0/24", pp.GetNlri().String())
@@ -84,7 +89,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		m.Body = b
 
 		path = newPathFromIPRouteMessage(logger, m, v, software)
-		pp = table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp = table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetFullPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("0.0.0.0", pp.GetNexthop().String())
 		assert.Equal("192.168.100.0/24", pp.GetNlri().String())
@@ -109,7 +114,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		m.Body = b
 
 		path = newPathFromIPRouteMessage(logger, m, v, software)
-		pp = table.NewPath(bgp.RF_IPv6_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp = table.NewPath(bgp.RF_IPv6_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetFullPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("::", pp.GetNexthop().String())
 		assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
@@ -131,7 +136,7 @@ func Test_newPathFromIPRouteMessage(t *testing.T) {
 		m.Body = b
 
 		path = newPathFromIPRouteMessage(logger, m, v, software)
-		pp = table.NewPath(bgp.RF_IPv6_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetPathAttrs(), time.Now(), false)
+		pp = table.NewPath(bgp.RF_IPv6_UC, nil, bgp.PathNLRI{NLRI: path.GetNlri()}, path.IsWithdraw, path.GetFullPathAttrs(), time.Now(), false)
 		pp.SetIsFromExternal(path.IsFromExternal())
 		assert.Equal("::", pp.GetNexthop().String())
 		assert.Equal("2001:db8:0:f101::/64", pp.GetNlri().String())
@@ -389,4 +394,117 @@ func TestApplyToPathList_WithdrawIgnored(t *testing.T) {
 
 	updated := cache.applyToPathList([]*table.Path{path})
 	assert.Empty(updated, "withdraw paths must be skipped")
+}
+
+func TestNewIPRouteBodyWithdrawsInvalidNexthopPath(t *testing.T) {
+	assert := assert.New(t)
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.3.1.0/24"))
+	nh, _ := bgp.NewPathAttributeNextHop(testNextHop)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	path.IsNexthopInvalid = true
+	path = path.Clone(true)
+	z := &zebraClient{
+		client: &zebra.Client{
+			Version:  zebra.MaxZapiVer,
+			Software: zebra.NewSoftware(zebra.MaxZapiVer, "frr8.2"),
+		},
+		pathVrfMap: make(map[*table.Path]uint32),
+	}
+
+	body, isWithdraw := newIPRouteBody([]*table.Path{path}, zebra.DefaultVrf, z)
+
+	assert.NotNil(body)
+	assert.True(isWithdraw)
+	assert.Equal(netip.MustParseAddr("10.3.1.0"), body.Prefix.Prefix)
+	assert.Equal(uint8(24), body.Prefix.PrefixLen)
+}
+
+// globalRibOptions reads the live table manager, so a client created before
+// StartBgp picks up the options once the RIB exists. It must take the server
+// state lock: StartBgp replaces the table manager from the management
+// dispatcher while the zebra client runs in its own goroutine.
+func TestZebraClientGlobalRibOptions(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := &BgpServer{shared: newSharedData(), logger: logger}
+	z := &zebraClient{server: s}
+
+	// Before StartBgp there is no table manager.
+	selection, multiPaths := z.globalRibOptions()
+	assert.Equal(t, oc.RouteSelectionOptionsConfig{}, selection)
+	assert.False(t, multiPaths.Enabled)
+
+	want := oc.RouteSelectionOptionsConfig{AlwaysCompareMed: true}
+	s.shared.mu.Lock()
+	s.globalRib = table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC},
+		want, oc.UseMultiplePathsConfig{Enabled: true})
+	s.shared.mu.Unlock()
+
+	selection, multiPaths = z.globalRibOptions()
+	assert.Equal(t, want, selection)
+	assert.True(t, multiPaths.Enabled)
+}
+
+func TestNexthopRegisterVrfID(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 5)
+	addVrf(t, s, "vrf2", "222:222", []string{"222:222"}, []string{"222:222"}, 7)
+
+	for _, tc := range []struct {
+		name     string
+		neighbor *oc.Neighbor
+		id       uint32
+	}{
+		// A path added through the API has no neighbor.
+		{"no neighbor", nil, 0},
+		{"global neighbor", &oc.Neighbor{}, 0},
+		{"vrf neighbor", &oc.Neighbor{Config: oc.NeighborConfig{Vrf: "vrf1"}}, 5},
+	} {
+		id, err := nexthopRegisterVrfID(s, tc.neighbor)
+		assert.NoError(t, err, tc.name)
+		assert.Equal(t, tc.id, id, tc.name)
+	}
+}
+
+func TestAddLabelChunk(t *testing.T) {
+	newClient := func(requested bool) *zebraClient {
+		return &zebraClient{mplsLabel: mplsLabelParameter{
+			rangeSize: 100,
+			requested: requested,
+			maps:      make(map[uint64]*table.Bitmap),
+		}}
+	}
+
+	// A chunk that was not requested is not used.
+	z := newClient(false)
+	assert.Error(t, z.addLabelChunk(&zebra.GetLabelChunkBody{Start: 100, End: 199}))
+	assert.Empty(t, z.mplsLabel.maps)
+
+	// Chunks with labels that are not valid are not used.
+	for _, c := range []struct{ start, end uint32 }{
+		{200, 100},
+		{0, 99},
+		{15, 99},
+		{100, 1 << 20},
+		{0, 0xfffffffe},
+	} {
+		z := newClient(true)
+		assert.Error(t, z.addLabelChunk(&zebra.GetLabelChunkBody{Start: c.start, End: c.end}), "%d-%d", c.start, c.end)
+		assert.Empty(t, z.mplsLabel.maps)
+	}
+
+	// The requested chunk is used, and only once.
+	z = newClient(true)
+	require.NoError(t, z.addLabelChunk(&zebra.GetLabelChunkBody{Start: 16, End: 115}))
+	assert.Len(t, z.mplsLabel.maps, 1)
+	assert.Error(t, z.addLabelChunk(&zebra.GetLabelChunkBody{Start: 200, End: 299}))
+	assert.Len(t, z.mplsLabel.maps, 1)
+	label, err := z.assignMplsLabel()
+	require.NoError(t, err)
+	assert.Equal(t, uint32(16), label)
 }

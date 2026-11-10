@@ -171,6 +171,9 @@ message WatchEventResponse {
 
   message TableEvent {
     repeated Path paths = 2;
+    // The time the event was queued for this watcher. A consumer can compare
+    // it with its own clock to tell how late it reads.
+    google.protobuf.Timestamp timestamp = 3;
   }
 
   oneof event {
@@ -1442,6 +1445,7 @@ message BfdPeerConfig {
   uint32 desired_minimum_tx_interval = 3;
   uint32 required_minimum_receive = 4;
   uint32 detection_multiplier = 5;
+  bool multihop = 6;
 }
 
 message BfdState {

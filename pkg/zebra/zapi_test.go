@@ -16,11 +16,16 @@
 package zebra
 
 import (
+	"bytes"
 	"encoding/binary"
+	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1269,4 +1274,123 @@ func FuzzDecodeFromBytes(f *testing.F) {
 		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, false)
 		(&IPRouteBody{}).decodeMessageNexthopFromBytes(data, version, software, true)
 	})
+}
+
+func TestIPRouteSerializeHeaderVersions(t *testing.T) {
+	for _, version := range []float64{7.3, 7.4, 7.5} {
+		t.Run(fmt.Sprintf("FRR%.1f", version), func(t *testing.T) {
+			route := &IPRouteBody{Type: routeConnect, Safi: SafiUnicast, Prefix: Prefix{Family: syscall.AF_INET, PrefixLen: 24, Prefix: netip.MustParseAddr("192.0.2.0")}}
+			wire, err := route.serialize(6, Software{name: "frr", version: version})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// type=connected, instance=0, flags=0, message=0, SAFI=unicast.
+			want := []byte{2, 0, 0, 0, 0, 0, 0, 0, 1}
+			if version >= 7.5 {
+				want = []byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+			}
+			want = append(want, byte(syscall.AF_INET), 24, 192, 0, 2)
+			if !bytes.Equal(wire, want) {
+				t.Fatalf("got %x, want %x", wire, want)
+			}
+		})
+	}
+}
+
+func TestRegisteredNexthopSerializeLayout(t *testing.T) {
+	for _, version := range []float64{8.1, 8.2} {
+		for _, address := range []string{"192.0.2.1", "2001:db8::1"} {
+			for _, flag := range []uint8{0, 1} {
+				t.Run(fmt.Sprintf("FRR%.1f/%s/flag%d", version, address, flag), func(t *testing.T) {
+					ip := netip.MustParseAddr(address)
+					family := uint16(syscall.AF_INET)
+					if ip.Is6() {
+						family = uint16(syscall.AF_INET6)
+					}
+					n := &RegisteredNexthop{connected: flag, resolveViaDef: flag, Family: family, Prefix: ip}
+					software := Software{name: "frr", version: version}
+					wire, err := n.serialize(6, software)
+					if err != nil {
+						t.Fatal(err)
+					}
+					// FRR 8.2 inserts resolve-via-default and a two-byte SAFI.
+					want := []byte{flag}
+					if version >= 8.2 {
+						want = append(want, flag, 0, 1)
+					}
+					want = append(want, byte(family>>8), byte(family), byte(ip.BitLen()))
+					want = append(want, ip.AsSlice()...)
+					if !bytes.Equal(wire, want) {
+						t.Fatalf("got %x, want %x", wire, want)
+					}
+					var decoded RegisteredNexthop
+					if err := decoded.decodeFromBytes(wire, 6, software); err != nil {
+						t.Fatal(err)
+					}
+					if decoded.Prefix != ip || decoded.connected != flag {
+						t.Fatalf("round-trip changed nexthop: %+v", decoded)
+					}
+					if version >= 8.2 && (decoded.resolveViaDef != flag || decoded.safi != uint16(SafiUnicast)) {
+						t.Fatalf("round-trip changed FRR 8.2 fields: %+v", decoded)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestNewClientHandshakeTimeout(t *testing.T) {
+	old := handshakeTimeout
+	handshakeTimeout = 200 * time.Millisecond
+	defer func() { handshakeTimeout = old }()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	software := NewSoftware(6, "frr7.5")
+
+	// serve accepts connections and sends hdr, if any, on each of them.
+	serve := func(hdr []byte) net.Listener {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		go func() {
+			for {
+				c, err := l.Accept()
+				if err != nil {
+					return
+				}
+				if hdr != nil {
+					_, _ = c.Write(hdr)
+				}
+				go func() {
+					_, _ = io.Copy(io.Discard, c)
+					c.Close()
+				}()
+			}
+		}()
+		return l
+	}
+
+	// A zebra that accepts the connection but does not answer.
+	silent := serve(nil)
+	defer silent.Close()
+	start := time.Now()
+	_, err := NewClient(logger, "tcp", silent.Addr().String(), RouteBGP, 6, software, 0)
+	var ne net.Error
+	require.ErrorAs(t, err, &ne)
+	assert.True(t, ne.Timeout())
+	assert.Less(t, time.Since(start), 10*handshakeTimeout)
+
+	// A zebra that answers. The deadline must not stay on the connection,
+	// so the receive loop still runs after the timeout has passed.
+	hdr, err := (&Header{Len: HeaderSize(6), Marker: frrHeaderMarker, Version: 6}).serialize()
+	require.NoError(t, err)
+	answering := serve(hdr)
+	defer answering.Close()
+	cli, err := NewClient(logger, "tcp", answering.Addr().String(), RouteBGP, 6, software, 0)
+	require.NoError(t, err)
+	defer cli.close()
+	time.Sleep(3 * handshakeTimeout)
+	select {
+	case _, ok := <-cli.Receive():
+		assert.True(t, ok, "the receive loop stopped")
+	default:
+	}
 }

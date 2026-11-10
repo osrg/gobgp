@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"os"
 	"runtime"
 	"slices"
 	"strconv"
@@ -314,6 +315,32 @@ func TestWatcherStopAfterServerStops(t *testing.T) {
 	default:
 		t.Fatal("watcher event channel is not closed")
 	}
+}
+
+// TestWatcherStopDoesNotWaitForTheServerLock checks that stopping a watcher
+// does not need the server lock. handleFSMMessage takes that lock for every
+// message a peer sends, so a Stop that drains the watcher's queue under it
+// stalls every session's receive loop.
+func TestWatcherStopDoesNotWaitForTheServerLock(t *testing.T) {
+	s := runNewServer(t, 1, "1.1.1.1", -1)
+	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	w, err := s.watch(WatchPeer())
+	require.NoError(t, err)
+
+	s.shared.mu.RLock()
+	done := make(chan struct{})
+	go func() {
+		w.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Error("Stop waits for the server lock")
+	}
+	s.shared.mu.RUnlock()
+	<-done
 }
 
 // TestWatchAfterServerStopsReturnsError verifies that watch cannot register a
@@ -1710,7 +1737,7 @@ func TestNumGoroutineWithAddDeleteNeighbor(t *testing.T) {
 	assert.Equal(num, runtime.NumGoroutine())
 }
 
-func newPeerandInfo(t *testing.T, myAs, as uint32, address string, rib *table.TableManager) *peer {
+func newPeerandInfo(t testing.TB, myAs, as uint32, address string, rib *table.TableManager) *peer {
 	addr := netip.MustParseAddr(address)
 	nConf := &oc.Neighbor{Config: oc.NeighborConfig{PeerAs: as, NeighborAddress: addr}, State: oc.NeighborState{PeerAs: as, NeighborAddress: netip.MustParseAddr(address), RemoteRouterId: addr}}
 	gConf := &oc.Global{Config: oc.GlobalConfig{As: myAs}}
@@ -1794,6 +1821,46 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	assert.Nil(t, path)
 }
 
+// Two eBGP peers in different ASes share one router ID. RFC 6286 Section
+// 2.1 says "The BGP Identifier is a 4-octet, unsigned, non-zero integer
+// that should be unique within an AS.", so they are different routers and
+// a path from one of them is sent to the other.
+func TestFilterpathWitheBGPSameRouterID(t *testing.T) {
+	as := uint32(65000)
+	p1As := uint32(65001)
+	p2As := uint32(65002)
+	routerID := netip.MustParseAddr("10.0.0.1")
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+	p1 := newPeerandInfo(t, as, p1As, "192.168.0.1", rib)
+	p2 := newPeerandInfo(t, as, p2As, "192.168.0.2", rib)
+	for _, p := range []*peer{p1, p2} {
+		conf := p.fsm.pConf.ReadCopy()
+		conf.State.RemoteRouterId = routerID
+		p.fsm.pConf.Update(&conf)
+		info := *p.peerInfo.Load()
+		info.ID = routerID
+		p.peerInfo.Store(&info)
+	}
+
+	nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})})}
+	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
+
+	new, old := process(rib, []*table.Path{path1})
+	assert.Equal(t, new, path1)
+	// p1 sent the path, so p1 does not get it back.
+	assert.Nil(t, filterpath(p1, new, old))
+	// p2 is another router with the same router ID and gets the path.
+	assert.Equal(t, path1, filterpath(p2, new, old))
+
+	new, old = process(rib, []*table.Path{path1.Clone(true)})
+	assert.True(t, new.IsWithdraw)
+	assert.Nil(t, filterpath(p1, new, old))
+	path := filterpath(p2, new, old)
+	assert.NotNil(t, path)
+	assert.True(t, path.IsWithdraw)
+}
+
 func TestFilterpathWithiBGP(t *testing.T) {
 	as := uint32(65000)
 
@@ -1821,6 +1888,91 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	assert.Nil(t, path)
 	path = filterpath(p2, new, old)
 	assert.Nil(t, path)
+}
+
+func TestFilterpathWithWellKnownCommunities(t *testing.T) {
+	const (
+		as    = uint32(65000)
+		eAs   = uint32(65001)
+		srcAs = uint32(65002)
+	)
+
+	rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+	ebgp := newPeerandInfo(t, as, eAs, "192.168.0.1", rib)
+	ibgp := newPeerandInfo(t, as, as, "192.168.0.2", rib)
+	confed := newPeerandInfo(t, as, eAs, "192.168.0.3", rib)
+	confedInfo := *confed.peerInfo.Load()
+	confedInfo.Confederation = true
+	confed.peerInfo.Store(&confedInfo)
+	rs := newPeerandInfo(t, as, eAs, "192.168.0.4", rib)
+	rs.fsm.lock.Lock()
+	rsConf := rs.fsm.pConf.ReadCopy()
+	rsConf.RouteServer.Config.RouteServerClient = true
+	rs.fsm.pConf.Update(&rsConf)
+	rs.fsm.lock.Unlock()
+	source := newPeerandInfo(t, as, srcAs, "192.168.0.5", rib)
+
+	newPathFrom := func(info *table.PeerInfo, comms ...uint32) *table.Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+		require.NoError(t, err)
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{srcAs})}),
+		}
+		if len(comms) > 0 {
+			attrs = append(attrs, bgp.NewPathAttributeCommunities(comms))
+		}
+		return table.NewPath(bgp.RF_IPv4_UC, info, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+	newPath := func(comms ...uint32) *table.Path {
+		return newPathFrom(source.peerInfo.Load(), comms...)
+	}
+
+	noExport := newPath(uint32(bgp.COMMUNITY_NO_EXPORT))
+	noAdvertise := newPath(uint32(bgp.COMMUNITY_NO_ADVERTISE))
+	noExportSubconfed := newPath(uint32(bgp.COMMUNITY_NO_EXPORT_SUBCONFED))
+	plain := newPath(srcAs<<16 | 100)
+
+	// A community that is not one of the three does not filter anything.
+	assert.NotNil(t, filterpath(ebgp, plain, nil))
+	assert.NotNil(t, filterpath(ibgp, plain, nil))
+
+	// NO_ADVERTISE keeps the route from every peer.
+	assert.Nil(t, filterpath(ebgp, noAdvertise, nil))
+	assert.Nil(t, filterpath(ibgp, noAdvertise, nil))
+	assert.Nil(t, filterpath(confed, noAdvertise, nil))
+
+	// NO_EXPORT keeps the route inside the confederation: an eBGP peer does
+	// not get it, an iBGP peer and a confederation member do.
+	assert.Nil(t, filterpath(ebgp, noExport, nil))
+	assert.NotNil(t, filterpath(ibgp, noExport, nil))
+	assert.NotNil(t, filterpath(confed, noExport, nil))
+
+	// NO_EXPORT_SUBCONFED keeps the route inside the member AS: no external
+	// peer gets it, a confederation member included.
+	assert.Nil(t, filterpath(ebgp, noExportSubconfed, nil))
+	assert.NotNil(t, filterpath(ibgp, noExportSubconfed, nil))
+	assert.Nil(t, filterpath(confed, noExportSubconfed, nil))
+
+	// A route server is transparent and leaves the communities to its clients.
+	assert.NotNil(t, filterpath(rs, noAdvertise, nil))
+
+	// RFC 1997 defines the communities for received routes: a locally
+	// originated path tagged NO_EXPORT is still sent to an eBGP peer.
+	localNoExport := newPathFrom(&table.PeerInfo{}, uint32(bgp.COMMUNITY_NO_EXPORT))
+	assert.NotNil(t, filterpath(ebgp, localNoExport, nil))
+
+	// The server may advertise to a peer that reached ESTABLISHED before its
+	// peerInfo was stored; such a peer is not a confederation member.
+	fresh := newPeerandInfo(t, as, eAs, "192.168.0.6", rib)
+	fresh.peerInfo.Store(nil)
+	assert.Nil(t, filterpath(fresh, noExport, nil))
+	assert.NotNil(t, filterpath(fresh, plain, nil))
+
+	// When the new best path cannot be advertised, the path advertised before
+	// is withdrawn explicitly.
+	p := filterpath(ebgp, noExport, plain)
+	require.NotNil(t, p)
+	assert.True(t, p.IsWithdraw)
 }
 
 func TestInboundClusterLoopCheck(t *testing.T) {
@@ -2421,7 +2573,7 @@ func TestDynamicNeighborBfd(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s1.Stop()
 
 	// peer group with BFD enabled; dynamic neighbors inherit this config.
 	g := &oc.PeerGroup{
@@ -2459,7 +2611,7 @@ func TestDynamicNeighborBfd(t *testing.T) {
 		},
 	})
 	assert.NoError(err)
-	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+	defer s2.Stop()
 
 	m := &oc.Neighbor{
 		Config: oc.NeighborConfig{
@@ -2595,7 +2747,6 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 	err = s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 	assert.NoError(t, err)
 
-	timer := time.NewTimer(5 * time.Second)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
 			assert.True(collect, peer.GracefulRestart.PeerRestarting)
@@ -2604,43 +2755,17 @@ func TestGracefulRestartTimerExpired(t *testing.T) {
 			}
 		})
 	}, time.Second, 10*time.Millisecond)
-	<-timer.C
 
-	// Create dummy session which does NOT send BGP OPEN message in order to
-	// cause Graceful Restart timer expired.
-	var conn net.Conn
-
-	conn, err = net.Dial("tcp", "127.0.0.1:10179")
-	require.NoError(t, err)
-	defer conn.Close()
-
-	// this seems to take around 22 seconds... need to address this whole thing
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	done := make(chan struct{})
-	// Waiting for Graceful Restart timer expired and moving on to IDLE state.
-	for {
+	// s2 does not come back, so the restart timer (2 seconds) expires. Then
+	// LLGR takes over from GR.
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_ = s1.ListPeer(context.Background(), &api.ListPeerRequest{}, func(peer *api.Peer) {
-			if peer.State.SessionState == api.PeerState_SESSION_STATE_IDLE {
-				// After expiration of GR timer, expect for LLGR to take place
-				for _, af := range peer.AfiSafis {
-					assert.False(t, af.MpGracefulRestart.State.Running)
-					assert.True(t, af.LongLivedGracefulRestart.State.Running)
-				}
-
-				close(done)
+			for _, af := range peer.AfiSafis {
+				assert.False(collect, af.MpGracefulRestart.State.Running)
+				assert.True(collect, af.LongLivedGracefulRestart.State.Running)
 			}
 		})
-
-		select {
-		case <-done:
-			return
-		case <-ctx.Done():
-			t.Fatalf("failed to enter IDLE state in the deadline")
-			return
-		}
-	}
+	}, 10*time.Second, 10*time.Millisecond)
 }
 
 func TestTcpConnectionClosedAfterPeerDel(t *testing.T) {
@@ -2914,6 +3039,36 @@ func addVrf(t *testing.T, s *BgpServer, vrfName, rdStr string, importRtsStr []st
 	if err = s.AddVrf(context.Background(), req); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// A peer is interested in a VPN path only through the Route Targets of the
+// path. An RTC NLRI that carries a Route Origin must not match a VPN path
+// that carries the same Route Origin.
+func TestInterestedInMatchesOnlyRouteTargets(t *testing.T) {
+	rt := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 1, true)
+	origin := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_ORIGIN, 65000, 1, true)
+
+	rd, _ := bgp.ParseRouteDistinguisher("65000:1")
+	prefix, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"), *bgp.NewMPLSLabelStack(100), rd)
+	vpnPath := func(ec bgp.ExtendedCommunityInterface) *table.Path {
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{ec}),
+		}
+		return table.NewPath(bgp.RF_IPv4_VPN, &table.PeerInfo{}, bgp.PathNLRI{NLRI: prefix}, false, attrs, time.Now(), false)
+	}
+	rtcPath := func(ec bgp.ExtendedCommunityInterface) *table.Path {
+		attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+		nlri := bgp.NewRouteTargetMembershipNLRI(65001, ec)
+		return table.NewPath(bgp.RF_RTC_UC, &table.PeerInfo{}, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	}
+
+	p := &peer{rtmHandler: table.NewRouteTargetMembershipHandler()}
+	p.rtmHandler.SyncAfterImport(rtcPath(origin))
+	assert.False(t, p.interestedIn(vpnPath(origin)))
+
+	p.rtmHandler.SyncAfterImport(rtcPath(rt))
+	assert.True(t, p.interestedIn(vpnPath(rt)))
 }
 
 func TestDoNotReactToDuplicateRTCMemberships(t *testing.T) {
@@ -4865,6 +5020,297 @@ func TestRTCDeferralTimerStaleProtection(t *testing.T) {
 		"Peer should still be ESTABLISHED after timers")
 }
 
+// startServerForRTCPeer starts a server with no peer. The peer state waiters
+// look at every peer, so the RTC tests below keep the server to one peer.
+func startServerForRTCPeer(t *testing.T, asn uint32) *BgpServer {
+	t.Helper()
+
+	ctx := context.Background()
+	s := NewBgpServer()
+	go s.Serve()
+	err := s.StartBgp(ctx, &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        asn,
+			RouterId:   "192.168.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+	})
+	return s
+}
+
+func hasDeferralTimer(peer *peer) bool {
+	peer.fsm.lock.Lock()
+	defer peer.fsm.lock.Unlock()
+	return peer.deferralCancel != nil
+}
+
+// addRTCPeer adds a passive peer with RTC and IPv4 VPN, and the given RTC
+// deferral time.
+func addRTCPeer(t *testing.T, s *BgpServer, asn uint32, peerAddr string, deferralTime uint16) *peer {
+	t.Helper()
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				PassiveMode: true,
+			},
+		},
+		AfiSafis: []oc.AfiSafi{
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_RTC,
+					Enabled:     true,
+				},
+				RouteTargetMembership: oc.RouteTargetMembership{
+					Config: oc.RouteTargetMembershipConfig{
+						DeferralTime: deferralTime,
+					},
+				},
+			},
+			{
+				Config: oc.AfiSafiConfig{
+					AfiSafiName: oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST,
+					Enabled:     true,
+				},
+			},
+		},
+	}
+
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ACTIVE)
+	err := s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+	w.Wait(t, 10*time.Second)
+
+	peer := s.neighborMap[netip.MustParseAddr(peerAddr)]
+	require.NotNil(t, peer)
+	return peer
+}
+
+// establishRTCSession drives the passive RTC peer to ESTABLISHED over a new
+// MockConnection and returns it.
+func establishRTCSession(t *testing.T, s *BgpServer, peer *peer, asn uint32, peerAddr string) *MockConnection {
+	t.Helper()
+
+	m := NewMockConnection()
+	m.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { m.Close() })
+
+	peer.fsm.connCh <- m
+	openMsg, err := bgp.NewBGPOpenMessage(uint16(asn), 90, netip.MustParseAddr(peerAddr),
+		[]bgp.OptionParameterInterface{
+			bgp.NewOptionParameterCapability([]bgp.ParameterCapabilityInterface{
+				bgp.NewCapMultiProtocol(bgp.RF_RTC_UC),
+				bgp.NewCapMultiProtocol(bgp.RF_IPv4_VPN),
+			}),
+		})
+	require.NoError(t, err)
+	m.PushBgpMessage(openMsg)
+	m.PushBgpMessage(bgp.NewBGPKeepAliveMessage())
+
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ESTABLISHED, 10*time.Second, bgp.RF_RTC_UC, bgp.RF_IPv4_VPN)
+	return m
+}
+
+// The deferral timer of a session is stopped when the session ends, and it
+// does not touch the next session.
+func TestDeferralTimerStoppedOnSessionDown(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s := startServerForRTCPeer(t, asn)
+	peer := addRTCPeer(t, s, asn, peerAddr, 30)
+	m := establishRTCSession(t, s, peer, asn, peerAddr)
+
+	require.True(t, peer.getRtcEORWait())
+	require.True(t, hasDeferralTimer(peer))
+
+	m.Close()
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
+	require.False(t, hasDeferralTimer(peer))
+
+	// A timer that expired but was stopped before its function ran does
+	// nothing. handleFSMMessage stops the timer under the read lock, so the
+	// queued function cannot run before that. Hold the read lock in the same
+	// way, let the timer expire and queue its function, then stop it.
+	establishRTCSession(t, s, peer, asn, peerAddr)
+	require.True(t, peer.getRtcEORWait())
+	s.shared.mu.RLock()
+	s.startDeferralTimer(peer, 0)
+	time.Sleep(100 * time.Millisecond)
+	peer.stopDeferralTimer()
+	s.shared.mu.RUnlock()
+	require.Never(t, func() bool {
+		return !peer.getRtcEORWait()
+	}, 500*time.Millisecond, 10*time.Millisecond)
+
+	// A timer that is not stopped sends the held routes.
+	s.startDeferralTimer(peer, 0)
+	require.Eventually(t, func() bool {
+		return !peer.getRtcEORWait()
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+// The outgoing connection manager sent its OPEN, but the session is
+// established on the incoming connection first. The manager used to keep
+// running: it connected again and again while the session was established.
+// Now its connection is closed with Cease/Connection Collision Resolution.
+func TestOutgoingConnClosedOnEstablished(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "127.0.0.1"
+	)
+
+	s := startServerForRTCPeer(t, asn)
+
+	l, err := net.Listen("tcp", net.JoinHostPort(peerAddr, "0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				RemotePort: uint16(l.Addr().(*net.TCPAddr).Port),
+			},
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+	peer := s.neighborMap[netip.MustParseAddr(peerAddr)]
+	require.NotNil(t, peer)
+
+	// The manager connects and sends its OPEN. Do not answer it.
+	out, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { out.Close() })
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), readMessage(t, out).Header.Type)
+
+	establishSession(t, s, peer, asn, peerAddr)
+
+	requireCollisionCease(t, readMessage(t, out))
+
+	// The manager does not connect again.
+	require.NoError(t, l.(*net.TCPListener).SetDeadline(time.Now().Add(3*time.Second)))
+	_, err = l.Accept()
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+}
+
+// The peer closes the incoming connection with Cease/Connection Collision
+// Resolution before it sends its OPEN there, and sends its OPEN on our
+// connection instead. The session used to wait in Idle for the idle hold
+// time before it took our connection. Now it leaves Idle at once.
+// https://github.com/osrg/gobgp/issues/3751
+func TestIdleLeftAtOnceWithOutgoingConn(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "127.0.0.1"
+	)
+
+	s := startServerForRTCPeer(t, asn)
+
+	l, err := net.Listen("tcp", net.JoinHostPort(peerAddr, "0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+
+	neighbor := &oc.Neighbor{
+		Config: oc.NeighborConfig{
+			NeighborAddress: netip.MustParseAddr(peerAddr),
+			PeerAs:          asn,
+		},
+		Transport: oc.Transport{
+			Config: oc.TransportConfig{
+				RemotePort: uint16(l.Addr().(*net.TCPAddr).Port),
+			},
+		},
+	}
+	err = s.AddPeer(context.Background(), &api.AddPeerRequest{
+		Peer: oc.NewPeerFromConfigStruct(neighbor),
+	})
+	require.NoError(t, err)
+	peer := s.neighborMap[netip.MustParseAddr(peerAddr)]
+	require.NotNil(t, peer)
+
+	// The manager connects and sends its OPEN. Do not answer it yet.
+	out, err := l.Accept()
+	require.NoError(t, err)
+	t.Cleanup(func() { out.Close() })
+	require.Equal(t, uint8(bgp.BGP_MSG_OPEN), readMessage(t, out).Header.Type)
+
+	// The peer's own connection gets Cease/7 as the first message.
+	in := NewMockConnection()
+	in.SetRemoteAddr(peerAddr)
+	t.Cleanup(func() { in.Close() })
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+	peer.fsm.connCh <- in
+	go in.PushBgpMessage(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_CONNECTION_COLLISION_RESOLUTION, nil))
+	w.Wait(t, 10*time.Second)
+
+	// The peer's OPEN on our connection is answered at once, not after
+	// the idle hold time (2 seconds here).
+	open, err := bgp.NewBGPOpenMessage(asn, 90, netip.MustParseAddr("10.0.0.1"), nil)
+	require.NoError(t, err)
+	b, err := open.Serialize()
+	require.NoError(t, err)
+	start := time.Now()
+	_, err = out.Write(b)
+	require.NoError(t, err)
+	require.Equal(t, uint8(bgp.BGP_MSG_KEEPALIVE), readMessage(t, out).Header.Type)
+	require.Less(t, time.Since(start), time.Second)
+
+	w = newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ESTABLISHED)
+	b, err = bgp.NewBGPKeepAliveMessage().Serialize()
+	require.NoError(t, err)
+	_, err = out.Write(b)
+	require.NoError(t, err)
+	w.Wait(t, 10*time.Second)
+}
+
+// The deferral timer of a deleted peer does not touch a new peer with the same
+// address. It used to look the peer up by address when it expired, so it
+// ended the RTC EOR wait of the new peer.
+func TestDeferralTimerOfDeletedPeer(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s := startServerForRTCPeer(t, asn)
+	old := addRTCPeer(t, s, asn, peerAddr, 1)
+	establishRTCSession(t, s, old, asn, peerAddr)
+
+	require.NoError(t, s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: peerAddr}))
+
+	peer := addRTCPeer(t, s, asn, peerAddr, 30)
+	require.NotSame(t, old, peer)
+	establishRTCSession(t, s, peer, asn, peerAddr)
+	require.True(t, peer.getRtcEORWait())
+
+	// The timer of the old peer expires 1 second after its session was
+	// established. It must not run on the new peer, nor on the old peer:
+	// the FSM of the old peer has stopped.
+	require.True(t, old.getRtcEORWait())
+	require.Never(t, func() bool {
+		return !peer.getRtcEORWait() || !old.getRtcEORWait()
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 func TestStartBgp_RouterIdValidation(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -4940,7 +5386,7 @@ func TestRTCImplicitWithdrawForAcceptedPathWillWithdrawVPNPaths(t *testing.T) {
 
 	s1 := runNewServer(t, 1, "1.1.1.1", 22179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2 := runNewServer(t, 1, "2.2.2.2", 33179)
+	s2 := runNewServer(t, 1, "2.2.2.2", 23179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
@@ -5031,9 +5477,9 @@ func TestRTCImplicitWithdrawForAcceptedPathWillWithdrawVPNPaths(t *testing.T) {
 func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.T) {
 	ctx := context.Background()
 
-	s1 := runNewServer(t, 1, "1.1.1.1", 44179)
+	s1 := runNewServer(t, 1, "1.1.1.1", 24179)
 	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
-	s2 := runNewServer(t, 1, "2.2.2.2", 55179)
+	s2 := runNewServer(t, 1, "2.2.2.2", 25179)
 	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
@@ -5119,7 +5565,535 @@ func TestRTCShouldNotAdvertiseVPNRouteWhenRTCIsNotPassImportPolicies(t *testing.
 		"VPN route should not appear at s2 adj-in from s1 after second VPN prefix is added")
 }
 
-func TestPerPeerPolicyIsRouteServerOnly(t *testing.T) {
+func TestRTCShouldNotWithdrawVPNRouteAfterOneRTCWithdraw(t *testing.T) {
+	ctx := context.Background()
+
+	s1 := runNewServer(t, 1, "1.1.1.1", 24179)
+	defer s1.StopBgp(context.Background(), &api.StopBgpRequest{})
+	s2 := runNewServer(t, 1, "2.2.2.2", 25179)
+	defer s2.StopBgp(context.Background(), &api.StopBgpRequest{})
+
+	wgEstablished := newPeerStateWaiter(s1, api.PeerState_SESSION_STATE_ESTABLISHED)
+	if err := peerServers(t, ctx, []*BgpServer{s1, s2}, []oc.AfiSafiType{oc.AFI_SAFI_TYPE_L3VPN_IPV4_UNICAST, oc.AFI_SAFI_TYPE_RTC}); err != nil {
+		t.Fatal(err)
+	}
+	wgEstablished.Wait(t, 10*time.Second)
+
+	assertVpnRouteCountS2AdjIn := func(expected int) bool {
+		count := 0
+		_ = s2.ListPath(apiutil.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_ADJ_IN,
+			Family:    bgp.RF_IPv4_VPN,
+			Name:      "127.0.0.1",
+		}, func(_ bgp.NLRI, _ []*apiutil.Path) { count++ })
+		return count == expected
+	}
+
+	rt100 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 100, 100, true)
+	rt200 := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 200, 200, true)
+	panh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("3.3.3.3"))
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		panh,
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt100, rt200}),
+	}
+	rd, _ := bgp.ParseRouteDistinguisher("1:1")
+	labels := bgp.NewMPLSLabelStack(100, 200)
+	prefix1, _ := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.30.2.0/24"), *labels, rd)
+	path1, _ := apiutil.NewPath(bgp.RF_IPv4_VPN, prefix1, false, attrs, time.Now())
+	if _, err := s1.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(path1)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	pathRtc1, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt100), false, attrs, time.Now())
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc1)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	pathRtc2, _ := apiutil.NewPath(bgp.RF_RTC_UC, bgp.NewRouteTargetMembershipNLRI(1, rt200), false, attrs, time.Now())
+	if _, err := s2.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc2)}}); err != nil {
+		t.Fatal(err)
+	}
+
+	require.Eventually(t, func() bool {
+		return assertVpnRouteCountS2AdjIn(1)
+	}, 10*time.Second, 100*time.Millisecond, "timeout waiting for VPN path at s2 adj-in from s1")
+
+	_ = s2.DeletePath(apiutil.DeletePathRequest{
+		Paths: []*apiutil.Path{mustApi2apiutilPath(pathRtc2)},
+	})
+
+	time.Sleep(1 * time.Second)
+
+	assert.True(t, assertVpnRouteCountS2AdjIn(1), "VPN path should still be present at s2 adj-in from s1 after one RTC withdraw")
+}
+
+func newPolicyTestServer(t *testing.T) *BgpServer {
+	t.Helper()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{Global: &api.Global{
+		Asn: 65000, RouterId: "192.0.2.254", ListenPort: -1,
+	}}))
+	t.Cleanup(func() { require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{})) })
+	return s
+}
+
+func newPolicyTestPath(t *testing.T, source *table.PeerInfo) *table.Path {
+	t.Helper()
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("203.0.113.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	return table.NewPath(bgp.RF_IPv4_UC, source, bgp.PathNLRI{NLRI: nlri}, false,
+		[]bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0), nh,
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65100})}),
+		}, time.Now(), false)
+}
+
+func TestPeerPolicyAssignmentIDs(t *testing.T) {
+	s := newPolicyTestServer(t)
+	const addr = "192.0.2.39"
+	ctx := context.Background()
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{
+		NeighborAddress: addr, PeerAsn: 65100, AdminDown: true,
+	}}}))
+	path := newPolicyTestPath(t, &table.PeerInfo{})
+	check := func(t *testing.T, dir api.PolicyDirection, id string, accepted bool) {
+		t.Helper()
+		require.NoError(t, s.mgmtOperation(func() error {
+			p := s.neighborMap[netip.MustParseAddr(addr)]
+			policyID, direction := p.importPolicyID, table.POLICY_DIRECTION_IMPORT
+			if dir == api.PolicyDirection_POLICY_DIRECTION_EXPORT {
+				policyID, direction = p.exportPolicyID, table.POLICY_DIRECTION_EXPORT
+			}
+			assert.Equal(t, id, policyID)
+			out := p.policy.ApplyPolicy(policyID, direction, path, nil)
+			if accepted {
+				assert.NotNil(t, out)
+			} else {
+				assert.Nil(t, out)
+			}
+			withdraw := path.Clone(true)
+			assert.Same(t, withdraw, p.policy.ApplyPolicy(policyID, direction, withdraw, nil))
+			return nil
+		}, true))
+	}
+	for _, tc := range []struct {
+		name string
+		dir  api.PolicyDirection
+	}{
+		{"import", api.PolicyDirection_POLICY_DIRECTION_IMPORT},
+		{"export", api.PolicyDirection_POLICY_DIRECTION_EXPORT},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := tc.dir
+			global := &api.PolicyAssignment{Name: "global", Direction: dir, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT}
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: global}))
+			check(t, dir, table.GLOBAL_RIB_NAME, false)
+			require.Error(t, s.AddPolicyAssignment(ctx, &api.AddPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+				Name: addr, Direction: dir, Policies: []*api.Policy{{Name: "missing"}}, DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+			}}))
+			check(t, dir, table.GLOBAL_RIB_NAME, false)
+			a := &api.PolicyAssignment{Name: addr, Direction: dir, DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT}
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: a}))
+			check(t, dir, addr, true)
+			require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{}))
+			check(t, dir, addr, true)
+			global.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: global}))
+			a.DefaultAction = api.RouteAction_ROUTE_ACTION_REJECT
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: a}))
+			check(t, dir, addr, false)
+			// A failed assignment update must not change the cached IDs.
+			a.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
+			a.Policies = []*api.Policy{{Name: "missing"}}
+			require.Error(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: a}))
+			check(t, dir, addr, false)
+			a.Policies = nil
+			require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{Assignment: a, All: true}))
+			check(t, dir, table.GLOBAL_RIB_NAME, true)
+			require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{}))
+			check(t, dir, table.GLOBAL_RIB_NAME, true)
+		})
+	}
+}
+
+// Exercise both server pipelines while all ordinary peers still share one RIB.
+func TestRegularPeerImportAndExportPolicy(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	for _, dir := range []api.PolicyDirection{api.PolicyDirection_POLICY_DIRECTION_IMPORT, api.PolicyDirection_POLICY_DIRECTION_EXPORT} {
+		require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+			Name: "global", Direction: dir, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		}}))
+	}
+	const sourceAddr, targetAddr = "192.0.2.40", "192.0.2.41"
+	for _, policy := range []*api.Policy{
+		{Name: "regular-import", Statements: []*api.Statement{{Name: "regular-import-stmt", Actions: &api.Actions{
+			RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT, LocalPref: &api.LocalPrefAction{Value: 150},
+		}}}},
+		{Name: "regular-export", Statements: []*api.Statement{{Name: "regular-export-stmt", Actions: &api.Actions{
+			RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT, Med: &api.MedAction{Type: api.MedAction_TYPE_REPLACE, Value: 200},
+		}}}},
+	} {
+		require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: policy}))
+	}
+	for _, addr := range []string{sourceAddr, targetAddr} {
+		p := &api.Peer{Conf: &api.PeerConf{NeighborAddress: addr, PeerAsn: 65100, AdminDown: true}}
+		if addr == targetAddr {
+			p.Conf.PeerAsn = 65200
+		}
+		require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: p}))
+	}
+	for _, assignment := range []*api.PolicyAssignment{
+		{
+			Name: sourceAddr, Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			Policies: []*api.Policy{{Name: "regular-import"}}, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+		{
+			Name: targetAddr, Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+			Policies: []*api.Policy{{Name: "regular-export"}}, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+		},
+	} {
+		require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: assignment}))
+	}
+	require.NoError(t, s.mgmtOperation(func() error {
+		source, target := s.neighborMap[netip.MustParseAddr(sourceAddr)], s.neighborMap[netip.MustParseAddr(targetAddr)]
+		for _, p := range []*peer{source, target} {
+			conf := p.fsm.pConf.ReadOnly()
+			p.peerInfo.Store(table.NewPeerInfo(&s.bgpConfig.Global, conf, conf.State.PeerAs, 65000,
+				conf.State.NeighborAddress, s.bgpConfig.Global.Config.RouterId,
+				conf.State.NeighborAddress, s.bgpConfig.Global.Config.RouterId))
+			p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+			assert.Equal(t, table.GLOBAL_RIB_NAME, p.TableID())
+		}
+		path := newPolicyTestPath(t, source.peerInfo.Load())
+		s.propagateUpdate(source, []*table.Path{path})
+		best := s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC})
+		if !assert.Len(t, best, 1, "source import overrides rejecting global policy") {
+			return nil
+		}
+		lp, err := best[0].GetLocalPref()
+		assert.NoError(t, err)
+		assert.Equal(t, uint32(150), lp, "import policy transforms the route before RIB insertion")
+		out := s.filterpath(target, best[0], nil)
+		if !assert.NotNil(t, out, "destination export overrides global") {
+			return nil
+		}
+		med, err := out.GetMed()
+		assert.NoError(t, err)
+		assert.Equal(t, uint32(200), med, "export policy transforms the advertised route")
+		assert.NoError(t, s.policy.DeletePolicyAssignment(targetAddr, table.POLICY_DIRECTION_EXPORT, nil, true))
+		target.updatePolicyIDs()
+		out = s.filterpath(target, best[0], best[0])
+		assert.Nil(t, out, "destination now uses rejecting global export")
+		assert.NoError(t, s.policy.DeletePolicyAssignment(sourceAddr, table.POLICY_DIRECTION_IMPORT, nil, true))
+		source.updatePolicyIDs()
+		s.propagateUpdate(source, []*table.Path{path.Clone(false)})
+		assert.Empty(t, s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC}), "global import rejects the replacement")
+		return nil
+	}, true))
+}
+
+func TestRegularPeerGroupPolicyInheritanceAndReload(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	policy := &api.Policy{Name: "group-import", Statements: []*api.Statement{{
+		Name:    "group-import-stmt",
+		Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT},
+	}}}
+	require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: policy}))
+	group := &api.PeerGroup{
+		Conf:        &api.PeerGroupConf{PeerGroupName: "customers", PeerAsn: 65100},
+		ApplyPolicy: &api.ApplyPolicy{ImportPolicy: &api.PolicyAssignment{Policies: []*api.Policy{{Name: policy.Name}}}},
+	}
+	require.NoError(t, s.AddPeerGroup(ctx, &api.AddPeerGroupRequest{PeerGroup: group}))
+	const inherits, overrides = "192.0.2.50", "192.0.2.51"
+	for _, addr := range []string{inherits, overrides} {
+		p := &api.Peer{Conf: &api.PeerConf{NeighborAddress: addr, PeerGroup: "customers", AdminDown: true}}
+		if addr == overrides {
+			p.ApplyPolicy = &api.ApplyPolicy{ImportPolicy: &api.PolicyAssignment{
+				Policies: []*api.Policy{{Name: policy.Name}}, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			}}
+		}
+		require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: p}))
+	}
+	assignment := func(addr string, dir api.PolicyDirection) *api.PolicyAssignment {
+		t.Helper()
+		var a *api.PolicyAssignment
+		require.NoError(t, s.ListPolicyAssignment(ctx, &api.ListPolicyAssignmentRequest{Name: addr, Direction: dir}, func(p *api.PolicyAssignment) { a = p }))
+		require.NotNil(t, a)
+		require.NoError(t, s.mgmtOperation(func() error {
+			p := s.neighborMap[netip.MustParseAddr(addr)]
+			id := p.importPolicyID
+			if dir == api.PolicyDirection_POLICY_DIRECTION_EXPORT {
+				id = p.exportPolicyID
+			}
+			expected := table.GLOBAL_RIB_NAME
+			if len(a.Policies) != 0 || a.DefaultAction != api.RouteAction_ROUTE_ACTION_UNSPECIFIED {
+				expected = addr
+			}
+			assert.Equal(t, expected, id, "cached ID follows the group's effective assignment")
+			return nil
+		}, true))
+		return a
+	}
+	require.Equal(t, policy.Name, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies[0].Name)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_EXPORT).DefaultAction)
+	// SetPolicies rebuilds definitions while preserving assignments made via
+	// either peer configuration or the assignment API, including unset directions.
+	require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{Policies: []*api.Policy{policy}}))
+	require.Equal(t, policy.Name, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies[0].Name)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_EXPORT).DefaultAction)
+	group.ApplyPolicy.ImportPolicy.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
+	group.ApplyPolicy.ImportPolicy.Policies = nil
+	rsp, err := s.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{PeerGroup: group})
+	require.NoError(t, err)
+	require.True(t, rsp.NeedsSoftResetIn)
+	require.Empty(t, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_ACCEPT, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).DefaultAction)
+	require.Equal(t, policy.Name, assignment(overrides, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies[0].Name)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_REJECT, assignment(overrides, api.PolicyDirection_POLICY_DIRECTION_IMPORT).DefaultAction)
+	// Removing the group assignment restores inheritance from global.
+	group.ApplyPolicy = nil
+	_, err = s.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{PeerGroup: group})
+	require.NoError(t, err)
+	require.Equal(t, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).DefaultAction)
+	// List all assignments also includes ordinary peers.
+	var count int
+	require.NoError(t, s.ListPolicyAssignment(ctx, &api.ListPolicyAssignmentRequest{}, func(*api.PolicyAssignment) { count++ }))
+	require.Equal(t, 6, count)
+	require.NoError(t, s.DeletePeer(ctx, &api.DeletePeerRequest{Address: inherits}))
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{NeighborAddress: inherits, PeerAsn: 65100, AdminDown: true}}}))
+	require.Empty(t, assignment(inherits, api.PolicyDirection_POLICY_DIRECTION_IMPORT).Policies)
+}
+
+func TestRegularPeerPolicyReloadMissingPolicy(t *testing.T) {
+	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
+		t.Run(dir.String(), func(t *testing.T) {
+			s := newPolicyTestServer(t)
+			ctx := context.Background()
+			old := &api.Policy{Name: "old", Statements: []*api.Statement{{
+				Name: "old-stmt", Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_REJECT},
+			}}}
+			valid := &api.Policy{Name: "valid", Statements: []*api.Statement{{
+				Name: "valid-stmt", Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT},
+			}}}
+			require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{Policies: []*api.Policy{old, valid}}))
+			const addr = "192.0.2.56"
+			p := &api.Peer{
+				Conf: &api.PeerConf{NeighborAddress: addr, PeerAsn: 65100, AdminDown: true},
+				ApplyPolicy: &api.ApplyPolicy{
+					ImportPolicy: &api.PolicyAssignment{Policies: []*api.Policy{{Name: old.Name}}},
+					ExportPolicy: &api.PolicyAssignment{Policies: []*api.Policy{{Name: valid.Name}}},
+				},
+			}
+			other := table.POLICY_DIRECTION_EXPORT
+			failed := p.ApplyPolicy.ImportPolicy
+			if dir == table.POLICY_DIRECTION_EXPORT {
+				p.ApplyPolicy.ImportPolicy, p.ApplyPolicy.ExportPolicy = p.ApplyPolicy.ExportPolicy, p.ApplyPolicy.ImportPolicy
+				other = table.POLICY_DIRECTION_IMPORT
+			}
+			require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: p}))
+			path := newPolicyTestPath(t, &table.PeerInfo{})
+			check := func(missing bool, name string) {
+				t.Helper()
+				require.NoError(t, s.mgmtOperation(func() error {
+					peer := s.neighborMap[netip.MustParseAddr(addr)]
+					assert.Equal(t, addr, peer.importPolicyID)
+					assert.Equal(t, addr, peer.exportPolicyID)
+					def, policies, err := s.policy.GetPolicyAssignment(addr, dir)
+					assert.NoError(t, err)
+					if missing {
+						assert.Equal(t, table.ROUTE_TYPE_REJECT, def)
+						assert.Empty(t, policies)
+					} else if assert.Len(t, policies, 1) {
+						assert.Equal(t, name, policies[0].Name)
+					}
+					assert.NotNil(t, s.policy.ApplyPolicy(table.GLOBAL_RIB_NAME, dir, path, nil), "global would accept this route")
+					assert.Nil(t, s.policy.ApplyPolicy(addr, dir, path, nil), "the failed direction must not use global")
+					assert.NotNil(t, s.policy.ApplyPolicy(addr, other, path, nil), "the valid direction remains usable")
+					return nil
+				}, true))
+			}
+			check(false, old.Name)
+			renamed := &api.Policy{Name: "renamed", Statements: old.Statements}
+			definitions := &api.SetPoliciesRequest{Policies: []*api.Policy{renamed, valid}}
+			require.NoError(t, s.SetPolicies(ctx, definitions))
+			check(true, "")
+			// Without a neighbor update, a subsequent reload must retain rejection.
+			require.NoError(t, s.SetPolicies(ctx, definitions))
+			check(true, "")
+			failed.Policies = []*api.Policy{{Name: renamed.Name}}
+			_, err := s.UpdatePeer(ctx, &api.UpdatePeerRequest{Peer: p})
+			require.NoError(t, err)
+			check(false, renamed.Name)
+		})
+	}
+}
+
+func TestRegularPeerPolicyAPIDefaultAndReload(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	policy := &api.Policy{Name: "transform", Statements: []*api.Statement{{
+		Name: "transform-stmt", Actions: &api.Actions{Med: &api.MedAction{Type: api.MedAction_TYPE_REPLACE, Value: 200}},
+	}}}
+	require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: policy}))
+	require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+		Name: "global", Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+	}}))
+	const addr = "192.0.2.55"
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{
+		NeighborAddress: addr, PeerAsn: 65100, AdminDown: true,
+	}}}))
+	check := func(t *testing.T) {
+		t.Helper()
+		path := newPolicyTestPath(t, &table.PeerInfo{})
+		var out *table.Path
+		require.NoError(t, s.mgmtOperation(func() error {
+			p := s.neighborMap[netip.MustParseAddr(addr)]
+			out = p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, path, nil)
+			return nil
+		}, true))
+		require.NotNil(t, out)
+		med, err := out.GetMed()
+		require.NoError(t, err)
+		require.Equal(t, uint32(200), med)
+	}
+	for _, tc := range []struct {
+		name   string
+		assign func(*api.PolicyAssignment) error
+	}{
+		{"set", func(a *api.PolicyAssignment) error {
+			return s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: a})
+		}},
+		{"add", func(a *api.PolicyAssignment) error {
+			return s.AddPolicyAssignment(ctx, &api.AddPolicyAssignmentRequest{Assignment: a})
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &api.PolicyAssignment{Name: addr, Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT}
+			require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{Assignment: a, All: true}))
+			a.Policies = []*api.Policy{{Name: policy.Name}}
+			require.NoError(t, tc.assign(a))
+			check(t)
+			checkDefault := func() {
+				t.Helper()
+				var assignment *api.PolicyAssignment
+				require.NoError(t, s.ListPolicyAssignment(ctx, &api.ListPolicyAssignmentRequest{
+					Name: addr, Direction: a.Direction,
+				}, func(p *api.PolicyAssignment) { assignment = p }))
+				require.NotNil(t, assignment)
+				require.Equal(t, api.RouteAction_ROUTE_ACTION_UNSPECIFIED, assignment.DefaultAction)
+			}
+			checkDefault()
+			require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{Policies: []*api.Policy{policy}}))
+			check(t)
+			checkDefault()
+			// Removing the list restores global policy when no default was explicit.
+			require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{Assignment: a}))
+			require.NoError(t, s.mgmtOperation(func() error {
+				p := s.neighborMap[netip.MustParseAddr(addr)]
+				assert.Equal(t, table.GLOBAL_RIB_NAME, p.exportPolicyID)
+				assert.Nil(t, p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+				return nil
+			}, true))
+			// An explicit accept remains after the last policy is removed.
+			a.DefaultAction = api.RouteAction_ROUTE_ACTION_ACCEPT
+			require.NoError(t, tc.assign(a))
+			require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{Assignment: a}))
+			require.NoError(t, s.mgmtOperation(func() error {
+				p := s.neighborMap[netip.MustParseAddr(addr)]
+				assert.Equal(t, addr, p.exportPolicyID)
+				assert.NotNil(t, p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+				return nil
+			}, true))
+			a.DefaultAction = api.RouteAction_ROUTE_ACTION_UNSPECIFIED
+			// An unspecified API default must not replace an existing explicit one.
+			require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+				Name: addr, Direction: a.Direction, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			}}))
+			require.NoError(t, tc.assign(a))
+			require.NoError(t, s.mgmtOperation(func() error {
+				p := s.neighborMap[netip.MustParseAddr(addr)]
+				assert.Equal(t, addr, p.exportPolicyID)
+				assert.Nil(t, p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+				return nil
+			}, true))
+		})
+	}
+}
+
+func TestRouteServerPolicyDoesNotInheritGlobal(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+		Name: "global", Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+	}}))
+	const addr = "192.0.2.60"
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{
+		NeighborAddress: addr, PeerAsn: 65100, AdminDown: true,
+	}, RouteServer: &api.RouteServer{RouteServerClient: true}}}))
+	check := func(accepted bool) {
+		t.Helper()
+		require.NoError(t, s.mgmtOperation(func() error {
+			p := s.neighborMap[netip.MustParseAddr(addr)]
+			assert.Equal(t, addr, p.TableID())
+			assert.Equal(t, addr, p.importPolicyID)
+			assert.Equal(t, addr, p.exportPolicyID, "RS keeps its own ID even without an assignment")
+			out := p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil)
+			if accepted {
+				assert.NotNil(t, out)
+			} else {
+				assert.Nil(t, out)
+			}
+			return nil
+		}, true))
+	}
+	check(true)
+	require.NoError(t, s.DeletePolicyAssignment(ctx, &api.DeletePolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{Name: addr, Direction: api.PolicyDirection_POLICY_DIRECTION_EXPORT}, All: true,
+	}))
+	check(false)
+	require.NoError(t, s.SetPolicies(ctx, &api.SetPoliciesRequest{}))
+	check(true)
+}
+
+func TestDynamicRegularPeerInheritsGroupPolicy(t *testing.T) {
+	s := newPolicyTestServer(t)
+	ctx := context.Background()
+	require.NoError(t, s.AddPeerGroup(ctx, &api.AddPeerGroupRequest{PeerGroup: &api.PeerGroup{
+		// iBGP avoids applying OS-specific eBGP TTL options to the mock socket.
+		Conf:        &api.PeerGroupConf{PeerGroupName: "dynamic", PeerAsn: 65000},
+		ApplyPolicy: &api.ApplyPolicy{ImportPolicy: &api.PolicyAssignment{DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT}},
+	}}))
+	require.NoError(t, s.AddDynamicNeighbor(ctx, &api.AddDynamicNeighborRequest{DynamicNeighbor: &api.DynamicNeighbor{
+		Prefix: "192.0.2.0/24", PeerGroup: "dynamic",
+	}}))
+	m := NewMockConnection()
+	m.SetRemoteAddr("192.0.2.70")
+	t.Cleanup(func() { m.Close() })
+	openSent := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_OPENSENT)
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.passConnToPeer(m)
+		p := s.neighborMap[netip.MustParseAddr("192.0.2.70")]
+		if !assert.NotNil(t, p) {
+			return nil
+		}
+		assert.True(t, p.isDynamicNeighbor())
+		assert.Equal(t, p.ID(), p.importPolicyID)
+		assert.Equal(t, table.GLOBAL_RIB_NAME, p.exportPolicyID)
+		assert.Nil(t, p.policy.ApplyPolicy(p.importPolicyID, table.POLICY_DIRECTION_IMPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+		assert.NotNil(t, p.policy.ApplyPolicy(p.exportPolicyID, table.POLICY_DIRECTION_EXPORT, newPolicyTestPath(t, &table.PeerInfo{}), nil))
+		return nil
+	}, true))
+	// Do not tear down the server while the mock session is still building OPEN.
+	openSent.Wait(t, 5*time.Second)
+}
+
+func TestPerPeerPolicyInUse(t *testing.T) {
 	for _, rs := range []bool{false, true} {
 		name := "non-rs-client"
 		if rs {
@@ -5162,19 +6136,14 @@ func TestPerPeerPolicyIsRouteServerOnly(t *testing.T) {
 			}})
 			assert.NoError(err)
 
-			// A route server client keeps the policy in use. Any other peer
-			// never reads the assignment, so nothing holds the policy.
+			// Both regular and route server peers keep their policies in use.
 			err = s.DeletePolicy(context.Background(), &api.DeletePolicyRequest{
 				Policy:             &api.Policy{Name: "p1"},
 				All:                true,
 				PreserveStatements: true,
 			})
-			if rs {
-				assert.Error(err)
-				assert.Contains(err.Error(), "in use")
-			} else {
-				assert.NoError(err)
-			}
+			assert.Error(err)
+			assert.Contains(err.Error(), "in use")
 		})
 	}
 }
@@ -5237,11 +6206,17 @@ func TestDeletePeerDropsPolicyAssignment(t *testing.T) {
 	err = s.DeletePeer(context.Background(), &api.DeletePeerRequest{Address: "127.0.0.1"})
 	assert.NoError(err)
 
-	// Adding the peer back with an apply-policy that does not resolve leaves
-	// the assignment unset. The peer must not inherit what the deleted peer
-	// had.
-	assert.NoError(addPeer("not-defined"))
-	assert.Empty(assignedPolicies())
+	// Deleting the peer must remove both its policies and default actions.
+	for _, dir := range []table.PolicyDirection{table.POLICY_DIRECTION_IMPORT, table.POLICY_DIRECTION_EXPORT} {
+		def, policies, err := s.policy.GetPolicyAssignment("127.0.0.1", dir)
+		require.NoError(t, err)
+		assert.Equal(table.ROUTE_TYPE_NONE, def)
+		assert.Empty(policies)
+	}
+
+	// An unresolved policy now rejects the peer instead of silently leaving
+	// it without an assignment.
+	require.ErrorContains(t, addPeer("not-defined"), "not found policy not-defined")
 }
 
 // startServerWithPassivePeer starts a BgpServer without a TCP listener and
@@ -5342,6 +6317,11 @@ func sentNotification(m *MockConnection) *bgp.BGPNotification {
 // tore it down moments later, which looped forever against peers that destroy
 // their BFD session when BGP goes down.
 // https://github.com/osrg/gobgp/issues/3561
+//
+// The FSM now handles the reset in Active: the peer goes to Idle for
+// idle-hold-time-after-reset, and nothing of the reset is left for the next
+// session.
+// https://github.com/osrg/gobgp/issues/3740
 func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
 	const (
 		asn      = 65001
@@ -5349,6 +6329,9 @@ func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
 	)
 
 	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	conf := peer.fsm.pConf.ReadCopy()
+	conf.Timers.Config.IdleHoldTimeAfterReset = 1
+	peer.fsm.pConf.Update(&conf)
 	m1 := establishSession(t, s, peer, asn, peerAddr)
 
 	// Bring the session down and wait until the peer settles in ACTIVE.
@@ -5356,30 +6339,31 @@ func TestResetPeerWhileDownDoesNotResetNextSession(t *testing.T) {
 	m1.Close()
 	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 
-	// Reset the peer while it is down: exactly what the BFD code does when
-	// its detect timer expires after the BGP session already ended.
+	// Reset the peer while it is down. It goes to Idle and back to Active
+	// after idle-hold-time-after-reset.
+	idle := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
 	err := s.ResetPeer(context.Background(), &api.ResetPeerRequest{
-		Address:       peerAddr,
-		Communication: "BFD is down",
-		Soft:          false,
+		Address: peerAddr,
+		Soft:    false,
 	})
 	require.NoError(t, err)
-	require.Len(t, peer.fsm.notification, 1)
+	idle.Wait(t, 10*time.Second)
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
 
 	m2 := establishSession(t, s, peer, asn, peerAddr)
 
-	// The stale reset must not reach the new session: it must stay
+	// The reset must not reach the new session: it must stay
 	// established, with no NOTIFICATION on its connection.
 	require.Never(t, func() bool {
 		return peer.State() != bgp.BGP_FSM_ESTABLISHED || sentNotification(m2) != nil
 	}, time.Second, 10*time.Millisecond)
+	require.Empty(t, peer.fsm.resetCh)
 	require.Empty(t, peer.fsm.notification)
 }
 
 // A hard ResetPeer against an established peer must still tear the session
-// down promptly. This is the behavior BFD relies on when it detects a failure
-// on a live session, and the drain that fixes the stale-notification bug must
-// not suppress it.
+// down promptly. The drain that fixes the stale-notification bug must not
+// suppress it.
 func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 	const (
 		asn      = 65001
@@ -5391,9 +6375,8 @@ func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 
 	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
 	err := s.ResetPeer(context.Background(), &api.ResetPeerRequest{
-		Address:       peerAddr,
-		Communication: "BFD is down",
-		Soft:          false,
+		Address: peerAddr,
+		Soft:    false,
 	})
 	require.NoError(t, err)
 	w.Wait(t, 10*time.Second)
@@ -5404,6 +6387,100 @@ func TestResetPeerEstablishedSendsNotification(t *testing.T) {
 			n.ErrorCode == bgp.BGP_ERROR_CEASE &&
 			n.ErrorSubcode == bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET
 	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// When BFD goes down on a live session, the server sends Cease/BFD Down
+// (RFC 9384), not Cease/Administrative Reset.
+func TestBfdDownEstablishedSendsNotification(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+
+	w := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+	require.NoError(t, s.bfdDown(context.Background(), netip.MustParseAddr(peerAddr)))
+	w.Wait(t, 10*time.Second)
+
+	require.Eventually(t, func() bool {
+		n := sentNotification(m1)
+		return n != nil &&
+			n.ErrorCode == bgp.BGP_ERROR_CEASE &&
+			n.ErrorSubcode == bgp.BGP_ERROR_SUB_BFD_DOWN &&
+			len(n.Data) == 0
+	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// BFD can go down after the BGP session already ended. The NOTIFICATION it
+// queues must not tear down the next session.
+// https://github.com/osrg/gobgp/issues/3561
+func TestBfdDownWhileDownDoesNotResetNextSession(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+
+	m1.Close()
+	waitPeerState(t, s, api.PeerState_SESSION_STATE_ACTIVE, 10*time.Second)
+
+	require.NoError(t, s.bfdDown(context.Background(), netip.MustParseAddr(peerAddr)))
+	require.Len(t, peer.fsm.notification, 1)
+
+	m2 := establishSession(t, s, peer, asn, peerAddr)
+
+	require.Never(t, func() bool {
+		return peer.State() != bgp.BGP_FSM_ESTABLISHED || sentNotification(m2) != nil
+	}, time.Second, 10*time.Millisecond)
+	require.Empty(t, peer.fsm.notification)
+}
+
+// The idle hold time backs off like the start timer of FRR. A NOTIFICATION
+// doubles it, and a session that reaches Established sets it back to 1
+// second.
+func TestIdleHoldTimeBackoff(t *testing.T) {
+	const (
+		asn      = 65001
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+
+	// idleTime ends the session with end and returns how long the peer
+	// stays in Idle. The peer is passive, so it waits in Active after Idle.
+	idleTime := func(m *MockConnection, end func(*MockConnection)) time.Duration {
+		t.Helper()
+		idle := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_IDLE)
+		active := newPeerStateWaiter(s, api.PeerState_SESSION_STATE_ACTIVE)
+		end(m)
+		idle.Wait(t, 10*time.Second)
+		start := time.Now()
+		active.Wait(t, 10*time.Second)
+		return time.Since(start)
+	}
+	notify := func(m *MockConnection) {
+		m.PushBgpMessage(bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_OTHER_CONFIGURATION_CHANGE, nil))
+	}
+	closeConn := func(m *MockConnection) {
+		m.Close()
+	}
+
+	// The NOTIFICATION from the peer doubles the initial 1 second.
+	m1 := establishSession(t, s, peer, asn, peerAddr)
+	d := idleTime(m1, notify)
+	require.GreaterOrEqual(t, d, 1500*time.Millisecond)
+	require.Less(t, d, 4*time.Second)
+
+	// Established sets it back to 1 second, and a closed TCP connection
+	// does not double it.
+	m2 := establishSession(t, s, peer, asn, peerAddr)
+	d = idleTime(m2, closeConn)
+	require.GreaterOrEqual(t, d, 500*time.Millisecond)
+	require.Less(t, d, 1500*time.Millisecond)
 }
 
 func TestListPolicyOriginCondition(t *testing.T) {
@@ -5797,4 +6874,184 @@ func TestUpdatePeerGroupSkipsDynamicNeighbor(t *testing.T) {
 	}, true)
 	assert.NoError(err)
 	assert.Equal([]string{static}, members)
+}
+
+// Serve runs once per server. A second run would close closeCh twice and
+// would leave the server unusable, because mgmtOperation returns an error as
+// soon as closeCh is closed.
+func TestServeRunsOnce(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.mgmtOperation(func() error { return nil }, false))
+	s.Stop()
+
+	returned := make(chan struct{})
+	go func() {
+		defer close(returned)
+		s.Serve()
+	}()
+	select {
+	case <-returned:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the second Serve did not return")
+	}
+	// The second call must not resurrect the dispatcher.
+	assert.Error(t, s.mgmtOperation(func() error { return nil }, false))
+}
+
+// Two concurrent calls must not both run the dispatcher loop.
+func TestServeConcurrentCallsRunOnce(t *testing.T) {
+	s := NewBgpServer()
+	defer s.Stop()
+
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.Serve()
+		}()
+	}
+	require.NoError(t, s.mgmtOperation(func() error { return nil }, false))
+
+	s.Stop()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wg.Wait()
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a Serve call did not return")
+	}
+}
+
+// RFC 8950 Section 4: an IPv4 or VPN-IPv4 path with an IPv6 next hop is sent
+// only to a peer that advertised the Extended Next Hop Encoding capability
+// for the family of the path.
+func TestPostFilterpathExtendedNexthop(t *testing.T) {
+	prefix := netip.MustParsePrefix("192.0.2.17/32")
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(65000, 100)
+	ipNLRI, err := bgp.NewIPAddrPrefix(prefix)
+	require.NoError(t, err)
+	labeledNLRI, err := bgp.NewLabeledIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(100))
+	require.NoError(t, err)
+	vpnNLRI, err := bgp.NewLabeledVPNIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(100), rd)
+	require.NoError(t, err)
+
+	enhe := func(tuples ...*bgp.CapExtendedNexthopTuple) map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface {
+		return map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface{
+			bgp.BGP_CAP_EXTENDED_NEXTHOP: {bgp.NewCapExtendedNexthop(tuples)},
+		}
+	}
+
+	for _, tc := range []struct {
+		family bgp.Family
+		nlri   bgp.NLRI
+		other  bgp.Family
+	}{
+		{bgp.RF_IPv4_UC, ipNLRI, bgp.RF_IPv6_UC},
+		{bgp.RF_IPv4_MC, ipNLRI, bgp.RF_IPv4_UC},
+		{bgp.RF_IPv4_MPLS, labeledNLRI, bgp.RF_IPv4_UC},
+		{bgp.RF_IPv4_VPN, vpnNLRI, bgp.RF_IPv4_UC},
+		{bgp.RF_IPv4_VPN_MC, vpnNLRI, bgp.RF_IPv4_VPN},
+	} {
+		t.Run(tc.family.String(), func(t *testing.T) {
+			s := NewBgpServer()
+			rib := table.NewTableManager(logger, []bgp.Family{tc.family}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+			peer := newPeerandInfo(t, 65000, 65001, "2001:db8::2", rib)
+			info := peer.peerInfo.Load()
+			newPath := func(nexthop string) *table.Path {
+				reach, err := bgp.NewPathAttributeMpReachNLRI(tc.family, []bgp.PathNLRI{{NLRI: tc.nlri}}, netip.MustParseAddr(nexthop))
+				require.NoError(t, err)
+				return table.NewPath(tc.family, info, bgp.PathNLRI{NLRI: tc.nlri}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), reach}, time.Now(), false)
+			}
+			v4 := newPath("192.0.2.1")
+			// An IPv4-mapped IPv6 address is sent as a 16 octet next hop,
+			// so it needs the capability too.
+			v6 := []string{"2001:db8::1", "::ffff:192.0.2.1"}
+
+			for _, c := range []struct {
+				name   string
+				capMap map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface
+				v6Sent bool
+			}{
+				{"no capability", nil, false},
+				{
+					"tuple for another family and next hop AFI IPv4 only",
+					enhe(bgp.NewCapExtendedNexthopTuple(tc.other, bgp.AFI_IP6), bgp.NewCapExtendedNexthopTuple(tc.family, bgp.AFI_IP)),
+					false,
+				},
+				{"tuple for the family", enhe(bgp.NewCapExtendedNexthopTuple(tc.other, bgp.AFI_IP6), bgp.NewCapExtendedNexthopTuple(tc.family, bgp.AFI_IP6)), true},
+			} {
+				peer.fsm.capMap = c.capMap
+				for _, nh := range v6 {
+					got := s.postFilterpath(peer, newPath(nh))
+					require.NotNil(t, got, c.name)
+					require.Equal(t, !c.v6Sent, got.IsWithdraw, "%s: next hop %s", c.name, nh)
+				}
+				got := s.postFilterpath(peer, v4)
+				require.NotNil(t, got, c.name)
+				require.False(t, got.IsWithdraw, "%s: IPv4 next hop", c.name)
+			}
+		})
+	}
+}
+
+// DisablePeer, EnablePeer and DisablePeer sent back to back must all reach
+// the FSM, and the last one wins. The FSM does not read adminStateCh while
+// it changes state, and the channel had room for one request, so the second
+// DisablePeer was dropped and the peer was left enabled.
+// https://github.com/osrg/gobgp/issues/3789
+func TestAdminStateRequestsBackToBack(t *testing.T) {
+	const (
+		asn      = 65000
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	establishSession(t, s, peer, asn, peerAddr)
+	ctx := context.Background()
+
+	require.NoError(t, s.DisablePeer(ctx, &api.DisablePeerRequest{Address: peerAddr}))
+	require.NoError(t, s.EnablePeer(ctx, &api.EnablePeerRequest{Address: peerAddr}))
+	require.NoError(t, s.DisablePeer(ctx, &api.DisablePeerRequest{Address: peerAddr}))
+
+	require.Eventually(t, func() bool {
+		return len(peer.fsm.adminStateCh) == 0 && peer.AdminState() == adminStateDown
+	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// When adminStateCh is full, setAdminState returns an error instead of
+// dropping the request silently.
+func TestAdminStateRequestQueueFull(t *testing.T) {
+	const (
+		asn      = 65000
+		peerAddr = "10.0.0.1"
+	)
+
+	s, peer := startServerWithPassivePeer(t, asn, peerAddr)
+	establishSession(t, s, peer, asn, peerAddr)
+
+	// The FSM takes the first request, goes to Idle and then waits for
+	// the server lock, which the management operation holds. So it reads
+	// at most one request while the operation runs.
+	var errs []error
+	err := s.mgmtOperation(func() error {
+		errs = append(errs, s.setAdminState(peerAddr, "", adminStateDown))
+		for range adminStateChLen + 1 {
+			errs = append(errs, s.setAdminState(peerAddr, "", adminStateUp))
+		}
+		return nil
+	}, true)
+	require.NoError(t, err)
+
+	require.NoError(t, errs[0])
+	require.ErrorContains(t, errs[len(errs)-1], "too many admin state requests")
+
+	// The queued requests are applied in order and the last one wins.
+	require.Eventually(t, func() bool {
+		return len(peer.fsm.adminStateCh) == 0 && peer.AdminState() == adminStateUp
+	}, 10*time.Second, 10*time.Millisecond)
 }

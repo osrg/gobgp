@@ -445,6 +445,7 @@ class GoBGPContainer(BGPContainer):
                     'config': {},
                 },
             }
+            n['timers']['config'].update(info['timers'])
 
             n['as-path-options'] = {'config': {}}
             if info['allow_as_in'] > 0:
@@ -459,6 +460,9 @@ class GoBGPContainer(BGPContainer):
                 n['transport']['config']['passive-mode'] = True
             if info['bind_interface']:
                 n['transport']['config']['bind-interface'] = info['bind_interface']
+
+            if info['tcp_ao']:
+                n['tcp-ao'] = {'config': info['tcp_ao']}
 
             if info['is_rs_client']:
                 n['route-server'] = {'config': {'route-server-client': True}}

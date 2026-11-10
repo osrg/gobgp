@@ -1,9 +1,11 @@
 package bgp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"net"
 	"net/netip"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -235,6 +237,55 @@ func Test_Validate_invalid_nexthop_zero(t *testing.T) {
 	assert.Equal(nexthopBytes, e.Data)
 }
 
+// The value of NEXT_HOP is checked only when the UPDATE has NLRIs in the
+// NLRI field. An UPDATE with NLRIs only in MP_REACH_NLRI does not use it.
+func Test_Validate_nexthop_without_nlri(t *testing.T) {
+	invalid, err := NewPathAttributeNextHop(netip.MustParseAddr("0.0.0.1"))
+	require.NoError(t, err)
+	rfs := map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_NONE, RF_IPv6_UC: BGP_ADD_PATH_NONE}
+
+	t.Run("MP_REACH_NLRI only", func(t *testing.T) {
+		message := bgpupdateV6().Body.(*BGPUpdate)
+		message.PathAttributes = append(message.PathAttributes, invalid)
+		res, err := ValidateUpdateMsg(message, rfs, false, false, false)
+		assert.NoError(t, err)
+		assert.True(t, res)
+	})
+
+	t.Run("withdrawn routes only", func(t *testing.T) {
+		prefix, err := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+		require.NoError(t, err)
+		message := NewBGPUpdateMessage([]PathNLRI{{NLRI: prefix}}, []PathAttributeInterface{invalid}, nil).Body.(*BGPUpdate)
+		res, err := ValidateUpdateMsg(message, rfs, false, false, false)
+		assert.NoError(t, err)
+		assert.True(t, res)
+	})
+
+	t.Run("NLRI field and MP_REACH_NLRI", func(t *testing.T) {
+		message := bgpupdate().Body.(*BGPUpdate)
+		message.PathAttributes[2] = invalid
+		v6 := bgpupdateV6().Body.(*BGPUpdate)
+		message.PathAttributes = append(message.PathAttributes, v6.PathAttributes[2])
+		res, err := ValidateUpdateMsg(message, rfs, false, false, false)
+		require.Error(t, err)
+		assert.False(t, res)
+		e := err.(*MessageError)
+		assert.Equal(t, uint8(BGP_ERROR_SUB_INVALID_NEXT_HOP_ATTRIBUTE), e.SubTypeCode)
+		assert.Equal(t, ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
+	})
+
+	t.Run("NEXT_HOP twice without NLRI", func(t *testing.T) {
+		message := bgpupdateV6().Body.(*BGPUpdate)
+		message.PathAttributes = append(message.PathAttributes, invalid, invalid)
+		res, err := ValidateUpdateMsg(message, rfs, false, false, false)
+		require.Error(t, err)
+		assert.False(t, res)
+		e := err.(*MessageError)
+		assert.Equal(t, uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST), e.SubTypeCode)
+		assert.Equal(t, ERROR_HANDLING_ATTRIBUTE_DISCARD, e.ErrorHandling)
+	})
+}
+
 func Test_Validate_invalid_nexthop_lo(t *testing.T) {
 	tests := []struct {
 		desc              string
@@ -302,6 +353,109 @@ func Test_Validate_invalid_nexthop_de(t *testing.T) {
 	assert.Equal(nexthopBytes, e.Data)
 }
 
+// The next hop in MP_REACH_NLRI gets the same host address check as
+// NEXT_HOP. The FlowSpec families carry no next hop, and an unspecified IPv6
+// next hop is accepted only with a link-local one.
+func Test_Validate_invalid_mpreach_nexthop(t *testing.T) {
+	v4, err := NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
+	require.NoError(t, err)
+	v6, err := NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/32"))
+	require.NoError(t, err)
+	vpn, err := NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"), *NewMPLSLabelStack(100), NewRouteDistinguisherTwoOctetAS(65001, 1))
+	require.NoError(t, err)
+	rfs := map[Family]BGPAddPathMode{
+		RF_IPv4_UC:  BGP_ADD_PATH_NONE,
+		RF_IPv6_UC:  BGP_ADD_PATH_NONE,
+		RF_IPv4_VPN: BGP_ADD_PATH_NONE,
+	}
+
+	tests := []struct {
+		desc            string
+		family          Family
+		nlri            NLRI
+		nexthop         string
+		linkLocal       string
+		loopbackAllowed bool
+		wantErr         bool
+	}{
+		{desc: "zero", family: RF_IPv4_UC, nlri: v4, nexthop: "0.0.0.0", wantErr: true},
+		{desc: "loopback", family: RF_IPv4_UC, nlri: v4, nexthop: "127.0.0.1", wantErr: true},
+		{desc: "loopback allowed", family: RF_IPv4_UC, nlri: v4, nexthop: "127.0.0.1", loopbackAllowed: true},
+		{desc: "class D", family: RF_IPv4_UC, nlri: v4, nexthop: "224.0.0.1", wantErr: true},
+		{desc: "class E", family: RF_IPv4_UC, nlri: v4, nexthop: "240.0.0.1", wantErr: true},
+		{desc: "host address", family: RF_IPv4_UC, nlri: v4, nexthop: "192.168.1.1"},
+		{desc: "VPN zero", family: RF_IPv4_VPN, nlri: vpn, nexthop: "0.0.0.0", wantErr: true},
+		{desc: "IPv6 loopback", family: RF_IPv6_UC, nlri: v6, nexthop: "::1", wantErr: true},
+		{desc: "IPv6 loopback allowed", family: RF_IPv6_UC, nlri: v6, nexthop: "::1", loopbackAllowed: true},
+		{desc: "IPv6 multicast", family: RF_IPv6_UC, nlri: v6, nexthop: "ff02::1", wantErr: true},
+		{desc: "IPv6 unspecified", family: RF_IPv6_UC, nlri: v6, nexthop: "::", wantErr: true},
+		{desc: "IPv6 unspecified with link-local", family: RF_IPv6_UC, nlri: v6, nexthop: "::", linkLocal: "fe80::1"},
+		{desc: "IPv6 unspecified with non link-local", family: RF_IPv6_UC, nlri: v6, nexthop: "::", linkLocal: "2001:db8::2", wantErr: true},
+		{desc: "IPv6 host address", family: RF_IPv6_UC, nlri: v6, nexthop: "2001:db8::1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			nexthops := []netip.Addr{netip.MustParseAddr(tt.nexthop)}
+			placeholder := netip.MustParseAddr("fe80::1")
+			if tt.linkLocal != "" {
+				nexthops = append(nexthops, placeholder)
+			}
+			reach, err := NewPathAttributeMpReachNLRI(tt.family, []PathNLRI{{NLRI: tt.nlri}}, nexthops...)
+			require.NoError(t, err)
+			attrs := []PathAttributeInterface{
+				NewPathAttributeOrigin(1),
+				NewPathAttributeAsPath([]AsPathParamInterface{NewAs4PathParam(2, []uint32{65001})}),
+				reach,
+			}
+			// Go through the wire so that the next hop is the decoded one.
+			buf, err := NewBGPUpdateMessage(nil, attrs, nil).Serialize()
+			require.NoError(t, err)
+			if tt.linkLocal != "" {
+				// The constructor drops a second address that is not
+				// link-local, so write the one under test on the wire.
+				from, to := placeholder.As16(), netip.MustParseAddr(tt.linkLocal).As16()
+				buf = bytes.Replace(buf, from[:], to[:], 1)
+			}
+			m, err := ParseBGPMessage(buf)
+			require.NoError(t, err)
+			message := m.Body.(*BGPUpdate)
+
+			res, err := ValidateUpdateMsg(message, rfs, true, false, tt.loopbackAllowed)
+			if !tt.wantErr {
+				assert.NoError(t, err)
+				assert.True(t, res)
+				return
+			}
+			require.Error(t, err)
+			assert.False(t, res)
+			e := err.(*MessageError)
+			assert.Equal(t, uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+			assert.Equal(t, uint8(BGP_ERROR_SUB_OPTIONAL_ATTRIBUTE_ERROR), e.SubTypeCode)
+			assert.Equal(t, ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
+		})
+	}
+
+	t.Run("flowspec", func(t *testing.T) {
+		// RFC 8955 4: the next hop field MUST be ignored. The constructor
+		// writes a zero length next hop for FlowSpec, so build the
+		// attribute by hand.
+		prefix, err := NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+		require.NoError(t, err)
+		nlri, err := NewFlowSpecUnicast(RF_FS_IPv4_UC, []FlowSpecComponentInterface{NewFlowSpecDestinationPrefix(prefix)})
+		require.NoError(t, err)
+		reach := &PathAttributeMpReachNLRI{
+			PathAttribute: PathAttribute{Flags: PathAttrFlags[BGP_ATTR_TYPE_MP_REACH_NLRI], Type: BGP_ATTR_TYPE_MP_REACH_NLRI},
+			AFI:           AFI_IP,
+			SAFI:          SAFI_FLOW_SPEC_UNICAST,
+			Nexthop:       netip.MustParseAddr("0.0.0.0"),
+			Value:         []PathNLRI{{NLRI: nlri}},
+		}
+		res, err := ValidateAttribute(reach, map[Family]BGPAddPathMode{RF_FS_IPv4_UC: BGP_ADD_PATH_NONE}, true, false, false)
+		assert.NoError(t, err)
+		assert.True(t, res)
+	})
+}
+
 func Test_Validate_unrecognized_well_known(t *testing.T) {
 	assert := assert.New(t)
 	message := bgpupdate().Body.(*BGPUpdate)
@@ -317,7 +471,7 @@ func Test_Validate_unrecognized_well_known(t *testing.T) {
 	e := err.(*MessageError)
 	assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
 	assert.Equal(uint8(BGP_ERROR_SUB_UNRECOGNIZED_WELL_KNOWN_ATTRIBUTE), e.SubTypeCode)
-	assert.Equal(ERROR_HANDLING_SESSION_RESET, e.ErrorHandling)
+	assert.Equal(ERROR_HANDLING_TREAT_AS_WITHDRAW, e.ErrorHandling)
 	assert.Equal(unknownBytes, e.Data)
 }
 
@@ -522,4 +676,109 @@ func Test_Validate_OpenMsg_zero_as(t *testing.T) {
 	as, err = ValidateOpenMsg(m.Body.(*BGPOpen), 65536, 65001, myId)
 	assert.NoError(err)
 	assert.Equal(uint32(65536), as)
+}
+
+// rfc7607 2. An UPDATE that carries AS 0 in the AS_PATH, AS4_PATH,
+// AGGREGATOR, or AS4_AGGREGATOR attribute must be treated as malformed. The
+// receive side used to accept and re-propagate such a route.
+func Test_Validate_zero_as(t *testing.T) {
+	agg := func(as uint32) *PathAttributeAggregator {
+		a, err := NewPathAttributeAggregator(as, netip.MustParseAddr("192.168.1.1"))
+		require.NoError(t, err)
+		return a
+	}
+	as4agg := func(as uint32) *PathAttributeAs4Aggregator {
+		a, err := NewPathAttributeAs4Aggregator(as, netip.MustParseAddr("192.168.1.1"))
+		require.NoError(t, err)
+		return a
+	}
+
+	tests := []struct {
+		name     string
+		attr     PathAttributeInterface
+		replace  bool // replace the AS_PATH attribute instead of appending
+		subCode  uint8
+		handling ErrorHandling
+	}{
+		{
+			name:     "AS_PATH",
+			attr:     NewPathAttributeAsPath([]AsPathParamInterface{NewAsPathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint16{65001, 0})}),
+			replace:  true,
+			subCode:  BGP_ERROR_SUB_MALFORMED_AS_PATH,
+			handling: ERROR_HANDLING_TREAT_AS_WITHDRAW,
+		},
+		{
+			name:     "AS4_PATH",
+			attr:     NewPathAttributeAs4Path([]*As4PathParam{NewAs4PathParam(BGP_ASPATH_ATTR_TYPE_SEQ, []uint32{65536, 0})}),
+			subCode:  BGP_ERROR_SUB_MALFORMED_AS_PATH,
+			handling: ERROR_HANDLING_ATTRIBUTE_DISCARD,
+		},
+		{
+			name:     "AGGREGATOR",
+			attr:     agg(0),
+			subCode:  BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST,
+			handling: ERROR_HANDLING_ATTRIBUTE_DISCARD,
+		},
+		{
+			name:     "AS4_AGGREGATOR",
+			attr:     as4agg(0),
+			subCode:  BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST,
+			handling: ERROR_HANDLING_ATTRIBUTE_DISCARD,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			message := bgpupdate().Body.(*BGPUpdate)
+			if tt.replace {
+				message.PathAttributes[1] = tt.attr
+			} else {
+				message.PathAttributes = append(message.PathAttributes, tt.attr)
+			}
+
+			res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
+			assert.Equal(false, res)
+			require.Error(t, err)
+			e := err.(*MessageError)
+			assert.Equal(uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR), e.TypeCode)
+			assert.Equal(tt.subCode, e.SubTypeCode)
+			assert.Equal(tt.handling, e.ErrorHandling)
+
+			// attribute-discard must leave the malformed attribute out
+			// of the message; treat-as-withdraw keeps it since the
+			// whole route is withdrawn.
+			present := slices.ContainsFunc(message.PathAttributes, func(x PathAttributeInterface) bool {
+				return x.GetType() == tt.attr.GetType()
+			})
+			if tt.handling == ERROR_HANDLING_ATTRIBUTE_DISCARD {
+				assert.False(present, "discarded attribute should be removed")
+			} else {
+				assert.True(present)
+			}
+		})
+	}
+}
+
+// rfc7606 2. Discarding an AGGREGATOR with AS 0 must not leave an
+// AS4_AGGREGATOR behind, which would otherwise reset the session when the
+// FSM merges the two.
+func Test_Validate_zero_as_aggregator_with_as4_aggregator(t *testing.T) {
+	assert := assert.New(t)
+	agg, err := NewPathAttributeAggregator(uint32(0), netip.MustParseAddr("192.168.1.1"))
+	require.NoError(t, err)
+	as4agg, err := NewPathAttributeAs4Aggregator(65536, netip.MustParseAddr("192.168.1.1"))
+	require.NoError(t, err)
+	message := bgpupdate().Body.(*BGPUpdate)
+	message.PathAttributes = append(message.PathAttributes, agg, as4agg)
+
+	res, err := ValidateUpdateMsg(message, map[Family]BGPAddPathMode{RF_IPv4_UC: BGP_ADD_PATH_BOTH}, false, false, false)
+	assert.Equal(false, res)
+	require.Error(t, err)
+	assert.Equal(ERROR_HANDLING_ATTRIBUTE_DISCARD, err.(*MessageError).ErrorHandling)
+	for _, a := range message.PathAttributes {
+		assert.NotEqual(BGP_ATTR_TYPE_AGGREGATOR, a.GetType())
+		assert.NotEqual(BGP_ATTR_TYPE_AS4_AGGREGATOR, a.GetType())
+	}
+	assert.Len(message.NLRI, 1)
 }

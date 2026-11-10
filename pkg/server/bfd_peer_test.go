@@ -13,6 +13,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bfd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_NewBfdPeer(t *testing.T) {
@@ -144,6 +145,8 @@ func Test_NewBfdPeerLocalAddressAndBindInterface(t *testing.T) {
 		oc.BfdConfig{Enabled: true},
 		localAddress,
 		"eth0",
+		randomBFDMyDiscriminator(),
+		1,
 	)
 	defer p.Stop()
 
@@ -212,7 +215,46 @@ func Test_RxPacketRemoteDownResetsPeer(t *testing.T) {
 	})
 
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, api.BfdSessionState(p.state.Load()))
-	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
+}
+
+func Test_RxPacketRemoteAdminDownKeepsPeer(t *testing.T) {
+	for _, state := range []api.BfdSessionState{
+		api.BfdSessionState_BFD_SESSION_STATE_UP,
+		api.BfdSessionState_BFD_SESSION_STATE_INIT,
+	} {
+		t.Run(state.String(), func(t *testing.T) {
+			assert := assert.New(t)
+
+			ps := &mockPeerState{}
+			p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+				Port:                     13784,
+				Enabled:                  true,
+				DetectionMultiplier:      5,
+				RequiredMinimumReceive:   200000,
+				DesiredMinimumTxInterval: 200000,
+			}, "")
+			defer p.Stop()
+
+			p.state.Store(int32(state))
+			p.yourDiscriminator = 67890
+
+			// RFC 5882 Sections 3.2 and 4.2: the BFD session goes Down, but
+			// AdminDown is not a path failure, so the BGP peer is not reset.
+			p.rxPacket(&bfd.BFDHeader{
+				State:                bfd.StateAdminDown,
+				MyDiscriminator:      67890,
+				YourDiscriminator:    p.myDiscriminator,
+				DetectTimeMultiplier: 5,
+			})
+
+			assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+			assert.Equal(uint32(0), p.yourDiscriminator)
+			assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
+			// RFC 5880 Section 6.8.6 still sets bfd.LocalDiag to 3.
+			assert.Equal(bfd.DiagnosticNeighborSignaledSessionDown, p.localDiag)
+		})
+	}
 }
 
 func Test_RxPacketRFCStateTransitions(t *testing.T) {
@@ -237,7 +279,7 @@ func Test_RxPacketRFCStateTransitions(t *testing.T) {
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_INIT, api.BfdSessionState(p.state.Load()))
 	assert.Equal(uint32(111), p.yourDiscriminator)
 
-	p.setStateDown()
+	p.setStateDown(bfd.DiagnosticNoDiagnostic)
 	p.rxPacket(&bfd.BFDHeader{
 		State:                bfd.StateUp,
 		MyDiscriminator:      222,
@@ -474,6 +516,170 @@ func Test_RxPacketFinalThenUpOrdering(t *testing.T) {
 	assert.True(p.pollSequence)
 }
 
+// Test_ApplyConfigUpHoldsUntilFinal pins RFC 5880 Section 6.8.3 for a timer change
+// while Up: the session stays Up, the change initiates a Poll Sequence, an increased
+// bfd.DesiredMinTxInterval keeps the previous transmit interval, and a reduced
+// bfd.RequiredMinRxInterval keeps the previous Detection Time, until the Final.
+func Test_ApplyConfigUpHoldsUntilFinal(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   100000,
+		DesiredMinimumTxInterval: 100000,
+	}, "")
+	defer p.Stop()
+
+	// An Up session with no Poll Sequence in flight. The large Detect Mult keeps
+	// the expiry timer from firing during the test.
+	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
+	p.yourDiscriminator = 12345
+	p.desiredMinTx = 100 * time.Millisecond
+	up := &bfd.BFDHeader{
+		State:                bfd.StateUp,
+		MyDiscriminator:      12345,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 50,
+		DesiredMinTxInterval: 50000,
+	}
+	p.rxPacket(up)
+	assert.Equal(5*time.Second, p.expiryInterval)
+
+	p.applyConfig(oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   50000,
+		DesiredMinimumTxInterval: 300000,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_UP, p.sessionState())
+	assert.True(p.pollSequence)
+	assert.Equal(300*time.Millisecond, p.desiredMinTx)
+	assert.Equal(50*time.Millisecond, p.rxInterval)
+	assert.Equal(100*time.Millisecond, p.effectiveTxInterval())
+	assert.Equal(5*time.Second, p.expiryInterval)
+
+	final := *up
+	final.Final = true
+	p.rxPacket(&final)
+	assert.False(p.pollSequence)
+	assert.Equal(300*time.Millisecond, p.effectiveTxInterval())
+	assert.Equal(2500*time.Millisecond, p.expiryInterval)
+}
+
+// Test_ApplyConfigRxChangeStartsPollSequence pins RFC 5880 Section 6.8.3: "If either
+// bfd.DesiredMinTxInterval is changed or bfd.RequiredMinRxInterval is changed, a Poll
+// Sequence MUST be initiated." An increase of bfd.RequiredMinRxInterval while Up holds
+// nothing: the remote slows down only after it has seen the Poll.
+func Test_ApplyConfigRxChangeStartsPollSequence(t *testing.T) {
+	assert := assert.New(t)
+
+	config := oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   100000,
+		DesiredMinimumTxInterval: 100000,
+	}
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), config, "")
+	defer p.Stop()
+
+	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
+	p.yourDiscriminator = 12345
+	p.desiredMinTx = 100 * time.Millisecond
+
+	config.RequiredMinimumReceive = 300000
+	p.applyConfig(config)
+	assert.True(p.pollSequence)
+	assert.Equal(300*time.Millisecond, p.rxInterval)
+	assert.Equal(100*time.Millisecond, p.desiredMinTx)
+	assert.Zero(p.heldTxInterval)
+	assert.Zero(p.heldRxInterval)
+}
+
+// Test_ApplyNextConfigWaitsForPollSequence pins RFC 5880 Section 6.8.3's rule for
+// several changes that need a Poll Sequence: a configuration waits for the sequence
+// in flight to end, and then for a packet with the Final bit clear, before it
+// applies. A change of only the detection multiplier needs no sequence of its own.
+func Test_ApplyNextConfigWaitsForPollSequence(t *testing.T) {
+	assert := assert.New(t)
+
+	config := oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   100000,
+		DesiredMinimumTxInterval: 100000,
+	}
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), config, "")
+	defer p.Stop()
+
+	p.state.Store(int32(api.BfdSessionState_BFD_SESSION_STATE_UP))
+	p.yourDiscriminator = 12345
+	p.desiredMinTx = 100 * time.Millisecond
+	p.pollSequence = true
+
+	config.DetectionMultiplier = 5
+	p.nextConfig.Store(&config)
+
+	p.applyNextConfig()
+	assert.Equal(uint8(3), p.multiplier)
+
+	up := &bfd.BFDHeader{
+		State:                bfd.StateUp,
+		MyDiscriminator:      12345,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 50,
+	}
+	final := *up
+	final.Final = true
+	p.rxPacket(&final)
+	assert.False(p.pollSequence)
+	p.applyNextConfig()
+	assert.Equal(uint8(3), p.multiplier)
+
+	p.rxPacket(up)
+	p.applyNextConfig()
+	assert.Equal(uint8(5), p.multiplier)
+	assert.Nil(p.nextConfig.Load())
+	assert.False(p.pollSequence)
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_UP, p.sessionState())
+}
+
+// Test_ApplyConfigNotUpKeepsFloor pins RFC 5880 Section 6.8.3: while the session is
+// not Up, a new transmit interval stays under the one-second floor, and with no
+// remote session there is nothing to poll or hold.
+func Test_ApplyConfigNotUpKeepsFloor(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+	defer p.Stop()
+
+	p.applyConfig(oc.BfdConfig{
+		Port:                     13784,
+		Enabled:                  true,
+		RequiredMinimumReceive:   300000,
+		DesiredMinimumTxInterval: 300000,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+	assert.Equal(300*time.Millisecond, p.txInterval)
+	assert.Equal(300*time.Millisecond, p.rxInterval)
+	assert.Equal(time.Second, p.desiredMinTx)
+	assert.False(p.pollSequence)
+	assert.Zero(p.heldTxInterval)
+	assert.Zero(p.heldRxInterval)
+}
+
 // Test_RxPacketDetectionTimeFromRemote pins RFC 5880 Section 6.8.4: the detection time
 // must be the remote Detect Mult multiplied by max(local RequiredMinRx,
 // remote DesiredMinTx), not our own multiplier multiplied by our own rxInterval.
@@ -622,7 +828,7 @@ func Test_RxPacketZeroYourDiscriminatorForeignRemoteDiscarded(t *testing.T) {
 	})
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_UP, p.sessionState())
 	assert.Equal(uint32(12345), p.yourDiscriminator)
-	assert.Equal(int64(0), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
 	assert.Equal(uint64(1), p.stats.invalidDiscriminator.Load())
 
 	// The bound remote system may still omit Your Discriminator when it
@@ -634,7 +840,7 @@ func Test_RxPacketZeroYourDiscriminatorForeignRemoteDiscarded(t *testing.T) {
 		DetectTimeMultiplier: 3,
 	})
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
-	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
 func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
@@ -647,10 +853,38 @@ func Test_ExpiryDoesNotResetAlreadyDownPeer(t *testing.T) {
 	}, "")
 	defer p.Stop()
 
-	p.setStateDown()
+	p.setStateDown(bfd.DiagnosticNoDiagnostic)
 	p.expiry()
 
-	assert.Equal(int64(0), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
+}
+
+// Test_ExpiryFromInitKeepsPeer checks that a session that expires in Init
+// does not reset the BGP peer. The session never came up, so this is not
+// a path failure (RFC 5882 Section 3.3). The BFD session still goes Down
+// with diagnostic 1.
+func Test_ExpiryFromInitKeepsPeer(t *testing.T) {
+	assert := assert.New(t)
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:    13784,
+		Enabled: true,
+	}, "")
+	defer p.Stop()
+
+	p.rxPacket(&bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      111,
+		DetectTimeMultiplier: 1,
+	})
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_INIT, p.sessionState())
+
+	p.expiry()
+
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+	assert.Equal(bfd.DiagnosticControlDetectionTimeExpired, p.localDiag)
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
 // Test_JitteredTxInterval pins RFC 5880 Section 6.8.7: the transmit interval
@@ -792,6 +1026,91 @@ func Test_TxPacketSlowWhileDown(t *testing.T) {
 	assert.GreaterOrEqual(arrivals[1].Sub(arrivals[0]), 700*time.Millisecond)
 }
 
+// readUntil reads packets from conn until one is in the given state, and fails the
+// test if none arrives in time. The peer only dials its UDP client after its 1s
+// start ticker fires, so the first packet can take that long.
+func readUntil(t *testing.T, conn net.PacketConn, state bfd.StateType) bfd.BFDHeader {
+	t.Helper()
+	assert.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+	buf := make([]byte, 64)
+	for {
+		n, _, err := conn.ReadFrom(buf)
+		if err != nil {
+			t.Fatalf("waiting for a packet in state %s: %v", state, err)
+		}
+		var h bfd.BFDHeader
+		assert.NoError(t, h.UnmarshalBinary(buf[:n]))
+		if h.State == state {
+			return h
+		}
+	}
+}
+
+// Test_ShutdownSendsAdminDown checks RFC 5880 Section 6.8.16 on the wire: removing
+// a session the remote is bound to sends an AdminDown packet with Diag 7
+// (Administratively Down), so the remote does not take it for a path failure. The
+// BGP peer is not reset.
+func Test_ShutdownSendsAdminDown(t *testing.T) {
+	assert := assert.New(t)
+
+	conn, err := net.ListenPacket("udp", "127.0.0.1:14701")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer conn.Close()
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     14701,
+		Enabled:                  true,
+		DetectionMultiplier:      3,
+		RequiredMinimumReceive:   200000,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+	defer p.Stop()
+
+	bringUp(t, p, 200000)
+	// An Up packet on the wire means the UDP client is dialed.
+	readUntil(t, conn, bfd.StateUp)
+
+	p.Stop()
+
+	h := readUntil(t, conn, bfd.StateAdminDown)
+	assert.Equal(bfd.DiagnosticAdministrativelyDown, h.Diagnostic)
+	assert.Equal(p.myDiscriminator, h.MyDiscriminator)
+	assert.Equal(uint32(111), h.YourDiscriminator)
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_ADMIN_DOWN, p.sessionState())
+	assert.Equal(int64(0), atomic.LoadInt64(&ps.bfdDownCount))
+}
+
+// Test_ShutdownWithoutRemoteSendsNothing checks that removing a session no remote
+// is bound to sends no AdminDown: there is no remote session to tell.
+func Test_ShutdownWithoutRemoteSendsNothing(t *testing.T) {
+	assert := assert.New(t)
+
+	conn, err := net.ListenPacket("udp", "127.0.0.1:14702")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer conn.Close()
+
+	ps := &mockPeerState{}
+	p := NewBfdPeer(ps, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:    14702,
+		Enabled: true,
+	}, "")
+	defer p.Stop()
+
+	// A Down packet on the wire means the UDP client is dialed.
+	readUntil(t, conn, bfd.StateDown)
+	sent := p.stats.txPacket.Load()
+
+	p.Stop()
+
+	assert.Equal(sent, p.stats.txPacket.Load())
+	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
+}
+
 // Test_PollReplyNeverSetsPollAndFinalTogether pins RFC 5880 Section 6.5: "A BFD Control packet
 // MUST NOT have both the Poll (P) and Final (F) bits set." The immediate reply rxPacket sends
 // for a received Poll sets Final and clears Poll.
@@ -888,21 +1207,27 @@ func Test_TxPacketPollBitAndFastRestoreOnUp(t *testing.T) {
 	// collected, even on a slow test runner. The peer's own configured multiplier is
 	// still 5; that value only goes out on the wire, and this test does not check it.
 
+	// The injected packets carry a Required Min RX Interval of 1 microsecond,
+	// so the configured 200ms interval paces the transmission. A zero would
+	// stop periodic transmission (RFC 5880 Section 6.8.7).
+
 	// Down -> Init.
 	rxWait(t, p, &bfd.BFDHeader{
-		State:                bfd.StateDown,
-		MyDiscriminator:      111,
-		YourDiscriminator:    p.myDiscriminator,
-		DetectTimeMultiplier: 20,
+		State:                 bfd.StateDown,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DetectTimeMultiplier:  20,
+		RequiredMinRxInterval: 1,
 	})
 
 	// Init -> Up: restores the configured 200ms interval and starts a Poll Sequence
 	// (no Final is ever injected in this test, so the sequence stays in flight).
 	rxWait(t, p, &bfd.BFDHeader{
-		State:                bfd.StateInit,
-		MyDiscriminator:      111,
-		YourDiscriminator:    p.myDiscriminator,
-		DetectTimeMultiplier: 20,
+		State:                 bfd.StateInit,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DetectTimeMultiplier:  20,
+		RequiredMinRxInterval: 1,
 	})
 
 	// Collect the first three Up packets, skipping any pre-Up packets still in flight.
@@ -1060,7 +1385,7 @@ func Test_StateChangeTransmitsAtOnce(t *testing.T) {
 	rx(bfd.StateDown)
 	assert.Equal(api.BfdSessionState_BFD_SESSION_STATE_DOWN, p.sessionState())
 	assert.Equal(before+3, txAttempts(p))
-	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
 }
 
 // txAttempts counts every periodic transmission attempt, including the drops made
@@ -1117,6 +1442,20 @@ func rxWait(t *testing.T, p *bfdPeer, h *bfd.BFDHeader) {
 			return nil
 		}
 		return fmt.Errorf("must be: rxPacket > %d", before)
+	})
+	assert.NoError(t, err)
+}
+
+// waitConfigApplied waits for the loop goroutine to have applied the configuration
+// last handed to p by updateConfig. applyNextConfig clears nextConfig only after
+// applying it, so the caller may read the timers once this returns.
+func waitConfigApplied(t *testing.T, p *bfdPeer) {
+	t.Helper()
+	err := eventually(2*time.Second, func() error {
+		if p.nextConfig.Load() == nil {
+			return nil
+		}
+		return fmt.Errorf("configuration not applied")
 	})
 	assert.NoError(t, err)
 }
@@ -1425,7 +1764,7 @@ func Test_ExpiryRefloorsTxPacing(t *testing.T) {
 
 	// No more packets: expiry takes the session Down.
 	waitState(t, p, api.BfdSessionState_BFD_SESSION_STATE_DOWN)
-	assert.Equal(int64(1), atomic.LoadInt64(&ps.resetPeerCount))
+	assert.Equal(int64(1), atomic.LoadInt64(&ps.bfdDownCount))
 
 	// setStateDown stores the state before it sends the Down packet, so give the
 	// loop goroutine a moment to get that send counted.
@@ -1440,4 +1779,149 @@ func Test_ExpiryRefloorsTxPacing(t *testing.T) {
 
 	p.Stop()
 	assert.Equal(time.Second, p.desiredMinTx)
+}
+
+// Test_TxStopsWhenRemoteMinRxIsZero pins RFC 5880 Section 6.8.7: "A system
+// MUST NOT periodically transmit BFD Control packets if
+// bfd.RemoteMinRxInterval is zero." A packet sent at a state change still
+// goes out, and a later nonzero value starts periodic transmission again.
+func Test_TxStopsWhenRemoteMinRxIsZero(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:14703")
+	require.NoError(t, err)
+	defer conn.Close()
+
+	p := NewBfdPeer(&mockPeerState{}, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     14703,
+		Enabled:                  true,
+		DetectionMultiplier:      5,
+		RequiredMinimumReceive:   200000,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+	defer p.Stop()
+
+	buf := make([]byte, 64)
+	read := func(timeout time.Duration) (*bfd.BFDHeader, bool) {
+		t.Helper()
+		require.NoError(t, conn.SetReadDeadline(time.Now().Add(timeout)))
+		n, _, err := conn.ReadFrom(buf)
+		if err != nil {
+			return nil, false
+		}
+		h := &bfd.BFDHeader{}
+		require.NoError(t, h.UnmarshalBinary(buf[:n]))
+		return h, true
+	}
+
+	// Wait for the first periodic packet, so the UDP client is dialed.
+	_, ok := read(3 * time.Second)
+	require.True(t, ok)
+
+	// Down -> Init with a zero Required Min RX Interval. The Init packet of
+	// the state change is sent, then nothing. The detection time is 20 x
+	// 200ms = 4s, longer than the wait below.
+	rxWait(t, p, &bfd.BFDHeader{
+		State:                bfd.StateDown,
+		MyDiscriminator:      111,
+		YourDiscriminator:    p.myDiscriminator,
+		DetectTimeMultiplier: 20,
+	})
+	for {
+		h, ok := read(time.Second)
+		require.True(t, ok, "no packet at the state change")
+		if h.State == bfd.StateInit {
+			break
+		}
+	}
+	// Without the stop, the one-second not-Up interval sends two or three
+	// packets in this time.
+	h, ok := read(2500 * time.Millisecond)
+	require.False(t, ok, "periodic packet sent: %+v", h)
+
+	// Init -> Up with a nonzero value: periodic transmission starts again.
+	rxWait(t, p, &bfd.BFDHeader{
+		State:                 bfd.StateInit,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DetectTimeMultiplier:  20,
+		RequiredMinRxInterval: 1,
+	})
+	up := 0
+	deadline := time.Now().Add(2 * time.Second)
+	for up < 3 && time.Now().Before(deadline) {
+		if h, ok := read(time.Until(deadline)); ok && h.State == bfd.StateUp {
+			up++
+		}
+	}
+	require.Equal(t, 3, up)
+}
+
+// Test_TxDiagnostic checks the Diag field of sent packets. RFC 5880 Section
+// 6.8.6 sets bfd.LocalDiag to 3 when the remote system signals Down, and
+// Section 6.8.4 sets it to 1 when the Detection Time expires. Like BIRD and
+// FRR, it is cleared when the session comes back Up.
+func Test_TxDiagnostic(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:14704")
+	require.NoError(t, err)
+	defer conn.Close()
+
+	p := NewBfdPeer(&mockPeerState{}, slog.Default(), netip.MustParseAddr("127.0.0.1"), oc.BfdConfig{
+		Port:                     14704,
+		Enabled:                  true,
+		DetectionMultiplier:      5,
+		RequiredMinimumReceive:   200000,
+		DesiredMinimumTxInterval: 200000,
+	}, "")
+	defer p.Stop()
+
+	buf := make([]byte, 64)
+	// next returns the next sent packet in the given state.
+	next := func(state bfd.StateType, timeout time.Duration) *bfd.BFDHeader {
+		t.Helper()
+		deadline := time.Now().Add(timeout)
+		for {
+			require.NoError(t, conn.SetReadDeadline(deadline))
+			n, _, err := conn.ReadFrom(buf)
+			require.NoError(t, err, "no packet in state %v", state)
+			h := &bfd.BFDHeader{}
+			require.NoError(t, h.UnmarshalBinary(buf[:n]))
+			if h.State == state {
+				return h
+			}
+		}
+	}
+	up := func(detectMult uint8) {
+		t.Helper()
+		for _, state := range []bfd.StateType{bfd.StateDown, bfd.StateInit} {
+			rxWait(t, p, &bfd.BFDHeader{
+				State:                 state,
+				MyDiscriminator:       111,
+				YourDiscriminator:     p.myDiscriminator,
+				DetectTimeMultiplier:  detectMult,
+				RequiredMinRxInterval: 1,
+			})
+		}
+	}
+
+	assert.Equal(t, bfd.DiagnosticNoDiagnostic, next(bfd.StateDown, 3*time.Second).Diagnostic)
+
+	// The detection time is 20 x 200ms = 4s, longer than these steps.
+	up(20)
+	assert.Equal(t, bfd.DiagnosticNoDiagnostic, next(bfd.StateUp, 2*time.Second).Diagnostic)
+
+	// The remote system signals Down.
+	rxWait(t, p, &bfd.BFDHeader{
+		State:                 bfd.StateDown,
+		MyDiscriminator:       111,
+		YourDiscriminator:     p.myDiscriminator,
+		DetectTimeMultiplier:  20,
+		RequiredMinRxInterval: 1,
+	})
+	assert.Equal(t, bfd.DiagnosticNeighborSignaledSessionDown, next(bfd.StateDown, 2*time.Second).Diagnostic)
+
+	// Up again, now with a detection time of 5 x 200ms = 1s.
+	up(5)
+	assert.Equal(t, bfd.DiagnosticNoDiagnostic, next(bfd.StateUp, 2*time.Second).Diagnostic)
+
+	// No packet comes from the remote system, so the Detection Time expires.
+	assert.Equal(t, bfd.DiagnosticControlDetectionTimeExpired, next(bfd.StateDown, 3*time.Second).Diagnostic)
 }

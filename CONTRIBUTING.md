@@ -83,7 +83,15 @@ Trivial help, such as completion or formatting, needs no disclosure.
 
 ## Testing
 
-Before sending pull request, please make sure that your changes have passed both unit and integration tests. Check out [the tests](https://github.com/osrg/gobgp/blob/master/.github/workflows/ci.yml) triggered by a pull request. If you need to debug the integration tests, it's a good idea to run them [locally](https://github.com/osrg/gobgp/blob/master/test/scenario_test/README.md).
+Before you create a pull request, run CI in your own fork of GoBGP on GitHub and make sure that all the tests pass. This includes both unit and integration tests.
+
+CI is defined in [ci.yml](https://github.com/osrg/gobgp/blob/master/.github/workflows/ci.yml). It runs on every push, so you do not need Docker on your machine to run it:
+
+1. Fork [osrg/gobgp](https://github.com/osrg/gobgp) on GitHub.
+2. Open the Actions tab of your fork and enable workflows. GitHub does not run the workflows of a fork until you do this.
+3. Push your branch to your fork. Then check the result of the `ci` workflow in the Actions tab.
+
+If you need to debug the integration tests, it's a good idea to run them [locally](https://github.com/osrg/gobgp/blob/master/test/scenario_test/README.md).
 
 ## Changing the gRPC API
 

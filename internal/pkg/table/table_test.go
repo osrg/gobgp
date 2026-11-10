@@ -34,6 +34,7 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSelectExactAndHostIPv4UC(t *testing.T) {
@@ -239,6 +240,52 @@ func TestTableDestinationsCollision(t *testing.T) {
 		ipv4t.setDestination(dest)
 	}
 	assert.Equal(t, 1, ipv4t.Info().NumCollision)
+}
+
+// lsNodeOfArea is a BGP-LS node NLRI of the OSPF protocol whose descriptor
+// carries the given area, which NLRI.String omits.
+func lsNodeOfArea(t *testing.T, area byte) bgp.NLRI {
+	t.Helper()
+	nlri, err := bgp.NLRIFromSlice(bgp.RF_LS, []byte{
+		0x00, 0x01, 0x00, 0x25,
+		0x03,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x18,
+		0x02, 0x00, 0x00, 0x04, 0x00, 0x00, 0xfd, 0xe8,
+		0x02, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, area,
+		0x02, 0x03, 0x00, 0x04, 0x0a, 0x00, 0x00, 0x01,
+	})
+	require.NoError(t, err)
+	return nlri
+}
+
+// TestTableKeepsBgpLsNodesOfTwoAreasApart puts two BGP-LS nodes that differ
+// only in their OSPF area under one hash key, as a collision of the 64-bit
+// keys would, and checks that the RIB, which then tells destinations apart by
+// AddrPrefixOnlyCompare, keeps them as two.
+func TestTableKeepsBgpLsNodesOfTwoAreasApart(t *testing.T) {
+	a, b := lsNodeOfArea(t, 1), lsNodeOfArea(t, 2)
+	require.Equal(t, a.String(), b.String())
+	assert.NotZero(t, AddrPrefixOnlyCompare(a, b))
+
+	tbl := NewTable(logger, bgp.RF_LS)
+	shard := tbl.destinations.getShardForInsert(a)
+	shard.mu.Lock()
+	shard.put(tableKey(a), []*destination{newDestination(b, 0)})
+	shard.mu.Unlock()
+
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}
+	src := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("192.0.2.1"), ID: netip.MustParseAddr("192.0.2.1")}
+	path := NewPath(bgp.RF_LS, src, bgp.PathNLRI{NLRI: a}, false, attrs, time.Now(), false)
+	require.NotNil(t, tbl.update(path, oc.RouteSelectionOptionsConfig{}))
+
+	assert.Len(t, tbl.GetDestinations(), 2, "two nodes of different areas became one destination")
+	da := tbl.GetDestination(a)
+	require.NotNil(t, da)
+	assert.Zero(t, AddrPrefixOnlyCompare(da.GetNlri(), a))
+	assert.Equal(t, 1, tbl.Info().NumCollision)
 }
 
 func TestTableSetDestinations(t *testing.T) {
@@ -457,6 +504,32 @@ func TestTableSelectMalformedIPv4UCPrefixes(t *testing.T) {
 	}
 }
 
+func TestTableSelectFamilyMismatch(t *testing.T) {
+	tests := []struct {
+		family bgp.Family
+		prefix string
+		option apiutil.LookupOption
+	}{
+		{bgp.RF_IPv6_UC, "10.0.0.1", apiutil.LOOKUP_EXACT},
+		{bgp.RF_IPv6_UC, "10.0.0.0/24", apiutil.LOOKUP_EXACT},
+		{bgp.RF_IPv6_UC, "10.0.0.0/24", apiutil.LOOKUP_SHORTER},
+		{bgp.RF_IPv6_UC, "10.0.0.0/8", apiutil.LOOKUP_LONGER},
+		{bgp.RF_IPv4_UC, "2001:db8::1", apiutil.LOOKUP_EXACT},
+		{bgp.RF_IPv4_UC, "::ffff:10.0.0.1", apiutil.LOOKUP_EXACT},
+		{bgp.RF_IPv4_UC, "2001:db8::/64", apiutil.LOOKUP_SHORTER},
+	}
+	for _, tt := range tests {
+		table := NewTable(logger, tt.family)
+		_, err := table.Select(TableSelectOption{
+			LookupPrefixes: []*apiutil.LookupPrefix{{
+				Prefix:       tt.prefix,
+				LookupOption: tt.option,
+			}},
+		})
+		assert.Error(t, err, "%s %s %v", tt.family, tt.prefix, tt.option)
+	}
+}
+
 func TestTableSelectMalformedIPv6UCPrefixes(t *testing.T) {
 	table := NewTable(logger, bgp.RF_IPv6_UC)
 	assert.Equal(t, 0, len(table.GetDestinations()))
@@ -602,6 +675,30 @@ func TestTableSelectVPNv4(t *testing.T) {
 			assert.Equal(t, tt.found, len(filteredTable.GetDestinations()))
 		})
 	}
+}
+
+func TestDeletePathsByVrfWithdrawsAllLocalPathsInDestination(t *testing.T) {
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(100, 100)
+	nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"), *bgp.NewMPLSLabelStack(), rd)
+	assert.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	path1 := NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri, ID: 1}, false, attrs, time.Now(), false)
+	path2 := NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri, ID: 2}, false, attrs, time.Now(), false)
+
+	tbl := NewTable(logger, bgp.RF_IPv4_VPN)
+	require.NotNil(t, tbl.update(path1, oc.RouteSelectionOptionsConfig{}))
+	require.NotNil(t, tbl.update(path2, oc.RouteSelectionOptionsConfig{}))
+	require.Len(t, tbl.GetDestination(nlri).GetAllKnownPathList(), 2)
+
+	withdraws := tbl.deletePathsByVrf(&Vrf{Rd: rd})
+
+	require.Len(t, withdraws, 2)
+	parents := make([]*Path, 0, len(withdraws))
+	for _, withdraw := range withdraws {
+		assert.True(t, withdraw.IsWithdraw)
+		parents = append(parents, withdraw.parent)
+	}
+	assert.ElementsMatch(t, []*Path{path1, path2}, parents)
 }
 
 func TestTableSelectVPNv6(t *testing.T) {

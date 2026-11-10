@@ -18,6 +18,7 @@ package bmp
 import (
 	"encoding/binary"
 	"net/netip"
+	"strconv"
 	"testing"
 
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -206,6 +207,94 @@ func Test_StatisticsReportAdjRIBOut(t *testing.T) {
 		},
 	)
 	verify(t, s0)
+}
+
+func Test_StatisticsReportRFC9972(t *testing.T) {
+	// Check the assigned wire numbers independently of the named constants.
+	for _, tt := range []struct {
+		typ      uint16
+		wireType uint16
+		length   uint16
+	}{
+		{BMP_STAT_TYPE_ADJ_RIB_IN_PRE_POLICY, 18, 8},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_PRE_POLICY, 19, 11},
+		{BMP_STAT_TYPE_ADJ_RIB_IN_POST_POLICY, 20, 8},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_POST_POLICY, 21, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_REJECTED, 22, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_ACCEPTED, 23, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ROUTES_SUPPRESSED, 26, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ROUTES_GR_STALE, 27, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ROUTES_LLGR_STALE, 28, 11},
+		{BMP_STAT_TYPE_ADJ_RIB_IN_REMAINING_RECEIVED_ROUTES, 29, 8},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_REMAINING_RECEIVED_ROUTES, 30, 11},
+		{BMP_STAT_TYPE_REMAINING_LICENSED_ROUTES, 31, 8},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_REMAINING_LICENSED_ROUTES, 32, 11},
+		{BMP_STAT_TYPE_ADJ_RIB_IN_AS_PATH_TOO_LONG, 33, 8},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_AS_PATH_TOO_LONG, 34, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_RPKI_INVALID, 35, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_RPKI_VALID, 36, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_IN_RPKI_NOT_FOUND, 37, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_OUT_REJECTED, 38, 11},
+		{BMP_STAT_TYPE_ADJ_RIB_OUT_AS_PATH_TOO_LONG, 39, 8},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_OUT_AS_PATH_TOO_LONG, 40, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_OUT_RPKI_INVALID, 41, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_OUT_RPKI_VALID, 42, 11},
+		{BMP_STAT_TYPE_PER_AFI_SAFI_ADJ_RIB_OUT_RPKI_NOT_FOUND, 43, 11},
+	} {
+		t.Run(strconv.Itoa(int(tt.wireType)), func(t *testing.T) {
+			const value uint64 = 0x0102030405060708
+			var stat BMPStatsTLVInterface = NewBMPStatsTLV64(tt.typ, value)
+			if tt.length == 11 {
+				stat = NewBMPStatsTLVPerAfiSafi64(tt.typ, 2, 1, value)
+			}
+			report := BMPStatisticsReport{Stats: []BMPStatsTLVInterface{stat}}
+			data, err := report.Serialize()
+			require.NoError(t, err)
+			require.Len(t, data, 8+int(tt.length))
+			assert.Equal(t, tt.wireType, binary.BigEndian.Uint16(data[4:6]))
+			assert.Equal(t, tt.length, binary.BigEndian.Uint16(data[6:8]))
+			var decoded BMPStatisticsReport
+			require.NoError(t, decoded.ParseBody(nil, data))
+			assert.Equal(t, uint32(1), decoded.Count)
+			assert.Equal(t, report.Stats, decoded.Stats)
+
+			// Known types must reject a length that would select another fallback.
+			wrongLength := uint16(8)
+			if tt.length == 8 {
+				wrongLength = 11
+			}
+			bad := make([]byte, 8+int(wrongLength))
+			copy(bad, data)
+			binary.BigEndian.PutUint16(bad[6:8], wrongLength)
+			require.Error(t, (&BMPStatisticsReport{}).ParseBody(nil, bad))
+		})
+	}
+}
+
+func Test_StatisticsReportUnknownPerAFISAFI(t *testing.T) {
+	// Experimental types use the AFI/SAFI and 64-bit gauge fallback.
+	// A known TLV follows them.
+	data := []byte{
+		0, 0, 0, 3,
+		0xff, 0xfb, 0, 11, 0, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8,
+		0xff, 0xfc, 0, 11, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3,
+		0, 0, 0, 4, 0, 0, 0, 7,
+	}
+	var report BMPStatisticsReport
+	require.NoError(t, report.ParseBody(nil, data))
+	assert.Equal(t, uint32(3), report.Count)
+	assert.Equal(t, []BMPStatsTLVInterface{
+		NewBMPStatsTLVPerAfiSafi64(65531, 2, 1, 0x0102030405060708),
+		NewBMPStatsTLVPerAfiSafi64(65532, 1, 1, 3),
+		NewBMPStatsTLV32(0, 7),
+	}, report.Stats)
+	encoded, err := report.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, data, encoded)
+
+	// Reject an unknown 11-byte value that ends before its declared length.
+	truncated := append([]byte{0, 0, 0, 1}, data[4:18]...)
+	require.Error(t, (&BMPStatisticsReport{}).ParseBody(nil, truncated))
 }
 
 func Test_RouteMirroring(t *testing.T) {

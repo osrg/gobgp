@@ -143,6 +143,15 @@ func newPeerGroupFromConfigForBFDTest(t *testing.T, bfd Bfd) *api.PeerGroup {
 	return NewPeerGroupFromConfigStruct(pg)
 }
 
+func TestNewPeerFromConfigStruct_BfdMultihop(t *testing.T) {
+	bfd := Bfd{Config: BfdConfig{Enabled: true, Multihop: true, Port: 4784}}
+	p := newPeerFromConfigForBFDTest(t, bfd)
+	assert.True(t, p.Bfd.Multihop)
+	assert.Equal(t, uint32(4784), p.Bfd.Port)
+	pg := newPeerGroupFromConfigForBFDTest(t, bfd)
+	assert.True(t, pg.Bfd.Multihop)
+}
+
 func TestNewPeerFromConfigStruct_BfdSessionState(t *testing.T) {
 	cases := []struct {
 		name     string

@@ -266,6 +266,38 @@ func TestStale(t *testing.T) {
 	assert.Equal(t, 1, len(adj.table[family].GetDestinations()))
 }
 
+// StaleAll leaves a path that is already stale as it is and does not return
+// it: it was propagated when it was marked. The paths received after that
+// are marked and returned.
+func TestStaleAllSkipsStale(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	family := bgp.RF_IPv4_UC
+	families := []bgp.Family{family}
+
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.10.0/24"))
+	p1 := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
+	adj := NewAdjRib(slog.Default(), families)
+	adj.Update([]*Path{p1})
+	assert.Len(t, adj.StaleAll(families), 1)
+	stale := adj.PathList(families, false)[0]
+	assert.True(t, stale.IsStale())
+
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	p2 := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri2}, false, attrs, time.Now(), false)
+	adj.Update([]*Path{p2})
+
+	pathList := adj.StaleAll(families)
+	assert.Len(t, pathList, 1)
+	assert.Equal(t, "20.20.20.0/24", pathList[0].GetNlri().String())
+	for _, p := range adj.PathList(families, false) {
+		assert.True(t, p.IsStale())
+		if p.GetNlri().String() == "20.20.10.0/24" {
+			assert.Same(t, stale, p)
+		}
+	}
+}
+
 func TestDropSkipsRejected(t *testing.T) {
 	pi := &PeerInfo{}
 	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
@@ -380,4 +412,143 @@ func TestWithdrawUnknownPath(t *testing.T) {
 	// Check that the table is empty (no destinations across all shards)
 	dests := adj.table[family].GetDestinations()
 	assert.Equal(t, 0, len(dests))
+}
+
+func TestAdjRibCountMatchesWalk(t *testing.T) {
+	pi := &PeerInfo{Address: netip.MustParseAddr("192.0.2.1"), AS: 65001}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	family := bgp.RF_IPv4_UC
+	rf := []bgp.Family{family}
+	adj := NewAdjRib(logger, rf)
+
+	newPath := func(prefix string, remoteID uint32, withdraw, rejected bool) *Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		require.NoError(t, err)
+		p := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri}, withdraw, attrs, time.Now(), false)
+		p.remoteID = remoteID
+		p.SetRejected(rejected)
+		return p
+	}
+	check := func(step string, want int) {
+		t.Helper()
+		assert.Equal(t, want, adj.Count(rf), "%s: Count", step)
+		assert.Equal(t, adj.walkCount(rf), adj.Count(rf), "%s: Count vs walk", step)
+	}
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, false, false), newPath("10.0.0.0/24", 2, false, false), newPath("10.0.1.0/24", 1, false, true)})
+	check("add", 3)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, false, false)})
+	check("replace same remoteID", 3)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 2, false, true)})
+	check("accepted to rejected", 3)
+
+	adj.Update([]*Path{newPath("10.0.1.0/24", 1, false, false)})
+	check("rejected to accepted", 3)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, true, false)})
+	check("withdraw", 2)
+
+	adj.Update([]*Path{newPath("10.9.9.0/24", 1, true, false)})
+	check("withdraw unknown", 2)
+
+	adj.StaleAll(rf)
+	check("stale all", 2)
+
+	adj.DropStale(rf)
+	check("drop stale", 0)
+
+	adj.Update([]*Path{newPath("10.0.2.0/24", 1, false, false)})
+	adj.UpdateAdjRibOut([]*Path{newPath("10.0.3.0/24", 1, false, false)})
+	check("adj-out append", 2)
+
+	adj.Drop(rf)
+	check("drop", 0)
+}
+
+func TestAdjRibTableInfoAddPath(t *testing.T) {
+	pi := &PeerInfo{Address: netip.MustParseAddr("192.0.2.1"), AS: 65001}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	family := bgp.RF_IPv4_UC
+	adj := NewAdjRib(logger, []bgp.Family{family})
+
+	newPath := func(prefix string, remoteID uint32, withdraw, rejected bool) *Path {
+		nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		require.NoError(t, err)
+		p := NewPath(family, pi, bgp.PathNLRI{NLRI: nlri}, withdraw, attrs, time.Now(), false)
+		p.remoteID = remoteID
+		p.SetRejected(rejected)
+		return p
+	}
+	check := func(step string, dests, paths, accepted int) {
+		t.Helper()
+		info, err := adj.TableInfo(family)
+		require.NoError(t, err)
+		assert.Equal(t, dests, info.NumDestination, "%s: NumDestination", step)
+		assert.Equal(t, paths, info.NumPath, "%s: NumPath", step)
+		assert.Equal(t, accepted, info.NumAccepted, "%s: NumAccepted", step)
+	}
+
+	check("empty", 0, 0, 0)
+
+	// Two paths for one prefix with different path IDs, and one path
+	// for another prefix that the import policy rejected.
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, false, false), newPath("10.0.0.0/24", 2, false, false), newPath("10.0.1.0/24", 1, false, true)})
+	check("add", 2, 3, 2)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 1, true, false)})
+	check("withdraw one path ID", 2, 2, 1)
+
+	adj.Update([]*Path{newPath("10.0.0.0/24", 2, true, false)})
+	check("withdraw the last path", 1, 1, 0)
+
+	_, err := adj.TableInfo(bgp.RF_IPv6_UC)
+	assert.Error(t, err)
+}
+
+func TestAdjRibCountUnknownFamily(t *testing.T) {
+	adj := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	assert.Equal(t, 0, adj.Count([]bgp.Family{bgp.RF_IPv6_UC}))
+}
+
+// A path that already carries LLGR_STALE does not get it twice, and is not
+// returned again. This happens when the session ends again while the family
+// is in the long-lived stale period.
+func TestLLGRStaleAlreadyMarked(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	nlri1, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.10.0/24"))
+	p1 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri1}, false, attrs, time.Now(), false)
+	nlri2, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.20.20.0/24"))
+	p2 := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri2}, false, attrs, time.Now(), false)
+
+	families := []bgp.Family{bgp.RF_IPv4_UC}
+	adj := NewAdjRib(slog.Default(), families)
+	adj.Update([]*Path{p1})
+	require.Len(t, adj.MarkLLGRStaleOrDrop(families), 1)
+
+	// p2 comes later, then the family is marked again.
+	adj.Update([]*Path{p2})
+	pathList := adj.MarkLLGRStaleOrDrop(families)
+	require.Len(t, pathList, 1)
+	assert.Equal(t, "20.20.20.0/24", pathList[0].GetNlri().String())
+
+	for _, p := range adj.PathList(families, false) {
+		n := 0
+		for _, c := range p.GetCommunities() {
+			if c == uint32(bgp.COMMUNITY_LLGR_STALE) {
+				n++
+			}
+		}
+		assert.Equal(t, 1, n, p.GetNlri().String())
+	}
+	// NO_LLGR wins over LLGR_STALE: the path is removed.
+	p1 = p1.Clone(false)
+	p1.SetCommunities([]uint32{uint32(bgp.COMMUNITY_LLGR_STALE), uint32(bgp.COMMUNITY_NO_LLGR)}, true)
+	adj.Update([]*Path{p1})
+	pathList = adj.MarkLLGRStaleOrDrop(families)
+	require.Len(t, pathList, 1)
+	assert.True(t, pathList[0].IsWithdraw)
+	assert.Equal(t, 1, adj.Count(families))
 }

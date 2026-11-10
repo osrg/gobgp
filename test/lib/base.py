@@ -208,6 +208,22 @@ def get_containers():
     return try_several_times(lambda: local("docker ps -a | awk 'NR > 1 {print $NF}'", capture=True)).split('\n')
 
 
+def cleanup_docker_leftovers():
+    # Scenario-owned Docker objects are labeled; clean only that label so a
+    # failed setup cannot poison the next pytest session or the next CI retry.
+    containers = local(
+        'docker ps -aq -f label={0}'.format(TEST_CONTAINER_LABEL),
+        capture=True,
+    ).split()
+    if containers:
+        local('docker rm -f {0}'.format(' '.join(containers)), capture=True)
+
+    local(
+        'docker network prune -f --filter label={0}'.format(TEST_NETWORK_LABEL),
+        capture=True,
+    )
+
+
 class CmdBuffer(list):
     def __init__(self, delim='\n'):
         super(CmdBuffer, self).__init__()
@@ -445,6 +461,8 @@ class BGPContainer(Container):
         mup=False,
         bind_interface="",
         ls=False,
+        tcp_ao=None,
+        timers=None,
     ):
         neigh_addr = ''
         local_addr = ''
@@ -495,7 +513,9 @@ class BGPContainer(Container):
                             'remote_as': remote_as or peer.asn,
                             'mup': mup,
                             'bind_interface': bind_interface,
-                            'ls': ls}
+                            'ls': ls,
+                            'tcp_ao': tcp_ao,
+                            'timers': timers or {}}
         if self.is_running and reload_config:
             self.create_config()
             self.reload_config()

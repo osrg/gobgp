@@ -66,10 +66,10 @@ class GoBGPTestBase(unittest.TestCase):
     """
     # Multipath route
     10.0.0.0/24 proto zebra metric 20
-        nexthop via 127.0.0.1  dev lo weight 1
-        nexthop via 127.0.0.2  dev lo weight 1
+        nexthop via 192.168.100.1  dev lo weight 1
+        nexthop via 192.168.100.2  dev lo weight 1
     # Single nexthop route
-    10.0.0.0/24 via 127.0.0.2 dev lo proto zebra metric 20
+    10.0.0.0/24 via 192.168.100.2 dev lo proto zebra metric 20
     """
 
     def parse_ip_route(self, ip_route_output):
@@ -105,19 +105,25 @@ class GoBGPTestBase(unittest.TestCase):
         self.g3.local('ip netns add ns02')
 
         self.g1.local('ip netns exec ns01 ip li set up dev lo')
-        self.g1.local('ip netns exec ns01 ip addr add 127.0.0.2/8 dev lo')
+        self.g1.local('ip netns exec ns01 ip addr add 192.168.100.1/24 dev lo')
+        self.g1.local('ip netns exec ns01 ip addr add 192.168.100.2/24 dev lo')
         self.g1.local('ip netns exec ns02 ip li set up dev lo')
-        self.g1.local('ip netns exec ns02 ip addr add 127.0.0.2/8 dev lo')
+        self.g1.local('ip netns exec ns02 ip addr add 192.168.100.1/24 dev lo')
+        self.g1.local('ip netns exec ns02 ip addr add 192.168.100.2/24 dev lo')
 
         self.g2.local('ip netns exec ns01 ip li set up dev lo')
-        self.g2.local('ip netns exec ns01 ip addr add 127.0.0.2/8 dev lo')
+        self.g2.local('ip netns exec ns01 ip addr add 192.168.100.1/24 dev lo')
+        self.g2.local('ip netns exec ns01 ip addr add 192.168.100.2/24 dev lo')
         self.g2.local('ip netns exec ns02 ip li set up dev lo')
-        self.g2.local('ip netns exec ns02 ip addr add 127.0.0.2/8 dev lo')
+        self.g2.local('ip netns exec ns02 ip addr add 192.168.100.1/24 dev lo')
+        self.g2.local('ip netns exec ns02 ip addr add 192.168.100.2/24 dev lo')
 
         self.g3.local('ip netns exec ns01 ip li set up dev lo')
-        self.g3.local('ip netns exec ns01 ip addr add 127.0.0.2/8 dev lo')
+        self.g3.local('ip netns exec ns01 ip addr add 192.168.100.1/24 dev lo')
+        self.g3.local('ip netns exec ns01 ip addr add 192.168.100.2/24 dev lo')
         self.g3.local('ip netns exec ns02 ip li set up dev lo')
-        self.g3.local('ip netns exec ns02 ip addr add 127.0.0.2/8 dev lo')
+        self.g3.local('ip netns exec ns02 ip addr add 192.168.100.1/24 dev lo')
+        self.g3.local('ip netns exec ns02 ip addr add 192.168.100.2/24 dev lo')
 
         self.g1.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 1 netns ns01'")
         self.g1.local("vtysh -c 'enable' -c 'conf t' -c 'vrf 2 netns ns02'")
@@ -133,54 +139,54 @@ class GoBGPTestBase(unittest.TestCase):
         self.g3.local("gobgp vrf add vrf01 id 1 rd 1:1 rt both 1:1")
         self.g3.local("gobgp vrf add vrf02 id 2 rd 2:2 rt both 2:2")
 
-        self.g2.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 127.0.0.1")
-        self.g2.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 127.0.0.1")
+        self.g2.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 192.168.100.1")
+        self.g2.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 192.168.100.1")
 
         time.sleep(2)
 
         lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['127.0.0.1']))
+        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['192.168.100.1']))
 
         lines = self.g1.local("ip netns exec ns02 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1']))
 
-        self.g3.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 127.0.0.2")
-        self.g3.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 127.0.0.2")
+        self.g3.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 192.168.100.2")
+        self.g3.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 192.168.100.2")
 
         time.sleep(2)
 
         lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['127.0.0.1', '127.0.0.2']))
+        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['192.168.100.1', '192.168.100.2']))
 
         lines = self.g1.local("ip netns exec ns02 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1', '127.0.0.2']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1', '192.168.100.2']))
 
     def test_03_remove_vrf_route_from_multipath(self):
-        self.g3.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 127.0.0.2")
-        self.g3.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 127.0.0.2")
+        self.g3.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 192.168.100.2")
+        self.g3.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 192.168.100.2")
 
         time.sleep(2)
 
         lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['127.0.0.1']))
+        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['192.168.100.1']))
 
         lines = self.g1.local("ip netns exec ns02 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1']))
 
-        self.g2.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 127.0.0.1")
-        self.g2.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 127.0.0.1")
+        self.g2.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 192.168.100.1")
+        self.g2.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 192.168.100.1")
 
         lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
@@ -194,57 +200,57 @@ class GoBGPTestBase(unittest.TestCase):
         self.g1.local("gobgp vrf del vrf01")
         self.g1.local("gobgp vrf add vrf01 id 1 rd 1:1 rt import 1:1 2:2 3:3 export 1:1")
 
-        self.g2.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 127.0.0.1")
-        self.g2.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 127.0.0.1")
+        self.g2.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 192.168.100.1")
+        self.g2.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 192.168.100.1")
 
         time.sleep(2)
 
         lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 2)
-        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['127.0.0.1']))
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1']))
+        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['192.168.100.1']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1']))
 
         lines = self.g1.local("ip netns exec ns02 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1']))
 
-        self.g3.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 127.0.0.2")
-        self.g3.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 127.0.0.2")
+        self.g3.local("gobgp vrf vrf01 rib add 10.0.0.0/24 nexthop 192.168.100.2")
+        self.g3.local("gobgp vrf vrf02 rib add 20.0.0.0/24 nexthop 192.168.100.2")
 
         time.sleep(2)
 
         lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 2)
-        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['127.0.0.1', '127.0.0.2']))
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1', '127.0.0.2']))
+        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['192.168.100.1', '192.168.100.2']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1', '192.168.100.2']))
 
         lines = self.g1.local("ip netns exec ns02 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1', '127.0.0.2']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1', '192.168.100.2']))
 
     def test_05_cleanup_multipath_vrf_import(self):
-        self.g3.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 127.0.0.2")
-        self.g3.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 127.0.0.2")
+        self.g3.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 192.168.100.2")
+        self.g3.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 192.168.100.2")
 
         time.sleep(2)
 
         lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 2)
-        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['127.0.0.1']))
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1']))
+        self.assertEqual(kernel_routes['10.0.0.0/24'], set(['192.168.100.1']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1']))
 
         lines = self.g1.local("ip netns exec ns02 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)
         self.assertEqual(len(kernel_routes), 1)
-        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['127.0.0.1']))
+        self.assertEqual(kernel_routes['20.0.0.0/24'], set(['192.168.100.1']))
 
-        self.g2.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 127.0.0.1")
-        self.g2.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 127.0.0.1")
+        self.g2.local("gobgp vrf vrf01 rib del 10.0.0.0/24 nexthop 192.168.100.1")
+        self.g2.local("gobgp vrf vrf02 rib del 20.0.0.0/24 nexthop 192.168.100.1")
 
         lines = self.g1.local("ip netns exec ns01 ip r", capture=True).split('\n')
         kernel_routes = self.parse_ip_route(lines)

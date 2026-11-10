@@ -18,6 +18,7 @@ package server
 import (
 	"context"
 	"net/netip"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -26,9 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/internal/pkg/gr"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bmp"
 )
 
 // TestHandleFSMMessage_PrefixLimitWarnedRace tests concurrent access to prefixLimitWarned map
@@ -97,13 +101,7 @@ func TestHandleFSMMessage_PrefixLimitWarnedRace(t *testing.T) {
 			p := peers[peerIdx]
 
 			for range 100 {
-				// Set to ESTABLISHED first
-				p.fsm.lock.Lock()
-				conf := p.fsm.pConf.ReadCopy()
-				conf.State.SessionState = "established"
-				conf.Timers.State.Uptime = time.Now().Add(-1 * time.Minute).Unix()
-				p.fsm.pConf.Update(&conf)
-				p.fsm.lock.Unlock()
+				passEstablished(t, s, p)
 
 				// Trigger PeerDown which resets prefixLimitWarned
 				msg := &fsmMsg{
@@ -830,6 +828,393 @@ func TestRTCMembershipSerializesTriggeredVPNUpdates(t *testing.T) {
 	}
 }
 
+func TestRTCMembershipDuplicateUpdatesAreNoop(t *testing.T) {
+	s := NewBgpServer()
+	go s.Serve()
+
+	err := s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{
+			Asn:        65001,
+			RouterId:   "1.1.1.1",
+			ListenPort: -1,
+		},
+	})
+	require.NoError(t, err)
+
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+		bgp.RF_RTC_UC:   bgp.BGP_ADD_PATH_NONE,
+		bgp.RF_IPv4_VPN: bgp.BGP_ADD_PATH_NONE,
+	})
+	t.Cleanup(func() {
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+
+	rd, rt, err := parseRDRT("65001:100")
+	require.NoError(t, err)
+	labels := bgp.NewMPLSLabelStack(100)
+	vpnNlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/24"), *labels, rd)
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	vpnPath := table.NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: vpnNlri}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		nh,
+		bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+	}, time.Now(), false)
+	require.NotNil(t, vpnPath)
+	require.NotEmpty(t, s.globalRib.Update(vpnPath))
+
+	rtcPath := table.NewPath(bgp.RF_RTC_UC, p.peerInfo.Load(), bgp.PathNLRI{
+		NLRI: bgp.NewRouteTargetMembershipNLRI(65001, rt),
+	}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		nh,
+	}, time.Now(), false)
+	require.NotNil(t, rtcPath)
+
+	// The helpers take t so that a failure inside a subtest is reported
+	// against that subtest. Capturing the outer t would call FailNow on the
+	// parent from the subtest goroutine, which testing rejects.
+	requireOutgoing := func(t *testing.T, withdraw bool) {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			msg, ok := o.(*fsmOutgoingMsg)
+			require.True(t, ok)
+			require.Len(t, msg.Paths, 1)
+			require.Equal(t, withdraw, msg.Paths[0].IsWithdraw)
+			require.Equal(t, "65001:100:192.0.2.0/24", msg.Paths[0].GetPrefix())
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for RTC-triggered VPN paths")
+		}
+	}
+	requireNoOutgoing := func(t *testing.T) {
+		t.Helper()
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			t.Fatalf("unexpected outbound paths after duplicate RTC update: %#v", o)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Run("duplicate withdraw is noop", func(t *testing.T) {
+		s.processRTCMembership(p, rtcPath)
+		requireOutgoing(t, false)
+
+		withdraw := rtcPath.Clone(true)
+		s.processRTCMembership(p, withdraw)
+		requireOutgoing(t, true)
+
+		s.processRTCMembership(p, withdraw)
+		requireNoOutgoing(t)
+	})
+
+	t.Run("duplicate announce is noop", func(t *testing.T) {
+		s.processRTCMembership(p, rtcPath)
+		requireOutgoing(t, false)
+
+		s.processRTCMembership(p, rtcPath)
+		requireNoOutgoing(t)
+	})
+}
+
+// A withdraw of the default RT membership must withdraw the VPN paths that the
+// peer was sent and can no longer receive. It must not withdraw a path that is
+// still covered by another RT, and it must not touch a path that was never sent.
+func TestRTCMembershipDefaultWithdraw(t *testing.T) {
+	ctx := context.Background()
+
+	rd, rt100, err := parseRDRT("65001:100")
+	require.NoError(t, err)
+	_, rt200, err := parseRDRT("65001:200")
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+
+	setup := func(t *testing.T) (*BgpServer, *peer) {
+		t.Helper()
+		s := NewBgpServer()
+		go s.Serve()
+		err := s.StartBgp(ctx, &api.StartBgpRequest{
+			Global: &api.Global{
+				Asn:        65001,
+				RouterId:   "1.1.1.1",
+				ListenPort: -1,
+			},
+		})
+		require.NoError(t, err)
+
+		p := newPeerandInfo(t, 65001, 65002, "10.0.0.1", s.globalRib)
+		p.policy = s.policy
+		p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+		p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+			bgp.RF_RTC_UC:   bgp.BGP_ADD_PATH_NONE,
+			bgp.RF_IPv4_VPN: bgp.BGP_ADD_PATH_NONE,
+		})
+		t.Cleanup(func() {
+			cleanInfiniteChannel(p.fsm.outgoingCh)
+			require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		})
+
+		for _, v := range []struct {
+			prefix string
+			rt     bgp.ExtendedCommunityInterface
+		}{
+			{"192.0.2.0/24", rt100},
+			{"198.51.100.0/24", rt200},
+		} {
+			nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(v.prefix), *bgp.NewMPLSLabelStack(100), rd)
+			require.NoError(t, err)
+			path := table.NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0),
+				nh,
+				bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{v.rt}),
+			}, time.Now(), false)
+			require.NotEmpty(t, s.globalRib.Update(path))
+		}
+		return s, p
+	}
+
+	rtcPath := func(p *peer, rt bgp.ExtendedCommunityInterface) *table.Path {
+		as := uint32(65002)
+		if rt == nil {
+			as = 0
+		}
+		return table.NewPath(bgp.RF_RTC_UC, p.peerInfo.Load(), bgp.PathNLRI{
+			NLRI: bgp.NewRouteTargetMembershipNLRI(as, rt),
+		}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nh,
+		}, time.Now(), false)
+	}
+
+	// collect returns the paths queued for the peer, as "prefix" for an
+	// advertisement and "-prefix" for a withdrawal.
+	collect := func(t *testing.T, p *peer) []string {
+		t.Helper()
+		var got []string
+		for {
+			select {
+			case o := <-p.fsm.outgoingCh.Out():
+				msg, ok := o.(*fsmOutgoingMsg)
+				require.True(t, ok)
+				for _, path := range msg.Paths {
+					if path.IsWithdraw {
+						got = append(got, "-"+path.GetPrefix())
+					} else {
+						got = append(got, path.GetPrefix())
+					}
+				}
+			case <-time.After(200 * time.Millisecond):
+				slices.Sort(got)
+				return got
+			}
+		}
+	}
+
+	t.Run("withdraws what was sent", func(t *testing.T) {
+		s, p := setup(t)
+		def := rtcPath(p, nil)
+
+		s.processRTCMembership(p, def)
+		require.Equal(t, []string{"65001:100:192.0.2.0/24", "65001:100:198.51.100.0/24"}, collect(t, p))
+
+		s.processRTCMembership(p, def.Clone(true))
+		require.Equal(t, []string{"-65001:100:192.0.2.0/24", "-65001:100:198.51.100.0/24"}, collect(t, p))
+	})
+
+	t.Run("keeps a path covered by another RT", func(t *testing.T) {
+		s, p := setup(t)
+		def := rtcPath(p, nil)
+
+		s.processRTCMembership(p, rtcPath(p, rt100))
+		require.Equal(t, []string{"65001:100:192.0.2.0/24"}, collect(t, p))
+		s.processRTCMembership(p, def)
+		collect(t, p)
+
+		s.processRTCMembership(p, def.Clone(true))
+		require.Equal(t, []string{"-65001:100:198.51.100.0/24"}, collect(t, p))
+	})
+
+	t.Run("does not touch a path that was never sent", func(t *testing.T) {
+		s, p := setup(t)
+		def := rtcPath(p, nil)
+
+		err := s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+			Assignment: &api.PolicyAssignment{
+				Name:          table.GLOBAL_RIB_NAME,
+				Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+				DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+			},
+		})
+		require.NoError(t, err)
+
+		s.processRTCMembership(p, def)
+		require.Empty(t, collect(t, p))
+
+		s.processRTCMembership(p, def.Clone(true))
+		require.Empty(t, collect(t, p))
+	})
+}
+
+// An RT membership shorter than /96 is a prefix of the Route Target. When it
+// is advertised, the peer must get the VPN paths that the prefix contains,
+// and when it is withdrawn, the peer must lose the ones it got through it,
+// including the ones that were sent after the membership arrived.
+func TestRTCMembershipPrefix(t *testing.T) {
+	ctx := context.Background()
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	rd, err := bgp.ParseRouteDistinguisher("65001:1")
+	require.NoError(t, err)
+
+	setup := func(t *testing.T) (*BgpServer, *peer) {
+		t.Helper()
+		s := NewBgpServer()
+		go s.Serve()
+		err := s.StartBgp(ctx, &api.StartBgpRequest{
+			Global: &api.Global{
+				Asn:        65001,
+				RouterId:   "1.1.1.1",
+				ListenPort: -1,
+			},
+		})
+		require.NoError(t, err)
+
+		p := newPeerandInfo(t, 65001, 65002, peerAddr.String(), s.globalRib)
+		p.policy = s.policy
+		p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+		p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{
+			bgp.RF_RTC_UC:   bgp.BGP_ADD_PATH_NONE,
+			bgp.RF_IPv4_VPN: bgp.BGP_ADD_PATH_NONE,
+		})
+		err = s.mgmtOperation(func() error {
+			s.neighborMap[peerAddr] = p
+			return nil
+		}, true)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			err := s.mgmtOperation(func() error {
+				delete(s.neighborMap, peerAddr)
+				return nil
+			}, false)
+			require.NoError(t, err)
+			cleanInfiniteChannel(p.fsm.outgoingCh)
+			require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+		})
+		return s, p
+	}
+
+	vpnPath := func(t *testing.T, prefix, rt string) *table.Path {
+		t.Helper()
+		ec, err := bgp.ParseRouteTarget(rt)
+		require.NoError(t, err)
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(prefix), *bgp.NewMPLSLabelStack(100), rd)
+		require.NoError(t, err)
+		return table.NewPath(bgp.RF_IPv4_VPN, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nh,
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{ec}),
+		}, time.Now(), false)
+	}
+	rtcPath := func(t *testing.T, p *peer, s string) *table.Path {
+		t.Helper()
+		nlri, err := bgp.ParseRouteTargetMembershipNLRI(s)
+		require.NoError(t, err)
+		return table.NewPath(bgp.RF_RTC_UC, p.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			nh,
+		}, time.Now(), false)
+	}
+	// collect returns the VPN prefixes queued for the peer, with "-" in
+	// front of a withdrawal.
+	collect := func(t *testing.T, p *peer) []string {
+		t.Helper()
+		var got []string
+		for {
+			select {
+			case o := <-p.fsm.outgoingCh.Out():
+				msg, ok := o.(*fsmOutgoingMsg)
+				require.True(t, ok)
+				for _, path := range msg.Paths {
+					if path.IsEOR() || path.GetFamily() != bgp.RF_IPv4_VPN {
+						continue
+					}
+					prefix := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix).Prefix.String()
+					if path.IsWithdraw {
+						prefix = "-" + prefix
+					}
+					got = append(got, prefix)
+				}
+			case <-time.After(200 * time.Millisecond):
+				slices.Sort(got)
+				return got
+			}
+		}
+	}
+	// The RIB holds two paths with a Route Target of AS 65000 and one of
+	// AS 65003.
+	addRIB := func(t *testing.T, s *BgpServer) {
+		t.Helper()
+		for _, path := range []*table.Path{
+			vpnPath(t, "10.0.1.0/24", "65000:100"),
+			vpnPath(t, "10.0.2.0/24", "65000:200"),
+			vpnPath(t, "10.0.3.0/24", "65003:100"),
+		} {
+			require.NotEmpty(t, s.globalRib.Update(path))
+		}
+	}
+
+	t.Run("announce and withdraw", func(t *testing.T) {
+		s, p := setup(t)
+		addRIB(t, s)
+		as65000 := rtcPath(t, p, "65002:65000:0/64")
+
+		s.processRTCMembership(p, as65000)
+		require.Equal(t, []string{"10.0.1.0/24", "10.0.2.0/24"}, collect(t, p))
+
+		// A path that arrives later is sent through the same membership.
+		s.propagateUpdate(nil, []*table.Path{vpnPath(t, "10.0.4.0/24", "65000:300")})
+		require.Equal(t, []string{"10.0.4.0/24"}, collect(t, p))
+
+		s.processRTCMembership(p, as65000.Clone(true))
+		require.Equal(t, []string{"-10.0.1.0/24", "-10.0.2.0/24", "-10.0.4.0/24"}, collect(t, p))
+	})
+
+	t.Run("a prefix that is already covered changes nothing", func(t *testing.T) {
+		s, p := setup(t)
+		addRIB(t, s)
+		s.processRTCMembership(p, rtcPath(t, p, "65002:65000:0/64"))
+		collect(t, p)
+
+		rt100 := rtcPath(t, p, "65002:65000:100")
+		s.processRTCMembership(p, rt100)
+		require.Empty(t, collect(t, p))
+		s.processRTCMembership(p, rt100.Clone(true))
+		require.Empty(t, collect(t, p))
+	})
+
+	t.Run("a shorter prefix over a longer one", func(t *testing.T) {
+		s, p := setup(t)
+		addRIB(t, s)
+		s.processRTCMembership(p, rtcPath(t, p, "65002:65000:100"))
+		require.Equal(t, []string{"10.0.1.0/24"}, collect(t, p))
+
+		// 10.0.1.0/24 was sent already, so only the other path goes out,
+		// and it is the only one that goes away with the /64.
+		as65000 := rtcPath(t, p, "65002:65000:0/64")
+		s.processRTCMembership(p, as65000)
+		require.Equal(t, []string{"10.0.2.0/24"}, collect(t, p))
+		s.processRTCMembership(p, as65000.Clone(true))
+		require.Equal(t, []string{"-10.0.2.0/24"}, collect(t, p))
+	})
+}
+
 func TestPropagateUpdateUsesPrefixBuckets(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
@@ -973,8 +1358,39 @@ func TestPropagateUpdateSerializesConcurrentLiveDeltas(t *testing.T) {
 	require.Equal(t, pathCount, sentPathCount)
 }
 
-// TestHandleFSMMessage_LLGREndChsRace tests concurrent append and reset of llgrEndChs slice
-func TestHandleFSMMessage_LLGREndChsRace(t *testing.T) {
+// passEstablished passes the Established state change of the session of p
+// to the server, as the FSM does before the session can end. handleFSMMessage
+// takes the old state from pConf. Supply an OPEN too, so concurrent API
+// readers can inspect the Established session.
+//
+// The peers of these tests are admin down, and the server clears the session
+// state of an admin down peer at the end of each state change. It is put
+// back, so that the next state change is handled as the end of the session.
+func passEstablished(t *testing.T, s *BgpServer, p *peer) {
+	t.Helper()
+	p.fsm.lock.Lock()
+	if p.fsm.recvOpen == nil {
+		p.fsm.recvOpen = grOpen(t)
+	}
+	p.fsm.lock.Unlock()
+	s.handleFSMMessage(p, &fsmMsg{
+		MsgType:     fsmMsgStateChange,
+		MsgData:     bgp.BGP_FSM_ESTABLISHED,
+		StateReason: newfsmStateReason(fsmOpenMsgNegotiated, nil, nil),
+		timestamp:   time.Now(),
+	})
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.State.SessionState = oc.SESSION_STATE_ESTABLISHED
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+}
+
+// TestHandleFSMMessage_GRStateRace tests concurrent access to the graceful
+// restart state and timers of the peers: sessions that end as a graceful
+// restart, the timers that are stopped, and the state that is read for the
+// API.
+func TestHandleFSMMessage_GRStateRace(t *testing.T) {
 	s := NewBgpServer()
 	go s.Serve()
 
@@ -1040,10 +1456,29 @@ func TestHandleFSMMessage_LLGREndChsRace(t *testing.T) {
 		require.NotNil(t, peers[i])
 	}
 
-	// Test concurrent append and reset of llgrEndChs
+	// The sessions negotiated graceful restart with a Restart Time of zero,
+	// so the timers start and expire while the test runs.
+	for _, p := range peers {
+		p.fsm.lock.Lock()
+		conf := p.fsm.pConf.ReadCopy()
+		conf.GracefulRestart.State.Enabled = true
+		conf.GracefulRestart.State.LongLivedEnabled = true
+		p.fsm.pConf.Update(&conf)
+		p.fsm.capMap = map[bgp.BGPCapabilityCode][]bgp.ParameterCapabilityInterface{
+			bgp.BGP_CAP_GRACEFUL_RESTART: {bgp.NewCapGracefulRestart(false, false, 0, []*bgp.CapGracefulRestartTuple{
+				bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+			})},
+			bgp.BGP_CAP_LONG_LIVED_GRACEFUL_RESTART: {bgp.NewCapLongLivedGracefulRestart([]*bgp.CapLongLivedGracefulRestartTuple{
+				bgp.NewCapLongLivedGracefulRestartTuple(bgp.RF_IPv4_UC, true, 1),
+			})},
+		}
+		p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+		p.fsm.lock.Unlock()
+	}
+
 	var wg sync.WaitGroup
 
-	// Goroutines that append to llgrEndChs (simulating LLGR timer start)
+	// Goroutines that end sessions as a graceful restart
 	for i := range numPeers / 2 {
 		wg.Add(1)
 		go func(peerIdx int) {
@@ -1051,38 +1486,30 @@ func TestHandleFSMMessage_LLGREndChsRace(t *testing.T) {
 			p := peers[peerIdx]
 
 			for range 50 {
-				// Set to ESTABLISHED first
-				p.fsm.lock.Lock()
-				conf := p.fsm.pConf.ReadCopy()
-				conf.State.SessionState = "established"
-				conf.Timers.State.Uptime = time.Now().Add(-1 * time.Minute).Unix()
-				conf.GracefulRestart.State.PeerRestarting = true
-				p.fsm.pConf.Update(&conf)
-				p.fsm.lock.Unlock()
-
-				// Trigger LLGR path which appends to llgrEndChs
-				msg := &fsmMsg{
+				// Establish the session, then end it as a graceful
+				// restart.
+				passEstablished(t, s, p)
+				s.handleFSMMessage(p, &fsmMsg{
 					MsgType:     fsmMsgStateChange,
 					MsgData:     bgp.BGP_FSM_IDLE,
-					StateReason: newfsmStateReason(fsmGracefulRestart, nil, nil),
+					StateReason: newfsmStateReason(fsmReadFailed, nil, nil),
 					timestamp:   time.Now(),
-				}
-				s.handleFSMMessage(p, msg)
+				})
 				time.Sleep(2 * time.Millisecond)
 			}
 		}(i)
 	}
 
-	// Goroutines that reset llgrEndChs (simulating stopPeerRestarting)
-	for i := numPeers / 2; i < numPeers; i++ {
+	// Goroutines that stop the timers and read the state of the same peers
+	for i := range numPeers / 2 {
 		wg.Add(1)
 		go func(peerIdx int) {
 			defer wg.Done()
 			p := peers[peerIdx]
 
 			for range 50 {
-				// Directly call stopPeerRestarting which resets llgrEndChs
-				p.stopPeerRestarting()
+				p.stopGRTimers()
+				_ = s.toConfig(p, false)
 				time.Sleep(2 * time.Millisecond)
 			}
 		}(i)
@@ -1359,15 +1786,9 @@ func TestHandleFSMMessage_PeerDownDropsQueuedOutgoing(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, p)
 
-	// Pretend that the session was established and that it went down
-	// with messages still queued. handleFSMMessage takes the old state
-	// from pConf. Do not set fsm.state, or the FSM loop of the peer
-	// enters the established state without a connection.
-	p.fsm.lock.Lock()
-	conf := p.fsm.pConf.ReadCopy()
-	conf.State.SessionState = oc.SESSION_STATE_ESTABLISHED
-	p.fsm.pConf.Update(&conf)
-	p.fsm.lock.Unlock()
+	// The session was established and it goes down with messages still
+	// queued.
+	passEstablished(t, s, p)
 	for range 100 {
 		p.fsm.outgoingCh.In() <- &fsmOutgoingMsg{}
 	}
@@ -1544,7 +1965,7 @@ func TestHandleFSMMessage_WithGracefulRestart(t *testing.T) {
 	msg := &fsmMsg{
 		MsgType:     fsmMsgStateChange,
 		MsgData:     bgp.BGP_FSM_IDLE,
-		StateReason: newfsmStateReason(fsmGracefulRestart, nil, nil),
+		StateReason: newfsmStateReason(fsmReadFailed, nil, nil),
 		timestamp:   time.Now(),
 	}
 
@@ -1657,13 +2078,7 @@ func TestHandleFSMMessage_DynamicNeighborRace(t *testing.T) {
 
 			t.Logf("Peer %d is dynamic, triggering stopNeighbor", peerIdx)
 
-			// Set peer to ESTABLISHED first
-			p.fsm.lock.Lock()
-			conf := p.fsm.pConf.ReadCopy()
-			conf.State.SessionState = "established"
-			conf.Timers.State.Uptime = time.Now().Add(-1 * time.Minute).Unix()
-			p.fsm.pConf.Update(&conf)
-			p.fsm.lock.Unlock()
+			passEstablished(t, s, p)
 
 			// Send state change from ESTABLISHED to IDLE (non-graceful)
 			// This should trigger stopNeighbor which deletes from s.neighborMap
@@ -1926,13 +2341,7 @@ func TestHandleFSMMessage_PropagateUpdateRace(t *testing.T) {
 			defer wg.Done()
 			p := peers[peerIdx]
 
-			// Set to ESTABLISHED
-			p.fsm.lock.Lock()
-			conf := p.fsm.pConf.ReadCopy()
-			conf.State.SessionState = "established"
-			conf.Timers.State.Uptime = time.Now().Add(-1 * time.Minute).Unix()
-			p.fsm.pConf.Update(&conf)
-			p.fsm.lock.Unlock()
+			passEstablished(t, s, p)
 
 			// Trigger state change that calls propagateUpdate
 			msg := &fsmMsg{
@@ -1960,13 +2369,7 @@ func TestHandleFSMMessage_PropagateUpdateRace(t *testing.T) {
 				return
 			}
 
-			// Set to ESTABLISHED then trigger peer down (non-graceful)
-			p.fsm.lock.Lock()
-			conf := p.fsm.pConf.ReadCopy()
-			conf.State.SessionState = "established"
-			conf.Timers.State.Uptime = time.Now().Add(-1 * time.Minute).Unix()
-			p.fsm.pConf.Update(&conf)
-			p.fsm.lock.Unlock()
+			passEstablished(t, s, p)
 
 			// This will call stopNeighbor which deletes from neighborMap
 			// While other goroutines are iterating over it
@@ -2102,4 +2505,880 @@ func TestHandleFSMMessage_ParallelDifferentPeers(t *testing.T) {
 		return nil
 	}, true)
 	require.NoError(t, err)
+}
+
+// grTestPeer sets up a peer whose session negotiated graceful restart with
+// the OPEN open from the peer, for ipv4-unicast and ipv6-unicast, with one
+// route in each family. Long-lived graceful restart is configured too, so it
+// is negotiated if open has the capability.
+func grTestPeer(t *testing.T, open *bgp.BGPMessage) (*BgpServer, *peer) {
+	t.Helper()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 65000, RouterId: "1.1.1.1", ListenPort: -1},
+	}))
+
+	// Build the peer without its FSM goroutine, like the tests above.
+	peerAddr := netip.MustParseAddr("10.0.0.1")
+	p := newPeerandInfo(t, 65000, 65001, peerAddr.String(), s.globalRib)
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.neighborMap[peerAddr] = p
+		return nil
+	}, true))
+	t.Cleanup(func() {
+		require.NoError(t, s.mgmtOperation(func() error {
+			if s.neighborMap[peerAddr] == p {
+				delete(s.neighborMap, peerAddr)
+			}
+			return nil
+		}, false))
+		p.stopGRTimers()
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+
+	m := NewMockConnection()
+	m.SetRemoteAddr(peerAddr.String())
+	t.Cleanup(func() { m.Close() })
+	p.fsm.conn = m
+
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Config.LocalAs = 65000
+	conf.GracefulRestart.Config.Enabled = true
+	conf.GracefulRestart.Config.LongLivedEnabled = true
+	conf.AfiSafis = []oc.AfiSafi{
+		grAfiSafi(oc.AFI_SAFI_TYPE_IPV4_UNICAST, bgp.RF_IPv4_UC),
+		grAfiSafi(oc.AFI_SAFI_TYPE_IPV6_UNICAST, bgp.RF_IPv6_UC),
+	}
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	p.adjRibIn = table.NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+
+	grEstablish(t, s, p, open)
+	grAddRoute(t, s, p, "10.10.10.0/24")
+	grAddRoute(t, s, p, "2001:db8:10::/64")
+	return s, p
+}
+
+// grAddRoute adds a route from the peer to its Adj-RIB-In, in the server
+// loop because the graceful restart timers change it there too.
+func grAddRoute(t *testing.T, s *BgpServer, p *peer, prefix string) {
+	t.Helper()
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+	require.NoError(t, err)
+	family := bgp.RF_IPv4_UC
+	if netip.MustParsePrefix(prefix).Addr().Is6() {
+		family = bgp.RF_IPv6_UC
+	}
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65001})}),
+	}
+	require.NoError(t, s.mgmtOperation(func() error {
+		p.adjRibIn.Update([]*table.Path{
+			table.NewPath(family, p.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false),
+		})
+		return nil
+	}, false))
+}
+
+// grEstablish establishes the session of p with the OPEN open from the peer.
+func grEstablish(t *testing.T, s *BgpServer, p *peer, open *bgp.BGPMessage) {
+	t.Helper()
+	p.fsm.recvOpen = open
+	reason := newfsmStateReason(fsmOpenMsgNegotiated, nil, nil)
+	p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, reason)
+	s.handleFSMMessage(p, &fsmMsg{
+		MsgType:     fsmMsgStateChange,
+		MsgData:     bgp.BGP_FSM_ESTABLISHED,
+		StateReason: reason,
+		timestamp:   time.Now(),
+	})
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+}
+
+// grStateChange passes a state change of the session of p to the server.
+func grStateChange(t *testing.T, s *BgpServer, p *peer, next bgp.FSMState, reason *fsmStateReason) {
+	t.Helper()
+	p.fsm.stateChange(next, reason)
+	p.fsm.state.Store(next)
+	s.handleFSMMessage(p, &fsmMsg{
+		MsgType:     fsmMsgStateChange,
+		MsgData:     next,
+		StateReason: reason,
+		timestamp:   time.Now(),
+	})
+}
+
+// grDown ends the session of p as a graceful restart.
+func grDown(t *testing.T, s *BgpServer, p *peer) {
+	t.Helper()
+	grStateChange(t, s, p, bgp.BGP_FSM_IDLE, newfsmStateReason(fsmReadFailed, nil, nil))
+}
+
+func grEOR(s *BgpServer, p *peer, f bgp.Family) {
+	s.handleFSMMessage(p, &fsmMsg{MsgType: fsmMsgBGPMessage, MsgData: bgp.NewEndOfRib(f), timestamp: time.Now()})
+}
+
+// grCount returns the number of routes of family f from the peer.
+func grCount(s *BgpServer, p *peer, f bgp.Family) int {
+	n := 0
+	_ = s.mgmtOperation(func() error {
+		n = p.adjRibIn.Count([]bgp.Family{f})
+		return nil
+	}, false)
+	return n
+}
+
+// grStale returns the number of stale routes of family f from the peer.
+func grStale(s *BgpServer, p *peer, f bgp.Family) int {
+	n := 0
+	_ = s.mgmtOperation(func() error {
+		for _, path := range p.adjRibIn.PathList([]bgp.Family{f}, false) {
+			if path.IsStale() {
+				n++
+			}
+		}
+		return nil
+	}, false)
+	return n
+}
+
+// grBoth is a Graceful Restart Capability for ipv4 and ipv6 with the F bit,
+// and the given Restart Time.
+func grBoth(restartTime uint16) bgp.ParameterCapabilityInterface {
+	return bgp.NewCapGracefulRestart(false, false, restartTime, []*bgp.CapGracefulRestartTuple{
+		bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+		bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+	})
+}
+
+// grLLGRv4 is a Long-Lived Graceful Restart Capability for ipv4 with the F
+// bit and the given LLST.
+func grLLGRv4(llst uint32) bgp.ParameterCapabilityInterface {
+	return bgp.NewCapLongLivedGracefulRestart([]*bgp.CapLongLivedGracefulRestartTuple{
+		bgp.NewCapLongLivedGracefulRestartTuple(bgp.RF_IPv4_UC, true, llst),
+	})
+}
+
+// When the session ends as a graceful restart, the routes of the families in
+// the Graceful Restart Capability are kept as stale. The End-of-RIB marker of
+// a family removes the stale routes of that family only (RFC 4724 Section
+// 4.2), and the restart ends with the last marker.
+func TestHandleFSMMessage_EORDropsStalePerFamily(t *testing.T) {
+	s, p := grTestPeer(t, grOpen(t, grBoth(120)))
+	grDown(t, s, p)
+	require.True(t, p.grRestarting())
+	require.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+	require.Equal(t, 1, grStale(s, p, bgp.RF_IPv6_UC))
+
+	grEstablish(t, s, p, grOpen(t, grBoth(120)))
+	grEOR(s, p, bgp.RF_IPv4_UC)
+	assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv4_UC))
+	assert.Equal(t, 1, grCount(s, p, bgp.RF_IPv6_UC))
+	assert.True(t, p.grRestarting())
+
+	grEOR(s, p, bgp.RF_IPv6_UC)
+	assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv6_UC))
+	assert.False(t, p.grRestarting())
+}
+
+// When the session is established again after a graceful restart, the
+// stale routes of a family that the peer did not preserve are removed at
+// once (RFC 4724 Section 4.2). The restart is over when no stale routes are
+// kept.
+func TestHandleFSMMessage_ReestablishDropsNotPreservedStale(t *testing.T) {
+	gr := func(tuples ...*bgp.CapGracefulRestartTuple) bgp.ParameterCapabilityInterface {
+		return bgp.NewCapGracefulRestart(true, false, 120, tuples)
+	}
+	tests := []struct {
+		name           string
+		caps           []bgp.ParameterCapabilityInterface
+		wantV4, wantV6 int
+		wantRestarting bool
+	}{
+		{"both preserved", []bgp.ParameterCapabilityInterface{gr(
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+		)}, 1, 1, true},
+		{"F bit clear for ipv4", []bgp.ParameterCapabilityInterface{gr(
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, false),
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+		)}, 0, 1, true},
+		{"ipv4 not in the capability", []bgp.ParameterCapabilityInterface{gr(
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+		)}, 0, 1, true},
+		{"F bit clear for both", []bgp.ParameterCapabilityInterface{gr(
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, false),
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, false),
+		)}, 0, 0, false},
+		{"no capability", nil, 0, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, p := grTestPeer(t, grOpen(t, grBoth(120)))
+			grDown(t, s, p)
+
+			grEstablish(t, s, p, grOpen(t, tt.caps...))
+
+			assert.Equal(t, tt.wantV4, grCount(s, p, bgp.RF_IPv4_UC))
+			assert.Equal(t, tt.wantV6, grCount(s, p, bgp.RF_IPv6_UC))
+			assert.Equal(t, tt.wantRestarting, p.grRestarting())
+		})
+	}
+}
+
+// grLLGRStarted sets up a peer whose ipv4 routes are in the long-lived stale
+// period: the session negotiated a Restart Time of zero and LLGR for ipv4
+// with the given LLST, and ended as a graceful restart. The ipv6 routes are
+// removed when the Restart Time expires.
+func grLLGRStarted(t *testing.T, llst uint32) (*BgpServer, *peer) {
+	t.Helper()
+	s, p := grTestPeer(t, grOpen(t, grBoth(0), grLLGRv4(llst)))
+	grDown(t, s, p)
+	require.Eventually(t, func() bool {
+		var phase gr.Phase
+		_ = s.mgmtOperation(func() error {
+			p.grMu.Lock()
+			phase = p.grHelper.Phase(bgp.RF_IPv4_UC)
+			p.grMu.Unlock()
+			return nil
+		}, false)
+		return phase == gr.LLGRStale
+	}, 5*time.Second, 10*time.Millisecond)
+	require.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+	var llgrStale bool
+	require.NoError(t, s.mgmtOperation(func() error {
+		llgrStale = p.adjRibIn.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false)[0].IsLLGRStale()
+		return nil
+	}, false))
+	require.True(t, llgrStale)
+	require.Equal(t, 0, grCount(s, p, bgp.RF_IPv6_UC))
+	return s, p
+}
+
+// A family in the long-lived stale period stays in it when the session is
+// established again and the Long-Lived Graceful Restart Capability preserves
+// it, even if it is not in the Graceful Restart Capability. The End-of-RIB
+// marker of another family does not end it. Its own marker does.
+func TestHandleFSMMessage_ReestablishLongLivedStale(t *testing.T) {
+	s, p := grLLGRStarted(t, 3600)
+
+	grEstablish(t, s, p, grOpen(t,
+		bgp.NewCapGracefulRestart(true, false, 120, []*bgp.CapGracefulRestartTuple{
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+		}),
+		grLLGRv4(3600)))
+	assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+	assert.True(t, p.grRestarting())
+
+	grEOR(s, p, bgp.RF_IPv6_UC)
+	assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+	assert.True(t, p.grRestarting())
+
+	grEOR(s, p, bgp.RF_IPv4_UC)
+	assert.Equal(t, 0, grStale(s, p, bgp.RF_IPv4_UC))
+	assert.False(t, p.grRestarting())
+}
+
+// A family in the long-lived stale period is removed when the session is
+// established again without the Long-Lived Graceful Restart Capability
+// (RFC 9494 Section 4.2).
+func TestHandleFSMMessage_ReestablishDropsNotPreservedLongLivedStale(t *testing.T) {
+	s, p := grLLGRStarted(t, 3600)
+
+	grEstablish(t, s, p, grOpen(t, grBoth(120)))
+	assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv4_UC))
+	assert.False(t, p.grRestarting())
+}
+
+// When the LLST expires after the session is established again, only the
+// stale routes are removed. The routes of the new session stay.
+func TestHandleFSMMessage_LLSTExpiryKeepsNewRoutes(t *testing.T) {
+	s, p := grLLGRStarted(t, 1)
+
+	grEstablish(t, s, p, grOpen(t, grBoth(120), grLLGRv4(1)))
+	grAddRoute(t, s, p, "10.10.20.0/24")
+	require.Equal(t, 2, grCount(s, p, bgp.RF_IPv4_UC))
+
+	require.Eventually(t, func() bool {
+		return grStale(s, p, bgp.RF_IPv4_UC) == 0
+	}, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, 1, grCount(s, p, bgp.RF_IPv4_UC))
+}
+
+// A change to Idle during the Restart Time, for example when a connection of
+// the returning peer fails in OpenSent, does not end the restart.
+func TestHandleFSMMessage_IdleDuringRestartKeepsStale(t *testing.T) {
+	s, p := grTestPeer(t, grOpen(t, grBoth(120)))
+	grDown(t, s, p)
+
+	grStateChange(t, s, p, bgp.BGP_FSM_ACTIVE, newfsmStateReason(fsmIdleTimerExpired, nil, nil))
+	grStateChange(t, s, p, bgp.BGP_FSM_OPENSENT, newfsmStateReason(fsmNewConnection, nil, nil))
+	grStateChange(t, s, p, bgp.BGP_FSM_IDLE, newfsmStateReason(fsmReadFailed, nil, nil))
+
+	assert.True(t, p.grRestarting())
+	assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+	assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv6_UC))
+}
+
+// When the peer is disabled during the Restart Time, the restart is given up
+// and the routes of the peer are removed.
+func TestHandleFSMMessage_DisableDuringRestart(t *testing.T) {
+	s, p := grTestPeer(t, grOpen(t, grBoth(120)))
+	grDown(t, s, p)
+
+	require.NoError(t, s.DisablePeer(context.Background(), &api.DisablePeerRequest{Address: "10.0.0.1"}))
+	assert.False(t, p.grRestarting())
+	assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv4_UC))
+	assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv6_UC))
+	p.grMu.Lock()
+	assert.Nil(t, p.grRestartTimer)
+	p.grMu.Unlock()
+}
+
+// A dynamic neighbor is deleted when its graceful restart ends with no
+// session: at the Restart Time without LLGR, or when the last LLST expires.
+func TestHandleFSMMessage_DynamicNeighborAfterRestart(t *testing.T) {
+	tests := []struct {
+		name string
+		open []bgp.ParameterCapabilityInterface
+	}{
+		{"Restart Time", []bgp.ParameterCapabilityInterface{grBoth(0)}},
+		{"LLST", []bgp.ParameterCapabilityInterface{grBoth(0), grLLGRv4(1)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, p := grTestPeer(t, grOpen(t, tt.open...))
+			p.fsm.lock.Lock()
+			conf := p.fsm.pConf.ReadCopy()
+			conf.Config.NeighborAddress = netip.Addr{}
+			p.fsm.pConf.Update(&conf)
+			p.fsm.lock.Unlock()
+			require.True(t, p.isDynamicNeighbor())
+			// stopNeighbor() stops the FSM. The FSM of the test peer does
+			// not run, so give it only what stopping needs.
+			ctx, cancel := context.WithCancel(t.Context())
+			p.fsm.h = &fsmHandler{fsm: p.fsm, ctx: ctx, ctxCancel: cancel}
+
+			grDown(t, s, p)
+			require.Eventually(t, func() bool {
+				var found bool
+				_ = s.mgmtOperation(func() error {
+					found = s.neighborMap[netip.MustParseAddr("10.0.0.1")] == p
+					return nil
+				}, false)
+				return !found
+			}, 5*time.Second, 10*time.Millisecond)
+			assert.False(t, p.grRestarting())
+			assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv4_UC))
+		})
+	}
+}
+
+// The initial dump of a route server client is built in the Established
+// handler, before the FSM stores the Established state. A secondary-route
+// client gets its routes and the End-of-RIB marker like any other client, and
+// nothing is sent to it by route propagation before it is established.
+func TestGetBestFromLocalSecondaryRouteBeforeEstablished(t *testing.T) {
+	for _, secondary := range []bool{false, true} {
+		t.Run(map[bool]string{false: "normal", true: "secondary"}[secondary], func(t *testing.T) {
+			ctx := context.Background()
+			s := NewBgpServer()
+			go s.Serve()
+			require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{
+				Global: &api.Global{Asn: 65001, RouterId: "1.1.1.1", ListenPort: -1},
+			}))
+
+			newClient := func(address string, asn uint32, secondary bool) *peer {
+				p := newPeerandInfo(t, 65001, asn, address, s.rsRib)
+				p.fsm.lock.Lock()
+				conf := p.fsm.pConf.ReadCopy()
+				conf.RouteServer.Config.RouteServerClient = true
+				conf.RouteServer.Config.SecondaryRoute = secondary
+				conf.GracefulRestart.State.Enabled = true
+				p.fsm.pConf.Update(&conf)
+				p.fsm.lock.Unlock()
+				p.tableId = p.ID()
+				p.policy = s.policy
+				p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+				return p
+			}
+			targetAddr := netip.MustParseAddr("10.0.0.1")
+			sourceAddr := netip.MustParseAddr("10.0.0.2")
+			target := newClient(targetAddr.String(), 65002, secondary)
+			// As in the Established handler: the state is stored after it.
+			target.fsm.state.Store(bgp.BGP_FSM_OPENCONFIRM)
+			source := newClient(sourceAddr.String(), 65003, false)
+			source.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+			require.NoError(t, s.policy.SetPolicyAssignment(source.TableID(), table.POLICY_DIRECTION_IMPORT, nil, table.ROUTE_TYPE_ACCEPT))
+			require.NoError(t, s.policy.SetPolicyAssignment(target.TableID(), table.POLICY_DIRECTION_EXPORT, nil, table.ROUTE_TYPE_ACCEPT))
+			require.NoError(t, s.mgmtOperation(func() error {
+				s.neighborMap[targetAddr] = target
+				s.neighborMap[sourceAddr] = source
+				return nil
+			}, true))
+			t.Cleanup(func() {
+				require.NoError(t, s.mgmtOperation(func() error {
+					delete(s.neighborMap, targetAddr)
+					delete(s.neighborMap, sourceAddr)
+					return nil
+				}, false))
+				cleanInfiniteChannel(target.fsm.outgoingCh)
+				cleanInfiniteChannel(source.fsm.outgoingCh)
+				require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+			})
+
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/24"))
+			require.NoError(t, err)
+			nextHop, err := bgp.NewPathAttributeNextHop(source.peerInfo.Load().Address)
+			require.NoError(t, err)
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(0),
+				bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65003})}),
+				nextHop,
+			}
+			path := table.NewPath(bgp.RF_IPv4_UC, source.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+			require.NoError(t, s.mgmtOperation(func() error {
+				s.propagateUpdate(source, []*table.Path{path})
+				return nil
+			}, true))
+			// Not established: nothing is sent by propagation.
+			assert.Equal(t, 0, target.fsm.outgoingCh.Len())
+
+			var got []*table.Path
+			require.NoError(t, s.mgmtOperation(func() error {
+				s.getBestFromLocalCallback(target, []bgp.Family{bgp.RF_IPv4_UC}, true, true, func(paths, _ []*table.Path) {
+					got = paths
+				})
+				return nil
+			}, true))
+			require.Len(t, got, 2)
+			assert.Equal(t, "192.0.2.0/24", got[0].GetNlri().String())
+			assert.False(t, got[0].IsEOR())
+			assert.True(t, got[1].IsEOR())
+		})
+	}
+}
+
+// localRestartPeer adds a peer that takes part in our own graceful restart,
+// like a peer of the configuration file when gobgpd is started with -r. The
+// peer has no FSM goroutine. It is configured for ipv4-unicast and
+// ipv6-unicast with graceful restart, and a deferral time of deferral.
+func localRestartPeer(t *testing.T, s *BgpServer, address string, deferral uint16) *peer {
+	t.Helper()
+	addr := netip.MustParseAddr(address)
+	p := newPeerandInfo(t, 65000, 65001, address, s.globalRib)
+	m := NewMockConnection()
+	m.SetRemoteAddr(address)
+	t.Cleanup(func() { m.Close() })
+	p.fsm.conn = m
+
+	p.fsm.lock.Lock()
+	conf := p.fsm.pConf.ReadCopy()
+	conf.Config.LocalAs = 65000
+	conf.GracefulRestart.Config.Enabled = true
+	conf.GracefulRestart.Config.DeferralTime = deferral
+	conf.GracefulRestart.State.LocalRestarting = true
+	conf.AfiSafis = []oc.AfiSafi{
+		grAfiSafi(oc.AFI_SAFI_TYPE_IPV4_UNICAST, bgp.RF_IPv4_UC),
+		grAfiSafi(oc.AFI_SAFI_TYPE_IPV6_UNICAST, bgp.RF_IPv6_UC),
+	}
+	p.fsm.pConf.Update(&conf)
+	p.fsm.lock.Unlock()
+	p.adjRibIn = table.NewAdjRib(s.logger, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC})
+
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.neighborMap[addr] = p
+		s.restartPeerAdded(p, &conf)
+		return nil
+	}, true))
+	t.Cleanup(func() {
+		require.NoError(t, s.mgmtOperation(func() error {
+			if s.neighborMap[addr] == p {
+				delete(s.neighborMap, addr)
+				s.restartEvent(func(r *gr.Restart) gr.RestartActions { return r.PeerRemoved(p.ID()) })
+			}
+			return nil
+		}, false))
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+	})
+	return p
+}
+
+// localRestartServer starts a server for the tests of our own graceful
+// restart.
+func localRestartServer(t *testing.T) *BgpServer {
+	t.Helper()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 65000, RouterId: "1.1.1.1", ListenPort: -1},
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+	return s
+}
+
+// sentEORs returns the families whose End-of-RIB marker was queued for the
+// peer, and drains the queue.
+func sentEORs(p *peer) []bgp.Family {
+	var eors []bgp.Family
+	for {
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			for _, path := range o.(*fsmOutgoingMsg).Paths {
+				if path != nil && path.IsEOR() {
+					eors = append(eors, path.GetFamily())
+				}
+			}
+		case <-time.After(50 * time.Millisecond):
+			return eors
+		}
+	}
+}
+
+func localRestarting(p *peer) bool {
+	return p.fsm.pConf.ReadOnly().GracefulRestart.State.LocalRestarting
+}
+
+// After gobgpd is started with -r, a family is advertised, with the
+// End-of-RIB marker, when the marker of the family is received from every
+// peer (RFC 4724 Section 4.1). The families are independent.
+func TestHandleFSMMessage_LocalRestart(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 360)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	require.True(t, s.deferred(bgp.RF_IPv4_UC))
+	require.True(t, s.deferred(bgp.RF_IPv6_UC))
+
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	grEstablish(t, s, b, grOpen(t, grBoth(120)))
+	// Nothing is advertised while the families are deferred.
+	assert.Empty(t, sentEORs(a))
+	assert.Empty(t, sentEORs(b))
+
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	assert.True(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.Empty(t, sentEORs(a))
+	assert.Empty(t, sentEORs(b))
+
+	grEOR(s, b, bgp.RF_IPv4_UC)
+	assert.False(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.True(t, s.deferred(bgp.RF_IPv6_UC))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(a))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(b))
+	assert.True(t, localRestarting(a))
+	assert.True(t, localRestarting(b))
+
+	grEOR(s, a, bgp.RF_IPv6_UC)
+	grEOR(s, b, bgp.RF_IPv6_UC)
+	assert.False(t, s.deferred(bgp.RF_IPv6_UC))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv6_UC}, sentEORs(a))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv6_UC}, sentEORs(b))
+	assert.False(t, localRestarting(a))
+	assert.False(t, localRestarting(b))
+	assert.False(t, s.restart.Restarting())
+}
+
+// A peer with the Restart State bit, and a peer without the Graceful Restart
+// Capability, are not waited for (RFC 4724 Section 4.1). They get the
+// advertisement when the family is released.
+func TestHandleFSMMessage_LocalRestartExcludedPeers(t *testing.T) {
+	restarted := bgp.NewCapGracefulRestart(true, false, 120, []*bgp.CapGracefulRestartTuple{
+		bgp.NewCapGracefulRestartTuple(bgp.RF_IPv4_UC, true),
+		bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+	})
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 360)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	c := localRestartPeer(t, s, "10.0.0.3", 360)
+
+	grEstablish(t, s, b, grOpen(t, restarted))
+	grEstablish(t, s, c, grOpen(t))
+	assert.True(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.Empty(t, sentEORs(b))
+	assert.Empty(t, sentEORs(c))
+
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	assert.False(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.True(t, s.deferred(bgp.RF_IPv6_UC))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(a))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(b))
+	// A peer without graceful restart gets no marker.
+	assert.Empty(t, sentEORs(c))
+}
+
+// A deferral timer releases the peer from the family. The family is
+// released when every peer is.
+func TestHandleFSMMessage_LocalRestartDeferralTimer(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 1)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	grEstablish(t, s, b, grOpen(t, grBoth(120)))
+
+	// The timers of a expire, but b is waited for.
+	require.Eventually(t, func() bool {
+		s.restartMu.Lock()
+		defer s.restartMu.Unlock()
+		_, ok := s.restartTimers[gr.DeferralTimer{Peer: a.ID(), Family: bgp.RF_IPv4_UC}]
+		return !ok
+	}, 3*time.Second, 50*time.Millisecond)
+	assert.True(t, s.deferred(bgp.RF_IPv4_UC))
+	grEOR(s, b, bgp.RF_IPv4_UC)
+	assert.False(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(a))
+	assert.Equal(t, []bgp.Family{bgp.RF_IPv4_UC}, sentEORs(b))
+}
+
+// A peer whose session ends is not waited for any more.
+func TestHandleFSMMessage_LocalRestartPeerDown(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 360)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	grEstablish(t, s, b, grOpen(t, grBoth(120)))
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	grEOR(s, a, bgp.RF_IPv6_UC)
+	require.True(t, s.deferred(bgp.RF_IPv4_UC))
+
+	grStateChange(t, s, b, bgp.BGP_FSM_IDLE, newfsmStateReason(fsmReadFailed, nil, nil))
+	assert.False(t, s.deferred(bgp.RF_IPv4_UC))
+	assert.False(t, s.deferred(bgp.RF_IPv6_UC))
+	assert.ElementsMatch(t, []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC}, sentEORs(a))
+	assert.False(t, localRestarting(a))
+}
+
+// The server decides from the reason of the session end and the negotiated
+// state whether the session ends as a graceful restart. The peer event
+// reports a graceful restart to the API, and BMP gets the real reason.
+func TestHandleFSMMessage_GracefulSessionEnd(t *testing.T) {
+	notification := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_UPDATE_MESSAGE_ERROR, bgp.BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil)
+	hardReset := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, bgp.BGP_ERROR_SUB_HARD_RESET, nil)
+	holdTimer := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_HOLD_TIMER_EXPIRED, 0, nil)
+	tests := []struct {
+		name         string
+		reason       *fsmStateReason
+		notification bool
+		graceful     bool
+		wantAPI      api.PeerState_DisconnectReason
+		wantBMP      uint8
+	}{
+		{
+			"read failed", newfsmStateReason(fsmReadFailed, nil, nil), false, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION,
+		},
+		{
+			"write failed", newfsmStateReason(fsmWriteFailed, nil, nil), false, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_REMOTE_NO_NOTIFICATION,
+		},
+		{
+			"hold timer expired", newfsmStateReason(fsmHoldTimerExpired, notificationBody(holdTimer), nil), false, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_LOCAL_BGP_NOTIFICATION,
+		},
+		{
+			"notification received without N", newfsmStateReason(fsmNotificationRecv, notificationBody(notification), nil), false, false,
+			api.PeerState_DISCONNECT_REASON_NOTIFICATION_RECEIVED, bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION,
+		},
+		{
+			"notification received with N", newfsmStateReason(fsmNotificationRecv, notificationBody(notification), nil), true, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION,
+		},
+		{
+			"hard reset received with N", newfsmStateReason(fsmHardReset, notificationBody(hardReset), nil), true, false,
+			api.PeerState_DISCONNECT_REASON_HARD_RESET, bmp.BMP_PEER_DOWN_REASON_REMOTE_BGP_NOTIFICATION,
+		},
+		{
+			"admin down", newfsmStateReason(fsmAdminDown, nil, nil), true, false,
+			api.PeerState_DISCONNECT_REASON_ADMIN_DOWN, bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION,
+		},
+		{
+			"new connection", newfsmStateReason(fsmNewConnection, nil, nil), false, true,
+			api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, bmp.BMP_PEER_DOWN_REASON_LOCAL_NO_NOTIFICATION,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, p := grTestPeer(t, grOpen(t, grBoth(120)))
+			p.fsm.lock.Lock()
+			conf := p.fsm.pConf.ReadCopy()
+			require.True(t, conf.GracefulRestart.State.Enabled)
+			conf.GracefulRestart.State.NotificationEnabled = tt.notification
+			p.fsm.pConf.Update(&conf)
+			p.fsm.lock.Unlock()
+
+			// After a new connection, the FSM goes to Active to take it.
+			next := bgp.BGP_FSM_IDLE
+			if tt.reason.Type == fsmNewConnection {
+				next = bgp.BGP_FSM_ACTIVE
+			}
+			grStateChange(t, s, p, next, tt.reason)
+
+			assert.Equal(t, tt.graceful, p.grRestarting())
+			p.grMu.Lock()
+			restartTimer := p.grRestartTimer != nil
+			p.grMu.Unlock()
+			assert.Equal(t, tt.graceful, restartTimer)
+			if tt.graceful {
+				assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+			} else {
+				assert.Equal(t, 0, grCount(s, p, bgp.RF_IPv4_UC))
+			}
+
+			e := newWatchEventPeer(p, &fsmMsg{StateReason: tt.reason}, next, bgp.BGP_FSM_ESTABLISHED, apiutil.PEER_EVENT_STATE)
+			assert.Equal(t, tt.graceful, e.Graceful)
+			reason, message := convertFSMStateReasonToAPI(e.StateReason, e.Graceful)
+			assert.Equal(t, tt.wantAPI, reason)
+			if tt.graceful {
+				assert.Equal(t, "graceful-restart", message)
+			}
+
+			m := bmpPeerDown(e, bmp.BMP_PEER_TYPE_GLOBAL, false, 0)
+			body := m.Body.(*bmp.BMPPeerDownNotification)
+			assert.Equal(t, tt.wantBMP, body.Reason)
+			if n := tt.reason.notificationMessage(); n != nil {
+				assert.Equal(t, n, body.BGPNotification)
+			}
+			if tt.reason.Type == fsmNewConnection {
+				// FSM Event 17, TcpConnectionConfirmed.
+				assert.Equal(t, []byte{0, 17}, body.Data)
+			}
+		})
+	}
+}
+
+// A family that is only in the Long-Lived Graceful Restart Capability has a
+// Restart Time of zero (RFC 9494 Section 4.2). Its routes get LLGR_STALE and
+// its LLST timer starts when the session ends. A family in the Graceful
+// Restart Capability waits for the Restart Time.
+func TestHandleFSMMessage_LLGROnlyFamily(t *testing.T) {
+	s, p := grTestPeer(t, grOpen(t,
+		bgp.NewCapGracefulRestart(false, false, 120, []*bgp.CapGracefulRestartTuple{
+			bgp.NewCapGracefulRestartTuple(bgp.RF_IPv6_UC, true),
+		}),
+		grLLGRv4(3600)))
+	grDown(t, s, p)
+
+	assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv4_UC))
+	assert.Equal(t, 1, grStale(s, p, bgp.RF_IPv6_UC))
+	var v4LLGRStale, v6LLGRStale bool
+	require.NoError(t, s.mgmtOperation(func() error {
+		v4LLGRStale = p.adjRibIn.PathList([]bgp.Family{bgp.RF_IPv4_UC}, false)[0].IsLLGRStale()
+		v6LLGRStale = p.adjRibIn.PathList([]bgp.Family{bgp.RF_IPv6_UC}, false)[0].IsLLGRStale()
+		return nil
+	}, false))
+	assert.True(t, v4LLGRStale)
+	assert.False(t, v6LLGRStale)
+
+	p.grMu.Lock()
+	_, llgrTimer := p.grLLGRTimers[bgp.RF_IPv4_UC]
+	restartTimer := p.grRestartTimer != nil
+	p.grMu.Unlock()
+	assert.True(t, llgrTimer)
+	assert.True(t, restartTimer)
+}
+
+func TestHandleFSMMessage_InitialUpdateBeforeFSMStore(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		localRestart bool
+		policyChange bool
+	}{
+		{"plain_withdrawal", false, false},
+		{"plain_policy_change", false, true},
+		{"local_restart_withdrawal", true, false},
+		{"local_restart_policy_change", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := localRestartServer(t)
+			var target *peer
+			if tc.localRestart {
+				target = localRestartPeer(t, s, "10.0.0.1", 360)
+			} else {
+				target = initialUpdatePeer(t, s, "10.0.0.1")
+			}
+			receiver := newPeerandInfo(t, 65001, 65000, "10.0.0.254", s.globalRib)
+			t.Cleanup(func() { cleanInfiniteChannel(receiver.fsm.outgoingCh) })
+			remoteInfo := *receiver.peerInfo.Load()
+			remoteInfo.LocalAddress = netip.MustParseAddr("198.51.100.1")
+			receiver.peerInfo.Store(&remoteInfo)
+
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("203.0.113.0/24"))
+			require.NoError(t, err)
+			nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+			require.NoError(t, err)
+			path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}, time.Now(), false)
+			require.NoError(t, s.mgmtOperation(func() error { s.propagateUpdate(nil, []*table.Path{path}); return nil }, true))
+
+			sawRoute := false
+			deliver := func() {
+				for target.fsm.outgoingCh.Len() > 0 {
+					outgoing := (<-target.fsm.outgoingCh.Out()).(*fsmOutgoingMsg)
+					for _, update := range table.CreateUpdateMsgFromPaths(outgoing.Paths) {
+						wire, err := update.Serialize()
+						require.NoError(t, err)
+						received, err := bgp.ParseBGPMessage(wire)
+						require.NoError(t, err)
+						receiver.handleUpdate(&fsmMsg{MsgType: fsmMsgBGPMessage, MsgData: received, timestamp: time.Now()}, nil)
+						sawRoute = sawRoute || receiver.adjRibIn.Accepted([]bgp.Family{bgp.RF_IPv4_UC}) > 0
+					}
+				}
+			}
+			// In the local-restart cases, the remote R-bit releases the wait.
+			target.fsm.state.Store(bgp.BGP_FSM_OPENCONFIRM)
+			target.fsm.recvOpen = grOpen(t, bgp.NewCapGracefulRestart(true, false, 120, nil))
+			reason := newfsmStateReason(fsmOpenMsgNegotiated, nil, nil)
+			target.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, reason)
+			s.handleFSMMessage(target, &fsmMsg{MsgType: fsmMsgStateChange, MsgData: bgp.BGP_FSM_ESTABLISHED, StateReason: reason})
+
+			// Pause the FSM at its callback return, before its state.Store. Another
+			// peer's UPDATE processing is allowed to run at this exact boundary.
+			require.NoError(t, s.mgmtOperation(func() error {
+				if tc.policyChange {
+					if err := target.policy.SetPolicyAssignment(target.exportPolicyID, table.POLICY_DIRECTION_EXPORT, nil, table.ROUTE_TYPE_REJECT); err != nil {
+						return err
+					}
+					s.softResetOutPeer(target, bgp.RF_IPv4_UC, false)
+				} else {
+					s.propagateUpdate(nil, []*table.Path{path.Clone(true)})
+				}
+				return nil
+			}, true))
+			target.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+			deliver()
+			require.True(t, sawRoute, "initial dump must actually advertise the route")
+			expectedLocal := 0
+			if tc.policyChange {
+				expectedLocal = 1
+			}
+			require.Len(t, s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC}), expectedLocal)
+			require.Zero(t, receiver.adjRibIn.Accepted([]bgp.Family{bgp.RF_IPv4_UC}), "remote Adj-RIB-In retained a withdrawn route after the initial dump")
+		})
+	}
+}
+
+func initialUpdatePeer(t *testing.T, s *BgpServer, address string) *peer {
+	t.Helper()
+	p := newPeerandInfo(t, 65000, 65001, address, s.globalRib)
+	conn := NewMockConnection()
+	conn.SetRemoteAddr(address)
+	p.fsm.conn = conn
+	addr := netip.MustParseAddr(address)
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.neighborMap[addr] = p
+		return nil
+	}, true))
+	t.Cleanup(func() {
+		require.NoError(t, s.mgmtOperation(func() error {
+			delete(s.neighborMap, addr)
+			return nil
+		}, false))
+		conn.Close()
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+	})
+	return p
 }
