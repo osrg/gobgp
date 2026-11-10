@@ -2106,6 +2106,7 @@ func (s *BgpServer) restartTimerExpired(d gr.DeferralTimer) {
 // (including the case that there is no routing update to send), the
 // End-of-RIB marker MUST be sent."
 func (s *BgpServer) restartReleased(released []bgp.Family) {
+	rtcReleased := slices.Contains(released, bgp.RF_RTC_UC)
 	s.logger.Info("sync finished",
 		slog.String("Topic", "Server"),
 		slog.Any("Families", released))
@@ -2117,9 +2118,12 @@ func (s *BgpServer) restartReleased(released []bgp.Family) {
 		}
 		families := make([]bgp.Family, 0, len(released))
 		for _, f := range p.negotiatedRFList() {
+			// When the shared RTC wait ends, also include families that were
+			// held back only by that barrier.
+			ready := slices.Contains(released, f) || rtcReleased && !s.deferred(f)
 			// The families other than route target are sent when the
 			// route target End-of-RIB marker of the peer is received.
-			if slices.Contains(released, f) && (f == bgp.RF_RTC_UC || !p.getRtcEORWait()) {
+			if ready && (f == bgp.RF_RTC_UC || !p.getRtcEORWait()) {
 				families = append(families, f)
 			}
 		}
@@ -2310,7 +2314,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			// any routes (and EORs) before we send ours (or deferral-timer expires).
 			c := conf.GetAfiSafi(bgp.RF_RTC_UC)
 			notPeerRestarting := !peer.grRestarting()
-			waitRTC := peer.IsFamilyEnabled(bgp.RF_RTC_UC) && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0
+			waitRTC := !conf.GracefulRestart.State.LocalRestarting && peer.IsFamilyEnabled(bgp.RF_RTC_UC) && notPeerRestarting && c.RouteTargetMembership.Config.DeferralTime > 0
 			peer.setRtcEORWait(waitRTC)
 			// Publish Established after preparing the peer and before queuing
 			// the initial update, so subsequent withdrawals are not suppressed
