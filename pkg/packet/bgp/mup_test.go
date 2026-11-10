@@ -665,3 +665,42 @@ func Test_MUPNLRILengthOverflow(t *testing.T) {
 	_, err := n.Serialize()
 	assert.ErrorContains(err, "length mismatch")
 }
+
+func Test_MUPNLRILongerThanRoute(t *testing.T) {
+	rd, err := ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	sa := netip.MustParseAddr("10.10.10.2")
+	tests := []struct {
+		name string
+		n    *MUPNLRI
+		rf   Family
+	}{
+		{"ISD_IPv4", NewMUPInterworkSegmentDiscoveryRoute(rd, netip.MustParsePrefix("10.10.10.0/24")), RF_MUP_IPv4},
+		{"ISD_IPv6", NewMUPInterworkSegmentDiscoveryRoute(rd, netip.MustParsePrefix("2001::/64")), RF_MUP_IPv6},
+		{"DSD_IPv4", NewMUPDirectSegmentDiscoveryRoute(rd, netip.MustParseAddr("10.10.10.1")), RF_MUP_IPv4},
+		{"T1ST_IPv4", NewMUPType1SessionTransformedRoute(rd, netip.MustParsePrefix("192.100.0.0/24"), netip.MustParseAddr("0.0.0.100"), 9, netip.MustParseAddr("10.10.10.1"), &sa), RF_MUP_IPv4},
+		{"T2ST_IPv4", NewMUPType2SessionTransformedRoute(rd, 44, netip.MustParseAddr("10.10.10.1"), netip.MustParseAddr("0.0.1.0")), RF_MUP_IPv4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf, err := tt.n.Serialize()
+			require.NoError(t, err)
+
+			// The route uses all of Length.
+			n, err := NLRIFromSlice(tt.rf, buf)
+			require.NoError(t, err)
+			b, err := n.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, buf, b)
+
+			// Length covers five octets after the route. The route
+			// decoders that check only a minimum length ignore them,
+			// so the NLRI could not be sent again.
+			long := append([]byte{}, buf...)
+			long[3] += 5
+			long = append(long, 0, 0, 0, 0, 0)
+			_, err = NLRIFromSlice(tt.rf, long)
+			assert.Error(t, err)
+		})
+	}
+}

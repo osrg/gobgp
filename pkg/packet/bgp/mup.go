@@ -271,7 +271,14 @@ func (n *MUPNLRI) decodeFromBytes(data []byte, options ...*MarshallingOption) er
 		return &unknownRouteTypeError{msg: err.Error(), len: 4 + int(n.Length)}
 	}
 	n.RouteTypeData = r
-	return n.RouteTypeData.DecodeFromBytes(data[:n.Length], n.Afi)
+	if err := n.RouteTypeData.DecodeFromBytes(data[:n.Length], n.Afi); err != nil {
+		return err
+	}
+	// Serialize writes n.Length back, so the route must use all of it.
+	if n.RouteTypeData.Len() != int(n.Length) {
+		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, fmt.Sprintf("MUP route type %d length %d does not match its content", n.RouteType, n.Length))
+	}
+	return nil
 }
 
 func (n *MUPNLRI) Serialize(options ...*MarshallingOption) ([]byte, error) {
