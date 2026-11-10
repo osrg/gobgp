@@ -3137,6 +3137,15 @@ type TimersState struct {
 	// Time interval in seconds that a BGP session will be
 	// in idle state after neighbor reset operation.
 	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset" json:"idle-hold-time-after-reset,omitempty"`
+	// original -> gobgp:idle-hold-time-max
+	// gobgp:idle-hold-time-max's original type is decimal64.
+	// Maximum time interval in seconds that a BGP session will be
+	// in idle state after it ends with an error. The idle hold time
+	// starts at 1 second, doubles each time a session ends with an
+	// error, and goes back to 1 second when a session reaches the
+	// established state. 0 means 120 seconds. A value below 1
+	// second means 1 second.
+	IdleHoldTimeMax float64 `mapstructure:"idle-hold-time-max" json:"idle-hold-time-max,omitempty"`
 	// original -> gobgp:downtime
 	// gobgp:downtime's original type is yang:timeticks.
 	// This timer determines the amount of time since the
@@ -3184,6 +3193,15 @@ type TimersConfig struct {
 	// Time interval in seconds that a BGP session will be
 	// in idle state after neighbor reset operation.
 	IdleHoldTimeAfterReset float64 `mapstructure:"idle-hold-time-after-reset" json:"idle-hold-time-after-reset,omitempty"`
+	// original -> gobgp:idle-hold-time-max
+	// gobgp:idle-hold-time-max's original type is decimal64.
+	// Maximum time interval in seconds that a BGP session will be
+	// in idle state after it ends with an error. The idle hold time
+	// starts at 1 second, doubles each time a session ends with an
+	// error, and goes back to 1 second when a session reaches the
+	// established state. 0 means 120 seconds. A value below 1
+	// second means 1 second.
+	IdleHoldTimeMax float64 `mapstructure:"idle-hold-time-max" json:"idle-hold-time-max,omitempty"`
 }
 
 func (lhs *TimersConfig) Equal(rhs *TimersConfig) bool {
@@ -3203,6 +3221,9 @@ func (lhs *TimersConfig) Equal(rhs *TimersConfig) bool {
 		return false
 	}
 	if lhs.IdleHoldTimeAfterReset != rhs.IdleHoldTimeAfterReset {
+		return false
+	}
+	if lhs.IdleHoldTimeMax != rhs.IdleHoldTimeMax {
 		return false
 	}
 	return true
