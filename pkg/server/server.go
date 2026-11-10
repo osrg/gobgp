@@ -910,6 +910,32 @@ func needsExtendedNexthop(path *table.Path) bool {
 }
 
 func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
+	if path != nil && path.GetFamily() == bgp.RF_RTC_UC && !path.IsWithdraw && !path.IsLocal() &&
+		peer.isRouteReflectorClient() && !peer.isAddPathSendEnabled(bgp.RF_RTC_UC) && (old == nil || !old.IsLocal()) {
+		// A client's own membership may be global best. Prefer another
+		// subscriber to signal remote interest, but only when that path can
+		// actually be exported. A loop or policy rejection must not hide a
+		// later usable subscriber for the same RTM NLRI.
+		dst := peer.localRib.GetDestination(path)
+		if dst != nil {
+			for _, candidate := range dst.GetKnownPathList(peer.TableID(), peer.AS()) {
+				if candidate.IsNexthopInvalid || candidate.GetSource().Address.String() == peer.ID() {
+					continue
+				}
+				// No old path while testing alternatives: a rejection must not
+				// turn into an old-path withdrawal before all candidates are tried.
+				if p := s.filterpathWithPolicy(peer, candidate, nil); p != nil && !p.IsWithdraw {
+					return p
+				}
+			}
+		}
+	}
+	// Preserve existing local RTC handling, negotiated ADD-PATH SEND and
+	// fallback behavior when no alternative is exportable.
+	return s.filterpathWithPolicy(peer, path, old)
+}
+
+func (s *BgpServer) filterpathWithPolicy(peer *peer, path, old *table.Path) *table.Path {
 	path, options, stop := s.prePolicyFilterpath(peer, path, old)
 	if stop {
 		return nil
