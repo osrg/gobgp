@@ -915,6 +915,9 @@ message TimersConfig {
   uint64 keepalive_interval = 3;
   uint64 minimum_advertisement_interval = 4;
   uint64 idle_hold_time_after_reset = 5;
+  // Maximum idle hold time in seconds after a session ends with an error.
+  // 0 means 120 seconds.
+  uint64 idle_hold_time_max = 6;
 }
 
 message TimersState {

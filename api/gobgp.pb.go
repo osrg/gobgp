@@ -8532,8 +8532,11 @@ type TimersConfig struct {
 	KeepaliveInterval            uint64                 `protobuf:"varint,3,opt,name=keepalive_interval,json=keepaliveInterval,proto3" json:"keepalive_interval,omitempty"`
 	MinimumAdvertisementInterval uint64                 `protobuf:"varint,4,opt,name=minimum_advertisement_interval,json=minimumAdvertisementInterval,proto3" json:"minimum_advertisement_interval,omitempty"`
 	IdleHoldTimeAfterReset       uint64                 `protobuf:"varint,5,opt,name=idle_hold_time_after_reset,json=idleHoldTimeAfterReset,proto3" json:"idle_hold_time_after_reset,omitempty"`
-	unknownFields                protoimpl.UnknownFields
-	sizeCache                    protoimpl.SizeCache
+	// Maximum idle hold time in seconds after a session ends with an error.
+	// 0 means 120 seconds.
+	IdleHoldTimeMax uint64 `protobuf:"varint,6,opt,name=idle_hold_time_max,json=idleHoldTimeMax,proto3" json:"idle_hold_time_max,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *TimersConfig) Reset() {
@@ -8597,6 +8600,13 @@ func (x *TimersConfig) GetMinimumAdvertisementInterval() uint64 {
 func (x *TimersConfig) GetIdleHoldTimeAfterReset() uint64 {
 	if x != nil {
 		return x.IdleHoldTimeAfterReset
+	}
+	return 0
+}
+
+func (x *TimersConfig) GetIdleHoldTimeMax() uint64 {
+	if x != nil {
+		return x.IdleHoldTimeMax
 	}
 	return 0
 }
@@ -14531,13 +14541,14 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x06output\x18\x02 \x01(\rR\x06output\"[\n" +
 	"\x06Timers\x12)\n" +
 	"\x06config\x18\x01 \x01(\v2\x11.api.TimersConfigR\x06config\x12&\n" +
-	"\x05state\x18\x02 \x01(\v2\x10.api.TimersStateR\x05state\"\x81\x02\n" +
+	"\x05state\x18\x02 \x01(\v2\x10.api.TimersStateR\x05state\"\xae\x02\n" +
 	"\fTimersConfig\x12#\n" +
 	"\rconnect_retry\x18\x01 \x01(\x04R\fconnectRetry\x12\x1b\n" +
 	"\thold_time\x18\x02 \x01(\x04R\bholdTime\x12-\n" +
 	"\x12keepalive_interval\x18\x03 \x01(\x04R\x11keepaliveInterval\x12D\n" +
 	"\x1eminimum_advertisement_interval\x18\x04 \x01(\x04R\x1cminimumAdvertisementInterval\x12:\n" +
-	"\x1aidle_hold_time_after_reset\x18\x05 \x01(\x04R\x16idleHoldTimeAfterReset\"\xe2\x02\n" +
+	"\x1aidle_hold_time_after_reset\x18\x05 \x01(\x04R\x16idleHoldTimeAfterReset\x12+\n" +
+	"\x12idle_hold_time_max\x18\x06 \x01(\x04R\x0fidleHoldTimeMax\"\xe2\x02\n" +
 	"\vTimersState\x12#\n" +
 	"\rconnect_retry\x18\x01 \x01(\x04R\fconnectRetry\x12\x1b\n" +
 	"\thold_time\x18\x02 \x01(\x04R\bholdTime\x12-\n" +

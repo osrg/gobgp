@@ -199,6 +199,7 @@ const (
 	// The idle hold time backs off like the start timer of FRR: it starts
 	// at 1 second, doubles each time a session ends with a NOTIFICATION,
 	// and goes back to 1 second when a session reaches Established.
+	// idle-hold-time-max replaces idleHoldTimeMax when it is not 0.
 	idleHoldTimeInitial = 1
 	idleHoldTimeMax     = 120
 )
@@ -1074,8 +1075,15 @@ type fsmHandler struct {
 
 // nextIdleHoldTime returns the idle hold time of the Idle state that the
 // session enters for reason, and the new backoff value. backoff is the
-// current backoff value, and afterReset is idle-hold-time-after-reset.
-func nextIdleHoldTime(backoff, afterReset float64, reason *fsmStateReason) (float64, float64) {
+// current backoff value, afterReset is idle-hold-time-after-reset, and
+// limit is idle-hold-time-max.
+func nextIdleHoldTime(backoff, afterReset, limit float64, reason *fsmStateReason) (float64, float64) {
+	if limit == 0 {
+		limit = idleHoldTimeMax
+	}
+	// The backoff starts at idleHoldTimeInitial, so a lower limit would
+	// not apply to the first Idle state.
+	limit = max(limit, idleHoldTimeInitial)
 	switch reason.Type {
 	case fsmAdminDown:
 		// The session stays in Idle until the admin state goes up. Then
@@ -1084,10 +1092,12 @@ func nextIdleHoldTime(backoff, afterReset float64, reason *fsmStateReason) (floa
 	case fsmAdminReset:
 		return afterReset, idleHoldTimeInitial
 	case fsmNotificationSent, fsmNotificationRecv, fsmHardReset, fsmHoldTimerExpired, fsmInvalidMsg, fsmBadPeerAS:
-		backoff = min(backoff*2, idleHoldTimeMax)
+		backoff *= 2
 	}
 	// The other reasons, for example a closed TCP connection, keep the
-	// current value.
+	// current value. The limit may have been lowered since the backoff
+	// grew, so it applies to them too.
+	backoff = min(backoff, limit)
 	return backoff, backoff
 }
 
@@ -1133,7 +1143,7 @@ func (h *fsmHandler) idle(ctx context.Context) (bgp.FSMState, *fsmStateReason) {
 			// administratively down.
 			if fsm.adminState.Load() == adminStateUp {
 				conf := fsm.pConf.ReadOnly()
-				fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, newfsmStateReason(fsmAdminReset, nil, nil))
+				fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, conf.Timers.Config.IdleHoldTimeMax, newfsmStateReason(fsmAdminReset, nil, nil))
 				idleHoldTimer.Reset(time.Second * time.Duration(fsm.idleHoldTime))
 			}
 		case stateOp := <-fsm.adminStateCh:
@@ -2547,7 +2557,7 @@ func (h *fsmHandler) loop(ctx context.Context, wg *sync.WaitGroup, oldState bgp.
 				fsm.idleHoldTime = 0
 			} else {
 				conf := fsm.pConf.ReadOnly()
-				fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, reason)
+				fsm.idleHoldTime, fsm.idleHoldBackoff = nextIdleHoldTime(fsm.idleHoldBackoff, conf.Timers.Config.IdleHoldTimeAfterReset, conf.Timers.Config.IdleHoldTimeMax, reason)
 			}
 		case bgp.BGP_FSM_ESTABLISHED:
 			fsm.idleHoldBackoff = idleHoldTimeInitial
