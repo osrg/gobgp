@@ -124,6 +124,11 @@ type peer struct {
 	// getRoutesCount, hasPathAlreadyBeenSent) MUST be called under the
 	// bucket lock for that prefix (sharedData.propagateBucket).
 	sentPaths sync.Map
+	// map[table.PathDestLocalKey]*table.Path: the actual, fully transformed
+	// single-path RTC export. At most one immutable clone per advertised
+	// membership; withdrawals and session reset remove it. It shares the
+	// sentPaths propagation/route-refresh synchronization.
+	advertisedRTCPaths sync.Map
 	// map[bgp.Family]*atomic.Int64, number of paths in sentPaths per family.
 	// Keyed by the local family (RF_IPv4_UC for a VRF peer), as updateRoutes
 	// sees paths after ToLocal().
@@ -341,6 +346,13 @@ func (peer *peer) updateRoutes(paths ...*table.Path) {
 		}
 		destLocalKey := path.GetDestLocalKey()
 		pathID := peer.advertisedPathID(path)
+		if path.GetFamily() == bgp.RF_RTC_UC && !peer.isAddPathSendEnabled(bgp.RF_RTC_UC) {
+			if path.IsWithdraw {
+				peer.advertisedRTCPaths.Delete(destLocalKey)
+			} else {
+				peer.advertisedRTCPaths.Store(destLocalKey, path.Clone(false))
+			}
+		}
 
 		identifiersValue, destExists := peer.sentPaths.Load(destLocalKey)
 		if path.IsWithdraw && destExists {
@@ -412,6 +424,7 @@ func (peer *peer) hasPathAlreadyBeenSent(path *table.Path) bool {
 
 func (peer *peer) resetAdvertisedRoutes() {
 	peer.sentPaths.Clear()
+	peer.advertisedRTCPaths.Clear()
 	peer.advertisedCount.Clear()
 	peer.sendMaxPathFiltered.Clear()
 }

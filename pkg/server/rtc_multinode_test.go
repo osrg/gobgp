@@ -170,14 +170,18 @@ func rtcClientTestPath(t *testing.T, source *peer, med uint32, origin, cluster s
 	return table.NewPath(bgp.RF_RTC_UC, source.peerInfo.Load(), bgp.PathNLRI{NLRI: p.GetNlri()}, false, attrs, time.Now(), false)
 }
 
-func setRTCClientTestExportPolicy(t *testing.T, s *BgpServer, target *peer, rejectedSource string) {
+func setRTCClientTestExportPolicy(t *testing.T, s *BgpServer, target *peer, rejectedSources ...string) {
 	t.Helper()
+	rejected := make([]netip.Addr, 0, len(rejectedSources))
+	for _, source := range rejectedSources {
+		rejected = append(rejected, netip.MustParseAddr(source))
+	}
 	require.NoError(t, s.policy.Reset(&oc.RoutingPolicy{PolicyDefinitions: []oc.PolicyDefinition{{
 		Name: "rtc-source-export",
 		Statements: []oc.Statement{{
 			Name: "reject-source",
 			Conditions: oc.Conditions{BgpConditions: oc.BgpConditions{
-				NextHopInList: []netip.Addr{netip.MustParseAddr(rejectedSource)},
+				NextHopInList: rejected,
 			}},
 			Actions: oc.Actions{RouteDisposition: oc.ROUTE_DISPOSITION_REJECT_ROUTE},
 		}, {
@@ -386,4 +390,227 @@ func requireNoRTCPropagationTestMessage(t *testing.T, target *peer) {
 		t.Fatalf("unchanged learned membership was reflected again: %#v", outgoing)
 	case <-time.After(200 * time.Millisecond):
 	}
+}
+
+// The global best may remain a non-client while a client is the actual export.
+// Losing that client must withdraw its session export, not silently filter best.
+func TestRTCWithdrawAdvertisedClientWhenOnlyNonClientRemains(t *testing.T) {
+	s, _, target := newRTCPropagationTestServer(t)
+	configureRTCNonClientTestPeer(target)
+	client := newRTCClientTestPeer(t, s, "10.0.0.3")
+	nonClient := newRTCClientTestPeer(t, s, "10.0.0.4")
+	configureRTCNonClientTestPeer(nonClient)
+	advertised := rtcClientTestPath(t, client, 100, "4.96.2.7", "4.96.2.0")
+	remaining := rtcClientTestPath(t, nonClient, 0, "4.96.3.7", "4.96.3.0")
+	s.propagateUpdate(client, []*table.Path{advertised})
+	requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 100, false)
+	s.propagateUpdate(nonClient, []*table.Path{remaining})
+	sent := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 100, false)
+	require.Equal(t, 1, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+	s.propagateUpdate(client, []*table.Path{advertised.Clone(true)})
+	withdrawn := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 100, true)
+	require.Equal(t, sent.GetOriginatorID(), withdrawn.GetOriginatorID())
+	require.Equal(t, sent.GetClusterList(), withdrawn.GetClusterList())
+	require.Equal(t, 0, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+	s.propagateUpdate(nonClient, []*table.Path{rtcClientTestPath(t, nonClient, 50, "4.96.3.7", "4.96.3.0")})
+	requireNoRTCPropagationTestMessage(t, target)
+}
+
+// A rejected old global best cannot stand in for the accepted session export.
+func TestRTCExportPolicyRejectWithdrawsPreviouslySentMembership(t *testing.T) {
+	s, _, target := newRTCPropagationTestServer(t)
+	configureRTCClientTestPeer(target)
+	other := newRTCClientTestPeer(t, s, "10.0.0.3")
+	own := rtcClientTestPath(t, target, 0, "4.96.1.7", "4.96.1.0")
+	remote := rtcClientTestPath(t, other, 100, "4.96.2.7", "4.96.2.0")
+	s.globalRib.Update(own)
+	setRTCClientTestExportPolicy(t, s, target, "10.0.0.99")
+	s.propagateUpdate(other, []*table.Path{remote})
+	requireRTCClientTestPath(t, target, "10.0.0.3", 107, "4.96.2.0")
+	setRTCClientTestExportPolicy(t, s, target, "10.0.0.2", "10.0.0.3")
+	require.Nil(t, s.filterpathWithPolicy(target, own, nil), "unrelated old global best must also be rejected")
+	require.Nil(t, s.filterpathWithPolicy(target, remote, nil), "previously sent source must now be rejected")
+	s.propagateUpdate(other, []*table.Path{rtcClientTestPath(t, other, 200, "4.96.2.7", "4.96.2.0")})
+	withdrawn := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 107, true)
+	require.Equal(t, netip.MustParseAddr("0.0.35.1"), withdrawn.GetOriginatorID())
+	require.Equal(t, netip.MustParseAddr("1.1.1.1"), withdrawn.GetNexthop())
+	requireRTCWireTestPathID(t, target, withdrawn, 0)
+	require.Equal(t, 0, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+	s.propagateUpdate(other, []*table.Path{rtcClientTestPath(t, other, 300, "4.96.2.7", "4.96.2.0")})
+	requireNoRTCPropagationTestMessage(t, target)
+}
+
+// Reset must remove old-session exports; soft reset replay must record the
+// current, once-transformed export so a subsequent rejection withdraws it.
+func TestRTCResetClearsAdvertisedMembership(t *testing.T) {
+	s, _, target := newRTCPropagationTestServer(t)
+	configureRTCClientTestPeer(target)
+	other := newRTCClientTestPeer(t, s, "10.0.0.3")
+	initial := rtcClientTestPath(t, other, 100, "4.96.2.7", "4.96.2.0")
+	s.propagateUpdate(other, []*table.Path{initial})
+	requireRTCClientTestPath(t, target, "10.0.0.3", 100, "4.96.2.0")
+	target.fsm.state.Store(bgp.BGP_FSM_ACTIVE)
+	s.resetAdvertisedRoutes(target)
+	require.Equal(t, 0, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+	setRTCClientTestExportPolicy(t, s, target, "10.0.0.3")
+	current := rtcClientTestPath(t, other, 200, "4.96.3.7", "4.96.3.0")
+	s.propagateUpdate(other, []*table.Path{current})
+	target.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	s.propagateUpdate(other, []*table.Path{rtcClientTestPath(t, other, 201, "4.96.3.7", "4.96.3.0")})
+	requireNoRTCPropagationTestMessage(t, target)
+	setRTCClientTestExportPolicy(t, s, target, "10.0.0.99")
+	s.softResetOutPeer(target, bgp.RF_RTC_UC, false)
+	// RTC replay includes its EOR in the same actual outgoing message.
+	select {
+	case outgoing := <-target.fsm.outgoingCh.Out():
+		msg, ok := outgoing.(*fsmOutgoingMsg)
+		require.True(t, ok)
+		require.Len(t, msg.Paths, 2)
+		replay := msg.Paths[0]
+		require.False(t, replay.IsWithdraw)
+		require.Equal(t, netip.MustParseAddr("10.0.0.3"), replay.GetSource().Address)
+		med, err := replay.GetMed()
+		require.NoError(t, err)
+		require.Equal(t, uint32(208), med)
+		require.Equal(t, []netip.Addr{netip.MustParseAddr("0.0.35.0"), netip.MustParseAddr("4.96.3.0")}, replay.GetClusterList())
+		require.True(t, msg.Paths[1].IsEOR())
+		requireRTCWireTestPathID(t, target, replay, 0)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for RTC replay")
+	}
+	require.Equal(t, 1, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+	setRTCClientTestExportPolicy(t, s, target, "10.0.0.3")
+	s.propagateUpdate(other, []*table.Path{rtcClientTestPath(t, other, 202, "4.96.3.7", "4.96.3.0")})
+	withdrawn := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 208, true)
+	require.Equal(t, []netip.Addr{netip.MustParseAddr("0.0.35.0"), netip.MustParseAddr("4.96.3.0")}, withdrawn.GetClusterList())
+	require.Equal(t, 0, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+}
+
+// RECEIVE-only still exports one path. Distinct received path IDs from the
+// same source must reselect and finally withdraw the actual replacement.
+func TestRTCReceiveOnlyAddPathReselectsAdvertisedMembership(t *testing.T) {
+	s, _, target := newRTCPropagationTestServer(t)
+	configureRTCClientTestPeer(target)
+	target.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_RTC_UC: bgp.BGP_ADD_PATH_RECEIVE})
+	loopingSource := newRTCClientTestPeer(t, s, "10.0.0.3")
+	source := newRTCClientTestPeer(t, s, "10.0.0.4")
+	looping := rtcClientTestPath(t, loopingSource, 0, "4.96.2.7", "0.0.35.0")
+	s.globalRib.Update(looping)
+	first := rtcClientTestPathWithID(t, source, 100, "4.96.3.7", "4.96.3.0", 11)
+	second := rtcClientTestPathWithID(t, source, 200, "4.96.4.7", "4.96.4.0", 22)
+	s.propagateUpdate(source, []*table.Path{first})
+	sentFirst := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.4", 100, false)
+	require.Equal(t, uint32(11), sentFirst.RemoteID())
+	requireRTCWireTestPathID(t, target, sentFirst, 0)
+	s.propagateUpdate(source, []*table.Path{second})
+	requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.4", 100, false)
+	s.propagateUpdate(source, []*table.Path{first.Clone(true)})
+	replacement := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.4", 200, false)
+	require.Equal(t, uint32(22), replacement.RemoteID())
+	require.NotEqual(t, sentFirst.LocalID(), replacement.LocalID())
+	requireRTCWireTestPathID(t, target, replacement, 0)
+	require.Equal(t, []netip.Addr{netip.MustParseAddr("0.0.35.0"), netip.MustParseAddr("4.96.4.0")}, replacement.GetClusterList())
+	require.Equal(t, 1, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+	// Replace attributes on the same received path ID before its withdrawal.
+	changed := rtcClientTestPathWithID(t, source, 250, "4.96.5.7", "4.96.5.0", 22)
+	s.propagateUpdate(source, []*table.Path{changed})
+	updated := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.4", 250, false)
+	require.Equal(t, replacement.LocalID(), updated.LocalID())
+	require.Equal(t, uint32(22), updated.RemoteID())
+	s.propagateUpdate(source, []*table.Path{changed.Clone(true)})
+	withdrawn := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.4", 250, true)
+	require.Equal(t, updated.LocalID(), withdrawn.LocalID())
+	require.Equal(t, uint32(22), withdrawn.RemoteID())
+	require.Equal(t, []netip.Addr{netip.MustParseAddr("0.0.35.0"), netip.MustParseAddr("4.96.5.0")}, withdrawn.GetClusterList())
+	requireRTCWireTestPathID(t, target, withdrawn, 0)
+	require.Equal(t, 0, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+}
+
+// SEND ADD-PATH must retain two independent exports and withdraw only the
+// matching path, preserving the remaining path's attributes and wire ID.
+func TestRTCAddPathDoesNotUseSinglePathBookkeeping(t *testing.T) {
+	s, _, target := newRTCPropagationTestServer(t)
+	configureRTCClientTestPeer(target)
+	c := target.fsm.pConf.ReadCopy()
+	c.AfiSafis = append(c.AfiSafis, oc.AfiSafi{
+		State:    oc.AfiSafiState{Family: bgp.RF_RTC_UC},
+		AddPaths: oc.AddPaths{Config: oc.AddPathsConfig{SendMax: 3}},
+	})
+	target.fsm.pConf.Update(&c)
+	target.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_RTC_UC: bgp.BGP_ADD_PATH_SEND})
+	source := newRTCClientTestPeer(t, s, "10.0.0.3")
+	first := rtcClientTestPathWithID(t, source, 100, "4.96.2.7", "4.96.2.0", 11)
+	second := rtcClientTestPathWithID(t, source, 200, "4.96.3.7", "4.96.3.0", 22)
+	s.propagateUpdate(source, []*table.Path{first})
+	sentFirst := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 100, false)
+	s.propagateUpdate(source, []*table.Path{second})
+	sentSecond := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 200, false)
+	require.NotZero(t, sentFirst.LocalID())
+	require.NotZero(t, sentSecond.LocalID())
+	require.NotEqual(t, sentFirst.LocalID(), sentSecond.LocalID())
+	requireRTCWireTestPathID(t, target, sentFirst, sentFirst.LocalID())
+	requireRTCWireTestPathID(t, target, sentSecond, sentSecond.LocalID())
+	require.Equal(t, 2, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+	s.propagateUpdate(source, []*table.Path{first.Clone(true)})
+	withdrawn := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 100, true)
+	require.Equal(t, sentFirst.LocalID(), withdrawn.LocalID())
+	require.Equal(t, uint32(11), withdrawn.RemoteID())
+	requireRTCWireTestPathID(t, target, withdrawn, sentFirst.LocalID())
+	require.Equal(t, 1, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+	s.propagateUpdate(source, []*table.Path{rtcClientTestPathWithID(t, source, 250, "4.96.4.7", "4.96.4.0", 22)})
+	updated := requireRTCPropagationTestPath(t, target, bgp.RF_RTC_UC, "25046:32106:100/96", "10.0.0.3", 250, false)
+	require.Equal(t, sentSecond.LocalID(), updated.LocalID())
+	require.Equal(t, uint32(22), updated.RemoteID())
+	requireRTCWireTestPathID(t, target, updated, sentSecond.LocalID())
+	require.Equal(t, []netip.Addr{netip.MustParseAddr("0.0.35.0"), netip.MustParseAddr("4.96.4.0")}, updated.GetClusterList())
+}
+
+func configureRTCNonClientTestPeer(p *peer) {
+	c := p.fsm.pConf.ReadCopy()
+	c.RouteReflector.Config.RouteReflectorClient = false
+	c.RouteReflector.State.RouteReflectorClient = false
+	p.fsm.pConf.Update(&c)
+	info := *p.peerInfo.Load()
+	info.RouteReflectorClient = false
+	p.peerInfo.Store(&info)
+}
+
+func rtcClientTestPathWithID(t *testing.T, source *peer, med uint32, origin, cluster string, id uint32) *table.Path {
+	t.Helper()
+	p := rtcClientTestPath(t, source, med, origin, cluster)
+	nh, err := bgp.NewPathAttributeNextHop(source.peerInfo.Load().Address)
+	require.NoError(t, err)
+	return table.NewPath(bgp.RF_RTC_UC, source.peerInfo.Load(), bgp.PathNLRI{NLRI: p.GetNlri(), ID: id}, false,
+		append(p.GetPathAttrs(), nh), time.Now(), false)
+}
+
+// Exercise the same pack/serialize boundary as fsm.send with the negotiated
+// outbound mode, then decode as the receiving session would see it.
+func requireRTCWireTestPathID(t *testing.T, target *peer, path *table.Path, wantID uint32) {
+	t.Helper()
+	options := &bgp.MarshallingOption{AddPath: target.fsm.familyMap.Load().(map[bgp.Family]bgp.BGPAddPathMode)}
+	msgs := table.CreateUpdateMsgFromPaths([]*table.Path{path}, options)
+	require.Len(t, msgs, 1)
+	data, err := msgs[0].Serialize(options)
+	require.NoError(t, err)
+	receiveMode := bgp.BGP_ADD_PATH_NONE
+	if target.isAddPathSendEnabled(bgp.RF_RTC_UC) {
+		receiveMode = bgp.BGP_ADD_PATH_RECEIVE
+	}
+	decoded, err := bgp.ParseBGPMessage(data, &bgp.MarshallingOption{AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_RTC_UC: receiveMode}})
+	require.NoError(t, err)
+	var nlris []bgp.PathNLRI
+	for _, attr := range decoded.Body.(*bgp.BGPUpdate).PathAttributes {
+		switch a := attr.(type) {
+		case *bgp.PathAttributeMpReachNLRI:
+			require.False(t, path.IsWithdraw)
+			nlris = a.Value
+		case *bgp.PathAttributeMpUnreachNLRI:
+			require.True(t, path.IsWithdraw)
+			nlris = a.Value
+		}
+	}
+	require.Len(t, nlris, 1)
+	require.Equal(t, "25046:32106:100/96", nlris[0].NLRI.String())
+	require.Equal(t, wantID, nlris[0].ID)
 }

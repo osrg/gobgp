@@ -910,6 +910,32 @@ func needsExtendedNexthop(path *table.Path) bool {
 }
 
 func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
+	p := s.filterpathWithRTCSelection(peer, path, old)
+	if p != nil && !p.IsWithdraw {
+		return p
+	}
+	input := path
+	if input == nil {
+		input = old
+	}
+	if input == nil || input.GetFamily() != bgp.RF_RTC_UC || peer.isAddPathSendEnabled(bgp.RF_RTC_UC) {
+		return p
+	}
+	// A locally originated RTC replay is intentionally suppressed; it does
+	// not mean this session lost its previously advertised membership.
+	if path != nil && !path.IsWithdraw && path.IsLocal() && path.Equal(old) {
+		return p
+	}
+	// Global best/old need not be the path exported to this session. Policy
+	// rejection and pre/post-filter withdrawals must remove the actual export,
+	// without applying export policy or attribute rewriting a second time.
+	if advertised, ok := peer.advertisedRTCPaths.Load(input.GetDestLocalKey()); ok {
+		return advertised.(*table.Path).Clone(true)
+	}
+	return nil
+}
+
+func (s *BgpServer) filterpathWithRTCSelection(peer *peer, path, old *table.Path) *table.Path {
 	if path != nil && path.GetFamily() == bgp.RF_RTC_UC && !path.IsWithdraw && !path.IsLocal() &&
 		peer.isRouteReflectorClient() && !peer.isAddPathSendEnabled(bgp.RF_RTC_UC) && (old == nil || !old.IsLocal()) {
 		// A client's own membership may be global best. Prefer another
