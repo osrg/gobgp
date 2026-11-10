@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/netip"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -152,6 +153,72 @@ func deletePeerGroups(ctx context.Context, bgpServer *server.BgpServer, deletedP
 			)
 		}
 	}
+}
+
+func addRouteAggregates(ctx context.Context, bgpServer *server.BgpServer, aggregates []oc.Aggregate, stopOnError bool) error {
+	for _, a := range aggregates {
+		prefix := a.Config.Prefix.String()
+		bgpServer.Log().Info("add aggregate",
+			slog.String("Topic", "config"),
+			slog.String("Key", prefix),
+		)
+		err := bgpServer.AddAggregate(ctx, &api.AddAggregateRequest{
+			Aggregate: &api.AggregateAddress{
+				Prefix:      prefix,
+				SummaryOnly: a.Config.SummaryOnly,
+				AsSet:       a.Config.AsSet,
+				PolicyName:  a.Config.PolicyName,
+			},
+		})
+		if err != nil {
+			bgpServer.Log().Error("failed to add aggregate",
+				slog.String("Topic", "config"),
+				slog.String("Key", prefix),
+				slog.Any("Error", err))
+			if stopOnError {
+				return fmt.Errorf("failed to add aggregate: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func deleteRouteAggregates(ctx context.Context, bgpServer *server.BgpServer, aggregates []oc.Aggregate) {
+	for _, a := range aggregates {
+		prefix := a.Config.Prefix.String()
+		bgpServer.Log().Info("delete aggregate",
+			slog.String("Topic", "config"),
+			slog.String("Key", prefix),
+		)
+		if err := bgpServer.DeleteAggregate(ctx, &api.DeleteAggregateRequest{Prefix: prefix}); err != nil {
+			bgpServer.Log().Error("failed to delete aggregate",
+				slog.String("Topic", "config"),
+				slog.String("Key", prefix),
+				slog.Any("Error", err))
+		}
+	}
+}
+
+func globalRouteAggregateConfigChanges(current, next []oc.Aggregate) (added, deleted []oc.Aggregate) {
+	byPrefix := func(aggregates []oc.Aggregate) map[netip.Prefix]oc.Aggregate {
+		m := make(map[netip.Prefix]oc.Aggregate, len(aggregates))
+		for _, a := range aggregates {
+			m[a.Config.Prefix] = a
+		}
+		return m
+	}
+	currentByPrefix, nextByPrefix := byPrefix(current), byPrefix(next)
+	for prefix, a := range currentByPrefix {
+		if n, ok := nextByPrefix[prefix]; !ok || !a.Config.Equal(&n.Config) {
+			deleted = append(deleted, a)
+		}
+	}
+	for prefix, a := range nextByPrefix {
+		if c, ok := currentByPrefix[prefix]; !ok || !c.Config.Equal(&a.Config) {
+			added = append(added, a)
+		}
+	}
+	return added, deleted
 }
 
 func updatePeerGroups(ctx context.Context, bgpServer *server.BgpServer, updatedPg []oc.PeerGroup) bool {
@@ -453,6 +520,9 @@ func InitialConfig(ctx context.Context, bgpServer *server.BgpServer, newConfig *
 		}
 	}
 
+	if err := addRouteAggregates(ctx, bgpServer, newConfig.Global.Aggregates, stopOnConfigError); err != nil {
+		return nil, err
+	}
 	if err := addPeerGroups(ctx, bgpServer, addedPg, stopOnConfigError); err != nil {
 		return nil, err
 	}
@@ -506,6 +576,10 @@ func UpdateConfig(ctx context.Context, bgpServer *server.BgpServer, c, newConfig
 	// keychains and new keys must exist before peers can reference them
 	addTcpAoKeychains(ctx, bgpServer, addedKeychains)
 	updateTcpAoKeychains(ctx, bgpServer, upsertKeyUpdates)
+
+	addedAggregates, deletedAggregates := globalRouteAggregateConfigChanges(c.Global.Aggregates, newConfig.Global.Aggregates)
+	deleteRouteAggregates(ctx, bgpServer, deletedAggregates)
+	_ = addRouteAggregates(ctx, bgpServer, addedAggregates, continueOnConfigError)
 
 	// peer groups must exist before peers can reference them
 	_ = addPeerGroups(ctx, bgpServer, addedPg, continueOnConfigError)
