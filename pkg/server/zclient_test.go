@@ -16,7 +16,6 @@
 package server
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"math"
@@ -27,7 +26,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
 	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -161,16 +159,16 @@ func TestApplyToPathList_UnreachableNoMED(t *testing.T) {
 	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
 	cache := nexthopStateCache{
-		testNextHop: math.MaxUint32, // unreachable
+		nexthopStateKey{zebra.DefaultVrf, testNextHop}: math.MaxUint32, // unreachable
 	}
 
-	updated := cache.applyToPathList([]*table.Path{path})
+	updated := cache.applyToPathList(zebra.DefaultVrf, []*table.Path{path})
 	assert.Len(updated, 1)
 	assert.True(updated[0].IsNexthopInvalid)
 	assert.False(updated[0].IsWithdraw)
 
 	// Applying again should produce no updates (idempotent)
-	updated2 := cache.applyToPathList(updated)
+	updated2 := cache.applyToPathList(zebra.DefaultVrf, updated)
 	assert.Len(updated2, 0, "applying to already-invalid path should be a no-op")
 }
 
@@ -186,10 +184,10 @@ func TestApplyToPathList_ReachableSetsMED(t *testing.T) {
 	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
 	cache := nexthopStateCache{
-		testNextHop: 20, // reachable, metric=20
+		nexthopStateKey{zebra.DefaultVrf, testNextHop}: 20, // reachable, metric=20
 	}
 
-	updated := cache.applyToPathList([]*table.Path{path})
+	updated := cache.applyToPathList(zebra.DefaultVrf, []*table.Path{path})
 	assert.Len(updated, 1)
 	assert.False(updated[0].IsNexthopInvalid)
 	med, err := updated[0].GetMed()
@@ -197,7 +195,7 @@ func TestApplyToPathList_ReachableSetsMED(t *testing.T) {
 	assert.Equal(uint32(20), med)
 
 	// Applying again should be a no-op
-	updated2 := cache.applyToPathList(updated)
+	updated2 := cache.applyToPathList(zebra.DefaultVrf, updated)
 	assert.Len(updated2, 0, "applying same metric should be a no-op")
 }
 
@@ -214,10 +212,10 @@ func TestApplyToPathList_TransitionReachableToUnreachable(t *testing.T) {
 	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
 	cache := nexthopStateCache{
-		testNextHop: math.MaxUint32, // now unreachable
+		nexthopStateKey{zebra.DefaultVrf, testNextHop}: math.MaxUint32, // now unreachable
 	}
 
-	updated := cache.applyToPathList([]*table.Path{path})
+	updated := cache.applyToPathList(zebra.DefaultVrf, []*table.Path{path})
 	assert.Len(updated, 1)
 	assert.True(updated[0].IsNexthopInvalid)
 }
@@ -237,9 +235,9 @@ func TestUpdateByNexthopUpdate_Reachable(t *testing.T) {
 		Nexthops: []zebra.Nexthop{{Gate: netip.MustParseAddr("192.168.23.3")}},
 	}
 
-	updated := cache.updateByNexthopUpdate(body)
+	updated := cache.updateByNexthopUpdate(zebra.DefaultVrf, body)
 	assert.True(updated)
-	assert.Equal(uint32(20), cache[testNextHop])
+	assert.Equal(uint32(20), cache[nexthopStateKey{zebra.DefaultVrf, testNextHop}])
 }
 
 // TestUpdateByNexthopUpdate_UnreachableAfterReachable verifies that an empty
@@ -248,7 +246,7 @@ func TestUpdateByNexthopUpdate_UnreachableAfterReachable(t *testing.T) {
 	assert := assert.New(t)
 
 	cache := nexthopStateCache{
-		testNextHop: 20,
+		nexthopStateKey{zebra.DefaultVrf, testNextHop}: 20,
 	}
 	body := &zebra.NexthopUpdateBody{
 		Prefix: zebra.Prefix{
@@ -258,9 +256,9 @@ func TestUpdateByNexthopUpdate_UnreachableAfterReachable(t *testing.T) {
 		// No Nexthops => unreachable
 	}
 
-	updated := cache.updateByNexthopUpdate(body)
+	updated := cache.updateByNexthopUpdate(zebra.DefaultVrf, body)
 	assert.True(updated)
-	assert.Equal(uint32(math.MaxUint32), cache[testNextHop])
+	assert.Equal(uint32(math.MaxUint32), cache[nexthopStateKey{zebra.DefaultVrf, testNextHop}])
 }
 
 // TestUpdateByNexthopUpdate_InitialEmptyIgnored verifies that the initial empty
@@ -277,9 +275,9 @@ func TestUpdateByNexthopUpdate_InitialEmptyIgnored(t *testing.T) {
 		},
 	}
 
-	updated := cache.updateByNexthopUpdate(body)
+	updated := cache.updateByNexthopUpdate(zebra.DefaultVrf, body)
 	assert.False(updated, "initial empty NEXTHOP_UPDATE must be ignored")
-	_, ok := cache[testNextHop]
+	_, ok := cache[nexthopStateKey{zebra.DefaultVrf, testNextHop}]
 	assert.False(ok, "cache must remain empty")
 }
 
@@ -289,7 +287,7 @@ func TestUpdateByNexthopUpdate_MetricChange(t *testing.T) {
 	assert := assert.New(t)
 
 	cache := nexthopStateCache{
-		testNextHop: 20,
+		nexthopStateKey{zebra.DefaultVrf, testNextHop}: 20,
 	}
 	body := &zebra.NexthopUpdateBody{
 		Prefix: zebra.Prefix{
@@ -300,9 +298,9 @@ func TestUpdateByNexthopUpdate_MetricChange(t *testing.T) {
 		Nexthops: []zebra.Nexthop{{Gate: netip.MustParseAddr("192.168.24.4")}},
 	}
 
-	updated := cache.updateByNexthopUpdate(body)
+	updated := cache.updateByNexthopUpdate(zebra.DefaultVrf, body)
 	assert.True(updated)
-	assert.Equal(uint32(30), cache[testNextHop])
+	assert.Equal(uint32(30), cache[nexthopStateKey{zebra.DefaultVrf, testNextHop}])
 }
 
 // TestApplyToPathList_UnreachableToReachable verifies that an invalid path
@@ -320,10 +318,10 @@ func TestApplyToPathList_UnreachableToReachable(t *testing.T) {
 	path.IsNexthopInvalid = true
 
 	cache := nexthopStateCache{
-		testNextHop: 30,
+		nexthopStateKey{zebra.DefaultVrf, testNextHop}: 30,
 	}
 
-	updated := cache.applyToPathList([]*table.Path{path})
+	updated := cache.applyToPathList(zebra.DefaultVrf, []*table.Path{path})
 	assert.Len(updated, 1)
 	assert.False(updated[0].IsNexthopInvalid)
 	med, err := updated[0].GetMed()
@@ -346,10 +344,10 @@ func TestApplyToPathList_MetricChange(t *testing.T) {
 	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
 	cache := nexthopStateCache{
-		testNextHop: 30, // different from current MED (20)
+		nexthopStateKey{zebra.DefaultVrf, testNextHop}: 30, // different from current MED (20)
 	}
 
-	updated := cache.applyToPathList([]*table.Path{path})
+	updated := cache.applyToPathList(zebra.DefaultVrf, []*table.Path{path})
 	assert.Len(updated, 1)
 	assert.False(updated[0].IsNexthopInvalid)
 	med, err := updated[0].GetMed()
@@ -372,7 +370,7 @@ func TestApplyToPathList_UnknownNexthop(t *testing.T) {
 
 	cache := nexthopStateCache{} // empty
 
-	updated := cache.applyToPathList([]*table.Path{path})
+	updated := cache.applyToPathList(zebra.DefaultVrf, []*table.Path{path})
 	assert.Empty(updated, "paths with unknown nexthop must not be updated")
 }
 
@@ -389,10 +387,10 @@ func TestApplyToPathList_WithdrawIgnored(t *testing.T) {
 	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, true, attrs, time.Now(), false)
 
 	cache := nexthopStateCache{
-		testNextHop: 20,
+		nexthopStateKey{zebra.DefaultVrf, testNextHop}: 20,
 	}
 
-	updated := cache.applyToPathList([]*table.Path{path})
+	updated := cache.applyToPathList(zebra.DefaultVrf, []*table.Path{path})
 	assert.Empty(updated, "withdraw paths must be skipped")
 }
 
@@ -413,10 +411,9 @@ func TestNewIPRouteBodyWithdrawsInvalidNexthopPath(t *testing.T) {
 			Version:  zebra.MaxZapiVer,
 			Software: zebra.NewSoftware(zebra.MaxZapiVer, "frr8.2"),
 		},
-		pathVrfMap: make(map[*table.Path]uint32),
 	}
 
-	body, isWithdraw := newIPRouteBody([]*table.Path{path}, zebra.DefaultVrf, z)
+	body, isWithdraw := newIPRouteBody([]*table.Path{path}, zebra.DefaultVrf, z, nil)
 
 	assert.NotNil(body)
 	assert.True(isWithdraw)
@@ -447,28 +444,6 @@ func TestZebraClientGlobalRibOptions(t *testing.T) {
 	selection, multiPaths = z.globalRibOptions()
 	assert.Equal(t, want, selection)
 	assert.True(t, multiPaths.Enabled)
-}
-
-func TestNexthopRegisterVrfID(t *testing.T) {
-	s := runNewServer(t, 1, "1.1.1.1", -1)
-	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
-	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 5)
-	addVrf(t, s, "vrf2", "222:222", []string{"222:222"}, []string{"222:222"}, 7)
-
-	for _, tc := range []struct {
-		name     string
-		neighbor *oc.Neighbor
-		id       uint32
-	}{
-		// A path added through the API has no neighbor.
-		{"no neighbor", nil, 0},
-		{"global neighbor", &oc.Neighbor{}, 0},
-		{"vrf neighbor", &oc.Neighbor{Config: oc.NeighborConfig{Vrf: "vrf1"}}, 5},
-	} {
-		id, err := nexthopRegisterVrfID(s, tc.neighbor)
-		assert.NoError(t, err, tc.name)
-		assert.Equal(t, tc.id, id, tc.name)
-	}
 }
 
 func TestAddLabelChunk(t *testing.T) {

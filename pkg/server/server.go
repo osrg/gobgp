@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/netip"
 	"slices"
@@ -173,6 +174,7 @@ func (d *sharedData) propagateBucket(path *table.Path) *sync.Mutex {
 // touch one of them from outside a management operation.
 type BgpServer struct {
 	shared        *sharedData
+	apiPathVrf    map[*table.Path]uint32 // API next-hop origins; writes require exclusive shared.mu
 	apiServer     *server
 	bgpConfig     oc.Bgp
 	acceptCh      chan net.Conn
@@ -984,6 +986,14 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 	if len(m) > 0 {
 		w.Vrf = m
 	}
+	if s.zclient != nil {
+		w.NexthopVrf = s.zclient.nexthopVrfMap(clonedB)
+		for _, paths := range clonedM {
+			for path, vrfID := range s.zclient.nexthopVrfMap(paths) {
+				w.NexthopVrf[path] = vrfID
+			}
+		}
+	}
 	s.notifyWatcher(watchEventTypeBestPath, w)
 }
 
@@ -1132,6 +1142,9 @@ func (s *BgpServer) notifyPostPolicyUpdateWatcher(peer *peer, pathList []*table.
 		PostPolicy:   true,
 		PathList:     cloned,
 		Neighbor:     n,
+	}
+	if s.zclient != nil {
+		ev.NexthopVrf = s.zclient.nexthopVrfMap(cloned)
 	}
 	s.notifyWatcher(watchEventTypePostUpdate, ev)
 }
@@ -1489,17 +1502,21 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				continue
 			}
 			path = path.ToGlobal(vrfObj)
-			if s.zclient != nil {
-				s.zclient.pathVrfMu.Lock()
-				s.zclient.pathVrfMap[path] = vrfObj.Id
-				s.zclient.pathVrfMu.Unlock()
-			}
 		}
 
 		func(path *table.Path) {
 			bucket := s.shared.propagateBucket(path)
 			bucket.Lock()
 			defer bucket.Unlock()
+
+			if peer == nil && s.zclient != nil {
+				s.zclient.cacheLock.Lock()
+				updated := s.zclient.nexthopCache.applyToPathList(s.zclient.nexthopVrfID(path), []*table.Path{path})
+				s.zclient.cacheLock.Unlock()
+				if len(updated) > 0 {
+					path = updated[0]
+				}
+			}
 
 			policyOptions := &table.PolicyOptions{
 				Validate: s.roaTable.Validate,
@@ -1513,6 +1530,19 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				path = p
 			} else {
 				path = path.Clone(true)
+			}
+
+			// Peer import policy sees received attributes. Its final nexthop
+			// must reflect cached reachability before any advertisement; the
+			// watcher applies its metric through global import policy later.
+			if !rs && s.zclient != nil && !path.IsWithdraw {
+				s.zclient.cacheLock.Lock()
+				metric, known := s.zclient.nexthopCache[nexthopStateKey{s.zclient.nexthopVrfID(path), path.GetNexthop()}]
+				s.zclient.cacheLock.Unlock()
+				if known && path.IsNexthopInvalid != (metric == math.MaxUint32) {
+					path = path.Clone(false)
+					path.IsNexthopInvalid = metric == math.MaxUint32
+				}
 			}
 
 			if !rs {
@@ -1532,7 +1562,9 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				}
 			}
 
+			var oldPaths, knownPaths []*table.Path
 			if dsts := rib.Update(path); len(dsts) > 0 {
+				oldPaths, knownPaths = dsts[0].OldKnownPathList, dsts[0].KnownPathList
 				// Report the path to the post-policy watchers only when it is
 				// not the one the table already held. An inbound soft reset
 				// replays the whole Adj-RIB-In, and a subscriber that got the
@@ -1558,6 +1590,29 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 					if w := u.GetWithdrawnPath(); len(w) > 0 {
 						s.propagateUpdateToNeighbors(rib, peer, w[0], []*table.Update{u}, true)
 					}
+				}
+			}
+			// API and Zebra sources have no LocalID, while live peer sources
+			// carry the local router ID. EqualBySourceAndPathID therefore cannot
+			// let a peer update replace an API origin. Nil-peer mutations hold
+			// shared.mu exclusively, so only they retire these associations.
+			// Do this after watcher capture, retaining NoImplicitWithdraw roots.
+			if peer == nil && len(s.apiPathVrf) > 0 {
+				isKnown := func(root *table.Path) bool {
+					for _, known := range knownPaths {
+						if known.RootPath() == root {
+							return true
+						}
+					}
+					return false
+				}
+				for _, old := range oldPaths {
+					if root := old.RootPath(); !isKnown(root) {
+						delete(s.apiPathVrf, root)
+					}
+				}
+				if path.IsWithdraw && !isKnown(path.RootPath()) {
+					delete(s.apiPathVrf, path.RootPath())
 				}
 			}
 		}(path)
@@ -2864,10 +2919,30 @@ func pathTokey(path *table.Path) string {
 func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	err := s.fixupApiPath(vrfId, pathList)
 	if err == nil {
-		if s.zclient != nil {
-			s.zclient.cacheLock.Lock()
-			s.zclient.nexthopCache.applyToNewPathList(pathList)
-			s.zclient.cacheLock.Unlock()
+		for _, path := range pathList {
+			if path.IsWithdraw {
+				continue // Keep the origin until withdrawal notifications have captured it.
+			}
+			switch path.GetFamily() {
+			case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+			default:
+				continue // Zebra NHT only handles IP unicast and VPN paths.
+			}
+			root := path.RootPath()
+			delete(s.apiPathVrf, root)
+			// A global API path may name an existing VRF peer as its source.
+			// Keep its explicit default scope instead of inferring that peer's VRF.
+			if vrfId != "" || !path.IsLocal() {
+				if s.apiPathVrf == nil {
+					s.apiPathVrf = make(map[*table.Path]uint32)
+				}
+				vrfID := uint32(zebra.DefaultVrf)
+				if vrfId != "" {
+					vrf, _ := s.globalRib.GetVrf(vrfId) // fixupApiPath checked it above.
+					vrfID = vrf.Id
+				}
+				s.apiPathVrf[root] = vrfID
+			}
 		}
 		s.propagateUpdate(nil, pathList)
 	}
@@ -3137,6 +3212,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		}
 
 		rfs := locRibFamilies()
+		s.apiPathVrf = nil
 		s.globalRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
 		s.rsRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
 
@@ -3252,7 +3328,9 @@ func (s *BgpServer) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) erro
 			}
 		}
 
+		var vrfID uint32
 		if vrf, ok := s.globalRib.GetVrf(name); ok {
+			vrfID = vrf.Id
 			if vrf.MplsLabel > 0 {
 				s.zclient.releaseMplsLabel(vrf.MplsLabel)
 			}
@@ -3263,6 +3341,20 @@ func (s *BgpServer) DeleteVrf(ctx context.Context, r *api.DeleteVrfRequest) erro
 		}
 		if len(pathList) > 0 {
 			s.propagateUpdate(nil, pathList)
+		}
+		for key, id := range s.apiPathVrf {
+			if id == vrfID {
+				delete(s.apiPathVrf, key)
+			}
+		}
+		if s.zclient != nil {
+			s.zclient.cacheLock.Lock()
+			for key := range s.zclient.nexthopCache {
+				if key.vrfID == vrfID {
+					delete(s.zclient.nexthopCache, key)
+				}
+			}
+			s.zclient.cacheLock.Unlock()
 		}
 		return nil
 	}, true)
@@ -5653,6 +5745,7 @@ type watchEventUpdate struct {
 	Timestamp    time.Time
 	Payload      []byte
 	PostPolicy   bool
+	NexthopVrf   map[*table.Path]uint32
 	Init         bool
 	PathList     []*table.Path
 	Neighbor     *oc.Neighbor
@@ -5688,6 +5781,7 @@ type watchEventBestPath struct {
 	UpdatePathList   []*table.Path
 	WithdrawPathList []*table.Path
 	Vrf              map[uint32]bool
+	NexthopVrf       map[*table.Path]uint32
 	Timestamp        time.Time
 }
 
@@ -5982,11 +6076,20 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 		}
 
 		if w.opts.initBest && s.active() == nil {
-			w.notify(&watchEventBestPath{
+			ev := &watchEventBestPath{
 				PathList:      s.globalRib.GetBestPathList(table.GLOBAL_RIB_NAME, 0, nil),
 				MultiPathList: s.globalRib.GetBestMultiPathList(table.GLOBAL_RIB_NAME, nil),
 				Timestamp:     time.Now(),
-			})
+			}
+			if s.zclient != nil {
+				ev.NexthopVrf = s.zclient.nexthopVrfMap(ev.PathList)
+				for _, paths := range ev.MultiPathList {
+					for path, vrfID := range s.zclient.nexthopVrfMap(paths) {
+						ev.NexthopVrf[path] = vrfID
+					}
+				}
+			}
+			w.notify(ev)
 		}
 		if w.opts.initEor && s.active() == nil {
 			now := time.Now()
@@ -6089,6 +6192,9 @@ func (s *BgpServer) watch(opts ...WatchOption) (*watcher, error) {
 					}
 					if w.opts.postUpdateFilter != nil && !w.opts.postUpdateFilter(ev) {
 						continue
+					}
+					if s.zclient != nil {
+						ev.NexthopVrf = s.zclient.nexthopVrfMap(paths)
 					}
 
 					w.notify(ev)

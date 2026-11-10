@@ -538,6 +538,11 @@ func (path *Path) root() *Path {
 	return p
 }
 
+// RootPath identifies the origin lineage shared by a path and its clones.
+func (path *Path) RootPath() *Path {
+	return path.root()
+}
+
 func (path *Path) OriginInfo() *originInfo {
 	return path.root().info
 }
