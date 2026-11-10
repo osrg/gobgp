@@ -2,8 +2,12 @@ package server
 
 import (
 	"context"
+	"encoding/binary"
+	"io"
 	"math"
+	"net"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -613,4 +617,150 @@ func requireRTCWireTestPathID(t *testing.T, target *peer, path *table.Path, want
 	require.Len(t, nlris, 1)
 	require.Equal(t, "25046:32106:100/96", nlris[0].NLRI.String())
 	require.Equal(t, wantID, nlris[0].ID)
+}
+
+// The actual sender collects queued exports before packing. A final withdrawal
+// must win over every prior local identity for the same single-path wire NLRI.
+func TestRTCBatchedReselectionFinalWithdrawal(t *testing.T) {
+	for _, mode := range []bgp.BGPAddPathMode{bgp.BGP_ADD_PATH_NONE, bgp.BGP_ADD_PATH_RECEIVE} {
+		t.Run(mode.String(), func(t *testing.T) {
+			s, _, target := newRTCPropagationTestServer(t)
+			configureRTCClientTestPeer(target)
+			target.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_RTC_UC: mode})
+			loopingSource := newRTCClientTestPeer(t, s, "10.0.0.3")
+			source := newRTCClientTestPeer(t, s, "10.0.0.4")
+			s.globalRib.Update(rtcClientTestPath(t, loopingSource, 0, "4.96.2.7", "0.0.35.0"))
+			first := rtcClientTestPathWithID(t, source, 100, "4.96.3.7", "4.96.3.0", 11)
+			second := rtcClientTestPathWithID(t, source, 200, "4.96.4.7", "4.96.4.0", 22)
+			changed := rtcClientTestPathWithID(t, source, 250, "4.96.5.7", "4.96.5.0", 22)
+			// Leave all five real outgoing actions queued for one sender collection.
+			s.propagateUpdate(source, []*table.Path{first})
+			s.propagateUpdate(source, []*table.Path{second})
+			s.propagateUpdate(source, []*table.Path{first.Clone(true)})
+			s.propagateUpdate(source, []*table.Path{changed})
+			s.propagateUpdate(source, []*table.Path{changed.Clone(true)})
+			require.Equal(t, 0, target.advertisedRoutes([]bgp.Family{bgp.RF_RTC_UC}))
+			// Capture the real queued actions to verify reselection/replacement, then
+			// deliver that exact collection to the actual FSM sender without changing IDs.
+			paths := make([]*table.Path, 0, 5)
+			for range 5 {
+				select {
+				case outgoing := <-target.fsm.outgoingCh.Out():
+					msg, ok := outgoing.(*fsmOutgoingMsg)
+					require.True(t, ok)
+					require.Len(t, msg.Paths, 1)
+					paths = append(paths, msg.Paths[0])
+				case <-time.After(time.Second):
+					t.Fatal("timed out collecting queued RTC action")
+				}
+			}
+			require.NotEqual(t, paths[0].LocalID(), paths[2].LocalID())
+			for i, want := range []struct {
+				id, med  uint32
+				withdraw bool
+			}{
+				{11, 100, false}, {11, 100, false}, {22, 200, false}, {22, 250, false}, {22, 250, true},
+			} {
+				require.Equal(t, want.id, paths[i].RemoteID())
+				med, err := paths[i].GetMed()
+				require.NoError(t, err)
+				require.Equal(t, want.med, med)
+				require.Equal(t, want.withdraw, paths[i].IsWithdraw)
+			}
+			require.Equal(t, paths[3].LocalID(), paths[4].LocalID())
+			require.Equal(t, []netip.Addr{netip.MustParseAddr("0.0.35.0"), netip.MustParseAddr("4.96.5.0")}, paths[4].GetClusterList())
+			updates := sendRTCTestCollection(t, target, paths)
+			present := make(map[string]uint32)
+			withdrawn := 0
+			for _, update := range updates {
+				med := uint32(0)
+				for _, attr := range update.PathAttributes {
+					if a, ok := attr.(*bgp.PathAttributeMultiExitDisc); ok {
+						med = a.Value
+					}
+				}
+				for _, attr := range update.PathAttributes {
+					switch a := attr.(type) {
+					case *bgp.PathAttributeMpUnreachNLRI:
+						for _, nlri := range a.Value {
+							require.Equal(t, uint32(0), nlri.ID)
+							require.Equal(t, "25046:32106:100/96", nlri.NLRI.String())
+							delete(present, nlri.NLRI.String())
+							withdrawn++
+							t.Logf("wire withdraw: %s path ID %d", nlri.NLRI, nlri.ID)
+						}
+					case *bgp.PathAttributeMpReachNLRI:
+						for _, nlri := range a.Value {
+							require.Equal(t, uint32(0), nlri.ID)
+							require.Equal(t, "25046:32106:100/96", nlri.NLRI.String())
+							present[nlri.NLRI.String()] = med
+							t.Logf("wire announce: %s path ID %d MED %d", nlri.NLRI, nlri.ID, med)
+						}
+					}
+				}
+			}
+			require.Equal(t, 1, withdrawn, "the final withdrawal must reach the wire")
+			require.Empty(t, present, "after decoding all packets, the receiver must have no RTC membership")
+			// Packing must preserve the identity retained by the source/RIB/export paths.
+			require.Equal(t, uint32(11), paths[0].RemoteID())
+			require.NotEqual(t, paths[0].LocalID(), paths[2].LocalID())
+		})
+	}
+}
+
+// Pass one explicitly retained outgoing collection to the real FSM sender over
+// an in-memory net.Conn. RTC EOR marks completion after all packed actions.
+func sendRTCTestCollection(t *testing.T, target *peer, paths []*table.Path) []*bgp.BGPUpdate {
+	t.Helper()
+	sender, receiver := net.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	started := false
+	t.Cleanup(func() {
+		cancel()
+		require.NoError(t, sender.Close())
+		require.NoError(t, receiver.Close())
+		if started {
+			select {
+			case err := <-done:
+				require.NoError(t, err)
+			case <-time.After(time.Second):
+				t.Error("RTC test sender did not stop")
+			}
+		}
+	})
+	h := &fsmHandler{fsm: target.fsm, outgoing: target.fsm.outgoingCh}
+	sendfsmOutgoingMsg(target, append(paths, table.NewEOR(bgp.RF_RTC_UC)))
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	started = true
+	go func() { done <- h.sendMessageloop(ctx, sender, make(chan fsmStateReason, 1), wg) }()
+	require.NoError(t, receiver.SetReadDeadline(time.Now().Add(2*time.Second)))
+	receiveMode := bgp.BGP_ADD_PATH_NONE
+	if target.isAddPathSendEnabled(bgp.RF_RTC_UC) {
+		receiveMode = bgp.BGP_ADD_PATH_RECEIVE
+	}
+	options := &bgp.MarshallingOption{AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_RTC_UC: receiveMode}}
+	var updates []*bgp.BGPUpdate
+	for {
+		header := make([]byte, bgp.BGP_HEADER_LENGTH)
+		_, err := io.ReadFull(receiver, header)
+		require.NoError(t, err)
+		length := int(binary.BigEndian.Uint16(header[16:18]))
+		require.GreaterOrEqual(t, length, bgp.BGP_HEADER_LENGTH)
+		packet := make([]byte, length)
+		copy(packet, header)
+		_, err = io.ReadFull(receiver, packet[bgp.BGP_HEADER_LENGTH:])
+		require.NoError(t, err)
+		msg, err := bgp.ParseBGPMessage(packet, options)
+		require.NoError(t, err)
+		update, ok := msg.Body.(*bgp.BGPUpdate)
+		require.True(t, ok)
+		t.Logf("decoded wire packet: %d bytes", len(packet))
+		if eor, family := update.IsEndOfRib(); eor {
+			require.Equal(t, bgp.RF_RTC_UC, family)
+			return updates
+		}
+		updates = append(updates, update)
+	}
 }

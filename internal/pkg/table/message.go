@@ -571,6 +571,10 @@ func createUpdateMsgFromPaths(pathList []*Path, useRemoteID bool, options ...*bg
 		k := path.GetLocalKey()
 		if useRemoteID {
 			k.Id = path.remoteID
+		} else if k.Family == bgp.RF_RTC_UC && !bgp.IsAddPathEnabled(false, bgp.RF_RTC_UC, options) {
+			// Outbound single-path RTC replacements share one wire NLRI,
+			// even when their retained local path identifiers differ.
+			k.Id = 0
 		}
 		return k
 	}

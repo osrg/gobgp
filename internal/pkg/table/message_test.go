@@ -1564,3 +1564,125 @@ func TestCreateUpdateMsgFromPathsAfterPrepend(t *testing.T) {
 		})
 	}
 }
+
+// Different retained IDs share one RTC wire identity when SEND ADD-PATH is off.
+func TestCreateUpdateMsgFromPathsRTCUsesNegotiatedWireIdentity(t *testing.T) {
+	for _, mode := range []bgp.BGPAddPathMode{bgp.BGP_ADD_PATH_NONE, bgp.BGP_ADD_PATH_RECEIVE, bgp.BGP_ADD_PATH_SEND, bgp.BGP_ADD_PATH_BOTH} {
+		t.Run(mode.String(), func(t *testing.T) {
+			for _, adjRIBIn := range []bool{false, true} {
+				t.Run(fmt.Sprintf("adjRIBIn=%t", adjRIBIn), func(t *testing.T) {
+					first := newRTCBatchingPath(t, 11, 101, 100)
+					second := newRTCBatchingPath(t, 22, 202, 200)
+					changed := newRTCBatchingPath(t, 22, 202, 250)
+					paths := []*Path{first, second, changed, changed.Clone(true)}
+					options := &bgp.MarshallingOption{AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_RTC_UC: mode}}
+					var msgs []*bgp.BGPMessage
+					if adjRIBIn {
+						msgs = CreateUpdateMsgFromAdjRIBInPaths(paths, options)
+					} else {
+						msgs = CreateUpdateMsgFromPaths(paths, options)
+					}
+					receiveMode := bgp.BGP_ADD_PATH_NONE
+					if mode&bgp.BGP_ADD_PATH_SEND != 0 {
+						receiveMode = bgp.BGP_ADD_PATH_RECEIVE
+					}
+					present := make(map[uint32]uint32)
+					withdrawn := make([]uint32, 0, 1)
+					for _, msg := range msgs {
+						wire, err := msg.Serialize(options)
+						require.NoError(t, err)
+						decoded, err := bgp.ParseBGPMessage(wire, &bgp.MarshallingOption{AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_RTC_UC: receiveMode}})
+						require.NoError(t, err)
+						update := decoded.Body.(*bgp.BGPUpdate)
+						med := uint32(0)
+						for _, attr := range update.PathAttributes {
+							if a, ok := attr.(*bgp.PathAttributeMultiExitDisc); ok {
+								med = a.Value
+							}
+						}
+						for _, attr := range update.PathAttributes {
+							switch a := attr.(type) {
+							case *bgp.PathAttributeMpUnreachNLRI:
+								for _, nlri := range a.Value {
+									require.Equal(t, "25046:32106:100/96", nlri.NLRI.String())
+									delete(present, nlri.ID)
+									withdrawn = append(withdrawn, nlri.ID)
+								}
+							case *bgp.PathAttributeMpReachNLRI:
+								for _, nlri := range a.Value {
+									require.Equal(t, "25046:32106:100/96", nlri.NLRI.String())
+									present[nlri.ID] = med
+								}
+							}
+						}
+					}
+					if mode&bgp.BGP_ADD_PATH_SEND == 0 {
+						require.Equal(t, []uint32{0}, withdrawn)
+						if adjRIBIn {
+							// Peer-originated reporting keeps its remote-ID grouping;
+							// it is not an outbound single-path session collection.
+							require.Equal(t, map[uint32]uint32{0: 100}, present)
+						} else {
+							require.Empty(t, present, "the last single-path wire action is withdrawal")
+						}
+					} else if adjRIBIn {
+						require.Equal(t, []uint32{22}, withdrawn)
+						require.Equal(t, map[uint32]uint32{11: 100}, present)
+					} else {
+						require.Equal(t, []uint32{202}, withdrawn)
+						require.Equal(t, map[uint32]uint32{101: 100}, present)
+					}
+					require.Equal(t, uint32(101), first.LocalID())
+					require.Equal(t, uint32(11), first.RemoteID())
+					require.Equal(t, uint32(202), changed.LocalID())
+					require.Equal(t, uint32(22), changed.RemoteID())
+				})
+			}
+		})
+	}
+}
+
+// RTC's single-path correction must not change generic family's existing
+// local-ID grouping; broader non-ADD-PATH family behavior is separate scope.
+func TestCreateUpdateMsgFromPathsNonRTCKeepsLocalPathIdentity(t *testing.T) {
+	first := newIPv4UpdatePath(t, "10.0.0.0/24")
+	first.localID = 101
+	second := newIPv4UpdatePath(t, "10.0.0.0/24")
+	second.localID = 202
+	msgs := CreateUpdateMsgFromPaths([]*Path{first, second, second.Clone(true)})
+	announced, withdrawn := 0, 0
+	for _, msg := range msgs {
+		wire, err := msg.Serialize()
+		require.NoError(t, err)
+		decoded, err := bgp.ParseBGPMessage(wire)
+		require.NoError(t, err)
+		update := decoded.Body.(*bgp.BGPUpdate)
+		for _, nlri := range update.NLRI {
+			require.Equal(t, "10.0.0.0/24", nlri.NLRI.String())
+			require.Equal(t, uint32(0), nlri.ID)
+			announced++
+		}
+		for _, nlri := range update.WithdrawnRoutes {
+			require.Equal(t, "10.0.0.0/24", nlri.NLRI.String())
+			require.Equal(t, uint32(0), nlri.ID)
+			withdrawn++
+		}
+	}
+	require.Equal(t, 1, announced)
+	require.Equal(t, 1, withdrawn)
+	require.Equal(t, uint32(101), first.LocalID())
+	require.Equal(t, uint32(202), second.LocalID())
+}
+
+func newRTCBatchingPath(t *testing.T, receivedID, localID, med uint32) *Path {
+	t.Helper()
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	p := NewPath(bgp.RF_RTC_UC, peerR1(), bgp.PathNLRI{
+		ID:   receivedID,
+		NLRI: bgp.NewRouteTargetMembershipNLRI(25046, bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 32106, 100, true)),
+	}, false,
+		[]bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh, bgp.NewPathAttributeMultiExitDisc(med)}, time.Now(), false)
+	p.localID = localID
+	return p
+}
