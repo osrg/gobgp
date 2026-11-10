@@ -120,9 +120,9 @@ type peer struct {
 	prefixLimitWarned map[bgp.Family]bool // protected by fsm.lock
 	// map[table.PathDestLocalKey]pathIDSet, with inner pathIDSets protected
 	// by the matching server propagation bucket for the route prefix.
-	// All methods that read or mutate a pathIDSet value (updateRoutes,
-	// getRoutesCount, hasPathAlreadyBeenSent) MUST be called under the
-	// bucket lock for that prefix (sharedData.propagateBucket).
+	// Methods that read or mutate a pathIDSet value must hold either the
+	// propagation bucket for that prefix with routeRefreshInProgress for
+	// reading, or routeRefreshInProgress exclusively for a full refresh/RTC.
 	sentPaths sync.Map
 	// map[bgp.Family]*atomic.Int64, number of paths in sentPaths per family.
 	// Keyed by the local family (RF_IPv4_UC for a VRF peer), as updateRoutes
@@ -290,6 +290,50 @@ func (peer *peer) getAddPathSendMax(family bgp.Family) uint8 {
 	return 0
 }
 
+// selectAddPathRoutes applies send-max after export filtering. Existing
+// advertisements reserve their slots, even when a new candidate precedes them.
+// Withdrawals release slots in the same batch. The caller commits the selected
+// paths and filtered markers while holding routeRefreshInProgress exclusively.
+func (peer *peer) selectAddPathRoutes(paths []*table.Path) (selected, filtered []*table.Path) {
+	counts := make(map[table.PathDestLocalKey]int)
+	withdrawn := make(map[table.PathLocalKey]bool)
+	for _, path := range paths {
+		if path == nil || path.IsEOR() || !peer.isAddPathSendEnabled(path.GetFamily()) {
+			continue
+		}
+		key := path.GetDestLocalKey()
+		if _, ok := counts[key]; !ok {
+			counts[key] = int(peer.getRoutesCount(key.Family, key.Prefix))
+		}
+		if path.IsWithdraw && !withdrawn[path.GetLocalKey()] && peer.hasPathAlreadyBeenSent(path) {
+			counts[key]--
+			withdrawn[path.GetLocalKey()] = true
+		}
+	}
+	if len(counts) == 0 {
+		return paths, nil
+	}
+	selected = make([]*table.Path, 0, len(paths))
+	added := make(map[table.PathLocalKey]bool)
+	for _, path := range paths {
+		if path == nil || path.IsEOR() || path.IsWithdraw || !peer.isAddPathSendEnabled(path.GetFamily()) {
+			selected = append(selected, path)
+			continue
+		}
+		key := path.GetDestLocalKey()
+		if peer.hasPathAlreadyBeenSent(path) || added[path.GetLocalKey()] {
+			selected = append(selected, path)
+		} else if counts[key] < int(peer.getAddPathSendMax(key.Family)) {
+			counts[key]++
+			added[path.GetLocalKey()] = true
+			selected = append(selected, path)
+		} else {
+			filtered = append(filtered, path)
+		}
+	}
+	return selected, filtered
+}
+
 func (peer *peer) getRoutesCount(family bgp.Family, dstPrefix string) uint8 {
 	destLocalKey := table.NewPathDestLocalKey(family, dstPrefix)
 	if identifiers, ok := peer.sentPaths.Load(*destLocalKey); ok {
@@ -339,6 +383,7 @@ func (peer *peer) updateRoutes(paths ...*table.Path) {
 		if path == nil || path.IsEOR() {
 			continue
 		}
+		peer.unsetPathSendMaxFiltered(path)
 		destLocalKey := path.GetDestLocalKey()
 		pathID := peer.advertisedPathID(path)
 
@@ -476,6 +521,22 @@ func (peer *peer) toGlobalFamilies(families []bgp.Family) []bgp.Family {
 		families = fs
 	}
 	return families
+}
+
+func (peer *peer) toLocalFamily(family bgp.Family) bgp.Family {
+	if peer.fsm.pConf.ReadOnly().Config.Vrf != "" {
+		switch family {
+		case bgp.RF_IPv4_VPN:
+			return bgp.RF_IPv4_UC
+		case bgp.RF_IPv6_VPN:
+			return bgp.RF_IPv6_UC
+		case bgp.RF_FS_IPv4_VPN:
+			return bgp.RF_FS_IPv4_UC
+		case bgp.RF_FS_IPv6_VPN:
+			return bgp.RF_FS_IPv6_UC
+		}
+	}
+	return family
 }
 
 func classifyFamilies(all, part []bgp.Family) ([]bgp.Family, []bgp.Family) {
