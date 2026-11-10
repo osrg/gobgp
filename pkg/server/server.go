@@ -1533,6 +1533,12 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 
 			if dsts := rib.Update(path); len(dsts) > 0 {
+				// RTC considers every source, even when the best is unchanged.
+				// An unchanged destination has no new membership to reflect;
+				// import and VPN interest processing above must still run.
+				if path.GetFamily() == bgp.RF_RTC_UC && !dsts[0].Changed {
+					return
+				}
 				// Report the path to the post-policy watchers only when it is
 				// not the one the table already held. An inbound soft reset
 				// replays the whole Adj-RIB-In, and a subscriber that got the
