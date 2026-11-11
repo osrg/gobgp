@@ -1276,3 +1276,77 @@ func TestGRPCWatchEventInitTimestamp(t *testing.T) {
 		}
 	}
 }
+
+// Peer disconnect details must survive the native-to-gRPC WatchEvent adapter.
+func TestGRPCWatchEventPeerDisconnectReason(t *testing.T) {
+	s := startWatchTestServer(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	nativeEvents := make(chan apiutil.PeerState, 1)
+	require.NoError(t, s.WatchEvent(ctx, WatchEventMessageCallbacks{
+		OnPeerUpdate: func(peer *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
+			if peer.Type == apiutil.PEER_EVENT_INIT || peer.Type == apiutil.PEER_EVENT_STATE {
+				nativeEvents <- peer.Peer.State
+			}
+		},
+	}, WatchPeer()))
+	grpcEvents := make(chan *api.PeerState, 1)
+	err := (&server{bgpServer: s, shared: s.shared}).watchEvent(ctx,
+		&api.WatchEventRequest{Peer: &api.WatchEventRequest_Peer{}},
+		func(resp *api.WatchEventResponse, _ time.Time) {
+			peer := resp.GetPeer()
+			if peer.GetType() == api.WatchEventResponse_PeerEvent_TYPE_INIT || peer.GetType() == api.WatchEventResponse_PeerEvent_TYPE_STATE {
+				grpcEvents <- peer.GetPeer().GetState()
+			}
+		})
+	require.Equal(t, codes.OK, status.Code(err))
+
+	for _, tc := range []struct {
+		name    string
+		event   watchEventPeer
+		reason  api.PeerState_DisconnectReason
+		message string
+	}{
+		{
+			name: "hold timer expired",
+			event: watchEventPeer{
+				Type: apiutil.PEER_EVENT_STATE, State: bgp.BGP_FSM_IDLE,
+				StateReason: newfsmStateReason(fsmHoldTimerExpired, nil, nil),
+			},
+			reason: api.PeerState_DISCONNECT_REASON_HOLD_TIMER_EXPIRED, message: "hold-timer-expired",
+		},
+		{
+			name: "graceful restart",
+			event: watchEventPeer{
+				Type: apiutil.PEER_EVENT_STATE, State: bgp.BGP_FSM_IDLE, Graceful: true,
+				StateReason: newfsmStateReason(fsmReadFailed, nil, nil),
+			},
+			reason: api.PeerState_DISCONNECT_REASON_GRACEFUL_RESTART, message: "graceful-restart",
+		},
+		{
+			name:   "init without reason",
+			event:  watchEventPeer{Type: apiutil.PEER_EVENT_INIT, State: bgp.BGP_FSM_IDLE},
+			reason: api.PeerState_DISCONNECT_REASON_UNSPECIFIED,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s.notifyWatcher(watchEventTypePeerState, &tc.event)
+			var native apiutil.PeerState
+			select {
+			case native = <-nativeEvents:
+			case <-ctx.Done():
+				t.Fatal("timeout waiting for native peer event")
+			}
+			assert.Equal(t, tc.reason, native.DisconnectReason)
+			assert.Equal(t, tc.message, native.DisconnectMessage)
+			select {
+			case state := <-grpcEvents:
+				assert.Equal(t, native.DisconnectReason, state.GetDisconnectReason())
+				assert.Equal(t, native.DisconnectMessage, state.GetDisconnectMessage())
+			case <-ctx.Done():
+				t.Fatal("timeout waiting for gRPC peer event")
+			}
+		})
+	}
+}
