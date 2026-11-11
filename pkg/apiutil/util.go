@@ -122,6 +122,9 @@ type Path struct {
 	Validation      *api.Validation `json:"validation,omitempty"`
 	RemoteID        uint32
 	LocalID         uint32
+	// UUID is set by ListPath for a local path of the global table that
+	// AddPath gave a UUID.
+	UUID uuid.UUID `json:"uuid,omitzero"`
 }
 
 type PeerConf struct {

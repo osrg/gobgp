@@ -44,6 +44,8 @@ gobgp has the following subcommands.
 % gobgp global rib del <prefix> [-a <address family>]
 # delete all locally generated routes
 % gobgp global rib del all [-a <address family>]
+# delete the route AddPath gave this UUID
+% gobgp global rib del uuid <uuid>
 # show all Route information
 % gobgp global rib [-a <address family>]
 # show a specific route information

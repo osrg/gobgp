@@ -400,7 +400,7 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 	}
 
 	for _, rf := range rfList {
-		tbl, _, err := z.server.getRib("", rf, nil)
+		tbl, _, _, err := z.server.getRib("", rf, nil)
 		if err != nil {
 			z.server.logger.Error("failed to get global rib",
 				slog.String("Topic", "Zebra"),
