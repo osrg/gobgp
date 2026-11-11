@@ -4372,7 +4372,11 @@ func (s *BgpServer) deleteNeighbor(c *oc.Neighbor, code, subcode uint8, sendNoti
 		n.fsm.deconfiguredNotification <- bgp.NewBGPNotificationMessage(code, subcode, nil)
 	}
 	s.dropAdjRIBIn(n, n.configuredRFlist())
-	s.stopNeighbor(n, -1, nil)
+	// Stopping the FSM bypasses its state-change callback. Supply the
+	// deconfiguration reason and previous state for the final peer event.
+	s.stopNeighbor(n, n.State(), &fsmMsg{
+		StateReason: newfsmStateReason(fsmDeConfigured, nil, nil),
+	})
 	return nil
 }
 
