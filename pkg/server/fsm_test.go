@@ -24,9 +24,11 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/eapache/channels"
@@ -1731,7 +1733,7 @@ func countNLRIs(msgs []*bgp.BGPMessage) int {
 }
 
 // TestSendMessageloop_SingleMessage verifies that a single queued message
-// passes through sendMessageloop without artificial delay.
+// passes through sendMessageloop even without subsequent arrivals.
 func TestSendMessageloop_SingleMessage(t *testing.T) {
 	assert := assert.New(t)
 
@@ -3129,5 +3131,241 @@ func TestConnectLoopWaitsInOpenConfirm(t *testing.T) {
 	}
 	if c := <-accepted; c != nil {
 		c.Close()
+	}
+}
+
+// TestOutboundBatch verifies deterministic outbound UPDATE batching behavior
+// across single-path expiration, fixed deadline windowing, explicit zero delay,
+// context cancellation, live configuration reload, and the 2048-path threshold.
+func TestOutboundBatch(t *testing.T) {
+	type batchEnv struct {
+		t      *testing.T
+		h      *fsmHandler
+		m      *MockConnection
+		cancel context.CancelFunc
+		wg     *sync.WaitGroup
+	}
+
+	setDelay := func(e *batchEnv, delay uint8) {
+		e.h.fsm.lock.Lock()
+		defer e.h.fsm.lock.Unlock()
+		c := e.h.fsm.pConf.ReadCopy()
+		c.Config.OutboundBatchDelay = &delay
+		e.h.fsm.pConf.Update(&c)
+	}
+
+	newBatchEnv := func(t *testing.T, delay uint8) *batchEnv {
+		m := NewMockConnection()
+		p, h := makePeerAndHandler(m)
+		ctx, cancel := context.WithCancel(context.Background())
+		var wg sync.WaitGroup
+
+		env := &batchEnv{t: t, h: h, m: m, cancel: cancel, wg: &wg}
+		setDelay(env, delay)
+
+		wg.Add(1)
+		go h.sendMessageloop(ctx, m, make(chan fsmStateReason, 3), &wg)
+
+		t.Cleanup(func() {
+			cancel()
+			wg.Wait()
+			cleanPeerAndHandler(p, h)
+		})
+		return env
+	}
+
+	enqueue := func(e *batchEnv, paths ...*table.Path) {
+		e.h.outgoing.In() <- &fsmOutgoingMsg{Paths: paths}
+		synctest.Wait()
+	}
+
+	makeBatch := func(t *testing.T, n int) []*table.Path {
+		paths := make([]*table.Path, n)
+		for i := range paths {
+			paths[i] = makePath(t, fmt.Sprintf("10.1.%d.%d/32", i/256, i%256), "192.0.2.1", 0)
+		}
+		return paths
+	}
+
+	requireSentNLRIs := func(e *batchEnv, want int) {
+		e.t.Helper()
+		synctest.Wait()
+		require.Equal(e.t, want, countNLRIs(parseBGPUpdates(e.t, e.m.GetSentMessages())))
+	}
+
+	t.Run("single path flushes after window", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			e := newBatchEnv(t, 20)
+			enqueue(e, makePath(t, "10.0.0.0/24", "192.0.2.1", 0))
+			requireSentNLRIs(e, 0)
+
+			time.Sleep(20 * time.Millisecond)
+			requireSentNLRIs(e, 1)
+		})
+	})
+
+	t.Run("later arrivals do not extend deadline", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			e := newBatchEnv(t, 20)
+			enqueue(e, makePath(t, "10.0.0.0/24", "192.0.2.1", 0))
+
+			time.Sleep(10 * time.Millisecond)
+			enqueue(e, makePath(t, "10.0.1.0/24", "192.0.2.1", 0))
+			requireSentNLRIs(e, 0)
+
+			time.Sleep(10 * time.Millisecond)
+			requireSentNLRIs(e, 2)
+		})
+	})
+
+	t.Run("zero delay flushes immediately", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			e := newBatchEnv(t, 0)
+			enqueue(e, makePath(t, "10.0.0.0/24", "192.0.2.1", 0))
+			requireSentNLRIs(e, 1)
+		})
+	})
+
+	t.Run("path cap flushes without waiting for timer", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			e := newBatchEnv(t, 20)
+			enqueue(e, makePath(t, "10.0.0.0/24", "192.0.2.1", 0))
+			requireSentNLRIs(e, 0)
+
+			enqueue(e, makeBatch(t, 2047)...)
+			requireSentNLRIs(e, 2048)
+		})
+	})
+
+	t.Run("queued slice exceeding cap is not split", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			e := newBatchEnv(t, 20)
+			enqueue(e, makePath(t, "10.0.0.0/24", "192.0.2.1", 0))
+			requireSentNLRIs(e, 0)
+
+			enqueue(e, makeBatch(t, 2050)...)
+			requireSentNLRIs(e, 2051)
+		})
+	})
+
+	t.Run("context cancel drops pending batch", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			e := newBatchEnv(t, 20)
+			enqueue(e, makePath(t, "10.0.0.0/24", "192.0.2.1", 0))
+			requireSentNLRIs(e, 0)
+
+			e.cancel()
+			e.wg.Wait()
+			requireSentNLRIs(e, 0)
+		})
+	})
+
+	t.Run("config reload applies to next batch", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			e := newBatchEnv(t, 20)
+			enqueue(e, makePath(t, "10.0.0.0/24", "192.0.2.1", 0))
+
+			time.Sleep(10 * time.Millisecond)
+			setDelay(e, 0)
+			enqueue(e, makePath(t, "10.0.1.0/24", "192.0.2.1", 0))
+			requireSentNLRIs(e, 0) // In-progress batch keeps its 20ms window.
+
+			time.Sleep(10 * time.Millisecond)
+			requireSentNLRIs(e, 2)
+
+			enqueue(e, makePath(t, "10.0.2.0/24", "192.0.2.1", 0))
+			requireSentNLRIs(e, 3) // Next batch uses reloaded 0ms delay.
+		})
+	})
+}
+
+type discardBenchConn struct {
+	net.Conn
+	writes atomic.Int64
+	bytes  atomic.Int64
+}
+
+func (c *discardBenchConn) Write(b []byte) (int, error) {
+	c.writes.Add(1)
+	c.bytes.Add(int64(len(b)))
+	return len(b), nil
+}
+
+func (c *discardBenchConn) Close() error { return nil }
+
+// BenchmarkOutboundBatch measures sendMessageloop throughput, allocations,
+// UPDATE message count, and wire bytes under a stream of 2048 single-path
+// updates across 16 attribute groups arriving in 16-route micro-bursts.
+//
+// With outbound-batch-delay=0, collectOutgoingPaths drains only the 16 routes
+// currently queued in each micro-burst (1 route per attribute group), emitting
+// 2048 single-NLRI BGP UPDATE messages. With outbound-batch-delay=20 (the
+// default 20ms window), all 128 micro-bursts coalesce up to the 2048-path
+// threshold and pack into 16 BGP UPDATE messages in a single pass.
+func BenchmarkOutboundBatch(b *testing.B) {
+	const (
+		totalPaths = 2048
+		numGroups  = 16
+		burstSize  = 16
+	)
+	paths := make([]*table.Path, totalPaths)
+	for i := range totalPaths {
+		prefix := fmt.Sprintf("10.%d.%d.%d/32", i>>16, i>>8&0xff, i&0xff)
+		paths[i] = makePath(b, prefix, "192.0.2.1", uint32(1000+i%numGroups))
+	}
+
+	for _, tc := range []struct {
+		name  string
+		delay uint8
+	}{
+		{"delay=0ms", 0},
+		{"delay=20ms", 20},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			var totalUpdates, totalBytes int64
+			for range b.N {
+				b.StopTimer()
+				conn := &discardBenchConn{}
+				p, h := makePeerAndHandler(conn)
+				c := h.fsm.pConf.ReadCopy()
+				d := tc.delay
+				c.Config.OutboundBatchDelay = &d
+				h.fsm.pConf.Update(&c)
+
+				ctx, cancel := context.WithCancel(context.Background())
+				var wg sync.WaitGroup
+				wg.Add(1)
+				go h.sendMessageloop(ctx, conn, make(chan fsmStateReason, 3), &wg)
+
+				b.StartTimer()
+				for i := 0; i < totalPaths; i += burstSize {
+					for j := i; j < i+burstSize; j++ {
+						h.outgoing.In() <- &fsmOutgoingMsg{Paths: paths[j : j+1 : j+1]}
+					}
+					if tc.delay == 0 {
+						for conn.writes.Load() < int64(i+burstSize) {
+							runtime.Gosched()
+						}
+					} else {
+						runtime.Gosched()
+					}
+				}
+				for h.outgoing.Len() > 0 {
+					runtime.Gosched()
+				}
+				h.outgoing.In() <- fsmStateReason{}
+				wg.Wait()
+				b.StopTimer()
+
+				cancel()
+				totalUpdates += conn.writes.Load()
+				totalBytes += conn.bytes.Load()
+				cleanPeerAndHandler(p, h)
+				b.StartTimer()
+			}
+			b.ReportMetric(float64(totalUpdates)/float64(b.N), "updates/op")
+			b.ReportMetric(float64(totalBytes)/float64(b.N), "wire-B/op")
+		})
 	}
 }

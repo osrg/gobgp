@@ -4623,6 +4623,9 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		return needsSoftResetIn, nil
 	}
 
+	// Each outgoing batch takes one immutable configuration snapshot.
+	conf.Config.OutboundBatchDelay = c.Config.OutboundBatchDelay
+
 	if !original.Timers.Config.Equal(&c.Timers.Config) {
 		peer.fsm.logger.Info("Update timer configuration")
 		conf.Timers.Config = c.Timers.Config

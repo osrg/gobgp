@@ -15,7 +15,9 @@
 package oc
 
 import (
+	"fmt"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -536,4 +538,46 @@ func TestSetDefaultNeighborConfigValuesIPv4MappedAddress(t *testing.T) {
 	assert.Equal(t, netip.MustParseAddr("0.0.0.0"), n.Transport.Config.LocalAddress)
 	require.Len(t, n.AfiSafis, 1)
 	assert.Equal(t, AFI_SAFI_TYPE_IPV4_UNICAST, n.AfiSafis[0].Config.AfiSafiName)
+}
+
+func TestOutboundBatchDelayConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name, group, neighbor string
+		delay                 uint8
+	}{
+		{"defaults", "", "", 20},
+		{"inherit", "outbound-batch-delay = 50", "", 50},
+		{"override", "outbound-batch-delay = 50", "outbound-batch-delay = 10", 10},
+		{"explicit zero", "outbound-batch-delay = 50", "outbound-batch-delay = 0", 0},
+		{"group zero", "outbound-batch-delay = 0", "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := ReadConfig(strings.NewReader(fmt.Sprintf(`
+[global.config]
+as = 65000
+router-id = "192.0.2.1"
+[[peer-groups]]
+[peer-groups.config]
+peer-group-name = "batch"
+peer-as = 65001
+%s
+[[neighbors]]
+[neighbors.config]
+neighbor-address = "192.0.2.2"
+peer-group = "batch"
+%s
+`, tc.group, tc.neighbor)), "toml")
+			require.NoError(t, err)
+			require.Equal(t, tc.delay, *c.Neighbors[0].Config.OutboundBatchDelay)
+		})
+	}
+
+	for _, setting := range []string{"outbound-batch-delay = -1", "outbound-batch-delay = 256"} {
+		t.Run(setting, func(t *testing.T) {
+			_, err := ReadConfig(strings.NewReader(rangeTestNeighbor(setting)), "toml")
+			require.Error(t, err)
+			_, err = ReadConfig(strings.NewReader(rangeTestGlobal+"\n[[peer-groups]]\n[peer-groups.config]\npeer-group-name = \"invalid\"\n"+setting), "toml")
+			require.Error(t, err)
+		})
+	}
 }

@@ -96,6 +96,7 @@ func TestNeedsResendOpenMessageASPathOptions(t *testing.T) {
 		{"allow-own-as", func(n *Neighbor) { n.AsPathOptions.Config.AllowOwnAs = 1 }, false},
 		{"replace-peer-as", func(n *Neighbor) { n.AsPathOptions.Config.ReplacePeerAs = true }, false},
 		{"allow-as-path-loop-local", func(n *Neighbor) { n.AsPathOptions.Config.AllowAsPathLoopLocal = true }, false},
+		{"outbound-batch-delay", func(n *Neighbor) { d := uint8(50); n.Config.OutboundBatchDelay = &d }, false},
 		{"peer-as", func(n *Neighbor) { n.Config.PeerAs = 65001 }, true},
 		{"local-as", func(n *Neighbor) { n.Config.LocalAs = 65000 }, true},
 		{"admin-down", func(n *Neighbor) { n.Config.AdminDown = true }, true},
