@@ -2118,9 +2118,11 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 	ticker := keepaliveTicker(fsm)
 	send := func(m *bgp.BGPMessage) error {
 		if fsm.twoByteAsTrans && m.Header.Type == bgp.BGP_MSG_UPDATE {
-			fsm.logger.Debug("update for 2byte AS peer",
-				slog.String("State", fsm.state.String()),
-				slog.Any("Data", m))
+			if fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+				fsm.logger.Debug("update for 2byte AS peer",
+					slog.String("State", fsm.state.String()),
+					slog.Any("Data", m))
+			}
 			table.UpdatePathAttrs2ByteAs(m.Body.(*bgp.BGPUpdate))
 			table.UpdatePathAggregator2ByteAs(m.Body.(*bgp.BGPUpdate))
 		}
@@ -2151,11 +2153,13 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 		switch m.Header.Type {
 		case bgp.BGP_MSG_UPDATE:
 			update := m.Body.(*bgp.BGPUpdate)
-			fsm.logger.Debug("sent update",
-				slog.String("State", fsm.state.String()),
-				slog.Any("nlri", update.NLRI),
-				slog.Any("withdrawals", update.WithdrawnRoutes),
-				slog.Any("attributes", update.PathAttributes))
+			if fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+				fsm.logger.Debug("sent update",
+					slog.String("State", fsm.state.String()),
+					slog.Any("nlri", update.NLRI),
+					slog.Any("withdrawals", update.WithdrawnRoutes),
+					slog.Any("attributes", update.PathAttributes))
+			}
 		case bgp.BGP_MSG_KEEPALIVE:
 			// nothing to do
 		default:

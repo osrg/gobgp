@@ -17,6 +17,7 @@ package table
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -349,16 +350,20 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path, selection
 // stopped by the same policies.
 // Returns the old path that was withdrawn.
 func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *Path {
-	logger.Debug("Removing withdrawals",
-		slog.String("Topic", "Table"),
-		slog.String("Key", dest.GetNlri().String()))
+	if logger.Enabled(context.Background(), slog.LevelDebug) {
+		logger.Debug("Removing withdrawals",
+			slog.String("Topic", "Table"),
+			slog.String("Key", dest.GetNlri().String()))
+	}
 
 	// If we have some withdrawals and no know-paths, it means it is safe to
 	// delete these withdraws.
 	if len(dest.knownPathList) == 0 {
-		logger.Debug("Found withdrawals for path(s) that did not get installed",
-			slog.String("Topic", "Table"),
-			slog.String("Key", dest.GetNlri().String()))
+		if logger.Enabled(context.Background(), slog.LevelDebug) {
+			logger.Debug("Found withdrawals for path(s) that did not get installed",
+				slog.String("Topic", "Table"),
+				slog.String("Key", dest.GetNlri().String()))
+		}
 		return nil
 	}
 
@@ -375,10 +380,12 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 	// We do not have any match for this withdraw.
 	// May be caused by bgp policy if not all paths got installed into the table.
 	if isFound == -1 {
-		logger.Debug("No matching path for withdraw found, may be path was not installed into table",
-			slog.String("Topic", "Table"),
-			slog.String("Key", dest.GetNlri().String()),
-			slog.String("Path", withdraw.String()))
+		if logger.Enabled(context.Background(), slog.LevelDebug) {
+			logger.Debug("No matching path for withdraw found, may be path was not installed into table",
+				slog.String("Topic", "Table"),
+				slog.String("Key", dest.GetNlri().String()),
+				slog.String("Path", withdraw.String()))
+		}
 		return nil
 	} else {
 		p := dest.knownPathList[isFound]
@@ -403,10 +410,12 @@ func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) *P
 		// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
 		// we get same paths again.
 		if newPath.EqualBySourceAndPathID(path) {
-			logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
-				slog.String("Topic", "Table"),
-				slog.String("Key", dest.GetNlri().String()),
-				slog.String("Path", path.String()))
+			if logger.Enabled(context.Background(), slog.LevelDebug) {
+				logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
+					slog.String("Topic", "Table"),
+					slog.String("Key", dest.GetNlri().String()),
+					slog.String("Path", path.String()))
+			}
 
 			found = i
 			newPath.localID = path.localID
