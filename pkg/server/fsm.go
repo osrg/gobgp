@@ -160,6 +160,8 @@ func (r fsmStateReason) String() string {
 		return "open-msg-negotiated"
 	case fsmHardReset:
 		return "hard-reset"
+	case fsmDeConfigured:
+		return "deconfigured"
 	case fsmBadPeerAS:
 		return "bad-peer-as"
 	case fsmAdminReset:
