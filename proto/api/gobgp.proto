@@ -777,6 +777,8 @@ message PeerConf {
   bool admin_down = 15;
   bool send_software_version = 16;
   bool allow_aspath_loop_local = 17;
+  // Milliseconds; absent defaults to 20, explicit zero disables waiting.
+  optional uint32 outbound_batch_delay = 18;
 }
 
 message PeerGroupConf {
@@ -793,6 +795,8 @@ message PeerGroupConf {
   uint32 allow_own_asn = 11;
   bool replace_peer_asn = 12;
   bool allow_aspath_loop_local = 13;
+  // Milliseconds; absent defaults to 20, explicit zero disables waiting.
+  optional uint32 outbound_batch_delay = 14;
 }
 
 message PeerGroupState {

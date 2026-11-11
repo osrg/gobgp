@@ -117,6 +117,11 @@ class ZebraNHTTest(unittest.TestCase):
         wait_time = max(ctn.run() for ctn in [cls.r1, cls.r2])
         time.sleep(wait_time)
 
+        # Docker's default route makes an otherwise unreachable nexthop
+        # resolvable again after GoBGP withdraws its covering BGP route.
+        # Keep reachability controlled only by the static route below.
+        cls.r2.local('ip route del default')
+
         cls.br_r1_r2 = Bridge(name='br_r1_r2', subnet='192.168.12.0/24')
         for ctn in (cls.r1, cls.r2):
             cls.br_r1_r2.addif(ctn)

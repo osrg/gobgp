@@ -7468,8 +7468,10 @@ type PeerConf struct {
 	AdminDown            bool                   `protobuf:"varint,15,opt,name=admin_down,json=adminDown,proto3" json:"admin_down,omitempty"`
 	SendSoftwareVersion  bool                   `protobuf:"varint,16,opt,name=send_software_version,json=sendSoftwareVersion,proto3" json:"send_software_version,omitempty"`
 	AllowAspathLoopLocal bool                   `protobuf:"varint,17,opt,name=allow_aspath_loop_local,json=allowAspathLoopLocal,proto3" json:"allow_aspath_loop_local,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Milliseconds; absent defaults to 20, explicit zero disables waiting.
+	OutboundBatchDelay *uint32 `protobuf:"varint,18,opt,name=outbound_batch_delay,json=outboundBatchDelay,proto3,oneof" json:"outbound_batch_delay,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *PeerConf) Reset() {
@@ -7621,6 +7623,13 @@ func (x *PeerConf) GetAllowAspathLoopLocal() bool {
 	return false
 }
 
+func (x *PeerConf) GetOutboundBatchDelay() uint32 {
+	if x != nil && x.OutboundBatchDelay != nil {
+		return *x.OutboundBatchDelay
+	}
+	return 0
+}
+
 type PeerGroupConf struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	AuthPassword         string                 `protobuf:"bytes,1,opt,name=auth_password,json=authPassword,proto3" json:"auth_password,omitempty"`
@@ -7636,8 +7645,10 @@ type PeerGroupConf struct {
 	AllowOwnAsn          uint32                 `protobuf:"varint,11,opt,name=allow_own_asn,json=allowOwnAsn,proto3" json:"allow_own_asn,omitempty"`
 	ReplacePeerAsn       bool                   `protobuf:"varint,12,opt,name=replace_peer_asn,json=replacePeerAsn,proto3" json:"replace_peer_asn,omitempty"`
 	AllowAspathLoopLocal bool                   `protobuf:"varint,13,opt,name=allow_aspath_loop_local,json=allowAspathLoopLocal,proto3" json:"allow_aspath_loop_local,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Milliseconds; absent defaults to 20, explicit zero disables waiting.
+	OutboundBatchDelay *uint32 `protobuf:"varint,14,opt,name=outbound_batch_delay,json=outboundBatchDelay,proto3,oneof" json:"outbound_batch_delay,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *PeerGroupConf) Reset() {
@@ -7759,6 +7770,13 @@ func (x *PeerGroupConf) GetAllowAspathLoopLocal() bool {
 		return x.AllowAspathLoopLocal
 	}
 	return false
+}
+
+func (x *PeerGroupConf) GetOutboundBatchDelay() uint32 {
+	if x != nil && x.OutboundBatchDelay != nil {
+		return *x.OutboundBatchDelay
+	}
+	return 0
 }
 
 type PeerGroupState struct {
@@ -14394,7 +14412,7 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\vPrefixLimit\x12#\n" +
 	"\x06family\x18\x01 \x01(\v2\v.api.FamilyR\x06family\x12!\n" +
 	"\fmax_prefixes\x18\x02 \x01(\rR\vmaxPrefixes\x124\n" +
-	"\x16shutdown_threshold_pct\x18\x03 \x01(\rR\x14shutdownThresholdPct\"\x9f\x05\n" +
+	"\x16shutdown_threshold_pct\x18\x03 \x01(\rR\x14shutdownThresholdPct\"\xef\x05\n" +
 	"\bPeerConf\x12#\n" +
 	"\rauth_password\x18\x01 \x01(\tR\fauthPassword\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1b\n" +
@@ -14415,7 +14433,9 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\n" +
 	"admin_down\x18\x0f \x01(\bR\tadminDown\x122\n" +
 	"\x15send_software_version\x18\x10 \x01(\bR\x13sendSoftwareVersion\x125\n" +
-	"\x17allow_aspath_loop_local\x18\x11 \x01(\bR\x14allowAspathLoopLocal\"\xa2\x04\n" +
+	"\x17allow_aspath_loop_local\x18\x11 \x01(\bR\x14allowAspathLoopLocal\x125\n" +
+	"\x14outbound_batch_delay\x18\x12 \x01(\rH\x00R\x12outboundBatchDelay\x88\x01\x01B\x17\n" +
+	"\x15_outbound_batch_delay\"\xf2\x04\n" +
 	"\rPeerGroupConf\x12#\n" +
 	"\rauth_password\x18\x01 \x01(\tR\fauthPassword\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1b\n" +
@@ -14430,7 +14450,9 @@ const file_api_gobgp_proto_rawDesc = "" +
 	" \x01(\bR\x13sendSoftwareVersion\x12\"\n" +
 	"\rallow_own_asn\x18\v \x01(\rR\vallowOwnAsn\x12(\n" +
 	"\x10replace_peer_asn\x18\f \x01(\bR\x0ereplacePeerAsn\x125\n" +
-	"\x17allow_aspath_loop_local\x18\r \x01(\bR\x14allowAspathLoopLocal\"\xb2\x03\n" +
+	"\x17allow_aspath_loop_local\x18\r \x01(\bR\x14allowAspathLoopLocal\x125\n" +
+	"\x14outbound_batch_delay\x18\x0e \x01(\rH\x00R\x12outboundBatchDelay\x88\x01\x01B\x17\n" +
+	"\x15_outbound_batch_delay\"\xb2\x03\n" +
 	"\x0ePeerGroupState\x12#\n" +
 	"\rauth_password\x18\x01 \x01(\tR\fauthPassword\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1b\n" +
@@ -15736,6 +15758,8 @@ func file_api_gobgp_proto_init() {
 		(*WatchEventResponse_Peer)(nil),
 		(*WatchEventResponse_Table)(nil),
 	}
+	file_api_gobgp_proto_msgTypes[117].OneofWrappers = []any{}
+	file_api_gobgp_proto_msgTypes[118].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

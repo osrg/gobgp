@@ -68,6 +68,8 @@
         #peer-group = "my-peer-group"
         # Force sending Software Version Capability, default: disabled.
         #send-software-version = true
+        # Outbound UPDATE accumulation delay in milliseconds (default: 20, 0 to disable waiting).
+        #outbound-batch-delay = 20
     [neighbors.as-path-options.config]
         allow-own-as = 1
         replace-peer-as = true
