@@ -397,7 +397,8 @@ func (p *packer) pack(options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	// split calls cb with as many NLRIs of paths as fit in an UPDATE
 	// whose other parts take baseLen bytes. An NLRI that does not fit
 	// even alone goes in an UPDATE of its own, which fails to serialize
-	// and is logged when it is sent.
+	// when it is sent. The sender withdraws the NLRI instead, see
+	// CreateWithdrawMsgFromUpdate.
 	split := func(baseLen int, paths []*Path, cb func([]bgp.PathNLRI)) {
 		budget := maxUpdateMessageLength(options) - baseLen
 		for len(paths) > 0 {
@@ -562,6 +563,43 @@ func CreateUpdateMsgFromAdjRIBInPaths(pathList []*Path, options ...*bgp.Marshall
 
 func CreateUpdateMsgFromPaths(pathList []*Path, options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	return createUpdateMsgFromPaths(pathList, false, options...)
+}
+
+// CreateWithdrawMsgFromUpdate returns an UPDATE that withdraws the NLRIs
+// that update announces, in the NLRI field or in MP_REACH_NLRI, and nil when
+// it announces nothing. It is for an UPDATE that cannot be sent to the peer.
+// RFC 8654 Section 4 says:
+//
+//	If the message is still too big, then it must not be sent to the
+//	neighbor ([RFC4271], Section 9.2). Additionally, if the NLRI was
+//	previously advertised to that peer, it must be withdrawn from
+//	service ([RFC4271], Section 9.1.3).
+//
+// The withdrawal is encoded as the packer encodes one: IPv4 unicast in the
+// Withdrawn Routes field, every other family in MP_UNREACH_NLRI.
+func CreateWithdrawMsgFromUpdate(update *bgp.BGPUpdate) *bgp.BGPMessage {
+	family := bgp.RF_IPv4_UC
+	nlris := update.NLRI
+	if len(nlris) == 0 {
+		for _, a := range update.PathAttributes {
+			if reach, ok := a.(*bgp.PathAttributeMpReachNLRI); ok {
+				family = bgp.NewFamily(reach.AFI, reach.SAFI)
+				nlris = reach.Value
+				break
+			}
+		}
+	}
+	if len(nlris) == 0 {
+		return nil
+	}
+	if family == bgp.RF_IPv4_UC {
+		return bgp.NewBGPUpdateMessage(nlris, nil, nil)
+	}
+	unreach, err := bgp.NewPathAttributeMpUnreachNLRI(family, nlris)
+	if err != nil {
+		return nil
+	}
+	return bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{unreach}, nil)
 }
 
 func createUpdateMsgFromPaths(pathList []*Path, useRemoteID bool, options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
