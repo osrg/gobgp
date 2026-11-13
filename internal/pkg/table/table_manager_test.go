@@ -2595,6 +2595,52 @@ func TestTableVPNPathIndexPathCount(t *testing.T) {
 	})
 }
 
+// A peer with ADD-PATH and a peer without it send the same prefix. The index
+// must keep the path of each that RTC redistributes: every ADD-PATH path, and
+// the best path when it has no path ID.
+func TestTableVPNPathIndexMixedAddPath(t *testing.T) {
+	rt, err := bgp.ParseRouteTarget("100:100")
+	assert.NoError(t, err)
+	rd, err := bgp.ParseRouteDistinguisher("100:1")
+	assert.NoError(t, err)
+	fs := []bgp.Family{bgp.RF_IPv4_VPN}
+	newVPNPath := func(addr string, pathID, localPref uint32) *Path {
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("10.0.0.1/32"), *bgp.NewMPLSLabelStack(), rd)
+		assert.NoError(t, err)
+		a := netip.MustParseAddr(addr)
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeLocalPref(localPref),
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+		}
+		return NewPath(bgp.RF_IPv4_VPN, &PeerInfo{Address: a, ID: a}, bgp.PathNLRI{NLRI: nlri, ID: pathID}, false, attrs, time.Now(), false)
+	}
+
+	t.Run("ADD-PATH best withdrawn", func(t *testing.T) {
+		m := NewTableManager(logger, fs, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+		withAddPath := newVPNPath("1.1.1.1", 1, 100) // best: lower router ID
+		withoutAddPath := newVPNPath("2.2.2.2", 0, 100)
+		m.Update(withAddPath)
+		m.Update(withoutAddPath)
+		assert.Equal(t, []*Path{withAddPath}, m.GetPathsByRT(rt, fs))
+
+		// withoutAddPath becomes best.
+		m.Update(withAddPath.Clone(true))
+		assert.Equal(t, []*Path{withoutAddPath}, m.GetPathsByRT(rt, fs))
+	})
+
+	t.Run("path without ADD-PATH becomes best", func(t *testing.T) {
+		m := NewTableManager(logger, fs, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+		withAddPath := newVPNPath("1.1.1.1", 1, 100)
+		withoutAddPath := newVPNPath("2.2.2.2", 0, 200) // best: higher local preference
+		m.Update(withAddPath)
+		m.Update(withoutAddPath)
+		assert.ElementsMatch(t, []*Path{withAddPath, withoutAddPath}, m.GetPathsByRT(rt, fs))
+
+		m.Update(withoutAddPath.Clone(true))
+		assert.Equal(t, []*Path{withAddPath}, m.GetPathsByRT(rt, fs))
+	})
+}
+
 func TestProcessBGPUpdate_keep_linklocal_nexthop(t *testing.T) {
 	globalNexthop := netip.MustParseAddr("2001:db8::1")
 	linkLocalNexthop := netip.MustParseAddr("fe80::ade0")

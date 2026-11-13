@@ -597,15 +597,14 @@ func (t *Table) updateVPNIdx(u *Update, newPath, oldPath *Path) {
 		// ADD-PATH: each (source, path-ID) pair is a distinct entry.
 		// oldPath is the previous path with the same (source, path-ID) returned by
 		// implicitWithdraw (non-withdrawal) or explicitWithdraw (withdrawal).
-		if newPath.IsWithdraw {
-			t.vpnIdx.UnregisterPath(oldPath)
-		} else {
-			t.vpnIdx.UnregisterPath(oldPath)
+		t.vpnIdx.UnregisterPath(oldPath)
+		if !newPath.IsWithdraw {
 			t.vpnIdx.RegisterPath(newPath)
 		}
-		return
 	}
-	// No-add-path: track only the best path per NLRI.
+	// No-add-path: track only the best path per NLRI. The best may also change
+	// on an ADD-PATH update, for example when an ADD-PATH best is withdrawn.
+	// ADD-PATH paths are indexed above, whether they are best or not.
 	// KnownPathList is sorted by computeKnownBestPath, so [0] is the best.
 	var oldBest, newBest *Path
 	if len(u.OldKnownPathList) > 0 {
@@ -615,8 +614,12 @@ func (t *Table) updateVPNIdx(u *Update, newPath, oldPath *Path) {
 		newBest = u.KnownPathList[0]
 	}
 	if oldBest != newBest {
-		t.vpnIdx.UnregisterPath(oldBest)
-		t.vpnIdx.RegisterPath(newBest)
+		if oldBest != nil && oldBest.RemoteID() == 0 {
+			t.vpnIdx.UnregisterPath(oldBest)
+		}
+		if newBest != nil && newBest.RemoteID() == 0 {
+			t.vpnIdx.RegisterPath(newBest)
+		}
 	}
 }
 
