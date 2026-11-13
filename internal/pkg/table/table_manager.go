@@ -187,6 +187,7 @@ type TableManager struct {
 	mu             sync.RWMutex // protects tables and vrfs maps
 	tables         map[bgp.Family]*Table
 	vrfs           map[string]*Vrf
+	vrfsByRT       map[uint64][]*Vrf // import Route Target key -> VRFs
 	rfList         []bgp.Family
 	maxPathCounted atomic.Uint64
 	logger         *slog.Logger
@@ -201,6 +202,7 @@ func NewTableManager(logger *slog.Logger, rfList []bgp.Family, selectionOptions 
 		mu:               sync.RWMutex{},
 		tables:           make(map[bgp.Family]*Table),
 		vrfs:             make(map[string]*Vrf),
+		vrfsByRT:         make(map[uint64][]*Vrf),
 		rfList:           rfList,
 		logger:           logger,
 		selectionOptions: selectionOptions,
@@ -263,12 +265,16 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		slog.Any("ImportRt", rtMap.ToSlice()),
 		slog.Any("ExportRt", exportRt),
 	)
-	manager.vrfs[name] = &Vrf{
+	vrf := &Vrf{
 		Name:     name,
 		Id:       id,
 		Rd:       rd,
 		ImportRt: rtMap,
 		ExportRt: exportRt,
+	}
+	manager.vrfs[name] = vrf
+	for key := range rtMap {
+		manager.vrfsByRT[key] = append(manager.vrfsByRT[key], vrf)
 	}
 	msgs := make([]*Path, 0, len(importRt))
 	for _, target := range importRt {
@@ -303,6 +309,12 @@ func (manager *TableManager) DeleteVrf(name string) ([]*Path, error) {
 		slog.Any("MplsLabel", vrf.MplsLabel),
 	)
 	delete(manager.vrfs, name)
+	for key := range vrf.ImportRt {
+		manager.vrfsByRT[key] = slices.DeleteFunc(manager.vrfsByRT[key], func(v *Vrf) bool { return v == vrf })
+		if len(manager.vrfsByRT[key]) == 0 {
+			delete(manager.vrfsByRT, key)
+		}
+	}
 	rtcTable := manager.tables[bgp.RF_RTC_UC]
 	msgs = append(msgs, rtcTable.deleteRTCPathsByVrf(vrf, manager.vrfs)...)
 	return msgs, nil
@@ -598,6 +610,35 @@ func (manager *TableManager) GetVrf(name string) (*Vrf, bool) {
 	defer manager.mu.RUnlock()
 	vrf, ok := manager.vrfs[name]
 	return vrf, ok
+}
+
+// GetImportingVrfs returns the VRFs that import at least one of paths, as
+// CanImportToVrf does, without checking every VRF. nil paths are ignored.
+func (manager *TableManager) GetImportingVrfs(paths ...*Path) map[string]*Vrf {
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+	var m map[string]*Vrf
+	for _, path := range paths {
+		if path == nil {
+			continue
+		}
+		for _, x := range path.GetExtCommunities() {
+			if !isTransitiveType(x) {
+				continue
+			}
+			key, err := bgp.ExtCommRouteTargetKey(x)
+			if err != nil {
+				continue
+			}
+			for _, vrf := range manager.vrfsByRT[key] {
+				if m == nil {
+					m = make(map[string]*Vrf)
+				}
+				m[vrf.Name] = vrf
+			}
+		}
+	}
+	return m
 }
 
 // GetAllVrfs returns a copy of all VRF names.

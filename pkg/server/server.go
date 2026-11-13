@@ -960,6 +960,9 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 		// Note: If best path selection disabled, no best path to notify.
 		return
 	}
+	if !s.isWatched(watchEventTypeBestPath) {
+		return
+	}
 	m := make(map[uint32]bool)
 	clonedM := make([][]*table.Path, len(multipath))
 	for i, pathList := range multipath {
@@ -1702,6 +1705,14 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 		s.notifyBestWatcher(gBestList, mpathList, multipathUpdate, multipathWithdraw)
 	}
 	family := newPath.GetFamily()
+	// A VRF neighbor gets only the VPN paths its VRF imports (see
+	// prePolicyFilterpath). Find those VRFs once instead of filtering every
+	// VRF neighbor.
+	var importers map[string]*table.Vrf
+	switch family {
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN:
+		importers = rib.GetImportingVrfs(gBestList...)
+	}
 	for _, targetPeer := range s.neighborMap {
 		if source == nil && targetPeer.isRouteServerClient() || source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient() {
 			continue
@@ -1723,6 +1734,13 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			}
 			return family
 		}()
+
+		// A neighbor with ADD-PATH send may get paths that are not the best.
+		if vrf := targetPeer.fsm.pConf.ReadOnly().Config.Vrf; vrf != "" && !targetPeer.isRouteServerClient() && !targetPeer.isAddPathSendEnabled(f) {
+			if _, ok := importers[vrf]; !ok {
+				continue
+			}
+		}
 
 		func() {
 			targetPeer.routeRefreshInProgress.RLock()
