@@ -832,6 +832,47 @@ func (t *Table) Bests(id string, as uint32) []*Path {
 	return paths
 }
 
+// BestsByVrf returns the paths of Bests(id, as) that vrf imports. It finds
+// them through the import Route Targets of vrf in vpnIdx, which holds the best
+// path of each destination, instead of walking the whole table.
+func (t *Table) BestsByVrf(id string, as uint32, vrf *Vrf) []*Path {
+	if t.vpnIdx == nil {
+		var paths []*Path
+		for _, p := range t.Bests(id, as) {
+			if CanImportToVrf(vrf, p) {
+				paths = append(paths, p)
+			}
+		}
+		return paths
+	}
+	var paths []*Path
+	seen := map[*destination]struct{}{}
+	for _, rt := range vrf.ImportRt.ToSlice() {
+		for _, indexed := range t.vpnIdx.GetPathsByRT(rt) {
+			nlri := indexed.GetNlri()
+			shard := t.destinations.getShard(nlri)
+			if shard == nil {
+				continue
+			}
+			shard.mu.RLock()
+			for _, d := range shard.mp[tableKey(nlri)] {
+				if AddrPrefixOnlyCompare(d.nlri, nlri) != 0 {
+					continue
+				}
+				if _, ok := seen[d]; !ok {
+					seen[d] = struct{}{}
+					if p := d.GetBestPath(id, as); p != nil && CanImportToVrf(vrf, p) {
+						paths = append(paths, p)
+					}
+				}
+				break
+			}
+			shard.mu.RUnlock()
+		}
+	}
+	return paths
+}
+
 func (t *Table) MultiBests(id string) [][]*Path {
 	paths := make([][]*Path, 0)
 

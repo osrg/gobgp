@@ -25,3 +25,22 @@ func BenchmarkVrfNeighborsInject(b *testing.B) {
 		})
 	}
 }
+
+// Cost of advertising its VRF to one neighbor (session up, graceful restart
+// release, route refresh): 100 VRFs of 10000 routes.
+func BenchmarkVrfNeighborDump(b *testing.B) {
+	s, peers := newVrfNeighbors(b, 100, 1, 10000)
+	for _, mode := range []struct {
+		name     string
+		fullScan bool
+	}{{"full-scan", true}, {"rt-index", false}} {
+		b.Run(mode.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				if paths, _ := vrfDump(s, peers[0], mode.fullScan); len(paths) != 10000 {
+					b.Fatalf("got %d paths", len(paths))
+				}
+			}
+		})
+	}
+}

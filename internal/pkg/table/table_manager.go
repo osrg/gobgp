@@ -492,6 +492,20 @@ func (manager *TableManager) GetBestPathList(id string, as uint32, rfList []bgp.
 	return paths
 }
 
+// GetBestPathListByVrf returns the paths of GetBestPathList that vrf imports.
+func (manager *TableManager) GetBestPathListByVrf(id string, as uint32, vrf *Vrf, rfList []bgp.Family) []*Path {
+	if manager.selectionOptions.DisableBestPathSelection {
+		return nil
+	}
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+	var paths []*Path
+	for _, t := range manager.getTables(rfList...) {
+		paths = append(paths, t.BestsByVrf(id, as, vrf)...)
+	}
+	return paths
+}
+
 func (manager *TableManager) GetBestMultiPathList(id string, rfList []bgp.Family) [][]*Path {
 	if !manager.useMultiplePaths.Enabled || manager.selectionOptions.DisableBestPathSelection {
 		// Note: If multi path not enabled or best path selection disabled,

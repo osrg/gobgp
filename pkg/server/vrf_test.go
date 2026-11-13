@@ -138,3 +138,104 @@ func TestVrfNeighborsInjectAddPath(t *testing.T) {
 	s.propagateUpdate(nil, []*table.Path{imported})
 	require.True(t, peers[0].hasPathAlreadyBeenSent(imported.ToLocal()))
 }
+
+func vrfDump(s *BgpServer, p *peer, fullScan bool) (paths, filtered []*table.Path) {
+	return vrfDumpFamily(s, p, bgp.RF_IPv4_UC, fullScan)
+}
+
+func vrfDumpFamily(s *BgpServer, p *peer, family bgp.Family, fullScan bool) (paths, filtered []*table.Path) {
+	p.routeRefreshInProgress.RLock()
+	defer p.routeRefreshInProgress.RUnlock()
+	s.getBestFromLocalCallbackLocked(p, []bgp.Family{family}, false, fullScan, func(a, r []*table.Path) {
+		paths, filtered = a, r
+	})
+	return paths, filtered
+}
+
+func pathStrings(paths []*table.Path) []string {
+	l := make([]string, 0, len(paths))
+	for _, p := range paths {
+		l = append(l, p.String())
+	}
+	return l
+}
+
+// The paths advertised to a VRF neighbor are the same with the Route Target
+// lookup as with a walk of the whole table:
+//   - 30.0.0.1 carries the RT of vrf0 and of vrf1;
+//   - 30.0.0.2 carries other RTs;
+//   - 30.0.0.3 has a best path without the RT of vrf0 and another path with
+//     it: vrf0 does not get it, since only best paths are advertised;
+//   - 30.0.0.4 has a best path received with ADD-PATH.
+func TestVrfNeighborDumpMatchesFullScan(t *testing.T) {
+	const nVrf, routesPerVrf = 5, 50
+	s, peers := newVrfNeighbors(t, nVrf, 1, routesPerVrf)
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(65000, 99)
+	withSource := func(p *table.Path, src string, id uint32) *table.Path {
+		a := netip.MustParseAddr(src)
+		return table.NewPath(p.GetFamily(), &table.PeerInfo{Address: a, ID: a}, bgp.PathNLRI{NLRI: p.GetNlri(), ID: id}, false, p.GetPathAttrs(), p.GetTimestamp(), false)
+	}
+	s.propagateUpdate(nil, []*table.Path{
+		newVPNPathForTest(t, netip.MustParsePrefix("30.0.0.1/32"), rd, vrfRT(1), vrfRT(0)),
+		newVPNPathForTest(t, netip.MustParsePrefix("30.0.0.2/32"), rd, vrfRT(2), vrfRT(3)),
+		withSource(newVPNPathForTest(t, netip.MustParsePrefix("30.0.0.3/32"), rd, vrfRT(1)), "9.9.9.1", 0),
+		withSource(newVPNPathForTest(t, netip.MustParsePrefix("30.0.0.3/32"), rd, vrfRT(0)), "9.9.9.2", 0),
+		withSource(newVPNPathForTest(t, netip.MustParsePrefix("30.0.0.4/32"), rd, vrfRT(0)), "9.9.9.1", 1),
+	})
+	indexed, _ := vrfDump(s, peers[0], false)
+	full, _ := vrfDump(s, peers[0], true)
+	require.Len(t, indexed, routesPerVrf+2)
+	require.ElementsMatch(t, pathStrings(full), pathStrings(indexed))
+}
+
+// Soft reset out keeps the full scan: a path that lost the RT of the VRF must
+// be withdrawn.
+func TestVrfNeighborSoftResetOutWithdrawsLostRT(t *testing.T) {
+	s, peers := newVrfNeighbors(t, 2, 1, 3)
+	p := peers[0]
+	paths, _ := vrfDump(s, p, false)
+	require.Len(t, paths, 3)
+	p.updateRoutes(paths...)
+
+	moved := newVPNPathForTest(t, netip.MustParsePrefix("20.0.0.0/32"), bgp.NewRouteDistinguisherTwoOctetAS(65000, 0), vrfRT(1))
+	s.propagateUpdate(nil, []*table.Path{moved})
+	require.True(t, p.hasPathAlreadyBeenSent(moved.ToLocal()))
+
+	s.softResetOutPeer(p, bgp.RF_IPv4_UC, false)
+	require.False(t, p.hasPathAlreadyBeenSent(moved.ToLocal()))
+}
+
+// The graceful restart release advertises to a VRF neighbor the paths of its
+// VRF only.
+func TestVrfNeighborRestartReleased(t *testing.T) {
+	s, peers := newVrfNeighbors(t, 3, 1, 5)
+	// As if the families had been deferred: nothing advertised yet.
+	peers[0].resetAdvertisedRoutes()
+	require.Zero(t, peers[0].advertisedRoutes([]bgp.Family{bgp.RF_IPv4_UC}))
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.restartReleased([]bgp.Family{bgp.RF_IPv4_UC})
+		return nil
+	}, true))
+	require.Equal(t, 5, peers[0].advertisedRoutes([]bgp.Family{bgp.RF_IPv4_UC}))
+}
+
+// When the best path of a prefix, received with ADD-PATH, is withdrawn, the
+// new best path, received without ADD-PATH, is advertised to the VRF neighbor.
+func TestVrfNeighborDumpAfterAddPathWithdraw(t *testing.T) {
+	s, peers := newVrfNeighbors(t, 1, 1, 0)
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(65000, 99)
+	prefix := netip.MustParsePrefix("30.0.0.1/32")
+	withSource := func(src string, id uint32) *table.Path {
+		p := newVPNPathForTest(t, prefix, rd, vrfRT(0))
+		a := netip.MustParseAddr(src)
+		return table.NewPath(p.GetFamily(), &table.PeerInfo{Address: a, ID: a}, bgp.PathNLRI{NLRI: p.GetNlri(), ID: id}, false, p.GetPathAttrs(), p.GetTimestamp(), false)
+	}
+	withAddPath := withSource("9.9.9.1", 1) // best: lower router ID
+	withoutAddPath := withSource("9.9.9.2", 0)
+	s.propagateUpdate(nil, []*table.Path{withAddPath, withoutAddPath})
+	s.propagateUpdate(nil, []*table.Path{withAddPath.Clone(true)})
+
+	paths, _ := vrfDump(s, peers[0], false)
+	require.Len(t, paths, 1)
+	require.Equal(t, "9.9.9.2", paths[0].GetSource().Address.String())
+}
