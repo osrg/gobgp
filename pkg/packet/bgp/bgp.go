@@ -14372,6 +14372,10 @@ func NewLinkBandwidthExtended(as uint16, bw float32) *LinkBandwidthExtended {
 
 type ColorExtended struct {
 	Color uint32
+	// Flags is sent on as received. RFC 9012 4.3: "the value MUST NOT be
+	// changed when propagating this extended community". RFC 9830 3 uses
+	// its two leftmost bits as the Color-Only type.
+	Flags uint16
 }
 
 func (e *ColorExtended) Serialize() ([]byte, error) {
@@ -14379,6 +14383,7 @@ func (e *ColorExtended) Serialize() ([]byte, error) {
 	typ, subType := e.GetTypes()
 	buf[0] = byte(typ)
 	buf[1] = byte(subType)
+	binary.BigEndian.PutUint16(buf[2:4], e.Flags)
 	binary.BigEndian.PutUint32(buf[4:8], e.Color)
 	return buf, nil
 }
@@ -14574,6 +14579,7 @@ func parseOpaqueExtended(isTransitive bool, data []byte) (ExtendedCommunityInter
 		case EC_SUBTYPE_COLOR:
 			return &ColorExtended{
 				Color: binary.BigEndian.Uint32(data[4:8]),
+				Flags: binary.BigEndian.Uint16(data[2:4]),
 			}, nil
 		case EC_SUBTYPE_ENCAPSULATION:
 			return &EncapExtended{
@@ -16256,6 +16262,9 @@ func NewTunnelEncapSubTLVProtocol(protocol uint16) *TunnelEncapSubTLVProtocol {
 type TunnelEncapSubTLVColor struct {
 	TunnelEncapSubTLV
 	Color uint32
+	// Flags of the Color Extended Community in the value (RFC 9012 3.4.2),
+	// sent on as received. See ColorExtended.
+	Flags uint16
 }
 
 func (t *TunnelEncapSubTLVColor) DecodeFromBytes(data []byte) error {
@@ -16267,6 +16276,7 @@ func (t *TunnelEncapSubTLVColor) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Invalid TunnelEncapSubTLVColor length")
 	}
 	t.Color = binary.BigEndian.Uint32(value[4:8])
+	t.Flags = binary.BigEndian.Uint16(value[2:4])
 	return nil
 }
 
@@ -16274,6 +16284,7 @@ func (t *TunnelEncapSubTLVColor) Serialize() ([]byte, error) {
 	var buf [8]byte
 	buf[0] = byte(EC_TYPE_TRANSITIVE_OPAQUE)
 	buf[1] = byte(EC_SUBTYPE_COLOR)
+	binary.BigEndian.PutUint16(buf[2:4], t.Flags)
 	binary.BigEndian.PutUint32(buf[4:8], t.Color)
 	return t.TunnelEncapSubTLV.Serialize(buf[:])
 }

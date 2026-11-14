@@ -1164,6 +1164,35 @@ func Test_LinkBandwidthExtendedKeepsTransitivity(t *testing.T) {
 	}
 }
 
+func Test_ColorExtendedKeepsFlags(t *testing.T) {
+	// RFC 9012 4.3: the Flags field of a Color Extended Community MUST NOT
+	// be changed when it is propagated. RFC 9830 3 uses its two leftmost
+	// bits as the Color-Only type. 3.4.2: the value of the Color sub-TLV is
+	// a Color Extended Community.
+	for name, raw := range map[string][]byte{
+		"extended community": {
+			0xc0, 0x10, 0x08, // EXTENDED_COMMUNITIES
+			0x03, 0x0b, 0x40, 0x00, 0x00, 0x00, 0x00, 0x64, // color 100, CO 01
+		},
+		"tunnel encap color sub-tlv": {
+			0xc0, 0x17, 0x0e, // TUNNEL_ENCAP
+			0x00, 0x08, 0x00, 0x0a, // VXLAN
+			0x04, 0x08, // Color sub-TLV
+			0x03, 0x0b, 0x80, 0x00, 0x00, 0x00, 0x00, 0x64, // color 100, CO 10
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p, err := GetPathAttribute(raw)
+			require.NoError(t, err)
+			require.NoError(t, p.DecodeFromBytes(raw))
+
+			serialized, err := p.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, raw, serialized)
+		})
+	}
+}
+
 func Test_FlowSpecExtended(t *testing.T) {
 	assert := assert.New(t)
 	exts := make([]ExtendedCommunityInterface, 0)
