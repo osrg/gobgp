@@ -1353,6 +1353,26 @@ func Test_ArpNdExtended(t *testing.T) {
 	assert.Equal(t, []byte{0x06, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00}, b)
 }
 
+func Test_EvpnExtendedFlagsIgnoreReservedBits(t *testing.T) {
+	// The flag of each of these communities is the low-order bit of the
+	// Flags octet, so the other bits must not set it or clear it.
+	for _, tt := range []struct {
+		raw  []byte
+		want ExtendedCommunityInterface
+	}{
+		{[]byte{0x06, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x64}, &ESILabelExtended{Label: 100}},
+		{[]byte{0x06, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x64}, &ESILabelExtended{Label: 100, IsSingleActive: true}},
+		{[]byte{0x06, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x05}, &MacMobilityExtended{Sequence: 5}},
+		{[]byte{0x06, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x05}, &MacMobilityExtended{Sequence: 5, IsSticky: true}},
+		{[]byte{0x06, 0x05, 0x02, 0x00, 0x00, 0x00, 0x00, 0x64}, &ETreeExtended{Label: 100}},
+		{[]byte{0x06, 0x05, 0x03, 0x00, 0x00, 0x00, 0x00, 0x64}, &ETreeExtended{Label: 100, IsLeaf: true}},
+	} {
+		e, err := ParseExtended(tt.raw)
+		require.NoError(t, err)
+		assert.Equal(t, tt.want, e, "flags 0x%02x, sub-type 0x%02x", tt.raw[2], tt.raw[1])
+	}
+}
+
 func Test_UnknownEvpnExtended_RoundTrip(t *testing.T) {
 	assert := assert.New(t)
 

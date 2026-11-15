@@ -15095,10 +15095,9 @@ func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 	subType := ExtendedCommunityAttrSubType(data[1])
 	switch subType {
 	case EC_SUBTYPE_ESI_LABEL:
-		var isSingleActive bool
-		if data[2] > 0 {
-			isSingleActive = true
-		}
+		// RFC 7432 7.5: only the low-order bit of the Flags octet is the
+		// Single-Active bit.
+		isSingleActive := data[2]&0x01 != 0
 		label := uint32(data[5])<<16 | uint32(data[6])<<8 | uint32(data[7])
 		return &ESILabelExtended{
 			IsSingleActive: isSingleActive,
@@ -15109,10 +15108,9 @@ func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 			ESImport: net.HardwareAddr(data[2:8]),
 		}, nil
 	case EC_SUBTYPE_MAC_MOBILITY:
-		var isSticky bool
-		if data[2] > 0 {
-			isSticky = true
-		}
+		// RFC 7432 7.7: only the low-order bit of the Flags octet is the
+		// Sticky/static flag.
+		isSticky := data[2]&0x01 != 0
 		seq := binary.BigEndian.Uint32(data[4:8])
 		return &MacMobilityExtended{
 			Sequence: seq,
@@ -15138,10 +15136,9 @@ func parseEvpnExtended(data []byte) (ExtendedCommunityInterface, error) {
 			}, nil
 		}
 	case EC_SUBTYPE_ETREE:
-		var isLeaf bool
-		if data[2] == 1 {
-			isLeaf = true
-		}
+		// RFC 8317 6.1: the L bit is the low-order bit of the Flags
+		// octet, and the reserved bits MUST be ignored by the receiver.
+		isLeaf := data[2]&0x01 != 0
 		label := uint32(data[5])<<16 | uint32(data[6])<<8 | uint32(data[7])
 		return &ETreeExtended{
 			IsLeaf: isLeaf,
