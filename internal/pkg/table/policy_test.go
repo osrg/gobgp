@@ -5059,3 +5059,162 @@ func TestPrefixSetMatchEVPN(t *testing.T) {
 		})
 	}
 }
+
+// A statement binds to the defined-set object, so replacing a set must
+// update that object rather than swap it for a new one.
+func TestReplaceDefinedSetUpdatesPolicy(t *testing.T) {
+	mkPath := func(addr string, asn uint16, prefix string, extra ...bgp.PathAttributeInterface) *Path {
+		peer := &PeerInfo{AS: 65001, Address: netip.MustParseAddr(addr)}
+		nh, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr(addr))
+		attrs := []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAsPathParam(2, []uint16{asn})}),
+			nh,
+		}
+		attrs = append(attrs, extra...)
+		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		msg := bgp.NewBGPUpdateMessage(nil, attrs, []bgp.PathNLRI{{NLRI: nlri}})
+		UpdatePathAttrs4ByteAs(logger, msg.Body.(*bgp.BGPUpdate))
+		return ProcessMessage(msg, peer, time.Now(), false)[0]
+	}
+	rt := func(admin uint32) bgp.PathAttributeInterface {
+		return bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{
+			&bgp.TwoOctetAsSpecificExtended{SubType: bgp.EC_SUBTYPE_ROUTE_TARGET, AS: 65001, LocalAdmin: admin, IsTransitive: true},
+		})
+	}
+	const name = "s1"
+
+	// v selects the set contents (0 = original, 1 = replacement) and the
+	// path that matches them.
+	tests := []struct {
+		name string
+		set  func(t *testing.T, v int) DefinedSet
+		cond oc.Conditions
+		path func(v int) *Path
+	}{
+		{
+			name: "prefix",
+			set: func(t *testing.T, v int) DefinedSet {
+				s, err := NewPrefixSet(oc.PrefixSet{
+					PrefixSetName: name,
+					PrefixList:    []oc.Prefix{{IpPrefix: netip.MustParsePrefix([]string{"10.1.0.0/24", "10.2.0.0/24"}[v])}},
+				})
+				require.NoError(t, err)
+				return s
+			},
+			cond: oc.Conditions{MatchPrefixSet: oc.MatchPrefixSet{PrefixSet: name}},
+			path: func(v int) *Path {
+				return mkPath("10.0.0.1", 65001, []string{"10.1.0.0/24", "10.2.0.0/24"}[v])
+			},
+		},
+		{
+			name: "neighbor",
+			set: func(t *testing.T, v int) DefinedSet {
+				s, err := NewNeighborSet(oc.NeighborSet{
+					NeighborSetName:  name,
+					NeighborInfoList: []string{[]string{"10.0.0.1/32", "10.0.0.2/32"}[v]},
+				})
+				require.NoError(t, err)
+				return s
+			},
+			cond: oc.Conditions{MatchNeighborSet: oc.MatchNeighborSet{NeighborSet: name}},
+			path: func(v int) *Path {
+				return mkPath([]string{"10.0.0.1", "10.0.0.2"}[v], 65001, "10.10.0.0/24")
+			},
+		},
+		{
+			name: "as-path",
+			set: func(t *testing.T, v int) DefinedSet {
+				s, err := NewAsPathSet(oc.AsPathSet{
+					AsPathSetName: name,
+					AsPathList:    []string{[]string{"^65001$", "^65002$"}[v]},
+				})
+				require.NoError(t, err)
+				return s
+			},
+			cond: oc.Conditions{BgpConditions: oc.BgpConditions{MatchAsPathSet: oc.MatchAsPathSet{AsPathSet: name}}},
+			path: func(v int) *Path {
+				return mkPath("10.0.0.1", []uint16{65001, 65002}[v], "10.10.0.0/24")
+			},
+		},
+		{
+			name: "community",
+			set: func(t *testing.T, v int) DefinedSet {
+				s, err := NewCommunitySet(oc.CommunitySet{
+					CommunitySetName: name,
+					CommunityList:    []string{[]string{"65001:100", "65001:200"}[v]},
+				})
+				require.NoError(t, err)
+				return s
+			},
+			cond: oc.Conditions{BgpConditions: oc.BgpConditions{MatchCommunitySet: oc.MatchCommunitySet{CommunitySet: name}}},
+			path: func(v int) *Path {
+				return mkPath("10.0.0.1", 65001, "10.10.0.0/24", bgp.NewPathAttributeCommunities([]uint32{
+					stringToCommunityValue([]string{"65001:100", "65001:200"}[v]),
+				}))
+			},
+		},
+		{
+			name: "ext-community",
+			set: func(t *testing.T, v int) DefinedSet {
+				s, err := NewExtCommunitySet(oc.ExtCommunitySet{
+					ExtCommunitySetName: name,
+					ExtCommunityList:    []string{[]string{"RT:65001:100", "RT:65001:200"}[v]},
+				})
+				require.NoError(t, err)
+				return s
+			},
+			cond: oc.Conditions{BgpConditions: oc.BgpConditions{MatchExtCommunitySet: oc.MatchExtCommunitySet{ExtCommunitySet: name}}},
+			path: func(v int) *Path {
+				return mkPath("10.0.0.1", 65001, "10.10.0.0/24", rt([]uint32{100, 200}[v]))
+			},
+		},
+		{
+			name: "large-community",
+			set: func(t *testing.T, v int) DefinedSet {
+				s, err := NewLargeCommunitySet(oc.LargeCommunitySet{
+					LargeCommunitySetName: name,
+					LargeCommunityList:    []string{[]string{"100:1:1", "100:2:2"}[v]},
+				})
+				require.NoError(t, err)
+				return s
+			},
+			cond: oc.Conditions{BgpConditions: oc.BgpConditions{MatchLargeCommunitySet: oc.MatchLargeCommunitySet{LargeCommunitySet: name}}},
+			path: func(v int) *Path {
+				return mkPath("10.0.0.1", 65001, "10.10.0.0/24", bgp.NewPathAttributeLargeCommunities([]*bgp.LargeCommunity{
+					{ASN: 100, LocalData1: uint32(v + 1), LocalData2: uint32(v + 1)},
+				}))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewRoutingPolicy(logger)
+			require.NoError(t, r.Reset(&oc.RoutingPolicy{}, nil))
+			require.NoError(t, r.AddDefinedSet(tt.set(t, 0), false))
+
+			st, err := NewStatement(oc.Statement{
+				Name:       "st1",
+				Conditions: tt.cond,
+				Actions:    oc.Actions{RouteDisposition: oc.ROUTE_DISPOSITION_ACCEPT_ROUTE},
+			})
+			require.NoError(t, err)
+			require.NoError(t, r.AddStatement(st))
+			require.NoError(t, r.AddPolicy(&Policy{Name: "p1", Statements: []*Statement{{Name: "st1"}}}, true))
+			require.NoError(t, r.AddPolicyAssignment(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT,
+				[]*oc.PolicyDefinition{{Name: "p1"}}, ROUTE_TYPE_REJECT))
+
+			accepted := func(v int) bool {
+				return r.ApplyPolicy(GLOBAL_RIB_NAME, POLICY_DIRECTION_IMPORT, tt.path(v), nil) != nil
+			}
+			require.True(t, accepted(0), "original set must match its path")
+			require.False(t, accepted(1), "original set must not match the replacement's path")
+
+			require.NoError(t, r.AddDefinedSet(tt.set(t, 1), true))
+
+			assert.False(t, accepted(0), "replaced contents must stop matching")
+			assert.True(t, accepted(1), "replacement contents must match")
+		})
+	}
+}
