@@ -16478,7 +16478,7 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 		return NewMessageError(BGP_ERROR_UPDATE_MESSAGE_ERROR, BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST, nil, "Not all TunnelEncapTLV bytes available")
 	}
 	value := data[:t.Length]
-	for len(value) > 2 {
+	for len(value) > 0 {
 		subType := EncapSubTLVType(value[0])
 		var subTlv TunnelEncapSubTLVInterface
 		switch subType {
@@ -16570,7 +16570,7 @@ func (p *PathAttributeTunnelEncap) DecodeFromBytes(data []byte, options ...*Mars
 	if err != nil {
 		return err
 	}
-	for len(value) > 4 {
+	for len(value) > 0 {
 		tlv := &TunnelEncapTLV{}
 		err = tlv.DecodeFromBytes(value)
 		if err != nil {
