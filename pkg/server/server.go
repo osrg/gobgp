@@ -1211,7 +1211,7 @@ func newWatchEventPeer(peer *peer, m *fsmMsg, newState, oldState bgp.FSMState, t
 		PeerAS:        conf.State.PeerAs,
 		LocalAS:       conf.Config.LocalAs,
 		PeerAddress:   conf.State.NeighborAddress,
-		LocalAddress:  conf.Transport.Config.LocalAddress,
+		LocalAddress:  conf.Transport.State.LocalAddress,
 		PeerPort:      conf.Transport.State.RemotePort,
 		LocalPort:     conf.Transport.State.LocalPort,
 		PeerID:        conf.State.RemoteRouterId,

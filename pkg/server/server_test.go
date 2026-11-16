@@ -7085,3 +7085,53 @@ func TestAdminStateRequestQueueFull(t *testing.T) {
 		return len(peer.fsm.adminStateCh) == 0 && peer.AdminState() == adminStateUp
 	}, 10*time.Second, 10*time.Millisecond)
 }
+
+func TestWatchPeerEventLocalAddress(t *testing.T) {
+	ctx := context.Background()
+	s1 := runNewServer(t, 1, "1.1.1.1", 10179)
+	defer s1.StopBgp(ctx, &api.StopBgpRequest{})
+	s2 := runNewServer(t, 2, "2.2.2.2", -1)
+	defer s2.StopBgp(ctx, &api.StopBgpRequest{})
+
+	got := make(chan netip.Addr, 1)
+	_ = s1.WatchEvent(ctx, WatchEventMessageCallbacks{
+		OnPeerUpdate: func(e *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
+			if e == nil || e.Type != apiutil.PEER_EVENT_STATE || e.Peer.State.SessionState != bgp.BGP_FSM_ESTABLISHED {
+				return
+			}
+			select {
+			case got <- e.Peer.Transport.LocalAddress:
+			default:
+			}
+		},
+	}, WatchPeer())
+
+	// No update-source on either side.
+	require.NoError(t, s1.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{
+		Conf:      &api.PeerConf{NeighborAddress: "127.0.0.1", PeerAsn: 2},
+		Transport: &api.Transport{PassiveMode: true},
+	}}))
+	require.NoError(t, s2.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{
+		Conf:      &api.PeerConf{NeighborAddress: "127.0.0.1", PeerAsn: 1},
+		Transport: &api.Transport{RemotePort: 10179},
+		Timers: &api.Timers{Config: &api.TimersConfig{
+			ConnectRetry:           1,
+			IdleHoldTimeAfterReset: 1,
+		}},
+	}}))
+
+	var eventAddr netip.Addr
+	select {
+	case eventAddr = <-got:
+	case <-time.After(10 * time.Second):
+		t.Fatal("no Established peer event")
+	}
+
+	var listAddr string
+	require.NoError(t, s1.ListPeer(ctx, &api.ListPeerRequest{}, func(p *api.Peer) {
+		listAddr = p.Transport.LocalAddress
+	}))
+	require.NotEmpty(t, listAddr)
+	assert.False(t, eventAddr.IsUnspecified(), "event LocalAddress is unspecified")
+	assert.Equal(t, listAddr, eventAddr.String())
+}
