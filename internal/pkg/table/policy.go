@@ -4521,13 +4521,14 @@ func (r *RoutingPolicy) AddDefinedSet(s DefinedSet, replace bool) error {
 	if m, ok := r.definedSetMap[s.Type()]; !ok {
 		return fmt.Errorf("invalid defined-set type: %d", s.Type())
 	} else {
-		if d, ok := m[s.Name()]; ok && !replace {
-			if err := d.Append(s); err != nil {
-				return err
+		if d, ok := m[s.Name()]; ok {
+			// Conditions hold the set pointer, so update it in place.
+			if replace {
+				return d.Replace(s)
 			}
-		} else {
-			m[s.Name()] = s
+			return d.Append(s)
 		}
+		m[s.Name()] = s
 	}
 	return nil
 }
