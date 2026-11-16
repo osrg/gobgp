@@ -798,6 +798,46 @@ func Test_EncapNLRIEndpointClampedToLength(t *testing.T) {
 	assert.Equal("10.0.0.1", nl.String())
 }
 
+func Test_TunnelEncapDecodesWholeValue(t *testing.T) {
+	assert := assert.New(t)
+
+	// A VXLAN TLV with a Tunnel Egress Endpoint sub-TLV and an empty
+	// sub-TLV of type 0x40, then a GRE TLV without sub-TLVs. Both
+	// empty items are the last ones of their enclosing value.
+	buf := []byte{
+		0xc0, 0x17, 0x16,
+		0x00, 0x08, 0x00, 0x0e,
+		0x06, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xc0, 0x00, 0x02, 0x01,
+		0x40, 0x00,
+		0x00, 0x02, 0x00, 0x00,
+	}
+	p := &PathAttributeTunnelEncap{}
+	assert.NoError(p.DecodeFromBytes(buf))
+	assert.Len(p.Value, 2)
+	assert.Len(p.Value[0].Value, 2)
+	b, err := p.Serialize()
+	assert.NoError(err)
+	assert.Equal(buf, b)
+
+	// Octets after the last sub-TLV of a TLV.
+	short := []byte{
+		0xc0, 0x17, 0x11,
+		0x00, 0x08, 0x00, 0x0d,
+		0x06, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xc0, 0x00, 0x02, 0x01,
+		0xff,
+	}
+	assert.Error((&PathAttributeTunnelEncap{}).DecodeFromBytes(short))
+
+	// Octets after the last TLV of the attribute.
+	short = []byte{
+		0xc0, 0x17, 0x13,
+		0x00, 0x08, 0x00, 0x0c,
+		0x06, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xc0, 0x00, 0x02, 0x01,
+		0x00, 0x08, 0x00,
+	}
+	assert.Error((&PathAttributeTunnelEncap{}).DecodeFromBytes(short))
+}
+
 func Test_ASLen(t *testing.T) {
 	assert := assert.New(t)
 
