@@ -438,6 +438,7 @@ func TestDestination_Calculate_ExplicitWithdraw(t *testing.T) {
 	p2 := NewPath(bgp.RF_IPv4_UC, peer2, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
 
 	d := newDestination(nlri, 1, p1, p2)
+	snapshot := d.GetMultiBestPath(GLOBAL_RIB_NAME)
 
 	// Test explicit withdraw
 	withdrawPath := NewPath(bgp.RF_IPv4_UC, peer1, bgp.PathNLRI{NLRI: nlri}, true, attrs, time.Now(), false)
@@ -447,6 +448,10 @@ func TestDestination_Calculate_ExplicitWithdraw(t *testing.T) {
 	assert.Same(t, p1, oldPath)
 	assert.Len(t, update.KnownPathList, 1)
 	assert.Equal(t, peer2.Address.String(), update.KnownPathList[0].GetSource().Address.String())
+	assert.Same(t, p1, snapshot[0], "a queued snapshot still sees the withdrawn path")
+	for _, path := range d.knownPathList[len(d.knownPathList):cap(d.knownPathList)] {
+		assert.Nil(t, path, "the live slice must release its unused slots")
+	}
 
 	_, oldPath = d.Calculate(logger, withdrawPath, oc.RouteSelectionOptionsConfig{})
 	assert.Nil(t, oldPath)
@@ -477,6 +482,22 @@ func TestDestination_Calculate_ImplicitWithdraw(t *testing.T) {
 	assert.Same(t, p1, oldPath)
 	assert.Len(t, update.KnownPathList, 1)
 	assert.Equal(t, uint32(100), update.KnownPathList[0].getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC).(*bgp.PathAttributeMultiExitDisc).Value)
+
+	// An inbound soft reset can replay a path still held by a snapshot reader.
+	snapshot := update.KnownPathList[0]
+	id := snapshot.LocalID()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 100 {
+			if snapshot.LocalID() != id {
+				t.Errorf("local ID changed during replay")
+				return
+			}
+		}
+	}()
+	d.Calculate(logger, p2, oc.RouteSelectionOptionsConfig{})
+	<-done
 }
 
 func TestDestination_GetBestPath_InvalidNexthop(t *testing.T) {

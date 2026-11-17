@@ -93,8 +93,10 @@ type originInfo struct {
 	nlriString string
 	source     *PeerInfo
 	timestamp  int64
-	// stale is the only field written after the path has been handed to
-	// another goroutine. AdjRib.StaleAll writes it through Path.root() while
+	// Zebra compares this origin's last Loc-RIB install with queued snapshots.
+	// Policy and watcher clones share it.
+	LocRIBUpdate atomic.Int64
+	// AdjRib.StaleAll writes stale through Path.root() while
 	// the watcher goroutines read it with IsStale(), and no lock covers both
 	// sides, so it has to be atomic.
 	stale              atomic.Bool
@@ -537,6 +539,7 @@ func (path *Path) Clone(isWithdraw bool) *Path {
 		IsNexthopInvalid: path.IsNexthopInvalid,
 		localID:          path.localID,
 		remoteID:         path.remoteID,
+		dropped:          path.dropped,
 		nh:               path.nh,
 	}
 	p.attrsHash.Store(path.attrsHash.Load())

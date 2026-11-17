@@ -276,6 +276,7 @@ func (manager *TableManager) AddVrf(name string, id uint32, rd bgp.RouteDistingu
 		pattr := make([]bgp.PathAttributeInterface, 0, 2)
 		pattr = append(pattr, bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP))
 		path := NewPath(bgp.RF_RTC_UC, info, bgp.PathNLRI{NLRI: nlri}, false, pattr, time.Now(), false)
+		path.SetDropped(true) // Locally originated RTC paths have no Adj-RIB-In owner.
 		path.setNexthops(Nexthops{global: netip.IPv4Unspecified()})
 		msgs = append(msgs, path)
 	}

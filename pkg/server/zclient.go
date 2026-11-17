@@ -60,6 +60,46 @@ func (m nexthopStateCache) applyToNewPathList(paths []*table.Path) {
 	}
 }
 
+// Watch events use time.Now. Comparing elapsed times keeps RIB changes and
+// snapshots on the same monotonic clock, even if the wall clock is adjusted.
+var zebraEpoch = time.Now()
+
+func nexthopMetricChanged(path *table.Path, metric uint32) bool {
+	if metric == math.MaxUint32 {
+		return !path.IsNexthopInvalid
+	}
+	med, err := path.GetMed()
+	return path.IsNexthopInvalid || err != nil || med != metric
+}
+
+func (z *zebraClient) pendingNexthopUpdates(paths []*table.Path, snapshot time.Time) []*table.Path {
+	z.cacheLock.Lock()
+	defer z.cacheLock.Unlock()
+	if len(z.nexthopCache) == 0 {
+		return nil
+	}
+	var pending []*table.Path
+	// Nexthop notifications typically contain many paths to the same address.
+	var lastHop netip.Addr
+	var metric uint32
+	var found bool
+	observed := snapshot.Sub(zebraEpoch).Nanoseconds()
+	for _, path := range paths {
+		if path == nil || path.IsWithdraw {
+			continue
+		}
+		if hop := path.GetNexthop(); hop != lastHop || !hop.IsValid() {
+			lastHop = hop
+			metric, found = z.nexthopCache[hop]
+		}
+		// Import policy can change the next hop even when the old metric still matches.
+		if path.OriginInfo().LocRIBUpdate.Load() >= observed || found && nexthopMetricChanged(path, metric) {
+			pending = append(pending, path)
+		}
+	}
+	return pending
+}
+
 func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 	updated := make([]*table.Path, 0, len(paths))
 	for _, path := range paths {
@@ -67,21 +107,11 @@ func (m nexthopStateCache) applyToPathList(paths []*table.Path) []*table.Path {
 			continue
 		}
 		metric, ok := m[path.GetNexthop()]
-		if !ok {
-			continue
-		}
-		isNexthopInvalid := metric == math.MaxUint32
-		if isNexthopInvalid && path.IsNexthopInvalid {
-			// Path is already correctly marked as invalid; nothing to do.
-			continue
-		}
-		med, err := path.GetMed()
-		if !isNexthopInvalid && err == nil && med == metric && !path.IsNexthopInvalid {
-			// Path MED already reflects the current nexthop metric; nothing to do.
+		if !ok || !nexthopMetricChanged(path, metric) {
 			continue
 		}
 		newPath := path.Clone(false)
-		if isNexthopInvalid {
+		if metric == math.MaxUint32 {
 			newPath.IsNexthopInvalid = true
 		} else {
 			newPath.IsNexthopInvalid = false
@@ -415,18 +445,31 @@ func (z *zebraClient) getPathListWithNexthopUpdate(body *zebra.NexthopUpdateBody
 	return rib.GetPathListWithNexthop(table.GLOBAL_RIB_NAME, rfList, body.Prefix.Prefix)
 }
 
-func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path) {
-	z.cacheLock.Lock()
-	paths = z.nexthopCache.applyToPathList(paths)
-	z.cacheLock.Unlock()
-	if len(paths) > 0 {
-		if err := z.server.updatePath("", paths); err != nil {
-			z.server.logger.Error("failed to update nexthop reachability",
-				slog.String("Topic", "Zebra"),
-				slog.Any("PathList", paths),
-				slog.String("Error", err.Error()),
-			)
+func (z *zebraClient) updatePathByNexthopCache(paths []*table.Path, snapshot time.Time) {
+	pending := z.pendingNexthopUpdates(paths, snapshot)
+	if len(pending) == 0 {
+		return
+	}
+	s := z.server
+	if err := s.mgmtOperation(func() error {
+		// Withdrawals and import policy changes can overtake a queued event.
+		for i, path := range pending {
+			pending[i] = s.globalRib.GetDestination(path).PathFromOrigin(path)
 		}
+		z.cacheLock.Lock()
+		updated := z.nexthopCache.applyToPathList(pending)
+		z.cacheLock.Unlock()
+		if err := s.fixupApiPath("", updated); err != nil {
+			return err
+		}
+		s.propagateUpdate(nil, updated)
+		return nil
+	}, true); err != nil {
+		s.logger.Error("failed to update nexthop reachability",
+			slog.String("Topic", "Zebra"),
+			slog.Any("PathList", paths),
+			slog.String("Error", err.Error()),
+		)
 	}
 }
 
@@ -470,6 +513,7 @@ func (z *zebraClient) loop() {
 				if !updated {
 					continue
 				}
+				snapshot := time.Now()
 				paths := z.getPathListWithNexthopUpdate(body)
 				if len(paths) == 0 {
 					// If there is no path bound for the given nexthop, send
@@ -486,7 +530,7 @@ func (z *zebraClient) loop() {
 					}
 					continue
 				}
-				z.updatePathByNexthopCache(paths)
+				z.updatePathByNexthopCache(paths, snapshot)
 			case *zebra.GetLabelChunkBody:
 				z.server.logger.Debug("zebra GetLabelChunkBody is received",
 					slog.String("Topic", "Zebra"),
@@ -515,7 +559,7 @@ func (z *zebraClient) loop() {
 				_, multiplePathsOptions := z.globalRibOptions()
 				if multiplePathsOptions.Enabled {
 					for _, paths := range msg.MultiPathList {
-						z.updatePathByNexthopCache(paths)
+						z.updatePathByNexthopCache(paths, msg.Timestamp)
 						for i := range msg.Vrf {
 							if body, isWithdraw := newIPRouteBody(paths, i, z); body != nil {
 								err := z.client.SendIPRoute(i, body, isWithdraw)
@@ -543,7 +587,7 @@ func (z *zebraClient) loop() {
 						}
 					}
 				} else {
-					z.updatePathByNexthopCache(msg.PathList)
+					z.updatePathByNexthopCache(msg.PathList, msg.Timestamp)
 					for _, path := range msg.PathList {
 						for i := range msg.Vrf {
 							if body, isWithdraw := newIPRouteBody([]*table.Path{path}, i, z); body != nil {
