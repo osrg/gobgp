@@ -713,6 +713,42 @@ func Test_MalformedUpdateMsg(t *testing.T) {
 	assert.Equal(ERROR_HANDLING_TREAT_AS_WITHDRAW, err.(*MessageError).ErrorHandling)
 }
 
+// RFC 6793 Section 6: a malformed AS4_PATH or AS4_AGGREGATOR is discarded
+// and the rest of the UPDATE is processed.
+func Test_MalformedAs4AttrsAreDiscarded(t *testing.T) {
+	head := []byte{
+		0x40, 0x01, 0x01, 0x00, // ORIGIN: IGP
+		0x40, 0x02, 0x06, 0x02, 0x01, 0x00, 0x00, 0xfd, 0xe9, // AS_PATH: 65001
+		0x40, 0x03, 0x04, 0x0a, 0x00, 0x00, 0x01, // NEXT_HOP: 10.0.0.1
+	}
+	for _, tc := range []struct {
+		name string
+		typ  BGPAttrType
+		attr []byte
+	}{
+		// a segment of two ASes with room for one
+		{"AS4_PATH", BGP_ATTR_TYPE_AS4_PATH, []byte{0xc0, 0x11, 0x06, 0x02, 0x02, 0x00, 0x00, 0xfd, 0xeb}},
+		// length 7 instead of 8
+		{"AS4_AGGREGATOR", BGP_ATTR_TYPE_AS4_AGGREGATOR, []byte{0xc0, 0x12, 0x07, 0x00, 0x00, 0xfd, 0xed, 0x0a, 0x00, 0x00}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			attrs := append(slices.Clone(head), tc.attr...)
+			bufin := append([]byte{0x00, 0x00, 0x00, byte(len(attrs))}, attrs...)
+			bufin = append(bufin, 0x18, 0xc0, 0xa8, 0x01) // NLRI: 192.168.1.0/24
+
+			u := &BGPUpdate{}
+			err := u.DecodeFromBytes(bufin)
+			require.Error(t, err)
+			assert.Equal(t, ERROR_HANDLING_ATTRIBUTE_DISCARD, err.(*MessageError).ErrorHandling)
+			for _, a := range u.PathAttributes {
+				assert.NotEqual(t, tc.typ, a.GetType())
+			}
+			assert.Len(t, u.PathAttributes, 3)
+			assert.Len(t, u.NLRI, 1)
+		})
+	}
+}
+
 func Test_RFC5512(t *testing.T) {
 	assert := assert.New(t)
 
