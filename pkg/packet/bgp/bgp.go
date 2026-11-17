@@ -16711,7 +16711,12 @@ func (p *PathAttributePmsiTunnel) DecodeFromBytes(data []byte, options ...*Marsh
 
 	switch p.TunnelType {
 	case PMSI_TUNNEL_TYPE_INGRESS_REPL:
-		id, _ := netip.AddrFromSlice(value[5:])
+		id, ok := netip.AddrFromSlice(value[5:])
+		if !ok {
+			eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
+			eSubCode := uint8(BGP_ERROR_SUB_MALFORMED_ATTRIBUTE_LIST)
+			return NewMessageError(eCode, eSubCode, nil, "PMSI Tunnel ingress replication identifier is not an IPv4 or IPv6 address")
+		}
 		p.TunnelID = &IngressReplTunnelID{id}
 	default:
 		p.TunnelID = &DefaultPmsiTunnelID{value[5:]}
