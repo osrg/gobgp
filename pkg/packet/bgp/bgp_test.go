@@ -8397,3 +8397,31 @@ func Test_LsSrv6SIDNLRIHandBuiltTLVOrder(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, data, got)
 }
+
+func Test_PmsiTunnelIngressReplRejectsBadIdentifier(t *testing.T) {
+	for _, tc := range []struct {
+		id    []byte
+		valid bool
+	}{
+		{nil, false},
+		{[]byte{10, 0}, false},
+		{[]byte{10, 0, 0, 1}, true},
+		{[]byte{10, 0, 0, 1, 2}, false},
+		{netip.MustParseAddr("2001:db8::1").AsSlice(), true},
+	} {
+		// Flags, ingress replication tunnel type, MPLS label and the tunnel identifier.
+		v := append([]byte{0x00, 0x06, 0x00, 0x00, 0x10}, tc.id...)
+		data := append([]byte{0xc0, byte(BGP_ATTR_TYPE_PMSI_TUNNEL), byte(len(v))}, v...)
+
+		p := &PathAttributePmsiTunnel{}
+		err := p.DecodeFromBytes(data)
+		if !tc.valid {
+			assert.Error(t, err, "identifier %x", tc.id)
+			continue
+		}
+		require.NoError(t, err, "identifier %x", tc.id)
+		b, err := p.Serialize()
+		require.NoError(t, err)
+		assert.Equal(t, data, b, "identifier %x", tc.id)
+	}
+}
