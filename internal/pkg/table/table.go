@@ -510,12 +510,16 @@ func (t *Table) getOrCreateDest(shard *destinationShard, nlri bgp.NLRI, size int
 // deleteDest removes a destination from the shard.
 // Caller must hold the shard lock before calling this.
 func (t *Table) deleteDest(shard *destinationShard, dest *destination) {
-	count := 0
-	for _, v := range dest.localIdMap.bitmap {
-		count += bits.OnesCount64(v)
-	}
-	if len(dest.localIdMap.bitmap) != 0 && count != 1 {
-		return
+	// A destination that allocates path IDs stays while an ID other than
+	// the reserved zero is in use. One without a Bitmap allocates none.
+	if ids := dest.localIdMap; ids != nil {
+		count := 0
+		for _, v := range ids.bitmap {
+			count += bits.OnesCount64(v)
+		}
+		if len(ids.bitmap) != 0 && count != 1 {
+			return
+		}
 	}
 
 	nlri := dest.GetNlri()

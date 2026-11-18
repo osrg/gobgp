@@ -205,20 +205,34 @@ func NewPeerInfo(g *oc.Global, p *oc.Neighbor, AS, localAS uint32, ID, localID n
 type destination struct {
 	nlri          bgp.NLRI // not mutable
 	knownPathList []*Path
-	localIdMap    *Bitmap
+	// localIdMap holds the local path IDs in use. It is nil for a
+	// destination created with mapSize 0, which never allocates IDs: the
+	// destinations of an Adj-RIB and the snapshots. Every reader has to
+	// accept nil.
+	localIdMap *Bitmap
 }
 
 func newDestination(nlri bgp.NLRI, mapSize int, known ...*Path) *destination {
 	d := &destination{
 		nlri:          nlri,
 		knownPathList: known,
-		localIdMap:    NewBitmap(mapSize),
 	}
-	// the id zero means id is not allocated yet.
 	if mapSize != 0 {
+		d.localIdMap = NewBitmap(mapSize)
+		// the id zero means id is not allocated yet.
 		d.localIdMap.Flag(0)
 	}
 	return d
+}
+
+// idMap returns localIdMap for Calculate, the only writer. A destination
+// created with mapSize 0 gets an empty Bitmap on first use, which is what
+// newDestination used to give it.
+func (dd *destination) idMap() *Bitmap {
+	if dd.localIdMap == nil {
+		dd.localIdMap = NewBitmap(0)
+	}
+	return dd.localIdMap
 }
 
 // no need to lock here as nlri is not mutable
@@ -313,7 +327,7 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path, selection
 		oldPath = dest.explicitWithdraw(logger, newPath)
 		if oldPath != nil && newPath.IsDropped() {
 			if id := oldPath.localID; id != 0 {
-				dest.localIdMap.Unflag(uint(id))
+				dest.idMap().Unflag(uint(id))
 			}
 		}
 	} else {
@@ -323,10 +337,11 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path, selection
 
 	for _, path := range dest.knownPathList {
 		if path.localID == 0 {
-			id, err := dest.localIdMap.FindandSetZeroBit()
+			ids := dest.idMap()
+			id, err := ids.FindandSetZeroBit()
 			if err != nil {
-				dest.localIdMap.Expand()
-				id, _ = dest.localIdMap.FindandSetZeroBit()
+				ids.Expand()
+				id, _ = ids.FindandSetZeroBit()
 			}
 			path.localID = uint32(id)
 		}
