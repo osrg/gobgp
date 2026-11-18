@@ -18,10 +18,12 @@ package table
 import (
 	"bytes"
 	"fmt"
+	"iter"
 	"log/slog"
 	"math/bits"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -112,11 +114,20 @@ func tableKey(nlri bgp.NLRI) addrPrefixKey {
 
 // destinationShard is a sharded bucket that owns both the map subset and the lock
 // that protects both map operations and destination data within this shard.
-// mp is created by the first insert into this shard. Reading a nil map is
-// valid, so only the write paths have to create it.
+//
+// mp holds the first destination of every key. The destinations whose
+// NLRI differs from it but has the same key, a collision of the 64-bit
+// hash, follow it in collisions[key] in the order they were inserted. A
+// key almost never collides, so a destination costs one map entry and no
+// slice, and collisions stays nil.
+//
+// Both maps are created by the first insert into them. Reading a nil map
+// is valid, so only the write paths have to create them. Use the methods
+// below rather than the maps, so that the collisions are never missed.
 type destinationShard struct {
-	mu sync.RWMutex
-	mp map[addrPrefixKey][]*destination
+	mu         sync.RWMutex
+	mp         map[addrPrefixKey]*destination
+	collisions map[addrPrefixKey][]*destination
 }
 
 // destinationShardCount is the number of shards of a table that several
@@ -132,13 +143,140 @@ const (
 	singleShard           = 1
 )
 
-// put stores dests under key and creates mp on the first insert into this
-// shard. The caller must hold the write lock.
-func (s *destinationShard) put(key addrPrefixKey, dests []*destination) {
-	if s.mp == nil {
-		s.mp = make(map[addrPrefixKey][]*destination)
+// lookup returns the destination of nlri, whose key is key, or nil. The
+// caller must hold the lock.
+func (s *destinationShard) lookup(key addrPrefixKey, nlri bgp.NLRI) *destination {
+	d, ok := s.mp[key]
+	if !ok {
+		return nil
 	}
-	s.mp[key] = dests
+	if AddrPrefixOnlyCompare(d.nlri, nlri) == 0 {
+		return d
+	}
+	for _, d := range s.collisions[key] {
+		if AddrPrefixOnlyCompare(d.nlri, nlri) == 0 {
+			return d
+		}
+	}
+	return nil
+}
+
+// first returns the destination that was inserted first under key, or
+// nil. The caller must hold the lock.
+func (s *destinationShard) first(key addrPrefixKey) *destination {
+	return s.mp[key]
+}
+
+// add inserts dest, whose NLRI is not in the shard yet, under key. It
+// reports whether another destination already has that key. The caller
+// must hold the write lock.
+func (s *destinationShard) add(key addrPrefixKey, dest *destination) (collision bool) {
+	if _, ok := s.mp[key]; !ok {
+		if s.mp == nil {
+			s.mp = make(map[addrPrefixKey]*destination)
+		}
+		s.mp[key] = dest
+		return false
+	}
+	if s.collisions == nil {
+		s.collisions = make(map[addrPrefixKey][]*destination)
+	}
+	s.collisions[key] = append(s.collisions[key], dest)
+	return true
+}
+
+// set replaces the destination of the NLRI of dest with dest, or inserts
+// dest if the NLRI is not in the shard. It reports whether dest was
+// inserted under a key that another destination already has. The caller
+// must hold the write lock.
+func (s *destinationShard) set(key addrPrefixKey, dest *destination) (collision bool) {
+	if d, ok := s.mp[key]; ok && AddrPrefixOnlyCompare(d.nlri, dest.nlri) == 0 {
+		s.mp[key] = dest
+		return false
+	}
+	for i, d := range s.collisions[key] {
+		if AddrPrefixOnlyCompare(d.nlri, dest.nlri) == 0 {
+			s.collisions[key][i] = dest
+			return false
+		}
+	}
+	return s.add(key, dest)
+}
+
+// remove removes the destination of nlri, whose key is key, if the shard
+// holds it. When the first destination of a key goes, the next one of
+// collisions[key] takes its place, so the order of the others is kept.
+// The caller must hold the write lock.
+func (s *destinationShard) remove(key addrPrefixKey, nlri bgp.NLRI) {
+	d, ok := s.mp[key]
+	if !ok {
+		return
+	}
+	others := s.collisions[key]
+	if AddrPrefixOnlyCompare(d.nlri, nlri) == 0 {
+		if len(others) == 0 {
+			delete(s.mp, key)
+			return
+		}
+		s.mp[key] = others[0]
+		s.setCollisions(key, others[1:])
+		return
+	}
+	for i, d := range others {
+		if AddrPrefixOnlyCompare(d.nlri, nlri) == 0 {
+			s.setCollisions(key, slices.Delete(others, i, i+1))
+			return
+		}
+	}
+}
+
+func (s *destinationShard) setCollisions(key addrPrefixKey, others []*destination) {
+	if len(others) != 0 {
+		s.collisions[key] = others
+		return
+	}
+	delete(s.collisions, key)
+	if len(s.collisions) == 0 {
+		s.collisions = nil
+	}
+}
+
+// numKeys returns the number of keys that hold a destination. The caller
+// must hold the lock.
+func (s *destinationShard) numKeys() int {
+	return len(s.mp)
+}
+
+// numCollisions returns the number of destinations that share their key
+// with a destination inserted before them. The caller must hold the lock.
+func (s *destinationShard) numCollisions() int {
+	n := 0
+	for _, others := range s.collisions {
+		n += len(others)
+	}
+	return n
+}
+
+// all yields every destination of the shard. The destinations of one key
+// come one after the other, in the order they were inserted. The caller
+// must hold the lock for the whole iteration and must not insert or
+// remove destinations during it.
+func (s *destinationShard) all() iter.Seq[*destination] {
+	return func(yield func(*destination) bool) {
+		for key, d := range s.mp {
+			if !yield(d) {
+				return
+			}
+			if s.collisions == nil {
+				continue
+			}
+			for _, d := range s.collisions[key] {
+				if !yield(d) {
+					return
+				}
+			}
+		}
+	}
 }
 
 type destinationShards []destinationShard
@@ -210,10 +348,8 @@ func (d *Destinations) iterateAllDestinations(fn func(*destination)) {
 	for i := range shards {
 		shard := &shards[i]
 		shard.mu.RLock()
-		for _, dests := range shard.mp {
-			for _, dest := range dests {
-				fn(dest)
-			}
+		for dest := range shard.all() {
+			fn(dest)
 		}
 		shard.mu.RUnlock()
 	}
@@ -227,16 +363,8 @@ func (d *Destinations) Get(nlri bgp.NLRI) *destination {
 	shard.mu.RLock()
 	defer shard.mu.RUnlock()
 
-	key := tableKey(nlri)
-	dests, ok := shard.mp[key]
-	if !ok {
-		return nil
-	}
-
-	for _, dest := range dests {
-		if AddrPrefixOnlyCompare(dest.nlri, nlri) == 0 {
-			return dest.snapshot()
-		}
+	if dest := shard.lookup(tableKey(nlri), nlri); dest != nil {
+		return dest.snapshot()
 	}
 	return nil
 }
@@ -246,25 +374,7 @@ func (d *Destinations) InsertUpdate(dest *destination) (collision bool) {
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
-	nlri := dest.nlri
-	key := tableKey(nlri)
-	new := false
-	if _, ok := shard.mp[key]; !ok {
-		shard.put(key, make([]*destination, 0))
-		new = true
-	}
-	for i, v := range shard.mp[key] {
-		if AddrPrefixOnlyCompare(v.nlri, nlri) == 0 {
-			shard.mp[key][i] = dest
-			return collision
-		}
-	}
-	if !new {
-		// we have collision
-		collision = true
-	}
-	shard.mp[key] = append(shard.mp[key], dest)
-	return collision
+	return shard.set(tableKey(dest.nlri), dest)
 }
 
 func macKeyHash(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) macKey {
@@ -488,22 +598,11 @@ func (t *Table) validatePath(path *Path) {
 // Caller must hold the shard lock before calling this.
 func (t *Table) getOrCreateDest(shard *destinationShard, nlri bgp.NLRI, size int) *destination {
 	key := tableKey(nlri)
-
-	// Check if destination already exists
-	if dests, ok := shard.mp[key]; ok {
-		for _, dest := range dests {
-			if AddrPrefixOnlyCompare(dest.nlri, nlri) == 0 {
-				return dest
-			}
-		}
+	if dest := shard.lookup(key, nlri); dest != nil {
+		return dest
 	}
-
-	// Create and insert new destination
 	dest := newDestination(nlri, size)
-	if _, ok := shard.mp[key]; !ok {
-		shard.put(key, make([]*destination, 0))
-	}
-	shard.mp[key] = append(shard.mp[key], dest)
+	shard.add(key, dest)
 	return dest
 }
 
@@ -523,19 +622,7 @@ func (t *Table) deleteDest(shard *destinationShard, dest *destination) {
 	}
 
 	nlri := dest.GetNlri()
-	key := tableKey(nlri)
-	if _, ok := shard.mp[key]; !ok {
-		return
-	}
-	for i, v := range shard.mp[key] {
-		if AddrPrefixOnlyCompare(v.nlri, nlri) == 0 {
-			shard.mp[key] = append(shard.mp[key][:i], shard.mp[key][i+1:]...)
-			if len(shard.mp[key]) == 0 {
-				delete(shard.mp, key)
-			}
-			break
-		}
-	}
+	shard.remove(tableKey(nlri), nlri)
 
 	// Clean up EVPN mac index
 	if evpnNlri, ok := nlri.(*bgp.EVPNNLRI); ok {
@@ -659,17 +746,9 @@ func (t *Table) SelectDestination(nlri bgp.NLRI, option DestinationSelectOption)
 	shard.mu.RLock()
 	defer shard.mu.RUnlock()
 
-	key := tableKey(nlri)
-	dests, ok := shard.mp[key]
-	if !ok {
-		return nil
-	}
-
-	for _, dest := range dests {
-		if AddrPrefixOnlyCompare(dest.nlri, nlri) == 0 {
-			// Call Select while holding lock, which returns a new destination
-			return dest.Select(option)
-		}
+	if dest := shard.lookup(tableKey(nlri), nlri); dest != nil {
+		// Call Select while holding lock, which returns a new destination
+		return dest.Select(option)
 	}
 	return nil
 }
@@ -787,9 +866,8 @@ func (t *Table) setDestination(dst *destination) {
 		firstPrefix := ""
 		if shard := t.destinations.getShard(dst.GetNlri()); shard != nil {
 			shard.mu.RLock()
-			key := tableKey(dst.GetNlri())
-			if dests, ok := shard.mp[key]; ok && len(dests) > 0 {
-				firstPrefix = dests[0].GetNlri().String()
+			if first := shard.first(tableKey(dst.GetNlri())); first != nil {
+				firstPrefix = first.GetNlri().String()
 			}
 			shard.mu.RUnlock()
 		}
@@ -820,12 +898,10 @@ func (t *Table) Bests(id string, as uint32) []*Path {
 	for i := range shards {
 		shard := &shards[i]
 		shard.mu.RLock()
-		for _, dests := range shard.mp {
-			for _, dest := range dests {
-				path := dest.GetBestPath(id, as)
-				if path != nil {
-					paths = append(paths, path)
-				}
+		for dest := range shard.all() {
+			path := dest.GetBestPath(id, as)
+			if path != nil {
+				paths = append(paths, path)
 			}
 		}
 		shard.mu.RUnlock()
@@ -840,12 +916,10 @@ func (t *Table) MultiBests(id string) [][]*Path {
 	for i := range shards {
 		shard := &shards[i]
 		shard.mu.RLock()
-		for _, dests := range shard.mp {
-			for _, dest := range dests {
-				path := dest.GetMultiBestPath(id)
-				if path != nil {
-					paths = append(paths, path)
-				}
+		for dest := range shard.all() {
+			path := dest.GetMultiBestPath(id)
+			if path != nil {
+				paths = append(paths, path)
 			}
 		}
 		shard.mu.RUnlock()
@@ -860,10 +934,8 @@ func (t *Table) GetKnownPathList(id string, as uint32) []*Path {
 	for i := range shards {
 		shard := &shards[i]
 		shard.mu.RLock()
-		for _, dests := range shard.mp {
-			for _, dest := range dests {
-				paths = append(paths, dest.GetKnownPathList(id, as)...)
-			}
+		for dest := range shard.all() {
+			paths = append(paths, dest.GetKnownPathList(id, as)...)
 		}
 		shard.mu.RUnlock()
 	}
@@ -1139,14 +1211,12 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		for i := range shards {
 			shard := &shards[i]
 			shard.mu.RLock()
-			for _, dests := range shard.mp {
-				for _, dest := range dests {
-					if d := dest.Select(dOption); d != nil {
-						// setDestination expects to receive destinations that can be
-						// safely stored (snapshots or newly created). Since Select()
-						// returns a new destination, this is safe.
-						r.setDestination(d)
-					}
+			for dest := range shard.all() {
+				if d := dest.Select(dOption); d != nil {
+					// setDestination expects to receive destinations that can be
+					// safely stored (snapshots or newly created). Since Select()
+					// returns a new destination, this is safe.
+					r.setDestination(d)
 				}
 			}
 			shard.mu.RUnlock()
@@ -1189,27 +1259,23 @@ func (t *Table) Info(option ...TableInfoOptions) *TableInfo {
 	for i := range shards {
 		shard := &shards[i]
 		shard.mu.RLock()
-		for _, dests := range shard.mp {
-			if len(dests) > 1 {
-				numC += len(dests) - 1
-			}
-			for _, d := range dests {
-				paths := d.GetKnownPathList(id, as)
-				n := len(paths)
+		numC += shard.numCollisions()
+		for d := range shard.all() {
+			paths := d.GetKnownPathList(id, as)
+			n := len(paths)
 
-				if vrf != nil {
-					ps := make([]*Path, 0, len(paths))
-					for _, p := range paths {
-						if CanImportToVrf(vrf, p) {
-							ps = append(ps, p.ToLocal())
-						}
+			if vrf != nil {
+				ps := make([]*Path, 0, len(paths))
+				for _, p := range paths {
+					if CanImportToVrf(vrf, p) {
+						ps = append(ps, p.ToLocal())
 					}
-					n = len(ps)
 				}
-				if n != 0 {
-					numD++
-					numP += n
-				}
+				n = len(ps)
+			}
+			if n != 0 {
+				numD++
+				numP += n
 			}
 		}
 		shard.mu.RUnlock()

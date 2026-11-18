@@ -563,12 +563,7 @@ func activeDest(tbl *Table, nlri bgp.NLRI) *destination {
 	}
 	shard.mu.RLock()
 	defer shard.mu.RUnlock()
-	for _, d := range shard.mp[tableKey(nlri)] {
-		if AddrPrefixOnlyCompare(d.nlri, nlri) == 0 {
-			return d
-		}
-	}
-	return nil
+	return shard.lookup(tableKey(nlri), nlri)
 }
 
 // TestAdjRibDestinationHasNoPathIDMap checks that a destination of the
