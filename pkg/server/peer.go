@@ -290,9 +290,8 @@ func (peer *peer) getAddPathSendMax(family bgp.Family) uint8 {
 	return 0
 }
 
-func (peer *peer) getRoutesCount(family bgp.Family, dstPrefix string) uint8 {
-	destLocalKey := table.NewPathDestLocalKey(family, dstPrefix)
-	if identifiers, ok := peer.sentPaths.Load(*destLocalKey); ok {
+func (peer *peer) getRoutesCount(family bgp.Family, nlri bgp.NLRI) uint8 {
+	if identifiers, ok := peer.sentPaths.Load(table.NewPathDestLocalKey(family, nlri)); ok {
 		count := len(identifiers.(pathIDSet))
 		// the send-max config is uint8, so we need to check for overflow
 		if count > int(^uint8(0)) {

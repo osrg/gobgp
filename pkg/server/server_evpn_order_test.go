@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgryski/go-farm"
 	"github.com/stretchr/testify/require"
 
 	api "github.com/osrg/gobgp/v4/api"
@@ -103,8 +102,7 @@ func TestPropagateUpdateKeepsMacMobilityTargetOrdered(t *testing.T) {
 	// The test is only worth something if the two destinations would not
 	// share a bucket when it is picked from the prefix.
 	byPrefix := func(p *table.Path) uint64 {
-		k := p.GetDestLocalKey()
-		return farm.Hash64([]byte(k.Family.String()+k.Prefix)) % uint64(propagateBucketCount)
+		return p.GetDestLocalKey().Hash() % uint64(propagateBucketCount)
 	}
 	require.NotEqual(t, byPrefix(trigger), byPrefix(local), "pick other RDs")
 
@@ -257,14 +255,12 @@ func TestPropagateBucketEVPNMacIP(t *testing.T) {
 	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 	require.NoError(t, err)
 	v4 := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
-	key := v4.GetDestLocalKey()
-	idx := farm.Hash64([]byte(key.Family.String()+key.Prefix)) % uint64(len(d.propagateBuckets))
+	idx := v4.GetDestLocalKey().Hash() % uint64(len(d.propagateBuckets))
 	require.Same(t, &d.propagateBuckets[idx], d.propagateBucket(v4))
 
 	// So does an EVPN route that carries no MAC address.
 	ead := bgp.NewEVPNEthernetAutoDiscoveryRoute(bgp.NewRouteDistinguisherTwoOctetAS(1, 1), evpnESI1, 0, 100)
 	p := table.NewPath(bgp.RF_EVPN, nil, bgp.PathNLRI{NLRI: ead}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
-	key = p.GetDestLocalKey()
-	idx = farm.Hash64([]byte(key.Family.String()+key.Prefix)) % uint64(len(d.propagateBuckets))
+	idx = p.GetDestLocalKey().Hash() % uint64(len(d.propagateBuckets))
 	require.Same(t, &d.propagateBuckets[idx], d.propagateBucket(p))
 }

@@ -971,8 +971,8 @@ func TestToGlobalPathKeepsRDInKey(t *testing.T) {
 	p1 := newGlobal("100:100")
 	p2 := newGlobal("300:300")
 
-	assert.Equal(t, "100:100:20.0.0.0/24", p1.GetDestLocalKey().Prefix)
-	assert.Equal(t, "300:300:20.0.0.0/24", p2.GetDestLocalKey().Prefix)
+	assert.Equal(t, "100:100:20.0.0.0/24", p1.GetDestLocalKey().String())
+	assert.Equal(t, "300:300:20.0.0.0/24", p2.GetDestLocalKey().String())
 	assert.NotEqual(t, p1.GetLocalKey(), p2.GetLocalKey())
 
 	n := 0
@@ -1161,4 +1161,177 @@ func TestUpdatePathAttrsClusterIDDefaultsToRouterID(t *testing.T) {
 		updated := UpdatePathAttrs(logger, global, client, newPath(nonClient, list))
 		assert.Equal(t, []netip.Addr{routerID, netip.MustParseAddr("10.0.0.200")}, updated.GetClusterList())
 	})
+}
+
+// TestDestLocalKeyFollowsNLRIString checks that two paths of one family have
+// equal destination keys exactly when their NLRIs print the same String(),
+// which is what the keys compared before they kept an IP prefix as a
+// netip.Prefix, and that the key prints that String().
+func TestDestLocalKeyFollowsNLRIString(t *testing.T) {
+	pfx := func(s string) *bgp.IPAddrPrefix {
+		n, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(s))
+		require.NoError(t, err)
+		return n
+	}
+	labeled := func(s string, label uint32) *bgp.LabeledIPAddrPrefix {
+		n, err := bgp.NewLabeledIPAddrPrefix(netip.MustParsePrefix(s), *bgp.NewMPLSLabelStack(label))
+		require.NoError(t, err)
+		return n
+	}
+	vpn := func(rd, s string) *bgp.LabeledVPNIPAddrPrefix {
+		r, err := bgp.ParseRouteDistinguisher(rd)
+		require.NoError(t, err)
+		n, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(s), *bgp.NewMPLSLabelStack(100), r)
+		require.NoError(t, err)
+		return n
+	}
+	rd := bgp.NewRouteDistinguisherTwoOctetAS(65000, 1)
+	mac := func(m string) bgp.NLRI {
+		n, err := bgp.NewEVPNMacIPAdvertisementRoute(rd, bgp.EthernetSegmentIdentifier{}, 0, m, netip.MustParseAddr("192.0.2.1"), nil)
+		require.NoError(t, err)
+		return n
+	}
+	flow := func(s string) bgp.NLRI {
+		n, err := bgp.NewFlowSpecUnicast(bgp.RF_FS_IPv4_UC, []bgp.FlowSpecComponentInterface{bgp.NewFlowSpecDestinationPrefix(pfx(s))})
+		require.NoError(t, err)
+		return n
+	}
+	// An IP prefix NLRI that is not valid prints "invalid Prefix", whatever
+	// its address. Its key must not set them apart.
+	invalid := func(a string) *bgp.IPAddrPrefix {
+		return &bgp.IPAddrPrefix{IPAddrPrefixDefault: bgp.IPAddrPrefixDefault{Prefix: netip.PrefixFrom(netip.MustParseAddr(a), 99)}}
+	}
+
+	type entry struct {
+		family bgp.Family
+		nlri   bgp.NLRI
+	}
+	entries := []entry{
+		{bgp.RF_IPv4_UC, pfx("10.0.0.0/24")},
+		{bgp.RF_IPv4_UC, pfx("10.0.0.0/24")},
+		{bgp.RF_IPv4_UC, pfx("10.0.0.0/25")},
+		{bgp.RF_IPv4_UC, pfx("10.0.1.0/24")},
+		{bgp.RF_IPv4_UC, pfx("0.0.0.0/0")},
+		{bgp.RF_IPv4_UC, invalid("10.0.0.1")},
+		{bgp.RF_IPv4_UC, invalid("10.0.0.2")},
+		{bgp.RF_IPv4_UC, nil},
+		{bgp.RF_IPv6_UC, pfx("2001:db8::/32")},
+		{bgp.RF_IPv6_UC, pfx("2001:db8::/32")},
+		{bgp.RF_IPv6_UC, pfx("::ffff:10.0.0.0/120")},
+		{bgp.RF_IPv6_UC, pfx("::/0")},
+		{bgp.RF_IPv6_UC, nil},
+		// The String() of a labeled prefix leaves the labels out, so two
+		// labels for one prefix are one destination.
+		{bgp.RF_IPv4_MPLS, labeled("10.0.0.0/24", 16)},
+		{bgp.RF_IPv4_MPLS, labeled("10.0.0.0/24", 17)},
+		{bgp.RF_IPv4_MPLS, labeled("10.0.1.0/24", 16)},
+		{bgp.RF_IPv6_MPLS, labeled("2001:db8::/32", 16)},
+		{bgp.RF_IPv4_VPN, vpn("65000:1", "10.0.0.0/24")},
+		{bgp.RF_IPv4_VPN, vpn("65000:1", "10.0.0.0/24")},
+		{bgp.RF_IPv4_VPN, vpn("65000:2", "10.0.0.0/24")},
+		{bgp.RF_EVPN, mac("00:11:22:33:44:55")},
+		{bgp.RF_EVPN, mac("00:11:22:33:44:55")},
+		{bgp.RF_EVPN, mac("00:11:22:33:44:66")},
+		{bgp.RF_FS_IPv4_UC, flow("10.0.0.0/24")},
+		{bgp.RF_FS_IPv4_UC, flow("10.0.1.0/24")},
+	}
+	text := func(n bgp.NLRI) string {
+		if n == nil {
+			return ""
+		}
+		return n.String()
+	}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	paths := make([]*Path, len(entries))
+	for i, e := range entries {
+		paths[i] = NewPath(e.family, nil, bgp.PathNLRI{NLRI: e.nlri}, false, attrs, time.Now(), false)
+		require.NotNil(t, paths[i])
+		k := paths[i].GetDestLocalKey()
+		assert.Equal(t, e.family, k.Family)
+		assert.Equal(t, text(e.nlri), k.String(), "entry %d", i)
+		assert.Equal(t, k, NewPathDestLocalKey(e.family, e.nlri), "entry %d", i)
+	}
+	for i, a := range entries {
+		for j, b := range entries {
+			ka, kb := paths[i].GetDestLocalKey(), paths[j].GetDestLocalKey()
+			same := a.family == b.family && text(a.nlri) == text(b.nlri)
+			assert.Equal(t, same, ka == kb, "entries %d and %d", i, j)
+			if same {
+				assert.Equal(t, ka.Hash(), kb.Hash(), "entries %d and %d", i, j)
+			}
+			la, lb := paths[i].GetLocalKey(), paths[j].GetLocalKey()
+			assert.Equal(t, same, la == lb, "entries %d and %d", i, j)
+		}
+	}
+}
+
+// TestDestLocalKeyOfIPPrefixKeepsNoString checks that a unicast or labeled
+// unicast path keeps no text for its destination key and that building and
+// hashing the key does not allocate, since both run for every path the
+// server sends.
+func TestDestLocalKeyOfIPPrefixKeepsNoString(t *testing.T) {
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	n4, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	require.NoError(t, err)
+	n6, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("2001:db8::/32"))
+	require.NoError(t, err)
+	lu, err := bgp.NewLabeledIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"), *bgp.NewMPLSLabelStack(16))
+	require.NoError(t, err)
+	for _, tt := range []struct {
+		family bgp.Family
+		nlri   bgp.NLRI
+	}{
+		{bgp.RF_IPv4_UC, n4},
+		{bgp.RF_IPv6_UC, n6},
+		{bgp.RF_IPv4_MPLS, lu},
+	} {
+		p := NewPath(tt.family, nil, bgp.PathNLRI{NLRI: tt.nlri}, false, attrs, time.Now(), false)
+		assert.Empty(t, p.OriginInfo().nlriString)
+		var h uint64
+		allocs := testing.AllocsPerRun(100, func() {
+			h ^= p.GetDestLocalKey().Hash()
+			_ = p.GetLocalKey()
+		})
+		assert.Zero(t, allocs, tt.family.String())
+	}
+}
+
+// TestDestLocalKeyFollowsVrfRewrite checks that ToGlobalPath, which puts the
+// RD into the NLRI of the path, also moves its destination key to the new
+// NLRI, for a prefix that is keyed by its netip.Prefix before the rewrite
+// and by its text after it, and for an EVPN route whose NLRI is changed in
+// place.
+func TestDestLocalKeyFollowsVrfRewrite(t *testing.T) {
+	rt, err := bgp.ParseRouteTarget("100:100")
+	require.NoError(t, err)
+	rd, err := bgp.ParseRouteDistinguisher("100:100")
+	require.NoError(t, err)
+	v := &Vrf{Name: "vrf", Rd: rd, ExportRt: []bgp.ExtendedCommunityInterface{rt}}
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}
+
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("20.0.0.0/24"))
+	require.NoError(t, err)
+	p := NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	before := p.GetDestLocalKey()
+	require.NoError(t, v.ToGlobalPath(p))
+	after := p.GetDestLocalKey()
+	assert.NotEqual(t, before, after)
+	assert.Equal(t, bgp.RF_IPv4_VPN, after.Family)
+	assert.Equal(t, "100:100:20.0.0.0/24", after.String())
+	assert.Equal(t, NewPathDestLocalKey(bgp.RF_IPv4_VPN, p.GetNlri()), after)
+	assert.Equal(t, p.GetNlri().String(), p.OriginInfo().nlriString)
+
+	other, err := bgp.ParseRouteDistinguisher("65000:1")
+	require.NoError(t, err)
+	evpn, err := bgp.NewEVPNMacIPAdvertisementRoute(other, bgp.EthernetSegmentIdentifier{}, 0, "00:11:22:33:44:55", netip.MustParseAddr("20.0.0.1"), nil)
+	require.NoError(t, err)
+	p = NewPath(bgp.RF_EVPN, nil, bgp.PathNLRI{NLRI: evpn}, false, attrs, time.Now(), false)
+	before = p.GetDestLocalKey()
+	require.NoError(t, v.ToGlobalPath(p))
+	after = p.GetDestLocalKey()
+	assert.NotEqual(t, before, after)
+	assert.Equal(t, p.GetNlri().String(), after.String())
+	assert.Equal(t, NewPathDestLocalKey(bgp.RF_EVPN, p.GetNlri()), after)
 }
