@@ -92,11 +92,11 @@ func footprintEnvInt(t *testing.T, name string, def int) int {
 	if v == "" {
 		return def
 	}
-	n, err := strconv.Atoi(v)
-	if err != nil || n <= 0 {
+	n, err := strconv.ParseUint(v, 10, 31)
+	if err != nil || n == 0 {
 		t.Fatalf("%s=%q is not a positive integer", name, v)
 	}
-	return n
+	return int(n)
 }
 
 func footprintGC() {
