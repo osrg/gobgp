@@ -3516,12 +3516,22 @@ func (s *BgpServer) adjRibOutForListPath(peer *peer, family bgp.Family, enableFi
 	if enableFiltered {
 		toUpdate = s.policyEvaluatedAdjRibOutPaths(peer, family, filtered)
 	} else {
-		s.getBestFromLocalCallback(peer, peer.configuredRFlist(), true, false, func(paths []*table.Path, _ []*table.Path) {
+		s.getBestFromLocalCallback(peer, adjRibOutFamilies(peer, family), true, false, func(paths []*table.Path, _ []*table.Path) {
 			toUpdate = adjRibOutPathsToUpdate(peer, paths, filtered)
 		})
 	}
 	adjRib.Update(toUpdate)
 	return adjRib
+}
+
+// adjRibOutFamilies returns the configured families of the peer that match
+// the family an adj-out read asks for, keeping duplicates. The read selects
+// that family only, so the export policy is not run on the paths of the
+// other families.
+func adjRibOutFamilies(peer *peer, family bgp.Family) []bgp.Family {
+	return slices.DeleteFunc(peer.configuredRFlist(), func(f bgp.Family) bool {
+		return f != family
+	})
 }
 
 func (s *BgpServer) policyEvaluatedAdjRibOutPaths(peer *peer, family bgp.Family, filtered map[table.PathLocalKey]table.FilteredType) []*table.Path {
@@ -3699,7 +3709,7 @@ func (s *BgpServer) getAdjRibInfo(addr string, family bgp.Family, in bool) (info
 			adjRib = peer.adjRibIn
 		} else {
 			adjRib = table.NewAdjRib(s.logger, peer.configuredRFlist())
-			s.getBestFromLocalCallback(peer, peer.configuredRFlist(), false, false, func(paths []*table.Path, filtered []*table.Path) {
+			s.getBestFromLocalCallback(peer, adjRibOutFamilies(peer, family), false, false, func(paths []*table.Path, filtered []*table.Path) {
 				adjRib.UpdateAdjRibOut(paths)
 			})
 		}
