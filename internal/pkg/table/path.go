@@ -364,6 +364,19 @@ func UpdatePathAttrs(logger *slog.Logger, global *oc.Global, info *PeerInfo, ori
 		if _, y := bgp.PathAttrFlags[a.GetType()]; !y {
 			if a.GetFlags()&bgp.BGP_ATTR_FLAG_TRANSITIVE == 0 {
 				path.delPathAttr(a.GetType())
+			} else if u, ok := a.(*bgp.PathAttributeUnknown); ok && !path.IsLocal() && u.GetFlags()&bgp.BGP_ATTR_FLAG_PARTIAL == 0 {
+				// RFC 4271 5: "If a path with an unrecognized
+				// transitive optional attribute is accepted and
+				// passed to other BGP peers, then the unrecognized
+				// transitive optional attribute of that path MUST be
+				// passed, along with the path, to other BGP peers
+				// with the Partial bit in the Attribute Flags octet
+				// set to 1."
+				// A local path is skipped because its originator
+				// attached the attribute. The attribute is shared
+				// with the original path, so set a new one instead
+				// of changing its flags.
+				path.setPathAttr(bgp.NewPathAttributeUnknown(u.GetFlags()|bgp.BGP_ATTR_FLAG_PARTIAL, u.GetType(), u.Value))
 			}
 		} else {
 			switch a.GetType() {

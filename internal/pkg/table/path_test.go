@@ -1053,6 +1053,84 @@ func TestUpdatePathAttrsAigp(t *testing.T) {
 	}
 }
 
+func TestUpdatePathAttrsUnknownPartial(t *testing.T) {
+	global := &oc.Global{
+		Config: oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("10.0.0.1")},
+	}
+	external := &PeerInfo{
+		AS:       65100,
+		LocalAS:  65000,
+		PeerType: oc.PEER_TYPE_EXTERNAL,
+		ID:       netip.MustParseAddr("10.0.0.4"),
+		Address:  netip.MustParseAddr("10.0.0.4"),
+	}
+	internal := &PeerInfo{
+		AS:       65000,
+		LocalAS:  65000,
+		PeerType: oc.PEER_TYPE_INTERNAL,
+		ID:       netip.MustParseAddr("10.0.0.2"),
+		Address:  netip.MustParseAddr("10.0.0.2"),
+	}
+	rsClient := &PeerInfo{
+		AS:                65200,
+		LocalAS:           65000,
+		PeerType:          oc.PEER_TYPE_EXTERNAL,
+		RouteServerClient: true,
+		ID:                netip.MustParseAddr("10.0.0.5"),
+		Address:           netip.MustParseAddr("10.0.0.5"),
+	}
+	local := &PeerInfo{}
+
+	const (
+		optTrans    = bgp.BGP_ATTR_FLAG_OPTIONAL | bgp.BGP_ATTR_FLAG_TRANSITIVE
+		optTransPar = optTrans | bgp.BGP_ATTR_FLAG_PARTIAL
+	)
+	typ := bgp.BGPAttrType(240)
+
+	for _, tt := range []struct {
+		name   string
+		source *PeerInfo
+		info   *PeerInfo
+		flags  bgp.BGPAttrFlag
+		want   bgp.BGPAttrFlag
+		remove bool
+	}{
+		{"received transitive", external, internal, optTrans, optTransPar, false},
+		{"received transitive extended length", external, internal, optTrans | bgp.BGP_ATTR_FLAG_EXTENDED_LENGTH, optTransPar | bgp.BGP_ATTR_FLAG_EXTENDED_LENGTH, false},
+		{"received partial", external, internal, optTransPar, optTransPar, false},
+		{"local transitive", local, external, optTrans, optTrans, false},
+		{"route server client", external, rsClient, optTrans, optTrans, false},
+		{"received non-transitive", external, internal, bgp.BGP_ATTR_FLAG_OPTIONAL, 0, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.0.0/24"))
+			nexthop, _ := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+			unknown := bgp.NewPathAttributeUnknown(tt.flags, typ, []byte{1, 2, 3, 4})
+			attrs := []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+				bgp.NewPathAttributeAsPath(nil),
+				nexthop,
+				unknown,
+			}
+			path := NewPath(bgp.RF_IPv4_UC, tt.source, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+			updated := UpdatePathAttrs(logger, global, tt.info, path)
+
+			a := updated.getPathAttr(typ)
+			if tt.remove {
+				assert.Nil(t, a)
+				return
+			}
+			require.NotNil(t, a)
+			assert.Equal(t, tt.want, a.GetFlags())
+			assert.Equal(t, []byte{1, 2, 3, 4}, a.(*bgp.PathAttributeUnknown).Value)
+
+			// The attribute of the original path must not change.
+			assert.Equal(t, tt.flags, unknown.GetFlags())
+			assert.Equal(t, tt.flags, path.getPathAttr(typ).GetFlags())
+		})
+	}
+}
+
 func TestUpdatePathAttrsReflectToNonClient(t *testing.T) {
 	global := &oc.Global{Config: oc.GlobalConfig{As: 65000, RouterId: netip.MustParseAddr("10.0.0.1")}}
 	clusterID := netip.MustParseAddr("10.0.0.100")
