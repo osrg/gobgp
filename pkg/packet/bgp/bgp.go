@@ -13237,7 +13237,7 @@ func (p *PathAttributeCommunities) DecodeFromBytes(data []byte, options ...*Mars
 	if err != nil {
 		return err
 	}
-	if p.Length%4 != 0 {
+	if p.Length == 0 || p.Length%4 != 0 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "communities length isn't correct")
@@ -15827,7 +15827,7 @@ func (p *PathAttributeExtendedCommunities) DecodeFromBytes(data []byte, options 
 	if err != nil {
 		return err
 	}
-	if p.Length%ExtendedCommunityLen != 0 {
+	if p.Length == 0 || p.Length%ExtendedCommunityLen != 0 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "extendedcommunities length isn't correct")
@@ -16906,7 +16906,7 @@ func (p *PathAttributeIP6ExtendedCommunities) DecodeFromBytes(data []byte, optio
 	if err != nil {
 		return err
 	}
-	if p.Length%IP6ExtendedCommunityLen != 0 {
+	if p.Length == 0 || p.Length%IP6ExtendedCommunityLen != 0 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "extendedcommunities length isn't correct")
@@ -17208,7 +17208,7 @@ func (p *PathAttributeLargeCommunities) DecodeFromBytes(data []byte, options ...
 	if err != nil {
 		return err
 	}
-	if p.Length%12 != 0 {
+	if p.Length == 0 || p.Length%12 != 0 {
 		eCode := uint8(BGP_ERROR_UPDATE_MESSAGE_ERROR)
 		eSubCode := uint8(BGP_ERROR_SUB_ATTRIBUTE_LENGTH_ERROR)
 		return NewMessageError(eCode, eSubCode, nil, "large communities length isn't correct")
