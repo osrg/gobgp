@@ -245,3 +245,58 @@ func TestRestart_PeerAddedNoFamilies(t *testing.T) {
 	assert.Equal(t, []DeferralTimer{{peerB, v4}}, a.StartTimers)
 	assert.True(t, r.Restarting())
 }
+
+func TestRestart_RTCBarrier(t *testing.T) {
+	for _, rtcFirst := range []bool{false, true} {
+		t.Run(map[bool]string{false: "ipv4_before_RTC", true: "RTC_before_ipv4"}[rtcFirst], func(t *testing.T) {
+			r := &Restart{}
+			r.PeerAdded(peerA, []bgp.Family{bgp.RF_RTC_UC, v4, v6})
+			r.PeerAdded(peerB, []bgp.Family{bgp.RF_RTC_UC})
+			require.Empty(t, r.EORReceived(peerB, bgp.RF_RTC_UC).Released)
+			if rtcFirst {
+				a := r.EORReceived(peerA, bgp.RF_RTC_UC)
+				require.Equal(t, []bgp.Family{bgp.RF_RTC_UC}, a.Released)
+				require.True(t, r.Deferred(v4))
+				a = r.EORReceived(peerA, v4)
+				require.Equal(t, []bgp.Family{v4}, a.Released)
+			} else {
+				require.Empty(t, r.EORReceived(peerA, v4).Released)
+				require.True(t, r.Deferred(v4))
+				a := r.EORReceived(peerA, bgp.RF_RTC_UC)
+				require.Equal(t, []bgp.Family{bgp.RF_RTC_UC, v4}, a.Released)
+			}
+			require.False(t, r.Deferred(v4))
+			require.True(t, r.Deferred(v6), "IPv6 still waits independently")
+			require.Equal(t, []bgp.Family{v6}, r.EORReceived(peerA, v6).Released)
+		})
+	}
+}
+
+func TestRestart_RTCBarrierExceptions(t *testing.T) {
+	for _, event := range []struct {
+		name  string
+		apply func(*Restart) RestartActions
+	}{
+		{"timeout", func(r *Restart) RestartActions { return r.TimerExpired(peerB, bgp.RF_RTC_UC) }},
+		{"down", func(r *Restart) RestartActions { return r.PeerDown(peerB) }},
+		{"remove", func(r *Restart) RestartActions { return r.PeerRemoved(peerB) }},
+		{"no_GR", func(r *Restart) RestartActions { return r.PeerEstablished(peerB, Negotiated{}) }},
+		{"R_bit", func(r *Restart) RestartActions {
+			return r.PeerEstablished(peerB, Negotiated{GR: &bgp.CapGracefulRestart{Flags: restartStateBit}})
+		}},
+		{"RTC_not_negotiated", func(r *Restart) RestartActions {
+			return r.PeerEstablished(peerB, Negotiated{Families: map[bgp.Family]bool{v4: true}, GR: grCap(120)})
+		}},
+	} {
+		t.Run(event.name, func(t *testing.T) {
+			r := &Restart{}
+			r.PeerAdded(peerA, []bgp.Family{v4, v6})
+			r.PeerAdded(peerB, []bgp.Family{bgp.RF_RTC_UC})
+			r.EORReceived(peerA, v4)
+			require.True(t, r.Deferred(v4))
+			require.Equal(t, []bgp.Family{bgp.RF_RTC_UC, v4}, event.apply(r).Released)
+			require.False(t, r.Deferred(v4))
+			require.True(t, r.Deferred(v6))
+		})
+	}
+}

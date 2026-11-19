@@ -156,8 +156,12 @@ until it receives the End-of-RIB marker of that family from every peer, as
 [RFC4724](https://tools.ietf.org/html/rfc4724) Section 4.1 requires. A peer
 is not waited for when its OPEN message has the restart flag set (it has
 restarted too) or has no graceful restart capability, and when its session
-ends. The families are independent: ipv4-unicast is advertised as soon as
-its markers are in, even if ipv6-unicast is still waited for.
+ends.
+
+When RTC is enabled, its EOR wait forms a barrier for non-RTC advertisement.
+Once that wait ends, GoBGP sends its RTC routes and EOR without waiting for
+non-RTC EORs. Each non-RTC family is advertised when its own wait also ends,
+so ipv4-unicast can proceed while ipv6-unicast is still waiting.
 
 `deferral-time` bounds the wait for each peer. When it expires for a peer,
 that peer is no longer waited for. The default is 360 seconds.
