@@ -1193,6 +1193,50 @@ func Test_ColorExtendedKeepsFlags(t *testing.T) {
 	}
 }
 
+func Test_TunnelEncapSubTLVColorNotColorExtended(t *testing.T) {
+	// RFC 9012 3.4.2: a Color sub-TLV whose Length is not 8, or whose
+	// Value does not start with 0x030b, is treated as an unrecognized
+	// sub-TLV. Section 13: it MUST remain in the attribute when the
+	// route is propagated.
+	for name, raw := range map[string][]byte{
+		"length 7": {
+			0xc0, 0x17, 0x0d, // TUNNEL_ENCAP
+			0x00, 0x08, 0x00, 0x09, // VXLAN
+			0x04, 0x07, // Color sub-TLV
+			0x03, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x64,
+		},
+		"length 9": {
+			0xc0, 0x17, 0x0f, // TUNNEL_ENCAP
+			0x00, 0x08, 0x00, 0x0b, // VXLAN
+			0x04, 0x09, // Color sub-TLV
+			0x03, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0xff,
+		},
+		"not 0x030b": {
+			0xc0, 0x17, 0x0e, // TUNNEL_ENCAP
+			0x00, 0x08, 0x00, 0x0a, // VXLAN
+			0x04, 0x08, // Color sub-TLV
+			0x43, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p, err := GetPathAttribute(raw)
+			require.NoError(t, err)
+			require.NoError(t, p.DecodeFromBytes(raw))
+
+			tlvs := p.(*PathAttributeTunnelEncap).Value
+			require.Len(t, tlvs, 1)
+			require.Len(t, tlvs[0].Value, 1)
+			sub, ok := tlvs[0].Value[0].(*TunnelEncapSubTLVUnknown)
+			require.True(t, ok, "got %T", tlvs[0].Value[0])
+			assert.Equal(t, ENCAP_SUBTLV_TYPE_COLOR, sub.Type)
+
+			serialized, err := p.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, raw, serialized)
+		})
+	}
+}
+
 func Test_FlowSpecExtended(t *testing.T) {
 	assert := assert.New(t)
 	exts := make([]ExtendedCommunityInterface, 0)

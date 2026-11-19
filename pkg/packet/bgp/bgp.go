@@ -16495,7 +16495,21 @@ func (t *TunnelEncapTLV) DecodeFromBytes(data []byte) error {
 		case ENCAP_SUBTLV_TYPE_PROTOCOL:
 			subTlv = &TunnelEncapSubTLVProtocol{}
 		case ENCAP_SUBTLV_TYPE_COLOR:
-			subTlv = &TunnelEncapSubTLVColor{}
+			// RFC 9012 3.4.2: "If the Length field of a Color sub-TLV
+			// has a value other than 8, or the first two octets of its
+			// Value field are not 0x030b, the sub-TLV MUST be treated as
+			// if it were an unrecognized sub-TLV (see Section 13)."
+			// Keep such a sub-TLV as it is, so that it is propagated
+			// unchanged.
+			if len(value) >= 4 && value[1] == 8 && value[2] == byte(EC_TYPE_TRANSITIVE_OPAQUE) && value[3] == byte(EC_SUBTYPE_COLOR) {
+				subTlv = &TunnelEncapSubTLVColor{}
+			} else {
+				subTlv = &TunnelEncapSubTLVUnknown{
+					TunnelEncapSubTLV: TunnelEncapSubTLV{
+						Type: subType,
+					},
+				}
+			}
 		case ENCAP_SUBTLV_TYPE_UDP_DEST_PORT:
 			subTlv = &TunnelEncapSubTLVUDPDestPort{}
 		case ENCAP_SUBTLV_TYPE_EGRESS_ENDPOINT:
