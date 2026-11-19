@@ -8594,3 +8594,39 @@ func Test_PmsiTunnelIngressReplRejectsBadIdentifier(t *testing.T) {
 		assert.Equal(t, data, b, "identifier %x", tc.id)
 	}
 }
+
+func Test_CommunityAttrsRejectZeroLength(t *testing.T) {
+	// RFC 7606 Sections 7.8, 7.14 and 7.15 and RFC 8092 Section 6
+	// consider these attributes malformed unless their length is a
+	// non-zero multiple of the size of one community.
+	for _, tc := range []struct {
+		typ BGPAttrType
+		one []byte
+	}{
+		{BGP_ATTR_TYPE_COMMUNITIES, []byte{0xfd, 0xe8, 0x00, 0x64}},
+		{BGP_ATTR_TYPE_EXTENDED_COMMUNITIES, []byte{0x00, 0x02, 0xfd, 0xe8, 0x00, 0x00, 0x00, 0x64}},
+		{BGP_ATTR_TYPE_IP6_EXTENDED_COMMUNITIES, append(append([]byte{0x00, 0x02}, netip.MustParseAddr("2001:db8::1").AsSlice()...), 0x00, 0x64)},
+		{BGP_ATTR_TYPE_LARGE_COMMUNITY, []byte{0x00, 0x00, 0xfd, 0xe8, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02}},
+	} {
+		for _, value := range [][]byte{nil, tc.one} {
+			attrs := []byte{
+				0x40, 0x01, 0x01, 0x00, // ORIGIN
+				0x40, 0x02, 0x00, // AS_PATH
+				0x40, 0x03, 0x04, 0x0a, 0x00, 0x00, 0x01, // NEXT_HOP
+				0xc0, byte(tc.typ), byte(len(value)),
+			}
+			attrs = append(attrs, value...)
+			buf := []byte{0x00, 0x00, 0x00, byte(len(attrs))}
+			buf = append(buf, attrs...)
+			buf = append(buf, 0x18, 0xc0, 0x00, 0x02) // 192.0.2.0/24
+
+			err := (&BGPUpdate{}).DecodeFromBytes(buf)
+			if len(value) > 0 {
+				assert.NoError(t, err, "%s of %d octets", tc.typ, len(value))
+				continue
+			}
+			require.Error(t, err, "empty %s", tc.typ)
+			assert.Equal(t, ERROR_HANDLING_TREAT_AS_WITHDRAW, err.(*MessageError).ErrorHandling, "empty %s", tc.typ)
+		}
+	}
+}
