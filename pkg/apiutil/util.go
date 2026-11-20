@@ -173,15 +173,22 @@ func NewDestination(dst *api.Destination) *Destination {
 		nlri, _ := GetNativeNlri(p)
 		attrs, _ := GetNativePathAttributes(p)
 		l = append(l, &Path{
-			Nlri:            nlri,
-			Age:             p.Age.AsTime().Unix(),
-			Best:            p.Best,
-			Attrs:           attrs,
-			Stale:           p.Stale,
-			SendMaxFiltered: p.SendMaxFiltered,
-			Withdrawal:      p.IsWithdraw,
-			PeerID:          src,
-			PeerAddress:     neighbor,
+			Nlri:               nlri,
+			Age:                p.Age.AsTime().Unix(),
+			Best:               p.Best,
+			Attrs:              attrs,
+			Stale:              p.Stale,
+			SendMaxFiltered:    p.SendMaxFiltered,
+			Withdrawal:         p.IsWithdraw,
+			PeerASN:            p.SourceAsn,
+			PeerID:             src,
+			PeerAddress:        neighbor,
+			IsFromExternal:     p.IsFromExternal,
+			NoImplicitWithdraw: p.NoImplicitWithdraw,
+			IsNexthopInvalid:   p.IsNexthopInvalid,
+			Filtered:           p.Filtered,
+			RemoteID:           p.Identifier,
+			LocalID:            p.LocalIdentifier,
 		})
 	}
 	return &Destination{Paths: l}
