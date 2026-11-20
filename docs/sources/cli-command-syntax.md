@@ -45,9 +45,9 @@ gobgp has the following subcommands.
 # delete all locally generated routes
 % gobgp global rib del all [-a <address family>]
 # show all Route information
-% gobgp global rib [-a <address family>]
+% gobgp global rib [-a <address family>] [--show-path-id]
 # show a specific route information
-% gobgp global rib [<prefix>|<host>] [rd <rd>] [longer-prefixes|shorter-prefixes] [-a <address family>]
+% gobgp global rib [<prefix>|<host>] [rd <rd>] [longer-prefixes|shorter-prefixes] [-a <address family>] [--show-path-id]
 # show table summary
 % gobgp global rib summary [-a <address family>]
 ```
@@ -102,6 +102,7 @@ The following options can be specified in the global subcommand:
 | short  |long           | description                                | default |
 |--------|---------------|--------------------------------------------|---------|
 |a       |address-family |specify any one from among `ipv4`, `ipv6`, `vpnv4`, `vpnv6`, `ipv4-labeled`, `ipv6-labeled`, `evpn`, `encap`, `rtc`, `ipv4-flowspec`, `ipv6-flowspec`, `l2vpn-flowspec`, `ipv4-mup`, `ipv6-mup`,  `opaque` | `ipv4` |
+|        |show-path-id    |on `gobgp global rib` show, print each path's `identifier` (received or injected) and `local_identifier` (assigned by GoBGP). Default table output is unchanged. A value of `0` is printed. | disabled |
 
 Also, refer to the following for the detail syntax of each address family.
 
