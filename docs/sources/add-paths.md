@@ -167,3 +167,5 @@ r1> gobgp global rib -a ipv4
 *> 192.168.1.0/24       10.0.0.2             65002 65003          HH:mm:ss   [{Origin: ?}]
 *  192.168.1.0/24       10.0.0.2             65002 65004          HH:mm:ss   [{Origin: ?}]
 ```
+
+The default global RIB table does not print ADD-PATH identifiers. `gobgp global rib --show-path-id` adds `ID` (`identifier`, the received or injected path ID) and `LocalID` (`local_identifier`, assigned by GoBGP) so otherwise identical local paths can be told apart. `0` is a real identifier and is printed.

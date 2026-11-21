@@ -100,6 +100,8 @@ var subOpts struct {
 	BatchSize     uint64 `short:"b" long:"batch-size" description:"Size of the temporary buffer in the server memory. Zero is unlimited (default)"`
 }
 
+var showPathID bool
+
 var neighborsOpts struct {
 	Reason    string `short:"r" long:"reason" description:"specifying communication field on Cease NOTIFICATION message with Administrative Shutdown subcode"`
 	Transport string `short:"t" long:"transport" description:"specifying a transport protocol"`

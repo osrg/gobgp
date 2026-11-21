@@ -613,6 +613,8 @@ func makeShowRouteArgs(p *api.Path, idx int, now time.Time, showAge, showBest, s
 		args = append(args, fmt.Sprint(p.GetIdentifier()))
 	case bgp.BGP_ADD_PATH_SEND:
 		args = append(args, fmt.Sprint(p.GetLocalIdentifier()))
+	case bgp.BGP_ADD_PATH_BOTH:
+		args = append(args, fmt.Sprint(p.GetIdentifier()), fmt.Sprint(p.GetLocalIdentifier()))
 	}
 
 	// NLRI
@@ -693,7 +695,12 @@ func showRoute(dsts []*api.Destination, showAge, showBest, showLabel, showMUP, s
 	var format string
 	headers = append(headers, "") // Symbols
 	format = fmt.Sprintf("%%-3s")
-	if showIdentifier != bgp.BGP_ADD_PATH_NONE {
+	switch showIdentifier {
+	case bgp.BGP_ADD_PATH_BOTH:
+		headers = append(headers, "ID", "LocalID")
+		format += "%-5s %-8s "
+	case bgp.BGP_ADD_PATH_NONE:
+	default:
 		headers = append(headers, "ID")
 		format += "%-3s "
 	}
@@ -886,6 +893,9 @@ func showNeighborRib(r string, name string, args []string) error {
 	case cmdGlobal:
 		def = ipv4UC
 		showBest = true
+		if showPathID {
+			showIdentifier = bgp.BGP_ADD_PATH_BOTH
+		}
 	case cmdLocal:
 		showBest = true
 	case cmdAdjOut:
