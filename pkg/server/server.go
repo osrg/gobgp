@@ -163,8 +163,7 @@ func (d *sharedData) propagateBucket(path *table.Path) *sync.Mutex {
 		}
 	}
 	// note: we can't use path.GetNlri().Serialize() here as peer.sentPaths is indexed by destLocalKey
-	destLocalKey := path.GetDestLocalKey()
-	idx := farm.Hash64([]byte(destLocalKey.Family.String()+destLocalKey.Prefix)) % uint64(len(d.propagateBuckets))
+	idx := path.GetDestLocalKey().Hash() % uint64(len(d.propagateBuckets))
 	return &d.propagateBuckets[idx]
 }
 
@@ -1792,7 +1791,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 					// if the path is not filtered and the path has already been sent or land in the limit, we can send it
 					if newPath == nil {
 						bestList = []*table.Path{}
-					} else if alreadySent || targetPeer.getRoutesCount(f, newPath.GetPrefix()) < targetPeer.getAddPathSendMax(f) {
+					} else if alreadySent || targetPeer.getRoutesCount(f, newPath.GetNlri()) < targetPeer.getAddPathSendMax(f) {
 						bestList = []*table.Path{newPath}
 						if !alreadySent {
 							targetPeer.updateRoutes(newPath)

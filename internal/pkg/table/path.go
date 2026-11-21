@@ -89,7 +89,10 @@ func NewBitmap(size int) *Bitmap {
 }
 
 type originInfo struct {
-	nlri       bgp.NLRI
+	nlri bgp.NLRI
+	// nlriString is destKeyString(nlri): the String() of an NLRI that
+	// PathDestLocalKey keys by its text, and empty for an IP prefix, which
+	// it keys by the prefix. Whoever changes nlri has to set it again.
 	nlriString string
 	source     *PeerInfo
 	timestamp  int64
@@ -170,20 +173,93 @@ const (
 	SendMaxFiltered
 )
 
+// PathDestLocalKey identifies a destination in the local BGP server. Two
+// keys are equal exactly when their families are equal and their NLRIs
+// print the same String().
+//
+// The String() of a valid IP prefix, plain or labeled, is the String() of
+// its netip.Prefix, and two netip.Prefix values print the same text exactly
+// when they are equal. Its key holds the netip.Prefix, so a unicast path
+// needs no string of its own for it. The key of any other NLRI holds its
+// String(). A family carries either IP prefixes or other NLRIs, never both,
+// so the two kinds of key never have to match each other.
 type PathDestLocalKey struct {
 	Family bgp.Family
-	Prefix string
+	// prefix is the prefix of an IP prefix NLRI. It is the zero Prefix,
+	// which is not valid, when the key is nlri.
+	prefix netip.Prefix
+	nlri   string
 }
+
 type PathLocalKey struct {
 	PathDestLocalKey
 	Id uint32
 }
 
-func NewPathDestLocalKey(f bgp.Family, destPrefix string) *PathDestLocalKey {
-	return &PathDestLocalKey{
-		Family: f,
-		Prefix: destPrefix,
+// NewPathDestLocalKey returns the key of the destination of nlri in family
+// f, the key that GetDestLocalKey returns for a path of f with that NLRI.
+func NewPathDestLocalKey(f bgp.Family, nlri bgp.NLRI) PathDestLocalKey {
+	return destLocalKey(f, nlri, destKeyString(nlri))
+}
+
+// keyPrefix returns the prefix that PathDestLocalKey keys nlri by, if nlri
+// is a valid IP prefix whose String() is the String() of that prefix.
+func keyPrefix(nlri bgp.NLRI) (netip.Prefix, bool) {
+	var p netip.Prefix
+	switch n := nlri.(type) {
+	case *bgp.IPAddrPrefix:
+		p = n.Prefix
+	case *bgp.LabeledIPAddrPrefix:
+		p = n.Prefix
+	default:
+		return netip.Prefix{}, false
 	}
+	return p, p.IsValid()
+}
+
+// destKeyString returns the text that PathDestLocalKey keys nlri by: empty
+// for an NLRI keyed by its prefix or for no NLRI, and String() otherwise.
+func destKeyString(nlri bgp.NLRI) string {
+	if nlri == nil {
+		return ""
+	}
+	if _, ok := keyPrefix(nlri); ok {
+		return ""
+	}
+	return nlri.String()
+}
+
+// destLocalKey builds the key of nlri in family f. s is destKeyString(nlri).
+func destLocalKey(f bgp.Family, nlri bgp.NLRI, s string) PathDestLocalKey {
+	if p, ok := keyPrefix(nlri); ok {
+		return PathDestLocalKey{Family: f, prefix: p}
+	}
+	return PathDestLocalKey{Family: f, nlri: s}
+}
+
+// String returns the String() of the NLRI of the key.
+func (k PathDestLocalKey) String() string {
+	if k.prefix.IsValid() {
+		return k.prefix.String()
+	}
+	return k.nlri
+}
+
+// Hash returns a hash of the key. Equal keys have the same hash.
+func (k PathDestLocalKey) Hash() uint64 {
+	var b [4 + 16 + 2]byte
+	binary.BigEndian.PutUint32(b[:4], uint32(k.Family))
+	if !k.prefix.IsValid() {
+		return farm.Hash64WithSeed([]byte(k.nlri), farm.Hash64(b[:4]))
+	}
+	addr := k.prefix.Addr()
+	a := addr.As16()
+	copy(b[4:20], a[:])
+	b[20] = byte(k.prefix.Bits())
+	if addr.Is4() {
+		b[21] = 1
+	}
+	return farm.Hash64(b[:])
 }
 
 var localSource = &PeerInfo{}
@@ -195,15 +271,11 @@ func NewPath(family bgp.Family, source *PeerInfo, pathnlri bgp.PathNLRI, isWithd
 	if !isWithdraw && pattrs == nil {
 		return nil
 	}
-	nlriString := ""
-	if pathnlri.NLRI != nil {
-		nlriString = pathnlri.NLRI.String()
-	}
 	pattrs, nh := extractNexthops(pattrs)
 	return &Path{
 		info: &originInfo{
 			nlri:               pathnlri.NLRI,
-			nlriString:         nlriString,
+			nlriString:         destKeyString(pathnlri.NLRI),
 			source:             source,
 			timestamp:          timestamp.Unix(),
 			noImplicitWithdraw: noImplicitWithdraw,
@@ -899,10 +971,8 @@ func (path *Path) GetLocalKey() PathLocalKey {
 
 // GetDestLocalKey identifies the path destination in the local BGP server.
 func (path *Path) GetDestLocalKey() PathDestLocalKey {
-	return PathDestLocalKey{
-		Family: path.GetFamily(),
-		Prefix: path.OriginInfo().nlriString,
-	}
+	info := path.OriginInfo()
+	return destLocalKey(path.GetFamily(), info.nlri, info.nlriString)
 }
 
 func (path *Path) GetPrefix() string {
@@ -1529,9 +1599,9 @@ func (v *Vrf) ToGlobalPath(path *Path) error {
 	default:
 		return fmt.Errorf("unsupported route family for vrf: %s", rf)
 	}
-	// The NLRI now carries the RD, so the string that the destination keys
+	// The NLRI now carries the RD, so the text that the destination keys
 	// such as GetDestLocalKey are built from has to follow it.
-	path.OriginInfo().nlriString = path.OriginInfo().nlri.String()
+	path.OriginInfo().nlriString = destKeyString(path.OriginInfo().nlri)
 	path.SetExtCommunities(v.ExportRt, false)
 	path.SetNexthop(nh)
 	return nil
