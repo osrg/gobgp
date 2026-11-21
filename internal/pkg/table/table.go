@@ -22,6 +22,7 @@ import (
 	"math/bits"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -902,9 +903,9 @@ func mustIPAddrPrefix(prefix netip.Prefix) *bgp.IPAddrPrefix {
 }
 
 // checkLookupFamily returns an error when key, an address or a prefix, is
-// not of the IPv4 or IPv6 unicast family f. An IPv4 address on an IPv6
-// table would give a prefix longer than the address. A key that does not
-// parse is left to the lookup, which reports it.
+// not of the IPv4 or IPv6 family f, unicast or labeled unicast. An IPv4
+// address on an IPv6 table would give a prefix longer than the address. A
+// key that does not parse is left to the lookup, which reports it.
 func checkLookupFamily(f bgp.Family, key string) error {
 	addr, err := netip.ParseAddr(key)
 	if err != nil {
@@ -914,10 +915,122 @@ func checkLookupFamily(f bgp.Family, key string) error {
 		}
 		addr = prefix.Addr()
 	}
-	if addr.Is4() != (f == bgp.RF_IPv4_UC) {
+	if addr.Is4() != isIPv4LookupFamily(f) {
 		return fmt.Errorf("%s does not match the %s family", key, f)
 	}
 	return nil
+}
+
+func isIPv4LookupFamily(f bgp.Family) bool {
+	return f == bgp.RF_IPv4_UC || f == bgp.RF_IPv4_MPLS
+}
+
+// lookupNLRI is the NLRI a prefix-string lookup reads in a unicast or
+// labeled-unicast table. A labeled destination is keyed by its prefix, so
+// the label stack is left empty, and the prefix is masked as a received
+// one is.
+func lookupNLRI(f bgp.Family, prefix netip.Prefix) bgp.NLRI {
+	switch f {
+	case bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
+		nlri, err := bgp.NewLabeledIPAddrPrefix(prefix.Masked(), *bgp.NewMPLSLabelStack())
+		if err != nil {
+			panic("lookupNLRI called with invalid prefix: " + err.Error())
+		}
+		return nlri
+	}
+	return mustIPAddrPrefix(prefix)
+}
+
+// checkNLRILookup returns an error when an NLRI lookup also names a prefix
+// string, a route distinguisher or a longer or shorter lookup, or when the
+// NLRI is not of family f, as CheckNLRIFamily decides.
+func checkNLRILookup(f bgp.Family, p *apiutil.LookupPrefix) error {
+	if p.Prefix != "" || p.RD != "" {
+		return fmt.Errorf("a lookup by NLRI takes no prefix string and no route distinguisher")
+	}
+	switch p.LookupOption {
+	case apiutil.LOOKUP_LONGER, apiutil.LOOKUP_SHORTER:
+		return fmt.Errorf("a lookup by NLRI is exact; a longer or shorter lookup takes a prefix string")
+	}
+	return CheckNLRIFamily(f, p.NLRI)
+}
+
+// CheckNLRIFamily returns an error unless nlri is an NLRI of family f. It
+// checks the concrete type of the NLRI and its own address family, never a
+// byte round trip, which can decode one type as another: an IPv4
+// encapsulation endpoint parses as an IPv4 host prefix, and as an IPv6
+// encapsulation endpoint too. A type it does not know is refused.
+func CheckNLRIFamily(f bgp.Family, nlri bgp.NLRI) error {
+	want := func(families ...bgp.Family) error {
+		if slices.Contains(families, f) {
+			return nil
+		}
+		return fmt.Errorf("the NLRI %s is not of the %s family", nlri, f)
+	}
+	byAddress := func(addr netip.Addr, v4, v6 []bgp.Family) error {
+		switch {
+		case addr.Is4():
+			return want(v4...)
+		case addr.Is6():
+			return want(v6...)
+		}
+		return want()
+	}
+	switch n := nlri.(type) {
+	case *bgp.IPAddrPrefix:
+		return byAddress(n.Prefix.Addr(), []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv4_MC}, []bgp.Family{bgp.RF_IPv6_UC, bgp.RF_IPv6_MC})
+	case *bgp.LabeledIPAddrPrefix:
+		return byAddress(n.Prefix.Addr(), []bgp.Family{bgp.RF_IPv4_MPLS}, []bgp.Family{bgp.RF_IPv6_MPLS})
+	case *bgp.LabeledVPNIPAddrPrefix:
+		return byAddress(n.Prefix.Addr(), []bgp.Family{bgp.RF_IPv4_VPN, bgp.RF_IPv4_VPN_MC}, []bgp.Family{bgp.RF_IPv6_VPN, bgp.RF_IPv6_VPN_MC})
+	case *bgp.EncapNLRI:
+		return byAddress(n.Endpoint, []bgp.Family{bgp.RF_IPv4_ENCAP}, []bgp.Family{bgp.RF_IPv6_ENCAP})
+	case *bgp.FlowSpecNLRI:
+		if err := want(n.Family()); err != nil {
+			return err
+		}
+		v6 := f.Afi() == bgp.AFI_IP6
+		for _, c := range n.Value {
+			switch c.(type) {
+			case *bgp.FlowSpecDestinationPrefix, *bgp.FlowSpecSourcePrefix:
+				if v6 {
+					return fmt.Errorf("the NLRI %s has an IPv4 prefix in the %s family", nlri, f)
+				}
+			case *bgp.FlowSpecDestinationPrefix6, *bgp.FlowSpecSourcePrefix6:
+				if !v6 {
+					return fmt.Errorf("the NLRI %s has an IPv6 prefix in the %s family", nlri, f)
+				}
+			}
+		}
+		return nil
+	case *bgp.EVPNNLRI:
+		return want(bgp.RF_EVPN)
+	case *bgp.VPLSNLRI:
+		return want(bgp.RF_VPLS)
+	case *bgp.RouteTargetMembershipNLRI:
+		return want(bgp.RF_RTC_UC)
+	case *bgp.LsAddrPrefix:
+		return want(bgp.RF_LS)
+	case *bgp.OpaqueNLRI:
+		return want(bgp.RF_OPAQUE)
+	case *bgp.MUPNLRI:
+		switch n.Afi {
+		case bgp.AFI_IP:
+			return want(bgp.RF_MUP_IPv4)
+		case bgp.AFI_IP6:
+			return want(bgp.RF_MUP_IPv6)
+		}
+		return want()
+	case *bgp.SRPolicyNLRI:
+		switch len(n.Endpoint) {
+		case 4:
+			return want(bgp.RF_SR_POLICY_IPv4)
+		case 16:
+			return want(bgp.RF_SR_POLICY_IPv6)
+		}
+		return want()
+	}
+	return fmt.Errorf("an NLRI of type %T cannot be looked up", nlri)
 }
 
 // ContainsCIDR checks if one IPNet is a subnet of another.
@@ -951,9 +1064,28 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 	dOption := DestinationSelectOption{ID: id, AS: as, VRF: vrf, adj: adj, Best: best, MultiPath: mp}
 	r := newSingleShardTable(nil, t.Family)
 
+	filtered := len(prefixes) != 0
+	// A lookup by NLRI names one destination by the identity the table keys
+	// it by. It is an exact lookup in every family, never a longest-prefix
+	// match, and it does not take a prefix string or a route distinguisher.
+	stringKeys := prefixes[:0:0]
+	for _, p := range prefixes {
+		if p.NLRI == nil {
+			stringKeys = append(stringKeys, p)
+			continue
+		}
+		if err := checkNLRILookup(t.Family, p); err != nil {
+			return nil, err
+		}
+		if d := t.SelectDestination(p.NLRI, dOption); d != nil {
+			r.setDestination(d)
+		}
+	}
+	prefixes = stringKeys
+
 	if len(prefixes) != 0 {
 		switch t.Family {
-		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC:
+		case bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_MPLS, bgp.RF_IPv6_MPLS:
 			for _, p := range prefixes {
 				key := p.Prefix
 				if err := checkLookupFamily(t.Family, key); err != nil {
@@ -976,7 +1108,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						return nil, err
 					}
 					for i := prefix.Bits(); i >= 0; i-- {
-						nlri := mustIPAddrPrefix(netip.PrefixFrom(prefix.Addr(), i))
+						nlri := lookupNLRI(t.Family, netip.PrefixFrom(prefix.Addr(), i))
 						if d := t.SelectDestination(nlri, dOption); d != nil {
 							r.setDestination(d)
 						}
@@ -984,11 +1116,11 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 				default:
 					if addr, err := netip.ParseAddr(key); err == nil {
 						masklen := 32
-						if t.Family == bgp.RF_IPv6_UC {
+						if !isIPv4LookupFamily(t.Family) {
 							masklen = 128
 						}
 						for i := masklen; i >= 0; i-- {
-							nlri := mustIPAddrPrefix(netip.PrefixFrom(addr, i))
+							nlri := lookupNLRI(t.Family, netip.PrefixFrom(addr, i))
 							if d := t.SelectDestination(nlri, dOption); d != nil {
 								r.setDestination(d)
 								break
@@ -999,7 +1131,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 						if err != nil {
 							return nil, err
 						}
-						nlri := mustIPAddrPrefix(prefix)
+						nlri := lookupNLRI(t.Family, prefix)
 						if d := t.SelectDestination(nlri, dOption); d != nil {
 							r.setDestination(d)
 						}
@@ -1128,7 +1260,7 @@ func (t *Table) Select(option ...TableSelectOption) (*Table, error) {
 		default:
 			return nil, fmt.Errorf("route filtering is not supported for this family")
 		}
-	} else {
+	} else if !filtered {
 		// Iterate with shard-level locking to ensure destination methods
 		// are called while holding the appropriate lock
 		shards := t.destinations.loadShards()
