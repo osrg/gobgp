@@ -295,6 +295,8 @@ def emit_class_def(ctx, stmt, struct_name, prefix, fd):
             if typ == EQUAL_TYPE_LEAF:
                 if type_name == '[]byte':
                     print('if bytes.Compare(lhs.{0}, rhs.{0}) != 0 {{'.format(val_name), file=fd)
+                elif type_name == '*uint8':
+                    print('if (lhs.{0} == nil) != (rhs.{0} == nil) || (lhs.{0} != nil && *lhs.{0} != *rhs.{0}) {{'.format(val_name), file=fd)
                 else:
                     print('if lhs.{0} != rhs.{0} {{'.format(val_name), file=fd)
                 print('return false', file=fd)
@@ -707,6 +709,8 @@ def is_translation_required(t):
 
 
 _type_translation_map = {
+    # Preserve absence separately from explicit zero for batch configuration.
+    'outbound-batch-delay-type': '*uint8',
     'union': 'string',
     'decimal64': 'float64',
     'boolean': 'bool',
@@ -754,6 +758,7 @@ _path_exclude = [
 ]
 
 _typedef_exclude = [
+    "/gobgp:outbound-batch-delay-type",
     "/gobgp:bgp-capability",
     "/gobgp:bgp-open-message",
     "/gobgp:route-family",

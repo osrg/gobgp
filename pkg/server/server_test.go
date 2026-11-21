@@ -34,6 +34,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/internal/pkg/table"
@@ -4603,13 +4604,15 @@ func TestUpdatePeer(t *testing.T) {
 	defer s.StopBgp(context.Background(), &api.StopBgpRequest{})
 
 	// add peer
+	batchDelay := uint32(20)
 	p := &api.Peer{
 		Conf: &api.PeerConf{
-			NeighborAddress: "2.2.2.2",
-			LocalAsn:        65000,
-			PeerAsn:         65001,
-			Type:            api.PeerType_PEER_TYPE_EXTERNAL,
-			ReplacePeerAsn:  false,
+			NeighborAddress:    "2.2.2.2",
+			LocalAsn:           65000,
+			PeerAsn:            65001,
+			Type:               api.PeerType_PEER_TYPE_EXTERNAL,
+			ReplacePeerAsn:     false,
+			OutboundBatchDelay: &batchDelay,
 		},
 		Timers: &api.Timers{
 			Config: &api.TimersConfig{
@@ -4658,6 +4661,61 @@ func TestUpdatePeer(t *testing.T) {
 			assert.Equal(collect, peer.Conf, p.Conf)
 		})
 	}, time.Second, 10*time.Millisecond)
+}
+
+func TestOutboundBatchAPIAndReload(t *testing.T) {
+	s := runNewServer(t, 65000, "192.0.2.1", -1)
+	ctx := context.Background()
+	defer s.StopBgp(ctx, &api.StopBgpRequest{})
+	group := func(delay uint32) *api.PeerGroup {
+		return &api.PeerGroup{Conf: &api.PeerGroupConf{
+			PeerGroupName:      "batch",
+			PeerAsn:            65001,
+			OutboundBatchDelay: proto.Uint32(delay),
+		}}
+	}
+	require.NoError(t, s.AddPeerGroup(ctx, &api.AddPeerGroupRequest{PeerGroup: group(50)}))
+	for _, addr := range []string{"192.0.2.201", "192.0.2.202"} {
+		c := &api.PeerConf{NeighborAddress: addr, PeerGroup: "batch"}
+		if addr == "192.0.2.202" {
+			c.OutboundBatchDelay = proto.Uint32(0)
+		}
+		require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: c, Transport: &api.Transport{PassiveMode: true}}}))
+	}
+	check := func(delay uint32) {
+		t.Helper()
+		require.NoError(t, s.ListPeer(ctx, &api.ListPeerRequest{}, func(p *api.Peer) {
+			c := p.Conf
+			require.NotNil(t, c.OutboundBatchDelay)
+			if c.NeighborAddress == "192.0.2.201" {
+				require.Equal(t, delay, *c.OutboundBatchDelay)
+			} else {
+				require.Zero(t, *c.OutboundBatchDelay)
+			}
+		}))
+	}
+	check(50)
+	var before *peer
+	require.NoError(t, s.mgmtOperation(func() error { before = s.neighborMap[netip.MustParseAddr("192.0.2.201")]; return nil }, false))
+	_, err := s.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{PeerGroup: group(10)})
+	require.NoError(t, err)
+	check(10)
+	require.NoError(t, s.mgmtOperation(func() error {
+		require.Same(t, before, s.neighborMap[netip.MustParseAddr("192.0.2.201")], "reload must not recreate the peer")
+		return nil
+	}, false))
+	require.NoError(t, s.ListPeerGroup(ctx, &api.ListPeerGroupRequest{}, func(pg *api.PeerGroup) {
+		require.Equal(t, uint32(10), *pg.Conf.OutboundBatchDelay)
+	}))
+	_, err = s.UpdatePeerGroup(ctx, &api.UpdatePeerGroupRequest{PeerGroup: group(256)})
+	require.Error(t, err)
+	check(10)
+	bad := group(256)
+	bad.Conf.PeerGroupName = "invalid"
+	require.Error(t, s.AddPeerGroup(ctx, &api.AddPeerGroupRequest{PeerGroup: bad}))
+	require.Error(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{
+		NeighborAddress: "192.0.2.203", PeerAsn: 65001, OutboundBatchDelay: proto.Uint32(256),
+	}}}))
 }
 
 // TestRTCDeferralTimerRaceCondition tests that RTC deferral timer works correctly

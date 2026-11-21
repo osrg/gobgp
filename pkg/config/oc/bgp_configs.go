@@ -2006,6 +2006,10 @@ type PeerGroupConfig struct {
 	// original -> bgp:peer-group-name
 	// Name of the BGP peer-group.
 	PeerGroupName string `mapstructure:"peer-group-name" json:"peer-group-name,omitempty"`
+	// original -> gobgp:outbound-batch-delay
+	// gobgp:outbound-batch-delay's original type is outbound-batch-delay-type.
+	// Milliseconds from the first queued item; zero drains without waiting.
+	OutboundBatchDelay *uint8 `mapstructure:"outbound-batch-delay" json:"outbound-batch-delay,omitempty"`
 	// original -> gobgp:send-software-version
 	// gobgp:send-software-version's original type is boolean.
 	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
@@ -2040,6 +2044,9 @@ func (lhs *PeerGroupConfig) Equal(rhs *PeerGroupConfig) bool {
 		return false
 	}
 	if lhs.PeerGroupName != rhs.PeerGroupName {
+		return false
+	}
+	if (lhs.OutboundBatchDelay == nil) != (rhs.OutboundBatchDelay == nil) || (lhs.OutboundBatchDelay != nil && *lhs.OutboundBatchDelay != *rhs.OutboundBatchDelay) {
 		return false
 	}
 	if lhs.SendSoftwareVersion != rhs.SendSoftwareVersion {
@@ -3618,6 +3625,10 @@ type NeighborConfig struct {
 	NeighborInterface string `mapstructure:"neighbor-interface" json:"neighbor-interface,omitempty"`
 	// original -> gobgp:vrf
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
+	// original -> gobgp:outbound-batch-delay
+	// gobgp:outbound-batch-delay's original type is outbound-batch-delay-type.
+	// Milliseconds from the first queued item; zero drains without waiting.
+	OutboundBatchDelay *uint8 `mapstructure:"outbound-batch-delay" json:"outbound-batch-delay,omitempty"`
 	// original -> gobgp:send-software-version
 	// gobgp:send-software-version's original type is boolean.
 	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
@@ -3664,6 +3675,9 @@ func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
 		return false
 	}
 	if lhs.Vrf != rhs.Vrf {
+		return false
+	}
+	if (lhs.OutboundBatchDelay == nil) != (rhs.OutboundBatchDelay == nil) || (lhs.OutboundBatchDelay != nil && *lhs.OutboundBatchDelay != *rhs.OutboundBatchDelay) {
 		return false
 	}
 	if lhs.SendSoftwareVersion != rhs.SendSoftwareVersion {

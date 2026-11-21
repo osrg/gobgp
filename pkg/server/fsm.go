@@ -2112,6 +2112,60 @@ func (h *fsmHandler) openconfirm(ctx context.Context) (bgp.FSMState, *fsmStateRe
 	}
 }
 
+// collectOutgoingPaths uses one configuration snapshot for the entire batch.
+// The path limit is an accumulation threshold: a queued slice is never split.
+func (h *fsmHandler) collectOutgoingPaths(ctx context.Context, paths []*table.Path) ([]*table.Path, bool) {
+	const maxCoalescePaths = 2048 // safety cap
+	delay := 20 * time.Millisecond
+	if conf := h.fsm.pConf.ReadOnly(); conf.Config.OutboundBatchDelay != nil {
+		delay = time.Duration(*conf.Config.OutboundBatchDelay) * time.Millisecond
+	}
+	var deadline <-chan time.Time
+	if delay > 0 && len(paths) < maxCoalescePaths {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		deadline = timer.C
+	}
+	for len(paths) < maxCoalescePaths {
+		// Check the deadline even when the queue is continuously ready.
+		select {
+		case <-ctx.Done():
+			return nil, false
+		case <-deadline:
+			return paths, true
+		default:
+		}
+
+		var o any
+		if delay == 0 {
+			select {
+			case o = <-h.outgoing.Out():
+			default:
+				// Yield for InfiniteChannel's pump without waiting for new input.
+				if h.outgoing.Len() > 0 {
+					runtime.Gosched()
+					continue
+				}
+				return paths, ctx.Err() == nil
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return nil, false
+			case <-deadline:
+				return paths, true
+			case o = <-h.outgoing.Out():
+			}
+		}
+		m, ok := o.(*fsmOutgoingMsg)
+		if !ok {
+			return nil, false
+		}
+		paths = append(paths, m.Paths...)
+	}
+	return paths, ctx.Err() == nil
+}
+
 func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateReasonCh chan<- fsmStateReason, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	fsm := h.fsm
@@ -2174,32 +2228,9 @@ func (h *fsmHandler) sendMessageloop(ctx context.Context, conn net.Conn, stateRe
 		case o := <-h.outgoing.Out():
 			switch m := o.(type) {
 			case *fsmOutgoingMsg:
-				const maxCoalesceMsgs = 2048 // safety cap
-				paths := m.Paths
-				coalescedMsgs := 1
-				// coalesce queued messages for more efficient UPDATE packing
-				for coalescedMsgs < maxCoalesceMsgs {
-					select {
-					case <-ctx.Done():
-						return nil
-					default:
-					}
-					select {
-					case o2 := <-h.outgoing.Out():
-						if m2, ok := o2.(*fsmOutgoingMsg); ok {
-							paths = append(paths, m2.Paths...)
-							coalescedMsgs++
-							continue
-						}
-						return nil
-					default:
-					}
-					// yield for InfiniteChannel's pump goroutine
-					if h.outgoing.Len() > 0 {
-						runtime.Gosched()
-						continue
-					}
-					break
+				paths, ok := h.collectOutgoingPaths(ctx, m.Paths)
+				if !ok {
+					return nil
 				}
 
 				options := &bgp.MarshallingOption{

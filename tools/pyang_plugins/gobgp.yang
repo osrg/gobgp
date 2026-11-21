@@ -34,6 +34,19 @@ module gobgp {
     reference "TBD";
   }
 
+  typedef outbound-batch-delay-type {
+    type uint8;
+    units "milliseconds";
+    description "UPDATE accumulation window in milliseconds; absent means 20 ms.";
+  }
+
+  grouping outbound-batch-config {
+    leaf outbound-batch-delay {
+      type outbound-batch-delay-type;
+      description "Milliseconds from the first queued item; zero drains without waiting.";
+    }
+  }
+
   typedef bmp-route-monitoring-policy-type {
     type enumeration {
       enum PRE-POLICY {
@@ -997,12 +1010,14 @@ module gobgp {
   }
 
   augment "/bgp:bgp/bgp:neighbors/bgp:neighbor/bgp:config" {
+    uses outbound-batch-config;
     leaf send-software-version {
       type boolean;
     }
   }
 
   augment "/bgp:bgp/bgp:peer-groups/bgp:peer-group/bgp:config" {
+    uses outbound-batch-config;
     leaf send-software-version {
       type boolean;
     }

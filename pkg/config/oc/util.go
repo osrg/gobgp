@@ -219,7 +219,10 @@ func isAfiSafiChanged(x, y []AfiSafi) bool {
 }
 
 func (n *Neighbor) NeedsResendOpenMessage(new *Neighbor) bool {
-	return !n.Config.Equal(&new.Config) ||
+	// Batch delay takes effect on the next batch and does not change OPEN.
+	config := n.Config
+	config.OutboundBatchDelay = new.Config.OutboundBatchDelay
+	return !config.Equal(&new.Config) ||
 		!n.Transport.Config.Equal(&new.Transport.Config) ||
 		!n.AddPaths.Config.Equal(&new.AddPaths.Config) ||
 		!n.GracefulRestart.Config.Equal(&new.GracefulRestart.Config) ||
@@ -505,6 +508,14 @@ func bfdDiagnosticCodeToAPI(d BfdDiagnosticCode) api.BfdDiagnosticCode {
 	return api.BfdDiagnosticCode(i)
 }
 
+func outboundBatchDelayToAPI(delay *uint8) *uint32 {
+	if delay == nil {
+		return nil
+	}
+	v := uint32(*delay)
+	return &v
+}
+
 func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 	afiSafis := make([]*api.AfiSafi, 0, len(pconf.AfiSafis))
 	for _, f := range pconf.AfiSafis {
@@ -578,6 +589,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 			ReplacePeerAsn:       pconf.AsPathOptions.Config.ReplacePeerAs,
 			AdminDown:            pconf.Config.AdminDown,
 			SendSoftwareVersion:  pconf.Config.SendSoftwareVersion,
+			OutboundBatchDelay:   outboundBatchDelayToAPI(pconf.Config.OutboundBatchDelay),
 		},
 		State: &api.PeerState{
 			SessionState: sessionState,
@@ -799,6 +811,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 			Description:          pconf.Config.Description,
 			PeerGroupName:        pconf.Config.PeerGroupName,
 			SendSoftwareVersion:  pconf.Config.SendSoftwareVersion,
+			OutboundBatchDelay:   outboundBatchDelayToAPI(pconf.Config.OutboundBatchDelay),
 			AllowOwnAsn:          uint32(pconf.AsPathOptions.Config.AllowOwnAs),
 			ReplacePeerAsn:       pconf.AsPathOptions.Config.ReplacePeerAs,
 			AllowAspathLoopLocal: pconf.AsPathOptions.Config.AllowAsPathLoopLocal,

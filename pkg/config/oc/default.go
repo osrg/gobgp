@@ -90,6 +90,11 @@ func setDefaultNeighborConfigValuesWithViper(v *viper.Viper, n *Neighbor, g *Glo
 		}
 	}
 
+	if n.Config.OutboundBatchDelay == nil {
+		delay := uint8(20)
+		n.Config.OutboundBatchDelay = &delay
+	}
+
 	if n.Config.LocalAs == 0 {
 		n.Config.LocalAs = getLocalAsForPeer(g, n.Config.PeerAs)
 	}
