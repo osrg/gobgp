@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/stretchr/testify/assert"
@@ -551,4 +552,70 @@ func TestLLGRStaleAlreadyMarked(t *testing.T) {
 	require.Len(t, pathList, 1)
 	assert.True(t, pathList[0].IsWithdraw)
 	assert.Equal(t, 1, adj.Count(families))
+}
+
+// activeDest returns the destination of nlri that the table holds, not a
+// snapshot of it, or nil.
+func activeDest(tbl *Table, nlri bgp.NLRI) *destination {
+	shard := tbl.destinations.getShard(nlri)
+	if shard == nil {
+		return nil
+	}
+	shard.mu.RLock()
+	defer shard.mu.RUnlock()
+	for _, d := range shard.mp[tableKey(nlri)] {
+		if AddrPrefixOnlyCompare(d.nlri, nlri) == 0 {
+			return d
+		}
+	}
+	return nil
+}
+
+// TestAdjRibDestinationHasNoPathIDMap checks that a destination of the
+// Adj-RIB-In, which never allocates local path IDs, carries no Bitmap, that
+// a snapshot of it carries none either, and that withdrawing its last path
+// still removes it from the table. The Loc-RIB keeps allocating IDs.
+func TestAdjRibDestinationHasNoPathIDMap(t *testing.T) {
+	pi := &PeerInfo{}
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0)}
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.1.0.0/24"))
+	require.NoError(t, err)
+	newPath := func(id uint32, withdraw bool) *Path {
+		p := NewPath(bgp.RF_IPv4_UC, pi, bgp.PathNLRI{NLRI: nlri, ID: id}, withdraw, attrs, time.Now(), false)
+		require.NotNil(t, p)
+		return p
+	}
+	family := bgp.RF_IPv4_UC
+	adj := NewAdjRib(slog.Default(), []bgp.Family{family})
+	tbl := adj.table[family]
+
+	adj.Update([]*Path{newPath(1, false), newPath(2, false)})
+	d := activeDest(tbl, nlri)
+	require.NotNil(t, d)
+	assert.Nil(t, d.localIdMap)
+	dests := tbl.GetDestinations()
+	require.Len(t, dests, 1)
+	assert.Nil(t, dests[0].localIdMap)
+
+	adj.Update([]*Path{newPath(1, true)})
+	require.NotNil(t, activeDest(tbl, nlri), "one path is left")
+	adj.Update([]*Path{newPath(2, true)})
+	assert.Nil(t, activeDest(tbl, nlri), "the empty destination is removed")
+	assert.Empty(t, tbl.GetDestinations())
+	assert.Zero(t, adj.Count([]bgp.Family{family}))
+
+	// UpdateAdjRibOut creates the destinations of an Adj-RIB-Out the same way.
+	adj.UpdateAdjRibOut([]*Path{newPath(1, false)})
+	d = activeDest(tbl, nlri)
+	require.NotNil(t, d)
+	assert.Nil(t, d.localIdMap)
+
+	loc := NewTable(slog.Default(), family)
+	p1, p2 := newPath(1, false), newPath(2, false)
+	require.NotNil(t, loc.update(p1, oc.RouteSelectionOptionsConfig{}))
+	require.NotNil(t, loc.update(p2, oc.RouteSelectionOptionsConfig{}))
+	assert.ElementsMatch(t, []uint32{1, 2}, []uint32{p1.LocalID(), p2.LocalID()})
+	d = activeDest(loc, nlri)
+	require.NotNil(t, d)
+	assert.NotNil(t, d.localIdMap)
 }
