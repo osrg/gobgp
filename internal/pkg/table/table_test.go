@@ -232,7 +232,7 @@ func TestTableDestinationsCollision(t *testing.T) {
 	k := tableKey(pathT[0].GetNlri())
 	shard := ipv4t.destinations.getShardForInsert(pathT[0].GetNlri())
 	shard.mu.Lock()
-	shard.put(k, []*destination{newDestination(pathT[1].GetNlri(), 0)})
+	shard.add(k, newDestination(pathT[1].GetNlri(), 0))
 	shard.mu.Unlock()
 
 	for _, path := range pathT {
@@ -271,7 +271,7 @@ func TestTableKeepsBgpLsNodesOfTwoAreasApart(t *testing.T) {
 	tbl := NewTable(logger, bgp.RF_LS)
 	shard := tbl.destinations.getShardForInsert(a)
 	shard.mu.Lock()
-	shard.put(tableKey(a), []*destination{newDestination(b, 0)})
+	shard.add(tableKey(a), newDestination(b, 0))
 	shard.mu.Unlock()
 
 	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
@@ -1252,4 +1252,145 @@ func TestTableUpdateReportsWhetherThePathChanged(t *testing.T) {
 	u = tbl.update(newTestPath(100, true), opts)
 	assert.NotNil(t, u)
 	assert.True(t, u.Changed, "a withdrawal that removed a path is a change")
+}
+
+// TestDestinationShardCollisions puts three destinations under one key, as
+// a collision of the 64-bit keys would, and checks that the shard finds,
+// replaces, walks and removes each of them, and keeps their order.
+func TestDestinationShardCollisions(t *testing.T) {
+	nlris := make([]bgp.NLRI, 3)
+	for i, s := range []string{"10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"} {
+		n, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(s))
+		require.NoError(t, err)
+		nlris[i] = n
+	}
+	key := tableKey(nlris[0])
+	other := tableKey(nlris[1])
+	require.NotEqual(t, key, other)
+
+	var s destinationShard
+	walk := func() []bgp.NLRI {
+		var l []bgp.NLRI
+		for d := range s.all() {
+			l = append(l, d.nlri)
+		}
+		return l
+	}
+	dests := make([]*destination, len(nlris))
+	for i, n := range nlris {
+		dests[i] = newDestination(n, 0)
+		assert.Equal(t, i != 0, s.add(key, dests[i]), "only the first is no collision")
+	}
+	assert.Equal(t, 1, s.numKeys())
+	assert.Equal(t, 2, s.numCollisions())
+	for i, n := range nlris {
+		assert.Same(t, dests[i], s.lookup(key, n))
+		assert.Nil(t, s.lookup(other, n), "a destination is found under its key only")
+	}
+	assert.Same(t, dests[0], s.first(key))
+	assert.Equal(t, nlris, walk())
+
+	// set replaces the destination of the same NLRI wherever it is.
+	for i, n := range nlris {
+		d := newDestination(n, 0)
+		assert.False(t, s.set(key, d))
+		assert.Same(t, d, s.lookup(key, n))
+		dests[i] = d
+	}
+	assert.Equal(t, 2, s.numCollisions())
+	assert.Equal(t, nlris, walk())
+
+	// The walk stops when the loop breaks.
+	n := 0
+	for range s.all() {
+		n++
+		break
+	}
+	assert.Equal(t, 1, n)
+
+	// Removing one in the middle keeps the order of the others.
+	s.remove(key, nlris[1])
+	assert.Nil(t, s.lookup(key, nlris[1]))
+	assert.Equal(t, []bgp.NLRI{nlris[0], nlris[2]}, walk())
+	assert.Equal(t, 1, s.numCollisions())
+
+	// Removing the first one moves the next one to its place.
+	s.remove(key, nlris[0])
+	assert.Same(t, dests[2], s.first(key))
+	assert.Same(t, dests[2], s.lookup(key, nlris[2]))
+	assert.Zero(t, s.numCollisions())
+	assert.Nil(t, s.collisions, "the collision map goes with its last entry")
+
+	// Removing an NLRI the shard does not hold changes nothing.
+	s.remove(key, nlris[0])
+	s.remove(other, nlris[2])
+	assert.Equal(t, []bgp.NLRI{nlris[2]}, walk())
+
+	s.remove(key, nlris[2])
+	assert.Zero(t, s.numKeys())
+	assert.Empty(t, walk())
+
+	// set inserts an NLRI the shard does not hold and reports a collision.
+	assert.False(t, s.set(key, newDestination(nlris[0], 0)))
+	assert.True(t, s.set(key, newDestination(nlris[1], 0)))
+	assert.Equal(t, 1, s.numCollisions())
+}
+
+// TestTableUpdateWithCollidingKeys stores the destination of one prefix
+// under the key of another, as a collision of the 64-bit keys would, in the
+// Loc-RIB and in an Adj-RIB-In. It then installs and withdraws a path for
+// the other prefix and checks that each destination keeps its own paths
+// and that the withdrawal removes only its own destination.
+func TestTableUpdateWithCollidingKeys(t *testing.T) {
+	a, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	require.NoError(t, err)
+	b, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.1.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("10.0.0.1"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}
+	src := &PeerInfo{AS: 65001, Address: netip.MustParseAddr("192.0.2.1"), ID: netip.MustParseAddr("192.0.2.1")}
+	newPath := func(n bgp.NLRI, withdraw bool) *Path {
+		return NewPath(bgp.RF_IPv4_UC, src, bgp.PathNLRI{NLRI: n}, withdraw, attrs, time.Now(), false)
+	}
+
+	loc := NewTable(logger, bgp.RF_IPv4_UC)
+	adj := NewAdjRib(logger, []bgp.Family{bgp.RF_IPv4_UC})
+	tables := []*Table{loc, adj.table[bgp.RF_IPv4_UC]}
+	for _, tbl := range tables {
+		shard := tbl.destinations.getShardForInsert(a)
+		shard.mu.Lock()
+		shard.add(tableKey(a), newDestination(b, 0))
+		shard.mu.Unlock()
+	}
+	require.NotNil(t, loc.update(newPath(a, false), oc.RouteSelectionOptionsConfig{}))
+	adj.Update([]*Path{newPath(a, false)})
+
+	for _, tbl := range tables {
+		assert.Equal(t, 1, tbl.Info().NumCollision)
+		da := activeDest(tbl, a)
+		require.NotNil(t, da)
+		assert.Len(t, da.knownPathList, 1)
+		shard := tbl.destinations.getShard(a)
+		shard.mu.RLock()
+		db := shard.lookup(tableKey(a), b)
+		shard.mu.RUnlock()
+		require.NotNil(t, db)
+		assert.Empty(t, db.knownPathList)
+		assert.Len(t, tbl.GetDestinations(), 2)
+	}
+
+	// Dropped, so that the Loc-RIB releases the path ID and with it the
+	// destination, as it does for a withdrawal from the Adj-RIB-In.
+	w := newPath(a, true)
+	w.SetDropped(true)
+	require.NotNil(t, loc.update(w, oc.RouteSelectionOptionsConfig{}))
+	adj.Update([]*Path{newPath(a, true)})
+	for _, tbl := range tables {
+		assert.Nil(t, activeDest(tbl, a))
+		assert.Zero(t, tbl.Info().NumCollision)
+		dests := tbl.GetDestinations()
+		require.Len(t, dests, 1)
+		assert.Equal(t, b.String(), dests[0].GetNlri().String())
+	}
 }
