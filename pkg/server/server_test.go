@@ -3859,10 +3859,14 @@ func TestDeleteVrf(t *testing.T) {
 	assert.NoError(t, err)
 
 	addVrf(t, s, "vrf1", "111:111", []string{"111:111"}, []string{"111:111"}, 1)
+	_, err = s.AddPath(apiutil.AddPathRequest{VRFID: "vrf1", Paths: []*apiutil.Path{withdrawalTestPath(t, bgp.RF_IPv6_UC)}})
+	require.NoError(t, err)
 	req := &api.DeleteVrfRequest{Name: "vrf1"}
 	if err := s.DeleteVrf(context.Background(), req); err != nil {
 		t.Fatal("Vrf delete failed", err)
 	}
+	requireNoDestinations(t, s, bgp.RF_IPv6_VPN, bgp.RF_RTC_UC)
+	require.Empty(t, s.uuidMap)
 }
 
 func TestAddBogusPath(t *testing.T) {
@@ -7134,4 +7138,461 @@ func TestWatchPeerEventLocalAddress(t *testing.T) {
 	require.NotEmpty(t, listAddr)
 	assert.False(t, eventAddr.IsUnspecified(), "event LocalAddress is unspecified")
 	assert.Equal(t, listAddr, eventAddr.String())
+}
+
+func newWithdrawalServer(t *testing.T) *BgpServer {
+	t.Helper()
+	s := runNewServer(t, 65001, "192.0.2.1", -1)
+	t.Cleanup(s.Stop)
+	return s
+}
+
+func requireNoDestinations(t *testing.T, s *BgpServer, families ...bgp.Family) {
+	t.Helper()
+	for _, family := range families {
+		tbl, ok := s.globalRib.GetTable(family)
+		require.True(t, ok)
+		require.Empty(t, tbl.GetDestinations(), "%s", family)
+	}
+}
+
+func withdrawalTestPath(t *testing.T, family bgp.Family) *apiutil.Path {
+	t.Helper()
+	prefix := netip.MustParsePrefix("2001:db8::/120")
+	nh := netip.MustParseAddr("2001:db8::1")
+	if family.Afi() == bgp.AFI_IP {
+		prefix = netip.MustParsePrefix("198.51.100.0/24")
+		nh = netip.MustParseAddr("192.0.2.1")
+	}
+	var nlri bgp.NLRI
+	var err error
+	if family.Safi() == bgp.SAFI_MPLS_VPN {
+		nlri, err = bgp.NewLabeledVPNIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(3), bgp.NewRouteDistinguisherFourOctetAS(65001, 100))
+	} else {
+		nlri, err = bgp.NewIPAddrPrefix(prefix)
+	}
+	require.NoError(t, err)
+	mp, err := bgp.NewPathAttributeMpReachNLRI(family, []bgp.PathNLRI{{NLRI: nlri}}, nh)
+	require.NoError(t, err)
+	return &apiutil.Path{Family: family, Nlri: nlri, Attrs: []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), mp}}
+}
+
+func TestAPIWithdrawalReleasesDestination(t *testing.T) {
+	for _, family := range []bgp.Family{bgp.RF_IPv4_UC, bgp.RF_IPv6_UC, bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN} {
+		for _, mode := range []string{"paths", "uuid", "all", "family", "AddPath", "AddPathStream"} {
+			t.Run(family.String()+"/"+mode, func(t *testing.T) {
+				s := newWithdrawalServer(t)
+				p := withdrawalTestPath(t, family)
+				for range 2 {
+					replies, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{p}})
+					require.NoError(t, err)
+					require.NotEqual(t, uuid.Nil, replies[0].UUID)
+					switch mode {
+					case "paths":
+						err = s.DeletePath(apiutil.DeletePathRequest{Paths: []*apiutil.Path{p}})
+					case "uuid":
+						err = s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{replies[0].UUID}})
+					case "all":
+						err = s.DeletePath(apiutil.DeletePathRequest{DeleteAll: true})
+					case "family":
+						err = s.DeletePath(apiutil.DeletePathRequest{DeleteAll: true, DeleteFamily: &family})
+					case "AddPath":
+						w := *p
+						w.Withdrawal = true
+						_, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{&w}})
+					case "AddPathStream":
+						w := *p
+						w.Withdrawal = true
+						path, convErr := api2Path(api.TableType_TABLE_TYPE_GLOBAL, toPathApi(&w, false, false, false))
+						require.NoError(t, convErr)
+						err = s.addPathStream(context.Background(), "", []*table.Path{path})
+					}
+					require.NoError(t, err)
+					requireNoDestinations(t, s, family)
+					require.Empty(t, s.uuidMap)
+				}
+			})
+		}
+	}
+}
+
+func TestZebraPolicyWithdrawalPreservesReceivedID(t *testing.T) {
+	s := newWithdrawalServer(t)
+	peer := newPeerandInfo(t, 65001, 65002, "192.0.2.2", s.globalRib)
+	peer.policy = s.policy
+	learned := newPolicyTestPath(t, peer.peerInfo.Load())
+	require.NoError(t, s.mgmtOperation(func() error {
+		peer.adjRibIn.Update([]*table.Path{learned})
+		s.propagateUpdate(peer, []*table.Path{learned})
+		return nil
+	}, true))
+	observed := time.Now()
+	receivedID := learned.LocalID()
+	require.NotZero(t, receivedID)
+	setPolicy := func(action api.RouteAction) {
+		require.NoError(t, s.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+			Name: "global", Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT, DefaultAction: action,
+		}}))
+	}
+	setPolicy(api.RouteAction_ROUTE_ACTION_REJECT)
+	z := &zebraClient{server: s, nexthopCache: nexthopStateCache{learned.GetNexthop(): 100}}
+	z.updatePathByNexthopCache([]*table.Path{learned}, observed)
+	require.Empty(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{learned.GetFamily()}))
+	retained := peer.adjRibIn.PathList([]bgp.Family{learned.GetFamily()}, false)
+	require.Len(t, retained, 1)
+	require.Equal(t, receivedID, retained[0].LocalID())
+	setPolicy(api.RouteAction_ROUTE_ACTION_ACCEPT)
+	_, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{toPathApiUtil(newPolicyTestPath(t, nil))}})
+	require.NoError(t, err)
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.propagateUpdate(peer, retained)
+		return nil
+	}, true))
+	paths := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{learned.GetFamily()})
+	require.Len(t, paths, 2)
+	require.NotEqual(t, paths[0].LocalID(), paths[1].LocalID(), "a path retained in Adj-RIB-In must keep its ID reserved across a Zebra policy withdrawal")
+}
+
+func TestAPIPathWithNeighborIdentityKeepsReceivedID(t *testing.T) {
+	s := newWithdrawalServer(t)
+	p := newPeerandInfo(t, 65001, 65002, "192.0.2.2", s.globalRib)
+	learned := newPolicyTestPath(t, p.peerInfo.Load())
+	require.NoError(t, s.mgmtOperation(func() error {
+		p.adjRibIn.Update([]*table.Path{learned})
+		s.propagateUpdate(p, []*table.Path{learned})
+		return nil
+	}, true))
+	receivedID := learned.LocalID()
+	require.NotZero(t, receivedID)
+
+	// Supply every peer identity field that AddPath accepts.
+	resp, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{toPathApiUtil(learned)}})
+	require.NoError(t, err)
+	paths := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{learned.GetFamily()})
+	require.Len(t, paths, 2)
+	require.NotEqual(t, paths[0].LocalID(), paths[1].LocalID())
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{resp[0].UUID}}))
+
+	local := toPathApiUtil(newPolicyTestPath(t, nil))
+	_, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{local}})
+	require.NoError(t, err)
+	paths = s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{learned.GetFamily()})
+	require.Len(t, paths, 2)
+	require.Contains(t, paths, learned)
+	require.Equal(t, receivedID, learned.LocalID())
+	require.NotEqual(t, paths[0].LocalID(), paths[1].LocalID())
+}
+
+func TestAPIPathUUIDIdentity(t *testing.T) {
+	for _, different := range []string{"family", "ASN", "router-ID", "address"} {
+		t.Run(different, func(t *testing.T) {
+			s := newWithdrawalServer(t)
+			first := withdrawalTestPath(t, bgp.RF_IPv4_UC)
+			first.PeerASN = 65002
+			first.PeerID = netip.MustParseAddr("192.0.2.2")
+			first.PeerAddress = netip.MustParseAddr("192.0.2.2")
+			second := *first
+			switch different {
+			case "family":
+				second.Family = bgp.RF_IPv4_MC
+			case "ASN":
+				second.PeerASN++
+			case "router-ID":
+				second.PeerID = netip.MustParseAddr("192.0.2.3")
+			case "address":
+				second.PeerAddress = netip.MustParseAddr("192.0.2.3")
+			}
+			replies, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{first, &second}})
+			require.NoError(t, err)
+			require.Len(t, s.uuidMap, 2)
+			require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{replies[0].UUID}}))
+			paths := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist())
+			require.Len(t, paths, 1)
+			require.Equal(t, second.Family, paths[0].GetFamily())
+			require.Equal(t, second.PeerASN, paths[0].GetSource().AS)
+			require.Equal(t, second.PeerID, paths[0].GetSource().ID)
+			require.Equal(t, second.PeerAddress, paths[0].GetSource().Address)
+			require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{replies[1].UUID}}))
+			require.Empty(t, s.uuidMap)
+			requireNoDestinations(t, s, first.Family, second.Family)
+		})
+	}
+}
+
+func TestAPIPolicyWithdrawalReleasesDestination(t *testing.T) {
+	s := newWithdrawalServer(t)
+	p := withdrawalTestPath(t, bgp.RF_IPv4_UC)
+	p.PeerASN = 65002
+	p.PeerID = netip.MustParseAddr("192.0.2.2")
+	p.PeerAddress = netip.MustParseAddr("192.0.2.2")
+	_, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{p}})
+	require.NoError(t, err)
+	require.NoError(t, s.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+		Name: "global", Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+	}}))
+	rejected, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{p}})
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, rejected[0].UUID)
+	requireNoDestinations(t, s, p.Family)
+	require.Empty(t, s.uuidMap, "rejected replacement must retire the old UUID")
+	require.Empty(t, s.pathUUID)
+}
+
+func TestZebraIgnoresWithdrawnSnapshot(t *testing.T) {
+	s := newWithdrawalServer(t)
+	p := withdrawalTestPath(t, bgp.RF_IPv4_UC)
+	_, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{p}})
+	require.NoError(t, err)
+	observed := time.Now()
+	snapshot := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{p.Family})
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{Paths: []*apiutil.Path{p}}))
+	next := *p
+	next.PeerASN = 65002
+	next.PeerID = netip.MustParseAddr("192.0.2.2")
+	next.PeerAddress = netip.MustParseAddr("192.0.2.2")
+	_, err = s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{&next}})
+	require.NoError(t, err)
+	z := &zebraClient{server: s, nexthopCache: nexthopStateCache{snapshot[0].GetNexthop(): 100}}
+	installed := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{p.Family})
+	require.Len(t, installed, 1)
+	batch := []*table.Path{nil, snapshot[0], installed[0].Clone(true), installed[0]}
+	z.updatePathByNexthopCache(batch, observed)
+	paths := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{p.Family})
+	require.Len(t, paths, 1, "a delayed snapshot must not resurrect a withdrawn path")
+	require.Equal(t, next.PeerAddress, paths[0].GetSource().Address)
+	metric, err := paths[0].GetMed()
+	require.NoError(t, err)
+	require.Equal(t, uint32(100), metric)
+}
+
+func linkStateAreaPath(t *testing.T, area uint32) *apiutil.Path {
+	t.Helper()
+	node := bgp.NewLsTLVNodeDescriptor(&bgp.LsNodeDescriptor{
+		Asn: 65000, OspfAreaID: area, IGPRouterID: "192.0.2.1",
+	}, bgp.LS_TLV_LOCAL_NODE_DESC)
+	nlri := &bgp.LsAddrPrefix{Type: bgp.LS_NLRI_TYPE_NODE, NLRI: &bgp.LsNodeNLRI{
+		LsNLRI:        bgp.LsNLRI{NLRIType: bgp.LS_NLRI_TYPE_NODE, ProtocolID: bgp.LS_PROTOCOL_OSPF_V2},
+		LocalNodeDesc: &node,
+	}}
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.2"))
+	require.NoError(t, err)
+	return &apiutil.Path{Family: bgp.RF_LS, Nlri: nlri, Attrs: []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}}
+}
+
+func TestLinkStateUUIDUsesCompleteNLRI(t *testing.T) {
+	s := newWithdrawalServer(t)
+	a, b := linkStateAreaPath(t, 1), linkStateAreaPath(t, 2)
+	require.Equal(t, a.Nlri.String(), b.Nlri.String())
+	require.NotZero(t, table.AddrPrefixOnlyCompare(a.Nlri, b.Nlri))
+	result, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{a}})
+	require.NoError(t, err)
+	b.Withdrawal = true
+	w, err := api2Path(api.TableType_TABLE_TYPE_GLOBAL, toPathApi(b, false, true, false))
+	require.NoError(t, err)
+	require.Zero(t, table.AddrPrefixOnlyCompare(b.Nlri, w.GetNlri()), "stream must preserve the area")
+	require.NoError(t, s.addPathStream(context.Background(), "", []*table.Path{w}))
+	installed := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_LS})
+	require.Len(t, installed, 1)
+	require.Zero(t, table.AddrPrefixOnlyCompare(a.Nlri, installed[0].GetNlri()))
+	b.Withdrawal = false
+	other, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{b}})
+	require.NoError(t, err)
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{result[0].UUID}}))
+	installed = s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_LS})
+	require.Len(t, installed, 1)
+	require.Zero(t, table.AddrPrefixOnlyCompare(b.Nlri, installed[0].GetNlri()))
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{other[0].UUID}}))
+}
+
+func TestFamilyDeletePreservesOtherUUIDs(t *testing.T) {
+	s := newWithdrawalServer(t)
+	v4, v6 := withdrawalTestPath(t, bgp.RF_IPv4_UC), withdrawalTestPath(t, bgp.RF_IPv6_UC)
+	resp, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{v4, v6}})
+	require.NoError(t, err)
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{DeleteAll: true, DeleteFamily: &v4.Family}))
+	require.Len(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{v6.Family}), 1)
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{resp[1].UUID}}), "surviving IPv6 UUID")
+}
+
+func TestEVPNMacMoveRetiresUUID(t *testing.T) {
+	s := newWithdrawalServer(t)
+	remote := newPeerandInfo(t, 65001, 65002, "192.0.2.2", s.globalRib)
+	local := addPathEVPNMacPath(t, nil, 1, 1, 0)
+	resp, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{toPathApiUtil(local)}})
+	require.NoError(t, err)
+	moved := addPathEVPNMacPath(t, remote.peerInfo.Load(), 2, 2, 1)
+	start := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		<-start
+		// Exercise the UUID index independently of the dispatcher lock.
+		s.propagateUpdate(remote, []*table.Path{moved})
+	}()
+
+	other := withdrawalTestPath(t, bgp.RF_IPv4_UC)
+	close(start)
+	otherResp, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{other}})
+	<-done
+	require.NoError(t, err)
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{otherResp[0].UUID}}))
+	paths := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_EVPN})
+	require.Len(t, paths, 1)
+	require.False(t, paths[0].IsLocal())
+	require.Empty(t, s.uuidMap)
+	require.Empty(t, s.pathUUID)
+	require.Error(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{resp[0].UUID}}))
+}
+
+func TestZebraUsesCurrentImportPolicyAttributes(t *testing.T) {
+	s := runNewServer(t, 65000, "192.0.2.254", -1)
+	t.Cleanup(s.Stop)
+	ctx := context.Background()
+	const addr = "192.0.2.40"
+	require.NoError(t, s.AddPeer(ctx, &api.AddPeerRequest{Peer: &api.Peer{Conf: &api.PeerConf{
+		NeighborAddress: addr, PeerAsn: 65100, AdminDown: true,
+	}}}))
+	setImport := func(value uint32, med int64, nextHop string) {
+		name := fmt.Sprintf("policy-%d", value)
+		actions := &api.Actions{
+			RouteAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+			LocalPref:   &api.LocalPrefAction{Value: value},
+			Med:         &api.MedAction{Type: api.MedAction_TYPE_REPLACE, Value: med},
+		}
+		if nextHop != "" {
+			actions.Nexthop = &api.NexthopAction{Address: nextHop}
+		}
+		require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: &api.Policy{Name: name, Statements: []*api.Statement{{
+			Name: name, Actions: actions,
+		}}}}))
+		require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+			Name: addr, Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT, DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+			Policies: []*api.Policy{{Name: name}},
+		}}))
+	}
+	installed := func() *table.Path {
+		ps := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{bgp.RF_IPv4_UC})
+		require.Len(t, ps, 1)
+		return ps[0]
+	}
+	setImport(150, 100, "")
+	require.NoError(t, s.mgmtOperation(func() error {
+		p := s.neighborMap[netip.MustParseAddr(addr)]
+		path := newPolicyTestPath(t, p.peerInfo.Load())
+		p.adjRibIn.Update([]*table.Path{path})
+		s.propagateUpdate(p, []*table.Path{path})
+		return nil
+	}, true))
+	before := installed()
+	lp, err := before.GetLocalPref()
+	require.NoError(t, err)
+	require.Equal(t, uint32(150), lp)
+	z := &zebraClient{server: s, nexthopCache: nexthopStateCache{before.GetNexthop(): 100}}
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.zclient = z
+		return nil
+	}, true))
+	w, err := s.watch(WatchBestPath(true))
+	require.NoError(t, err)
+	t.Cleanup(w.Stop)
+	var event *watchEventBestPath
+	select {
+	case e := <-w.Event():
+		event = e.(*watchEventBestPath)
+	case <-time.After(time.Second):
+		t.Fatal("missing initial best-path snapshot")
+	}
+	queued := event.PathList
+	require.Len(t, queued, 1)
+	setImport(250, 20, "")
+	require.NoError(t, s.ResetPeer(ctx, &api.ResetPeerRequest{Address: addr, Soft: true, Direction: api.ResetPeerRequest_DIRECTION_IN}))
+	after := installed()
+	lp, err = after.GetLocalPref()
+	require.NoError(t, err)
+	require.Equal(t, uint32(250), lp, "soft reset must install the new policy first")
+	require.Same(t, before.OriginInfo(), after.OriginInfo(), "soft reset reuses the received route")
+	// Even a snapshot that already carries the cached MED can be stale.
+	oldMED, err := queued[0].GetMed()
+	require.NoError(t, err)
+	require.Equal(t, uint32(100), oldMED)
+	z.updatePathByNexthopCache(queued, event.Timestamp)
+	metric, err := installed().GetMed()
+	require.NoError(t, err)
+	require.Equal(t, uint32(100), metric)
+	z.updatePathByNexthopCache(queued, event.Timestamp)
+	lp, err = installed().GetLocalPref()
+	require.NoError(t, err)
+	require.Equal(t, uint32(250), lp)
+
+	// The old next hop can be missing from the cache while the new one matches.
+	newHop := netip.MustParseAddr("192.0.2.99")
+	z.cacheLock.Lock()
+	delete(z.nexthopCache, before.GetNexthop())
+	z.nexthopCache[newHop] = 200
+	z.cacheLock.Unlock()
+	setImport(300, 30, newHop.String())
+	require.NoError(t, s.ResetPeer(ctx, &api.ResetPeerRequest{Address: addr, Soft: true, Direction: api.ResetPeerRequest_DIRECTION_IN}))
+	z.updatePathByNexthopCache(queued, event.Timestamp)
+	current := installed()
+	require.Equal(t, newHop, current.GetNexthop())
+	metric, err = current.GetMed()
+	require.NoError(t, err)
+	require.Equal(t, uint32(200), metric)
+}
+
+func TestStreamWithdrawPreservesNoImplicitPathUUID(t *testing.T) {
+	s := newWithdrawalServer(t)
+	a := withdrawalTestPath(t, bgp.RF_IPv4_UC)
+	a.NoImplicitWithdraw = true
+	a.Attrs = append(a.Attrs, bgp.NewPathAttributeLocalPref(200))
+	resp, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{a}})
+	require.NoError(t, err)
+	paths := func() []*table.Path {
+		return s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{a.Family})
+	}
+	installed := paths()
+	require.Len(t, installed, 1)
+	original := installed[0]
+	b := withdrawalTestPath(t, bgp.RF_IPv4_UC)
+	b.Attrs = append(b.Attrs, bgp.NewPathAttributeLocalPref(100))
+	stream := func() {
+		p, err := api2Path(api.TableType_TABLE_TYPE_GLOBAL, toPathApi(b, false, false, false))
+		require.NoError(t, err)
+		require.NoError(t, s.addPathStream(context.Background(), "", []*table.Path{p}))
+	}
+	stream()
+	require.Len(t, paths(), 2)
+	b.Withdrawal = true
+	stream()
+	installed = paths()
+	require.Len(t, installed, 1)
+	require.Same(t, original, installed[0], "withdraw removed the stream path; the UUID owner's exact Path survived")
+	err = s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{resp[0].UUID}})
+	require.NoError(t, err)
+}
+
+func TestDeleteNoImplicitPathByUUID(t *testing.T) {
+	s := newWithdrawalServer(t)
+	first := withdrawalTestPath(t, bgp.RF_IPv4_UC)
+	first.NoImplicitWithdraw = true
+	second := *first
+	first.Attrs = append(slices.Clone(first.Attrs), bgp.NewPathAttributeLocalPref(200))
+	second.Attrs = append(slices.Clone(second.Attrs), bgp.NewPathAttributeLocalPref(100))
+	resp, err := s.AddPath(apiutil.AddPathRequest{Paths: []*apiutil.Path{first, &second}})
+	require.NoError(t, err)
+	a, b := resp[0].UUID, resp[1].UUID
+	require.NotEqual(t, a, b)
+	paths := s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{first.Family})
+	require.Len(t, paths, 2)
+	z := &zebraClient{server: s, nexthopCache: nexthopStateCache{paths[0].GetNexthop(): 100}}
+	z.updatePathByNexthopCache(clonePathList(paths), time.Now())
+	require.Len(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{first.Family}), 2)
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{a, a}}))
+	paths = s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{first.Family})
+	require.Len(t, paths, 1)
+	pref, err := paths[0].GetLocalPref()
+	require.NoError(t, err)
+	require.Equal(t, uint32(100), pref)
+	require.NoError(t, s.DeletePath(apiutil.DeletePathRequest{UUIDs: []uuid.UUID{b}}))
+	require.Empty(t, s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, []bgp.Family{first.Family}))
 }
