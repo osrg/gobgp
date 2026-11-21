@@ -6967,6 +6967,98 @@ func Test_LsTLVSrv6EndXSID(t *testing.T) {
 	}
 }
 
+func TestLsTLVSrv6EndXSIDChildRoundTrip(t *testing.T) {
+	sid := netip.MustParseAddr("2001:db8::1")
+	base := append([]byte{0, 57, 0, 128, 100, 0}, sid.AsSlice()...)
+	zero := []byte{0x04, 0xe4, 0, 4, 0, 0, 0, 0}
+	nonzero := []byte{0x04, 0xe4, 0, 4, 32, 16, 24, 8}
+	unknown := []byte{0xff, 0xfe, 0, 4, 1, 2, 3, 4}
+	otherUnknown := []byte{0xff, 0xfd, 0, 1, 5}
+	zeroStructure := LsTLVSrv6SIDStructure{
+		LsTLV: LsTLV{Type: LS_TLV_SRV6_SID_STRUCTURE, Length: 4},
+	}
+	nonzeroStructure := zeroStructure
+	nonzeroStructure.LocalBlock = 32
+	nonzeroStructure.LocalNode = 16
+	nonzeroStructure.LocalFunc = 24
+	nonzeroStructure.LocalArg = 8
+	for _, test := range []struct {
+		name      string
+		children  []byte
+		structure LsTLVSrv6SIDStructure
+	}{
+		{name: "absent"},
+		{name: "explicit zero", children: zero, structure: zeroStructure},
+		{name: "nonzero", children: nonzero, structure: nonzeroStructure},
+		{name: "unknown only", children: slices.Concat(unknown, unknown)},
+		{name: "sixteen bytes of children", children: slices.Concat(unknown, zero), structure: zeroStructure},
+		{name: "unknown on both sides", children: slices.Concat(unknown, nonzero, otherUnknown), structure: nonzeroStructure},
+		{name: "repeated structure", children: slices.Concat(nonzero, unknown, zero), structure: zeroStructure},
+		{name: "wrong structure width", children: []byte{0x04, 0xe4, 0, 1, 32}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			value := slices.Concat(base, test.children)
+			header := LsTLV{Type: LS_TLV_SRV6_END_X_SID, Length: uint16(len(value))}
+			wire, err := header.Serialize(value)
+			require.NoError(t, err)
+
+			input := bytes.Clone(wire)
+			var decoded LsTLVSrv6EndXSID
+			require.NoError(t, decoded.DecodeFromBytes(input))
+			clear(input)
+
+			assert.Equal(t, []netip.Addr{sid}, decoded.SIDs)
+			assert.Equal(t, test.structure, decoded.Srv6SIDStructure)
+			assert.Equal(t, test.structure.Type == LS_TLV_SRV6_SID_STRUCTURE, decoded.HasSIDStructure())
+			assert.Equal(t, header, decoded.GetLsTLV())
+			assert.Equal(t, len(wire), decoded.Len())
+			got, err := decoded.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, wire, got)
+
+			header.Length = uint16(len(base))
+			absent, err := header.Serialize(base)
+			require.NoError(t, err)
+			require.NoError(t, decoded.DecodeFromBytes(absent))
+			assert.Equal(t, []netip.Addr{sid}, decoded.SIDs)
+			assert.Equal(t, LsTLVSrv6SIDStructure{}, decoded.Srv6SIDStructure)
+			got, err = decoded.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, absent, got)
+		})
+	}
+}
+
+func TestLsTLVSrv6EndXSIDConstructedLength(t *testing.T) {
+	sid := netip.MustParseAddr("2001:db8::1")
+	tlv := NewLsTLVSrv6EndXSID(&LsSrv6EndXSID{SIDs: []netip.Addr{sid}})
+	assert.False(t, tlv.HasSIDStructure())
+	assert.Equal(t, uint16(22), tlv.Length)
+
+	tlv.Srv6SIDStructure = *NewLsTLVSrv6SIDStructure(&LsSrv6SIDStructure{})
+	wire, err := tlv.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, 34, tlv.Len())
+	assert.Equal(t, 34, len(wire))
+	assert.Equal(t, uint16(30), tlv.GetLsTLV().Length)
+	assert.Equal(t, uint16(22), tlv.Length, "serialization must not change the stored header")
+	assert.Equal(t, []byte{0x04, 0xe4, 0, 4, 0, 0, 0, 0}, wire[26:])
+
+	tlv.Srv6SIDStructure = LsTLVSrv6SIDStructure{LocalBlock: 32}
+	wire, err = tlv.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{0x04, 0xe4, 0, 4, 32, 0, 0, 0}, wire[26:])
+}
+
+func TestLsTLVSrv6EndXSIDRejectsTruncatedChildHeader(t *testing.T) {
+	value := make([]byte, 22+3)
+	header := LsTLV{Type: LS_TLV_SRV6_END_X_SID, Length: uint16(len(value))}
+	wire, err := header.Serialize(value)
+	require.NoError(t, err)
+	var decoded LsTLVSrv6EndXSID
+	require.Error(t, decoded.DecodeFromBytes(wire))
+}
+
 func Test_LsTLVSrv6SIDStructure(t *testing.T) {
 	assert := assert.New(t)
 
