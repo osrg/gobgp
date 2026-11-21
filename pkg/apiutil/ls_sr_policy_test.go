@@ -134,7 +134,7 @@ func Test_LsAttributeSrPolicyRoundTrip(t *testing.T) {
 				Sid:              "fc00:0:1::1",
 				SpecifiedSid:     "fc00:0:1::2",
 				EndpointBehavior: &api.LsSrv6EndpointBehavior{EndpointBehavior: 48},
-				SidStructure:     &api.LsSrv6SIDStructure{LocalBlock: 32, LocalNode: 16, LocalFunc: 16, LocalArg: 64},
+				SidStructure:     &api.LsSrv6SIDStructure{LocalBlock: 32, LocalNode: 16, LocalFunc: 16, LocalArg: 65},
 			}, {
 				Flags:            &api.LsSrv6BindingSIDFlags{Allocated: true},
 				Sid:              "fc00:0:1::3",
@@ -196,7 +196,7 @@ func Test_LsAttributeSrPolicyRoundTrip(t *testing.T) {
 							Flags:            &api.LsSrSegmentFlags{SidPresent: true, Explicit: true},
 							Sid:              "fc00:0:2::1",
 							EndpointBehavior: &api.LsSrv6EndpointBehavior{EndpointBehavior: 48},
-							SidStructure:     &api.LsSrv6SIDStructure{LocalBlock: 32, LocalNode: 16, LocalFunc: 16, LocalArg: 64},
+							SidStructure:     &api.LsSrv6SIDStructure{LocalBlock: 255, LocalNode: 16, LocalFunc: 16, LocalArg: 64},
 						},
 						{SegmentType: api.LsSrSegmentType_LS_SR_SEGMENT_TYPE_J_IPV6_NODE_INTERFACE_SRV6, Flags: &api.LsSrSegmentFlags{SidPresent: true, Explicit: true}, Sid: "fc00:0:4::1", LocalAddress: "2001:db8::4", LocalInterfaceId: 1, RemoteAddress: "2001:db8::5", RemoteInterfaceId: 2},
 					},
@@ -269,6 +269,22 @@ func Test_LsAttributeSrPolicyUnmarshalErrors(t *testing.T) {
 			assert.Error(err)
 		})
 	}
+}
+
+func Test_LsSrv6SIDStructureUnmarshalRange(t *testing.T) {
+	overflow := &api.LsSrv6SIDStructure{LocalBlock: math.MaxUint8 + 1}
+	_, err := UnmarshalLsSrv6BindingSID(&api.LsSrv6BindingSID{
+		Sid:          "2001:db8::1",
+		SpecifiedSid: "::",
+		SidStructure: overflow,
+	})
+	require.ErrorContains(t, err, "SRv6 SID structure field out of range")
+
+	_, err = UnmarshalLsSrSegment(&api.LsSrSegment{
+		SegmentType:  api.LsSrSegmentType_LS_SR_SEGMENT_TYPE_B_SRV6_SID,
+		SidStructure: overflow,
+	})
+	require.ErrorContains(t, err, "SRv6 SID structure field out of range")
 }
 
 func TestLsSrPolicyHeadendValidation(t *testing.T) {

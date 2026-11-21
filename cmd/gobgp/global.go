@@ -2482,7 +2482,7 @@ func parseLsLinkNLRIType(args []string) (bgp.NLRI, *bgp.PathAttributeLs, error) 
 				SIDs:             []netip.Addr{netip.AddrFrom16([16]byte(sid.To16()))},
 			}
 			if srv6Structure != nil {
-				lsTLV.Srv6SIDStructure = *bgp.NewLsTLVSrv6SIDStructure(srv6Structure)
+				lsTLV.SubTLVs = append(lsTLV.SubTLVs, bgp.NewLsTLVSrv6SIDStructure(srv6Structure))
 			}
 			tlvs = append(tlvs, lsTLV)
 			length += uint16(lsTLV.Len())

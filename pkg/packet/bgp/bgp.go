@@ -9662,6 +9662,11 @@ func (l *LsTLVPeerNodeSID) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
+const (
+	lsSrv6EndXSIDOffset   = 6
+	lsSrv6EndXSIDFixedLen = lsSrv6EndXSIDOffset + 16
+)
+
 type LsTLVSrv6EndXSID struct {
 	LsTLV
 	EndpointBehavior uint16
@@ -9670,51 +9675,51 @@ type LsTLVSrv6EndXSID struct {
 	Weight           uint8
 	Reserved         uint8
 	SIDs             []netip.Addr
-	Srv6SIDStructure LsTLVSrv6SIDStructure
+	SubTLVs          []LsTLVInterface
 }
 
 func NewLsTLVSrv6EndXSID(l *LsSrv6EndXSID) *LsTLVSrv6EndXSID {
-	var length uint16 = 6
-
-	sids := []netip.Addr{}
-	for _, sid := range l.SIDs {
-		sids = append(sids, sid)
-		length += 16 // each SID is 16 bytes
+	var zero LsSrv6SIDStructure
+	var subTLVs []LsTLVInterface
+	if l.Srv6SIDStructure != zero {
+		subTLVs = append(subTLVs, NewLsTLVSrv6SIDStructure(&l.Srv6SIDStructure))
 	}
 
-	srv6SIDStructure := LsTLVSrv6SIDStructure{
-		LsTLV: LsTLV{
-			Type:   LS_TLV_SRV6_SID_STRUCTURE,
-			Length: 4,
-		},
-		LocalBlock: l.Srv6SIDStructure.LocalBlock,
-		LocalNode:  l.Srv6SIDStructure.LocalNode,
-		LocalFunc:  l.Srv6SIDStructure.LocalFunc,
-		LocalArg:   l.Srv6SIDStructure.LocalArg,
-	}
-
-	if l.Srv6SIDStructure.LocalBlock != 0 || l.Srv6SIDStructure.LocalNode != 0 ||
-		l.Srv6SIDStructure.LocalFunc != 0 || l.Srv6SIDStructure.LocalArg != 0 {
-		length += 8 // Sub-TLV header (4 bytes) + payload (4 bytes)
-	}
-
-	return &LsTLVSrv6EndXSID{
-		LsTLV: LsTLV{
-			Type:   LS_TLV_SRV6_END_X_SID,
-			Length: length,
-		},
+	tlv := &LsTLVSrv6EndXSID{
+		LsTLV:            LsTLV{Type: LS_TLV_SRV6_END_X_SID},
 		EndpointBehavior: l.EndpointBehavior,
 		Flags:            l.Flags,
 		Algorithm:        l.Algorithm,
 		Weight:           l.Weight,
 		Reserved:         l.Reserved,
-		SIDs:             sids,
-		Srv6SIDStructure: srv6SIDStructure,
+		SIDs:             slices.Clone(l.SIDs),
+		SubTLVs:          subTLVs,
 	}
+	tlv.Length = uint16(tlv.valueLen())
+	return tlv
+}
+
+func (l *LsTLVSrv6EndXSID) valueLen() int {
+	return lsSrv6EndXSIDFixedLen + lsSubTLVsLen(l.SubTLVs)
+}
+
+func (l *LsTLVSrv6EndXSID) Len() int {
+	return tlvHdrLen + l.valueLen()
 }
 
 func (l *LsTLVSrv6EndXSID) GetLsTLV() LsTLV {
-	return l.LsTLV
+	header := l.LsTLV
+	header.Length = uint16(l.valueLen())
+	return header
+}
+
+func (l *LsTLVSrv6EndXSID) sidStructure() LsTLVSrv6SIDStructure {
+	for _, sub := range l.SubTLVs {
+		if structure, ok := sub.(*LsTLVSrv6SIDStructure); ok {
+			return *structure
+		}
+	}
+	return LsTLVSrv6SIDStructure{}
 }
 
 type LsSrv6EndXSID struct {
@@ -9728,6 +9733,7 @@ type LsSrv6EndXSID struct {
 }
 
 func (l *LsTLVSrv6EndXSID) Extract() *LsSrv6EndXSID {
+	structure := l.sidStructure()
 	les := &LsSrv6EndXSID{
 		EndpointBehavior: l.EndpointBehavior,
 		Flags:            l.Flags,
@@ -9735,7 +9741,7 @@ func (l *LsTLVSrv6EndXSID) Extract() *LsSrv6EndXSID {
 		Weight:           l.Weight,
 		Reserved:         l.Reserved,
 		SIDs:             l.SIDs,
-		Srv6SIDStructure: *l.Srv6SIDStructure.Extract(),
+		Srv6SIDStructure: *structure.Extract(),
 	}
 
 	return les
@@ -9751,8 +9757,7 @@ func (l *LsTLVSrv6EndXSID) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Unexpected TLV type")
 	}
 
-	// RFC 9514: minimum length = 6 bytes header + 16 bytes SID = 22 bytes
-	if len(value) < 22 {
+	if len(value) < lsSrv6EndXSIDFixedLen {
 		return malformedAttrListErr("Incorrect SRv6 End.X SID length")
 	}
 
@@ -9762,96 +9767,42 @@ func (l *LsTLVSrv6EndXSID) DecodeFromBytes(data []byte) error {
 	l.Weight = value[4]
 	l.Reserved = value[5]
 
-	value = value[6:]
-
-	// parse variable data: SIDs followed by Sub-TLVs
-	return l.parseVariableData(value)
+	sid, _ := netip.AddrFromSlice(value[lsSrv6EndXSIDOffset:lsSrv6EndXSIDFixedLen])
+	l.SIDs = []netip.Addr{sid}
+	l.SubTLVs, err = lsWalkSubTLVs(value[lsSrv6EndXSIDFixedLen:], lsSrv6EndXSubTLVAlloc)
+	return err
 }
 
-func (l *LsTLVSrv6EndXSID) parseVariableData(data []byte) error {
-	pos := 0
-
-	// if data length is not multiple of 16, there must be Sub-TLVs at the end
-	dataLen := len(data)
-	sidDataLen := dataLen / 16 * 16
-
-	for pos < sidDataLen {
-		sid := make([]byte, 16)
-		copy(sid, data[pos:pos+16])
-		addr, _ := netip.AddrFromSlice(sid)
-		l.SIDs = append(l.SIDs, addr)
-		pos += 16
+func lsSrv6EndXSubTLVAlloc(typ LsTLVType) LsTLVInterface {
+	if typ == LS_TLV_SRV6_SID_STRUCTURE {
+		return lsSrv6SubTLVAlloc(typ)
 	}
-
-	if pos < dataLen {
-		return l.parseSubTLVs(data[pos:])
-	}
-
-	return nil
-}
-
-func (l *LsTLVSrv6EndXSID) parseSubTLVs(data []byte) error {
-	for len(data) >= 4 {
-		tlvType := binary.BigEndian.Uint16(data[:2])
-		tlvLen := binary.BigEndian.Uint16(data[2:4])
-		need := 4 + int(tlvLen)
-		if len(data) < need {
-			return malformedAttrListErr("SRv6 End.X SID Sub-TLV is truncated")
-		}
-
-		switch tlvType {
-		case LS_TLV_SRV6_SID_STRUCTURE:
-			if tlvLen != 4 {
-				data = data[need:]
-				continue
-			}
-			l.Srv6SIDStructure.LocalBlock = data[4]
-			l.Srv6SIDStructure.LocalNode = data[5]
-			l.Srv6SIDStructure.LocalFunc = data[6]
-			l.Srv6SIDStructure.LocalArg = data[7]
-		default:
-			// TODO: handle unknown Sub-TLVs
-		}
-
-		data = data[need:]
-	}
-
 	return nil
 }
 
 func (l *LsTLVSrv6EndXSID) Serialize() ([]byte, error) {
-	buf := make([]byte, 0)
-
-	temp := make([]byte, 2)
-	binary.BigEndian.PutUint16(temp, l.EndpointBehavior)
-	buf = append(buf, temp...)
-	buf = append(buf, l.Flags)
-	buf = append(buf, l.Algorithm)
-	buf = append(buf, l.Weight)
-	buf = append(buf, l.Reserved)
-
-	for _, sid := range l.SIDs {
-		buf = append(buf, sid.AsSlice()...)
+	if len(l.SIDs) != 1 || !l.SIDs[0].Is6() {
+		return nil, malformedAttrListErr("SRv6 End.X SID TLV requires one IPv6 SID")
 	}
 
-	return l.serializeSubTLVs(buf)
-}
-
-func (l *LsTLVSrv6EndXSID) serializeSubTLVs(buf []byte) ([]byte, error) {
-	if l.Srv6SIDStructure.LocalBlock != 0 || l.Srv6SIDStructure.LocalNode != 0 ||
-		l.Srv6SIDStructure.LocalFunc != 0 || l.Srv6SIDStructure.LocalArg != 0 {
-		subTLVHeader := make([]byte, 4)
-		binary.BigEndian.PutUint16(subTLVHeader[:2], LS_TLV_SRV6_SID_STRUCTURE)
-		binary.BigEndian.PutUint16(subTLVHeader[2:4], 4) // Length = 4 bytes
-		buf = append(buf, subTLVHeader...)
-
-		buf = append(buf, l.Srv6SIDStructure.LocalBlock)
-		buf = append(buf, l.Srv6SIDStructure.LocalNode)
-		buf = append(buf, l.Srv6SIDStructure.LocalFunc)
-		buf = append(buf, l.Srv6SIDStructure.LocalArg)
+	length := l.valueLen()
+	if length > math.MaxUint16 {
+		return nil, malformedAttrListErr("SRv6 End.X SID TLV is too long")
 	}
 
-	return l.LsTLV.Serialize(buf)
+	buf := make([]byte, 0, length)
+	buf = binary.BigEndian.AppendUint16(buf, l.EndpointBehavior)
+	buf = append(buf, l.Flags, l.Algorithm, l.Weight, l.Reserved)
+	buf = append(buf, l.SIDs[0].AsSlice()...)
+	subTLVs, err := lsSerializeSubTLVs(l.SubTLVs)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, subTLVs...)
+
+	header := l.LsTLV
+	header.Length = uint16(length)
+	return header.Serialize(buf)
 }
 
 func (l *LsTLVSrv6EndXSID) String() string {
@@ -9859,7 +9810,8 @@ func (l *LsTLVSrv6EndXSID) String() string {
 	for _, sid := range l.SIDs {
 		fmt.Fprintf(&buf, "%s ", sid.String())
 	}
-	return fmt.Sprintf("{SRv6 End.X SID: EndpointBehavior:%d SIDs: %s LocalBlock:%d LocalNode:%d LocalFunc:%d LocalArg:%d}", l.EndpointBehavior, buf.String(), l.Srv6SIDStructure.LocalBlock, l.Srv6SIDStructure.LocalNode, l.Srv6SIDStructure.LocalFunc, l.Srv6SIDStructure.LocalArg)
+	structure := l.sidStructure()
+	return fmt.Sprintf("{SRv6 End.X SID: EndpointBehavior:%d SIDs: %s LocalBlock:%d LocalNode:%d LocalFunc:%d LocalArg:%d}", l.EndpointBehavior, buf.String(), structure.LocalBlock, structure.LocalNode, structure.LocalFunc, structure.LocalArg)
 }
 
 func (l *LsTLVSrv6EndXSID) MarshalJSON() ([]byte, error) {
@@ -9872,7 +9824,7 @@ func (l *LsTLVSrv6EndXSID) MarshalJSON() ([]byte, error) {
 		Type:             l.Type,
 		EndpointBehavior: l.EndpointBehavior,
 		SIDs:             l.SIDs,
-		Srv6SIDStructure: l.Srv6SIDStructure,
+		Srv6SIDStructure: l.sidStructure(),
 	})
 }
 
@@ -9932,16 +9884,11 @@ func (l *LsTLVSrv6SIDStructure) DecodeFromBytes(data []byte) error {
 		return malformedAttrListErr("Incorrect SRv6 SID Structure length")
 	}
 
+	// Leave validation of the bit lengths to the BGP-LS consumer (RFC 9552, Section 8.2.2).
 	l.LocalBlock = value[0]
 	l.LocalNode = value[1]
 	l.LocalFunc = value[2]
 	l.LocalArg = value[3]
-
-	sum := uint16(l.LocalBlock) + uint16(l.LocalNode) + uint16(l.LocalFunc) + uint16(l.LocalArg)
-	if sum > 128 {
-		return malformedAttrListErr("SRv6 SID Structure length sum exceeds 128 bits")
-	}
-
 	return nil
 }
 

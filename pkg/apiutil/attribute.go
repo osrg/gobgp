@@ -1408,28 +1408,33 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			})
 		}
 		var srv6EndXSID *bgp.LsSrv6EndXSID
-		if a.Link.Srv6EndXSid != nil {
-			sids := make([]netip.Addr, 0, len(a.Link.Srv6EndXSid.Sids))
-			for _, s := range a.Link.Srv6EndXSid.Sids {
-				addr, _ := netip.ParseAddr(s)
-				sids = append(sids, addr)
+		if endX := a.Link.Srv6EndXSid; endX != nil {
+			if len(endX.Sids) != 1 {
+				return nil, fmt.Errorf("SRv6 End.X SID requires exactly one SID, got %d", len(endX.Sids))
+			}
+			sid, err := lsParseAddr("SRv6 End.X SID", endX.Sids[0])
+			if err != nil {
+				return nil, err
+			}
+			if !sid.Is6() {
+				return nil, fmt.Errorf("SRv6 End.X SID must be an IPv6 address: %q", endX.Sids[0])
 			}
 			var srv6SIDStructure bgp.LsSrv6SIDStructure
-			if a.Link.Srv6EndXSid.Srv6SidStructure != nil {
+			if endX.Srv6SidStructure != nil {
 				srv6SIDStructure = bgp.LsSrv6SIDStructure{
-					LocalBlock: uint8(a.Link.Srv6EndXSid.Srv6SidStructure.LocalBlock),
-					LocalNode:  uint8(a.Link.Srv6EndXSid.Srv6SidStructure.LocalNode),
-					LocalFunc:  uint8(a.Link.Srv6EndXSid.Srv6SidStructure.LocalFunc),
-					LocalArg:   uint8(a.Link.Srv6EndXSid.Srv6SidStructure.LocalArg),
+					LocalBlock: uint8(endX.Srv6SidStructure.LocalBlock),
+					LocalNode:  uint8(endX.Srv6SidStructure.LocalNode),
+					LocalFunc:  uint8(endX.Srv6SidStructure.LocalFunc),
+					LocalArg:   uint8(endX.Srv6SidStructure.LocalArg),
 				}
 			}
 			srv6EndXSID = &bgp.LsSrv6EndXSID{
-				EndpointBehavior: uint16(a.Link.Srv6EndXSid.EndpointBehavior),
-				Flags:            uint8(a.Link.Srv6EndXSid.Flags),
-				Algorithm:        uint8(a.Link.Srv6EndXSid.Algorithm),
-				Weight:           uint8(a.Link.Srv6EndXSid.Weight),
-				Reserved:         uint8(a.Link.Srv6EndXSid.Reserved),
-				SIDs:             sids,
+				EndpointBehavior: uint16(endX.EndpointBehavior),
+				Flags:            uint8(endX.Flags),
+				Algorithm:        uint8(endX.Algorithm),
+				Weight:           uint8(endX.Weight),
+				Reserved:         uint8(endX.Reserved),
+				SIDs:             []netip.Addr{sid},
 				Srv6SIDStructure: srv6SIDStructure,
 			}
 		}

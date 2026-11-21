@@ -6967,6 +6967,156 @@ func Test_LsTLVSrv6EndXSID(t *testing.T) {
 	}
 }
 
+func TestLsTLVSrv6EndXSIDChildRoundTrip(t *testing.T) {
+	sid := netip.MustParseAddr("2001:db8::1")
+	base := append([]byte{0, 57, 0, 128, 100, 0}, sid.AsSlice()...)
+	zero := []byte{0x04, 0xe4, 0, 4, 0, 0, 0, 0}
+	nonzero := []byte{0x04, 0xe4, 0, 4, 32, 16, 24, 8}
+	overlong := []byte{0x04, 0xe4, 0, 4, 128, 1, 0, 0}
+	unknown := []byte{0xff, 0xfe, 0, 4, 1, 2, 3, 4}
+	otherUnknown := []byte{0xff, 0xfd, 0, 1, 5}
+	endpointBehavior := []byte{0x04, 0xe2, 0, 1, 5}
+	nonzeroFields := LsSrv6SIDStructure{LocalBlock: 32, LocalNode: 16, LocalFunc: 24, LocalArg: 8}
+	overlongFields := LsSrv6SIDStructure{LocalBlock: 128, LocalNode: 1}
+	zeroStructure := NewLsTLVSrv6SIDStructure(&LsSrv6SIDStructure{})
+	nonzeroStructure := NewLsTLVSrv6SIDStructure(&nonzeroFields)
+	overlongStructure := NewLsTLVSrv6SIDStructure(&overlongFields)
+	opaqueUnknown := &lsTLVUnknown{LsTLV: LsTLV{Type: 0xfffe, Length: 4}, Value: []byte{1, 2, 3, 4}}
+	opaqueOtherUnknown := &lsTLVUnknown{LsTLV: LsTLV{Type: 0xfffd, Length: 1}, Value: []byte{5}}
+	opaqueEndpointBehavior := &lsTLVUnknown{
+		LsTLV: LsTLV{Type: LS_TLV_SRV6_ENDPOINT_BEHAVIOR, Length: 1},
+		Value: []byte{5},
+	}
+	for _, test := range []struct {
+		name          string
+		children      []byte
+		wantChildren  []LsTLVInterface
+		wantStructure LsSrv6SIDStructure
+	}{
+		{name: "absent"},
+		{name: "explicit zero", children: zero, wantChildren: []LsTLVInterface{zeroStructure}},
+		{
+			name:          "nonzero",
+			children:      nonzero,
+			wantChildren:  []LsTLVInterface{nonzeroStructure},
+			wantStructure: nonzeroFields,
+		},
+		{
+			name:          "structure sum exceeds 128 bits",
+			children:      overlong,
+			wantChildren:  []LsTLVInterface{overlongStructure},
+			wantStructure: overlongFields,
+		},
+		{
+			name:         "unknown only",
+			children:     slices.Concat(unknown, unknown),
+			wantChildren: []LsTLVInterface{opaqueUnknown, opaqueUnknown},
+		},
+		{
+			name:         "sixteen bytes of children",
+			children:     slices.Concat(unknown, zero),
+			wantChildren: []LsTLVInterface{opaqueUnknown, zeroStructure},
+		},
+		{
+			name:          "unknown on both sides",
+			children:      slices.Concat(unknown, nonzero, otherUnknown),
+			wantChildren:  []LsTLVInterface{opaqueUnknown, nonzeroStructure, opaqueOtherUnknown},
+			wantStructure: nonzeroFields,
+		},
+		{
+			name:          "repeated structure",
+			children:      slices.Concat(nonzero, unknown, zero),
+			wantChildren:  []LsTLVInterface{nonzeroStructure, opaqueUnknown, zeroStructure},
+			wantStructure: nonzeroFields,
+		},
+		{
+			name:         "endpoint behavior remains opaque",
+			children:     endpointBehavior,
+			wantChildren: []LsTLVInterface{opaqueEndpointBehavior},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			value := slices.Concat(base, test.children)
+			header := LsTLV{Type: LS_TLV_SRV6_END_X_SID, Length: uint16(len(value))}
+			wire, err := header.Serialize(value)
+			require.NoError(t, err)
+
+			input := bytes.Clone(wire)
+			var decoded LsTLVSrv6EndXSID
+			require.NoError(t, decoded.DecodeFromBytes(input))
+			clear(input)
+
+			assert.Equal(t, []netip.Addr{sid}, decoded.SIDs)
+			require.Len(t, decoded.SubTLVs, len(test.wantChildren))
+			for i, child := range test.wantChildren {
+				assert.Equal(t, child, decoded.SubTLVs[i])
+			}
+			assert.Equal(t, test.wantStructure, decoded.Extract().Srv6SIDStructure)
+			assert.Equal(t, header, decoded.GetLsTLV())
+			assert.Equal(t, len(wire), decoded.Len())
+			got, err := decoded.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, wire, got)
+
+			header.Length = uint16(len(base))
+			absent, err := header.Serialize(base)
+			require.NoError(t, err)
+			require.NoError(t, decoded.DecodeFromBytes(absent))
+			assert.Equal(t, []netip.Addr{sid}, decoded.SIDs)
+			assert.Empty(t, decoded.SubTLVs)
+			got, err = decoded.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, absent, got)
+		})
+	}
+}
+
+func TestLsTLVSrv6EndXSIDConstructedLength(t *testing.T) {
+	sid := netip.MustParseAddr("2001:db8::1")
+	tlv := NewLsTLVSrv6EndXSID(&LsSrv6EndXSID{SIDs: []netip.Addr{sid}})
+	assert.Empty(t, tlv.SubTLVs)
+	assert.Equal(t, 26, tlv.Len())
+	assert.Equal(t, uint16(22), tlv.GetLsTLV().Length)
+
+	tlv.SubTLVs = []LsTLVInterface{NewLsTLVSrv6SIDStructure(&LsSrv6SIDStructure{})}
+	wire, err := tlv.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, 34, tlv.Len())
+	assert.Equal(t, 34, len(wire))
+	assert.Equal(t, uint16(30), tlv.GetLsTLV().Length)
+	assert.Equal(t, []byte{0x04, 0x52, 0, 30}, wire[:4])
+	assert.Equal(t, []byte{0x04, 0xe4, 0, 4, 0, 0, 0, 0}, wire[26:])
+
+	tlv = NewLsTLVSrv6EndXSID(&LsSrv6EndXSID{
+		SIDs:             []netip.Addr{sid},
+		Srv6SIDStructure: LsSrv6SIDStructure{LocalBlock: 32},
+	})
+	wire, err = tlv.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{0x04, 0xe4, 0, 4, 32, 0, 0, 0}, wire[26:])
+}
+
+func TestLsTLVSrv6EndXSIDRejectsMalformedChild(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		child []byte
+	}{
+		{name: "truncated header", child: []byte{0x04, 0xe4, 0}},
+		{name: "truncated payload", child: []byte{0x04, 0xe4, 0, 4, 32}},
+		{name: "length overflow", child: []byte{0, 0, 0xff, 0xfc}},
+		{name: "wrong structure width", child: []byte{0x04, 0xe4, 0, 1, 32}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			value := append(make([]byte, 22), test.child...)
+			header := LsTLV{Type: LS_TLV_SRV6_END_X_SID, Length: uint16(len(value))}
+			wire, err := header.Serialize(value)
+			require.NoError(t, err)
+			var decoded LsTLVSrv6EndXSID
+			require.Error(t, decoded.DecodeFromBytes(wire))
+		})
+	}
+}
+
 func Test_LsTLVSrv6SIDStructure(t *testing.T) {
 	assert := assert.New(t)
 
@@ -6987,6 +7137,10 @@ func Test_LsTLVSrv6SIDStructure(t *testing.T) {
 			0x04, 0xe4, 0x00, 0x03, // Incorrect length (should be 4)
 			0x28, 0x28, 0x10,
 		}, "", true, false},
+		{[]byte{
+			0x04, 0xe4, 0, 4,
+			128, 1, 0, 0,
+		}, "{SRv6 SID Structure: LocalBlock:128 LocalNode:1 LocalFunc:0 LocalArg:0}", false, true},
 	}
 
 	for _, test := range tests {
@@ -7078,16 +7232,6 @@ func Test_LsTLVSrv6EndpointBehavior(t *testing.T) {
 				assert.Equal(test.in, got)
 			}
 		}
-	}
-}
-
-func TestParseSubTLVsOverflow(t *testing.T) {
-	l := &LsTLVSrv6EndXSID{}
-
-	// tlvLen = 65532 (0xFFFC) makes (uint16(4) + tlvLen) wrap to 0 in the buggy code.
-	data := []byte{0x00, 0x00, 0xFF, 0xFC}
-	if err := l.parseSubTLVs(data); err == nil {
-		t.Fatal("expected error for truncated Sub-TLV")
 	}
 }
 
