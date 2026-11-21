@@ -2152,10 +2152,63 @@ func TestNextIdleHoldTime(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hold, backoff := nextIdleHoldTime(tt.backoff, afterReset, tt.reason)
+			hold, backoff := nextIdleHoldTime(tt.backoff, afterReset, 0, tt.reason)
 			assert.Equal(t, tt.wantHold, hold)
 			assert.Equal(t, tt.wantBackoff, backoff)
 		})
+	}
+}
+
+// idle-hold-time-max replaces the maximum of the backoff.
+func TestNextIdleHoldTimeLimit(t *testing.T) {
+	cease := newfsmStateReason(fsmNotificationRecv, &bgp.BGPNotification{ErrorCode: bgp.BGP_ERROR_CEASE, ErrorSubcode: bgp.BGP_ERROR_SUB_ADMINISTRATIVE_RESET}, nil)
+
+	const afterReset = 30
+
+	tests := []struct {
+		name        string
+		limit       float64
+		backoff     float64
+		reason      *fsmStateReason
+		wantHold    float64
+		wantBackoff float64
+	}{
+		{"0 is the default maximum", 0, 64, cease, idleHoldTimeMax, idleHoldTimeMax},
+		{"doubles below the limit", 10, 4, cease, 8, 8},
+		{"doubling stops at the limit", 10, 8, cease, 10, 10},
+		{"limit above the default maximum", 300, 128, cease, 256, 256},
+		{"lowered limit applies to a doubled value", 10, 64, cease, 10, 10},
+		{"lowered limit applies to a kept value", 10, 64, newfsmStateReason(fsmReadFailed, nil, nil), 10, 10},
+		{"limit 1 disables the backoff", 1, 1, cease, 1, 1},
+		{"limit below the initial value means the initial value", 0.5, 1, cease, idleHoldTimeInitial, idleHoldTimeInitial},
+		{"reset uses idle-hold-time-after-reset above the limit", 10, 8, newfsmStateReason(fsmAdminReset, nil, nil), afterReset, idleHoldTimeInitial},
+		{"admin down goes back to the initial value", 10, 8, newfsmStateReason(fsmAdminDown, nil, nil), idleHoldTimeInitial, idleHoldTimeInitial},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hold, backoff := nextIdleHoldTime(tt.backoff, afterReset, tt.limit, tt.reason)
+			assert.Equal(t, tt.wantHold, hold)
+			assert.Equal(t, tt.wantBackoff, backoff)
+		})
+	}
+
+	// A peer that ends five sessions in a row with a Cease before
+	// Established.
+	for _, tt := range []struct {
+		limit float64
+		want  []float64
+	}{
+		{0, []float64{2, 4, 8, 16, 32}},
+		{4, []float64{2, 4, 4, 4, 4}},
+	} {
+		backoff := float64(idleHoldTimeInitial)
+		var got []float64
+		for range 5 {
+			var hold float64
+			hold, backoff = nextIdleHoldTime(backoff, afterReset, tt.limit, cease)
+			got = append(got, hold)
+		}
+		assert.Equal(t, tt.want, got, "limit %v", tt.limit)
 	}
 }
 

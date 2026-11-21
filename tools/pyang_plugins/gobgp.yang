@@ -275,6 +275,19 @@ module gobgp {
         "Time interval in seconds that a BGP session will be
         in idle state after neighbor reset operation.";
     }
+
+    leaf idle-hold-time-max {
+      type decimal64 {
+        fraction-digits 2;
+      }
+      description
+        "Maximum time interval in seconds that a BGP session will be
+        in idle state after it ends with an error. The idle hold time
+        starts at 1 second, doubles each time a session ends with an
+        error, and goes back to 1 second when a session reaches the
+        established state. 0 means 120 seconds. A value below 1
+        second means 1 second.";
+    }
   }
 
 

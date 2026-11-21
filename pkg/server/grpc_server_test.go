@@ -169,6 +169,28 @@ func TestNewPeerGroupFromAPIStructTcpAo(t *testing.T) {
 	})
 }
 
+// idle-hold-time-max goes through the API in both directions, for a
+// neighbor and for a peer group.
+func TestIdleHoldTimeMaxAPI(t *testing.T) {
+	timers := &api.Timers{Config: &api.TimersConfig{IdleHoldTimeMax: 10}}
+
+	pconf, err := newNeighborFromAPIStruct(&api.Peer{
+		Conf:   &api.PeerConf{NeighborAddress: "192.0.2.1", PeerAsn: 65001},
+		Timers: timers,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, float64(10), pconf.Timers.Config.IdleHoldTimeMax)
+	assert.Equal(t, uint64(10), oc.NewPeerFromConfigStruct(pconf).Timers.Config.IdleHoldTimeMax)
+
+	pgconf, err := newPeerGroupFromAPIStruct(&api.PeerGroup{
+		Conf:   &api.PeerGroupConf{PeerGroupName: "pg"},
+		Timers: timers,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, float64(10), pgconf.Timers.Config.IdleHoldTimeMax)
+	assert.Equal(t, uint64(10), oc.NewPeerGroupFromConfigStruct(pgconf).Timers.Config.IdleHoldTimeMax)
+}
+
 func TestToPathApi(t *testing.T) {
 	type args struct {
 		path            *table.Path

@@ -75,6 +75,8 @@
         connect-retry = 5 #unit of measurement is seconds
         hold-time = 9 #unit of measurement is seconds
         keepalive-interval = 3 #unit of measurement is seconds
+        # Maximum idle hold time after a session ends with an error, default: 120.
+        idle-hold-time-max = 10 #unit of measurement is seconds
     [neighbors.transport.config]
         passive-mode = true
         local-address = "192.168.10.1"
