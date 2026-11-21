@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	"github.com/osrg/gobgp/v4/api"
@@ -4246,6 +4247,26 @@ func newGlobalCmd() *cobra.Command {
 				},
 			}
 			cmd.AddCommand(subcmd)
+
+			uuidCmd := &cobra.Command{
+				Use: cmdUUID,
+				Run: func(cmd *cobra.Command, args []string) {
+					if len(args) != 1 {
+						exitWithError(fmt.Errorf("usage: gobgp global rib del uuid <uuid>"))
+					}
+					id, err := uuid.Parse(args[0])
+					if err != nil {
+						exitWithError(err)
+					}
+					if _, err = client.DeletePath(ctx, &api.DeletePathRequest{
+						TableType: api.TableType_TABLE_TYPE_GLOBAL,
+						Uuid:      id[:],
+					}); err != nil {
+						exitWithError(err)
+					}
+				},
+			}
+			cmd.AddCommand(uuidCmd)
 		}
 	}
 
