@@ -112,6 +112,49 @@ func Test_LsAttributeExtendedAdminGroupRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLsAttributeEndXSIDValidation(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		endX *api.LsSrv6EndXSID
+		err  string
+	}{
+		{name: "omitted"},
+		{name: "no SIDs", endX: &api.LsSrv6EndXSID{}, err: "requires exactly one SID, got 0"},
+		{name: "multiple SIDs", endX: &api.LsSrv6EndXSID{Sids: []string{"2001:db8::1", "2001:db8::2"}}, err: "requires exactly one SID, got 2"},
+		{name: "empty SID", endX: &api.LsSrv6EndXSID{Sids: []string{""}}, err: "must be an IPv6 address"},
+		{name: "malformed SID", endX: &api.LsSrv6EndXSID{Sids: []string{"invalid"}}, err: `invalid SRv6 End.X SID "invalid"`},
+		{name: "IPv4 SID", endX: &api.LsSrv6EndXSID{Sids: []string{"192.0.2.1"}}, err: "must be an IPv6 address"},
+		{name: "IPv6 SID with zone", endX: &api.LsSrv6EndXSID{Sids: []string{"fe80::1%eth0"}}, err: "address zones cannot be encoded"},
+		{name: "IPv6 SID", endX: &api.LsSrv6EndXSID{Sids: []string{"2001:db8::1"}}},
+		{name: "IPv4-mapped IPv6 SID", endX: &api.LsSrv6EndXSID{Sids: []string{"::ffff:192.0.2.1"}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ls := &api.LsAttribute{Link: &api.LsAttributeLink{Srv6EndXSid: test.endX}}
+			path := &api.Path{Pattrs: []*api.Attribute{{Attr: &api.Attribute_Ls{Ls: ls}}}}
+			attrs, err := GetNativePathAttributes(path)
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, attrs, 1)
+			attr, ok := attrs[0].(*bgp.PathAttributeLs)
+			require.True(t, ok)
+			if test.endX == nil {
+				require.Empty(t, attr.TLVs)
+				return
+			}
+			wire, err := attr.Serialize()
+			require.NoError(t, err)
+			var decoded bgp.PathAttributeLs
+			require.NoError(t, decoded.DecodeFromBytes(wire))
+			endX := decoded.Extract().Link.Srv6EndXSID
+			require.NotNil(t, endX)
+			require.Equal(t, []netip.Addr{netip.MustParseAddr(test.endX.Sids[0])}, endX.SIDs)
+		})
+	}
+}
+
 func Test_LsAttributePrefixMetricRoundTrip(t *testing.T) {
 	assert := assert.New(t)
 

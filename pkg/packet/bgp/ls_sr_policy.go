@@ -76,6 +76,10 @@ func lsAddrBytes(addr netip.Addr, n int) []byte {
 // lsWalkSubTLVs iterates over a sequence of BGP-LS sub-TLVs. alloc returns
 // the concrete TLV for a type, or nil to keep an unknown type opaque.
 func lsWalkSubTLVs(data []byte, alloc func(LsTLVType) LsTLVInterface) ([]LsTLVInterface, error) {
+	return lsWalkSubTLVsWithDecoder(data, alloc, LsTLVInterface.DecodeFromBytes)
+}
+
+func lsWalkSubTLVsWithDecoder(data []byte, alloc func(LsTLVType) LsTLVInterface, decode func(LsTLVInterface, []byte) error) ([]LsTLVInterface, error) {
 	subTLVs := []LsTLVInterface{}
 
 	for len(data) >= tlvHdrLen {
@@ -89,7 +93,7 @@ func lsWalkSubTLVs(data []byte, alloc func(LsTLVType) LsTLVInterface) ([]LsTLVIn
 			sub = &lsTLVUnknown{}
 		}
 
-		if err := sub.DecodeFromBytes(data); err != nil {
+		if err := decode(sub, data); err != nil {
 			if errors.Is(err, errLsSkipTLV) {
 				sub = &lsTLVUnknown{}
 				if err := sub.DecodeFromBytes(data); err != nil {

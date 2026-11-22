@@ -9663,9 +9663,8 @@ func (l *LsTLVPeerNodeSID) GetLsTLV() LsTLV {
 }
 
 const (
-	lsSrv6EndXSIDOffset        = 6
-	lsSrv6EndXSIDFixedLen      = lsSrv6EndXSIDOffset + 16
-	lsSrv6SIDStructureValueLen = 4
+	lsSrv6EndXSIDOffset   = 6
+	lsSrv6EndXSIDFixedLen = lsSrv6EndXSIDOffset + 16
 )
 
 type LsTLVSrv6EndXSID struct {
@@ -9676,18 +9675,14 @@ type LsTLVSrv6EndXSID struct {
 	Weight           uint8
 	Reserved         uint8
 	SIDs             []netip.Addr
-	Srv6SIDStructure LsTLVSrv6SIDStructure
-
-	// Keep the other children in wire order around the last SID Structure.
-	opaqueSubTLVs      []byte
-	sidStructureOffset int
+	SubTLVs          []LsTLVInterface
 }
 
 func NewLsTLVSrv6EndXSID(l *LsSrv6EndXSID) *LsTLVSrv6EndXSID {
 	var zero LsSrv6SIDStructure
-	var structure LsTLVSrv6SIDStructure
+	var subTLVs []LsTLVInterface
 	if l.Srv6SIDStructure != zero {
-		structure = *NewLsTLVSrv6SIDStructure(&l.Srv6SIDStructure)
+		subTLVs = append(subTLVs, NewLsTLVSrv6SIDStructure(&l.Srv6SIDStructure))
 	}
 
 	tlv := &LsTLVSrv6EndXSID{
@@ -9698,18 +9693,14 @@ func NewLsTLVSrv6EndXSID(l *LsSrv6EndXSID) *LsTLVSrv6EndXSID {
 		Weight:           l.Weight,
 		Reserved:         l.Reserved,
 		SIDs:             slices.Clone(l.SIDs),
-		Srv6SIDStructure: structure,
+		SubTLVs:          subTLVs,
 	}
 	tlv.Length = uint16(tlv.valueLen())
 	return tlv
 }
 
 func (l *LsTLVSrv6EndXSID) valueLen() int {
-	length := lsSrv6EndXSIDFixedLen + len(l.opaqueSubTLVs)
-	if l.HasSIDStructure() {
-		length += tlvHdrLen + lsSrv6SIDStructureValueLen
-	}
-	return length
+	return lsSrv6EndXSIDFixedLen + lsSubTLVsLen(l.SubTLVs)
 }
 
 func (l *LsTLVSrv6EndXSID) Len() int {
@@ -9722,11 +9713,13 @@ func (l *LsTLVSrv6EndXSID) GetLsTLV() LsTLV {
 	return header
 }
 
-// HasSIDStructure reports whether the End.X SID has a SID Structure child.
-func (l *LsTLVSrv6EndXSID) HasSIDStructure() bool {
-	structure := l.Srv6SIDStructure
-	return structure.Type == LS_TLV_SRV6_SID_STRUCTURE ||
-		structure.LocalBlock != 0 || structure.LocalNode != 0 || structure.LocalFunc != 0 || structure.LocalArg != 0
+func (l *LsTLVSrv6EndXSID) sidStructure() LsTLVSrv6SIDStructure {
+	for _, sub := range slices.Backward(l.SubTLVs) {
+		if structure, ok := sub.(*LsTLVSrv6SIDStructure); ok {
+			return *structure
+		}
+	}
+	return LsTLVSrv6SIDStructure{}
 }
 
 type LsSrv6EndXSID struct {
@@ -9740,6 +9733,7 @@ type LsSrv6EndXSID struct {
 }
 
 func (l *LsTLVSrv6EndXSID) Extract() *LsSrv6EndXSID {
+	structure := l.sidStructure()
 	les := &LsSrv6EndXSID{
 		EndpointBehavior: l.EndpointBehavior,
 		Flags:            l.Flags,
@@ -9747,7 +9741,7 @@ func (l *LsTLVSrv6EndXSID) Extract() *LsSrv6EndXSID {
 		Weight:           l.Weight,
 		Reserved:         l.Reserved,
 		SIDs:             l.SIDs,
-		Srv6SIDStructure: *l.Srv6SIDStructure.Extract(),
+		Srv6SIDStructure: *structure.Extract(),
 	}
 
 	return les
@@ -9775,39 +9769,23 @@ func (l *LsTLVSrv6EndXSID) DecodeFromBytes(data []byte) error {
 
 	sid, _ := netip.AddrFromSlice(value[lsSrv6EndXSIDOffset:lsSrv6EndXSIDFixedLen])
 	l.SIDs = []netip.Addr{sid}
-	return l.parseSubTLVs(value[lsSrv6EndXSIDFixedLen:])
+	l.SubTLVs, err = lsWalkSubTLVsWithDecoder(value[lsSrv6EndXSIDFixedLen:], lsSrv6EndXSubTLVAlloc, lsDecodeSrv6EndXSubTLV)
+	return err
 }
 
-func (l *LsTLVSrv6EndXSID) parseSubTLVs(data []byte) error {
-	l.Srv6SIDStructure = LsTLVSrv6SIDStructure{}
-	l.opaqueSubTLVs = nil
-	l.sidStructureOffset = 0
-
-	structureStart, structureEnd := len(data), len(data)
-	for offset := 0; offset < len(data); {
-		var header LsTLV
-		value, err := header.DecodeFromBytes(data[offset:])
-		if err != nil {
-			return err
-		}
-
-		next := offset + header.Len()
-		if header.Type == LS_TLV_SRV6_SID_STRUCTURE && len(value) == lsSrv6SIDStructureValueLen {
-			l.Srv6SIDStructure = LsTLVSrv6SIDStructure{
-				LsTLV:      header,
-				LocalBlock: value[0],
-				LocalNode:  value[1],
-				LocalFunc:  value[2],
-				LocalArg:   value[3],
-			}
-			structureStart, structureEnd = offset, next
-		}
-		offset = next
+func lsSrv6EndXSubTLVAlloc(typ LsTLVType) LsTLVInterface {
+	if typ == LS_TLV_SRV6_SID_STRUCTURE {
+		return lsSrv6SubTLVAlloc(typ)
 	}
-
-	l.opaqueSubTLVs = slices.Concat(data[:structureStart], data[structureEnd:])
-	l.sidStructureOffset = structureStart
 	return nil
+}
+
+func lsDecodeSrv6EndXSubTLV(sub LsTLVInterface, data []byte) error {
+	if structure, ok := sub.(*LsTLVSrv6SIDStructure); ok {
+		// Keep the received values for a BGP-LS consumer to validate (RFC 9552, Section 8.2.2).
+		return structure.decodeWire(data)
+	}
+	return sub.DecodeFromBytes(data)
 }
 
 func (l *LsTLVSrv6EndXSID) Serialize() ([]byte, error) {
@@ -9824,14 +9802,11 @@ func (l *LsTLVSrv6EndXSID) Serialize() ([]byte, error) {
 	buf = binary.BigEndian.AppendUint16(buf, l.EndpointBehavior)
 	buf = append(buf, l.Flags, l.Algorithm, l.Weight, l.Reserved)
 	buf = append(buf, l.SIDs[0].AsSlice()...)
-	buf = append(buf, l.opaqueSubTLVs[:l.sidStructureOffset]...)
-	if l.HasSIDStructure() {
-		structure := l.Srv6SIDStructure
-		buf = binary.BigEndian.AppendUint16(buf, LS_TLV_SRV6_SID_STRUCTURE)
-		buf = binary.BigEndian.AppendUint16(buf, lsSrv6SIDStructureValueLen)
-		buf = append(buf, structure.LocalBlock, structure.LocalNode, structure.LocalFunc, structure.LocalArg)
+	subTLVs, err := lsSerializeSubTLVs(l.SubTLVs)
+	if err != nil {
+		return nil, err
 	}
-	buf = append(buf, l.opaqueSubTLVs[l.sidStructureOffset:]...)
+	buf = append(buf, subTLVs...)
 
 	header := l.LsTLV
 	header.Length = uint16(length)
@@ -9843,7 +9818,8 @@ func (l *LsTLVSrv6EndXSID) String() string {
 	for _, sid := range l.SIDs {
 		fmt.Fprintf(&buf, "%s ", sid.String())
 	}
-	return fmt.Sprintf("{SRv6 End.X SID: EndpointBehavior:%d SIDs: %s LocalBlock:%d LocalNode:%d LocalFunc:%d LocalArg:%d}", l.EndpointBehavior, buf.String(), l.Srv6SIDStructure.LocalBlock, l.Srv6SIDStructure.LocalNode, l.Srv6SIDStructure.LocalFunc, l.Srv6SIDStructure.LocalArg)
+	structure := l.sidStructure()
+	return fmt.Sprintf("{SRv6 End.X SID: EndpointBehavior:%d SIDs: %s LocalBlock:%d LocalNode:%d LocalFunc:%d LocalArg:%d}", l.EndpointBehavior, buf.String(), structure.LocalBlock, structure.LocalNode, structure.LocalFunc, structure.LocalArg)
 }
 
 func (l *LsTLVSrv6EndXSID) MarshalJSON() ([]byte, error) {
@@ -9856,7 +9832,7 @@ func (l *LsTLVSrv6EndXSID) MarshalJSON() ([]byte, error) {
 		Type:             l.Type,
 		EndpointBehavior: l.EndpointBehavior,
 		SIDs:             l.SIDs,
-		Srv6SIDStructure: l.Srv6SIDStructure,
+		Srv6SIDStructure: l.sidStructure(),
 	})
 }
 
@@ -9903,6 +9879,18 @@ func (l *LsTLVSrv6SIDStructure) Extract() *LsSrv6SIDStructure {
 }
 
 func (l *LsTLVSrv6SIDStructure) DecodeFromBytes(data []byte) error {
+	if err := l.decodeWire(data); err != nil {
+		return err
+	}
+
+	sum := uint16(l.LocalBlock) + uint16(l.LocalNode) + uint16(l.LocalFunc) + uint16(l.LocalArg)
+	if sum > 128 {
+		return malformedAttrListErr("SRv6 SID Structure length sum exceeds 128 bits")
+	}
+	return nil
+}
+
+func (l *LsTLVSrv6SIDStructure) decodeWire(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
 		return err
@@ -9920,12 +9908,6 @@ func (l *LsTLVSrv6SIDStructure) DecodeFromBytes(data []byte) error {
 	l.LocalNode = value[1]
 	l.LocalFunc = value[2]
 	l.LocalArg = value[3]
-
-	sum := uint16(l.LocalBlock) + uint16(l.LocalNode) + uint16(l.LocalFunc) + uint16(l.LocalArg)
-	if sum > 128 {
-		return malformedAttrListErr("SRv6 SID Structure length sum exceeds 128 bits")
-	}
-
 	return nil
 }
 
