@@ -5219,6 +5219,174 @@ func TestReplaceDefinedSetUpdatesPolicy(t *testing.T) {
 	}
 }
 
+type (
+	unknownExportCondition struct{ Condition }
+	unknownExportAction    struct{ Action }
+)
+
+func TestExportStatementShareable(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		statement *Statement
+		want      bool
+	}{
+		{"empty", &Statement{}, true},
+		{"route attributes", &Statement{Conditions: []Condition{&PrefixCondition{}, &CommunityCondition{}}, ModActions: []Action{&MedAction{}, &AsPathPrependAction{}}}, true},
+		{"neighbor", &Statement{Conditions: []Condition{&NeighborCondition{}}}, false},
+		{"next-hop condition", &Statement{Conditions: []Condition{&NextHopCondition{}}}, true},
+		{"next-hop literal", &Statement{ModActions: []Action{&NexthopAction{}}}, true},
+		{"next-hop self", &Statement{ModActions: []Action{&NexthopAction{self: true}}}, true},
+		{"next-hop peer", &Statement{ModActions: []Action{&NexthopAction{peerAddress: true}}}, false},
+		{"next-hop unchanged", &Statement{ModActions: []Action{&NexthopAction{unchanged: true}}}, true},
+		{"unknown condition", &Statement{Conditions: []Condition{&unknownExportCondition{}}}, true},
+		{"unknown modifier", &Statement{ModActions: []Action{&unknownExportAction{}}}, true},
+		{"unknown disposition", &Statement{RouteAction: &unknownExportAction{}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) { require.Equal(t, tc.want, isStatementShareable(tc.statement)) })
+	}
+}
+
+func TestRoutingPolicyChangeTracking(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		edit    func(*RoutingPolicy) error
+		wantErr bool
+		changed bool
+	}{
+		{"append incompatible prefix family", func(r *RoutingPolicy) error {
+			s, err := NewPrefixSet(createPrefixSet("prefix", "2001:db8::/32", "32..128"))
+			require.NoError(t, err)
+			return r.AddDefinedSet(s, false)
+		}, true, false},
+		{"delete defined set", func(r *RoutingPolicy) error {
+			return r.DeleteDefinedSet(r.definedSetMap[DEFINED_TYPE_PREFIX]["prefix"], true)
+		}, false, true},
+		{"add duplicate statement action", func(r *RoutingPolicy) error {
+			return r.AddStatement(&Statement{Name: "statement", RouteAction: &RoutingAction{AcceptRoute: false}})
+		}, true, false},
+		{"remove missing statement action", func(r *RoutingPolicy) error {
+			return r.DeleteStatement(&Statement{Name: "statement", ModActions: []Action{&MedAction{}}}, false)
+		}, true, false},
+		{"remove statement action", func(r *RoutingPolicy) error {
+			return r.DeleteStatement(&Statement{Name: "statement", RouteAction: &RoutingAction{}}, false)
+		}, false, true},
+		{"add policy with duplicate statement", func(r *RoutingPolicy) error {
+			return r.AddPolicy(&Policy{Name: "new", Statements: []*Statement{{Name: "statement"}}}, false)
+		}, true, false},
+		{"add policy with late duplicate statement", func(r *RoutingPolicy) error {
+			return r.AddPolicy(&Policy{Name: "new", Statements: []*Statement{{Name: "new"}, {Name: "statement"}}}, false)
+		}, true, false},
+		{"add policy with duplicate statement names", func(r *RoutingPolicy) error {
+			return r.AddPolicy(&Policy{Name: "new", Statements: []*Statement{{Name: "new"}, {Name: "new"}}}, false)
+		}, true, false},
+		{"add policy with missing statement reference", func(r *RoutingPolicy) error {
+			return r.AddPolicy(&Policy{Name: "new", Statements: []*Statement{{Name: "statement"}, {Name: "missing"}}}, true)
+		}, true, false},
+		{"extend policy with missing statement reference", func(r *RoutingPolicy) error {
+			return r.AddPolicy(&Policy{Name: "policy", Statements: []*Statement{{Name: "statement"}, {Name: "missing"}}}, true)
+		}, true, false},
+		{"remove missing policy statement", func(r *RoutingPolicy) error {
+			return r.DeletePolicy(&Policy{Name: "policy", Statements: []*Statement{{Name: "statement"}, {Name: "missing"}}}, false, false)
+		}, true, false},
+		{"remove policy statement", func(r *RoutingPolicy) error {
+			return r.DeletePolicy(&Policy{Name: "policy", Statements: []*Statement{{Name: "statement"}}}, false, false)
+		}, false, true},
+		{"delete assigned policy", func(r *RoutingPolicy) error {
+			return r.DeletePolicy(&Policy{Name: "policy"}, true, false)
+		}, true, false},
+		{"add duplicate assignment", func(r *RoutingPolicy) error {
+			return r.AddPolicyAssignment("peer", POLICY_DIRECTION_EXPORT, []*oc.PolicyDefinition{{Name: "policy"}}, ROUTE_TYPE_ACCEPT)
+		}, true, false},
+		{"delete missing assignment policy", func(r *RoutingPolicy) error {
+			return r.DeletePolicyAssignment("peer", POLICY_DIRECTION_EXPORT, []*oc.PolicyDefinition{{Name: "missing"}}, false)
+		}, true, false},
+		{"set missing assignment policy", func(r *RoutingPolicy) error {
+			return r.SetPolicyAssignment("peer", POLICY_DIRECTION_EXPORT, []*oc.PolicyDefinition{{Name: "missing"}}, ROUTE_TYPE_ACCEPT)
+		}, true, false},
+		{"set invalid peer export policy", func(r *RoutingPolicy) error {
+			return r.SetPeerPolicy("peer", oc.ApplyPolicy{Config: oc.ApplyPolicyConfig{
+				ImportPolicyList: []string{"policy"}, ExportPolicyList: []string{"missing"},
+			}})
+		}, true, false},
+		{"reset invalid policy", func(r *RoutingPolicy) error {
+			return r.Reset(&oc.RoutingPolicy{DefinedSets: oc.DefinedSets{
+				PrefixSets: []oc.PrefixSet{createPrefixSet("invalid", "192.0.2.0/24", "invalid")},
+			}}, nil)
+		}, true, false},
+	} {
+		for _, pending := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/pending=%t", tc.name, pending), func(t *testing.T) {
+				r := NewRoutingPolicy(logger)
+				require.NoError(t, r.Initialize())
+				set, err := NewPrefixSet(createPrefixSet("prefix", "192.0.2.0/24", "24..32"))
+				require.NoError(t, err)
+				require.NoError(t, r.AddDefinedSet(set, false))
+				require.NoError(t, r.AddPolicy(&Policy{Name: "policy", Statements: []*Statement{
+					{Name: "statement", RouteAction: &RoutingAction{AcceptRoute: true}},
+				}}, false))
+				require.NoError(t, r.SetPolicyAssignment("peer", POLICY_DIRECTION_EXPORT,
+					[]*oc.PolicyDefinition{{Name: "policy"}}, ROUTE_TYPE_ACCEPT))
+				r.CheckAndClearChangesLocked()
+				if pending {
+					require.NoError(t, r.AddPolicy(&Policy{Name: "pending"}, false))
+				}
+				policies := r.GetPolicy("")
+				statements := r.GetStatement("")
+				err = tc.edit(r)
+				if tc.wantErr {
+					require.Error(t, err)
+					require.ElementsMatch(t, policies, r.GetPolicy(""), "failed edits must not change policies")
+					require.ElementsMatch(t, statements, r.GetStatement(""), "failed edits must not change statements")
+				} else {
+					require.NoError(t, err)
+				}
+				require.Equal(t, pending || tc.changed, r.CheckAndClearChangesLocked())
+				require.False(t, r.CheckAndClearChangesLocked())
+			})
+		}
+	}
+}
+
+func TestExportPolicyGroupInfo(t *testing.T) {
+	r := NewRoutingPolicy(nil)
+	require.NoError(t, r.Initialize())
+	for _, name := range []string{"a", "bc", "ab", "c"} {
+		require.NoError(t, r.AddPolicy(&Policy{Name: name}, false))
+	}
+	groupInfo := func(names ...string) ExportPolicyGroupInfo {
+		policies := make([]*oc.PolicyDefinition, len(names))
+		for i, name := range names {
+			policies[i] = &oc.PolicyDefinition{Name: name}
+		}
+		r.CheckAndClearChangesLocked()
+		require.NoError(t, r.SetPolicyAssignment("peer", POLICY_DIRECTION_EXPORT, policies, ROUTE_TYPE_ACCEPT))
+		require.True(t, r.CheckAndClearChangesLocked())
+		return r.GetExportPolicyGroupInfo("peer")
+	}
+	ab := groupInfo("a", "bc")
+	require.NotEqual(t, ab.Key, groupInfo("ab", "c").Key, "preserve name boundaries")
+	require.NotEqual(t, ab.Key, groupInfo("bc", "a").Key, "preserve policy order")
+	require.True(t, ab.Shareable)
+	require.NoError(t, r.SetPolicyAssignment("peer", POLICY_DIRECTION_EXPORT,
+		[]*oc.PolicyDefinition{{Name: "a"}, {Name: "bc"}}, ROUTE_TYPE_REJECT))
+	require.NotEqual(t, ab.Key, r.GetExportPolicyGroupInfo("peer").Key,
+		"default action is part of the key even with the same policies")
+	empty := groupInfo()
+	require.NoError(t, r.SetPolicyAssignment("peer", POLICY_DIRECTION_EXPORT, nil, ROUTE_TYPE_REJECT))
+	require.NotEqual(t, empty.Key, r.GetExportPolicyGroupInfo("peer").Key,
+		"default action is part of the key without policies too")
+	require.True(t, r.GetExportPolicyGroupInfo("peer").Shareable)
+	// A set edit changes evaluations even when assignment names stay the same.
+	set, err := NewCommunitySet(oc.CommunitySet{CommunitySetName: "set", CommunityList: []string{"65000:1"}})
+	require.NoError(t, err)
+	r.CheckAndClearChangesLocked()
+	require.NoError(t, r.AddDefinedSet(set, false))
+	require.True(t, r.CheckAndClearChangesLocked())
+	require.False(t, r.CheckAndClearChangesLocked(), "change notification is consumed")
+	r.GetExportPolicyGroupInfo("peer")
+	require.False(t, r.CheckAndClearChangesLocked(), "reads do not invalidate groups")
+}
+
 func TestAddPolicyAtomic(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
