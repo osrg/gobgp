@@ -7024,9 +7024,10 @@ func TestLsTLVSrv6EndXSIDChildRoundTrip(t *testing.T) {
 			wantStructure: nonzeroFields,
 		},
 		{
-			name:         "repeated structure",
-			children:     slices.Concat(nonzero, unknown, zero),
-			wantChildren: []LsTLVInterface{nonzeroStructure, opaqueUnknown, zeroStructure},
+			name:          "repeated structure",
+			children:      slices.Concat(nonzero, unknown, zero),
+			wantChildren:  []LsTLVInterface{nonzeroStructure, opaqueUnknown, zeroStructure},
+			wantStructure: nonzeroFields,
 		},
 		{
 			name:         "endpoint behavior remains opaque",
@@ -7136,7 +7137,10 @@ func Test_LsTLVSrv6SIDStructure(t *testing.T) {
 			0x04, 0xe4, 0x00, 0x03, // Incorrect length (should be 4)
 			0x28, 0x28, 0x10,
 		}, "", true, false},
-		{[]byte{0x04, 0xe4, 0, 4, 128, 1, 0, 0}, "", true, false},
+		{[]byte{
+			0x04, 0xe4, 0, 4,
+			128, 1, 0, 0,
+		}, "{SRv6 SID Structure: LocalBlock:128 LocalNode:1 LocalFunc:0 LocalArg:0}", false, true},
 	}
 
 	for _, test := range tests {

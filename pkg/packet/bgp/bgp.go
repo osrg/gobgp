@@ -9714,7 +9714,7 @@ func (l *LsTLVSrv6EndXSID) GetLsTLV() LsTLV {
 }
 
 func (l *LsTLVSrv6EndXSID) sidStructure() LsTLVSrv6SIDStructure {
-	for _, sub := range slices.Backward(l.SubTLVs) {
+	for _, sub := range l.SubTLVs {
 		if structure, ok := sub.(*LsTLVSrv6SIDStructure); ok {
 			return *structure
 		}
@@ -9769,7 +9769,7 @@ func (l *LsTLVSrv6EndXSID) DecodeFromBytes(data []byte) error {
 
 	sid, _ := netip.AddrFromSlice(value[lsSrv6EndXSIDOffset:lsSrv6EndXSIDFixedLen])
 	l.SIDs = []netip.Addr{sid}
-	l.SubTLVs, err = lsWalkSubTLVsWithDecoder(value[lsSrv6EndXSIDFixedLen:], lsSrv6EndXSubTLVAlloc, lsDecodeSrv6EndXSubTLV)
+	l.SubTLVs, err = lsWalkSubTLVs(value[lsSrv6EndXSIDFixedLen:], lsSrv6EndXSubTLVAlloc)
 	return err
 }
 
@@ -9778,14 +9778,6 @@ func lsSrv6EndXSubTLVAlloc(typ LsTLVType) LsTLVInterface {
 		return lsSrv6SubTLVAlloc(typ)
 	}
 	return nil
-}
-
-func lsDecodeSrv6EndXSubTLV(sub LsTLVInterface, data []byte) error {
-	if structure, ok := sub.(*LsTLVSrv6SIDStructure); ok {
-		// Keep the received values for a BGP-LS consumer to validate (RFC 9552, Section 8.2.2).
-		return structure.decodeWire(data)
-	}
-	return sub.DecodeFromBytes(data)
 }
 
 func (l *LsTLVSrv6EndXSID) Serialize() ([]byte, error) {
@@ -9879,18 +9871,6 @@ func (l *LsTLVSrv6SIDStructure) Extract() *LsSrv6SIDStructure {
 }
 
 func (l *LsTLVSrv6SIDStructure) DecodeFromBytes(data []byte) error {
-	if err := l.decodeWire(data); err != nil {
-		return err
-	}
-
-	sum := uint16(l.LocalBlock) + uint16(l.LocalNode) + uint16(l.LocalFunc) + uint16(l.LocalArg)
-	if sum > 128 {
-		return malformedAttrListErr("SRv6 SID Structure length sum exceeds 128 bits")
-	}
-	return nil
-}
-
-func (l *LsTLVSrv6SIDStructure) decodeWire(data []byte) error {
 	value, err := l.LsTLV.DecodeFromBytes(data)
 	if err != nil {
 		return err
@@ -9904,6 +9884,7 @@ func (l *LsTLVSrv6SIDStructure) decodeWire(data []byte) error {
 		return malformedAttrListErr("Incorrect SRv6 SID Structure length")
 	}
 
+	// Leave validation of the bit lengths to the BGP-LS consumer (RFC 9552, Section 8.2.2).
 	l.LocalBlock = value[0]
 	l.LocalNode = value[1]
 	l.LocalFunc = value[2]

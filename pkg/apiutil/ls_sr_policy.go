@@ -265,9 +265,10 @@ func validateLsSrv6SubTLVs(eb *api.LsSrv6EndpointBehavior, ss *api.LsSrv6SIDStru
 	if eb != nil && (eb.EndpointBehavior > 0xffff || eb.Flags > 0xff || eb.Algorithm > 0xff) {
 		return fmt.Errorf("SRv6 endpoint behavior field out of range")
 	}
-	if ss != nil && (ss.LocalBlock > 128 || ss.LocalNode > 128 || ss.LocalFunc > 128 || ss.LocalArg > 128 ||
-		ss.LocalBlock+ss.LocalNode+ss.LocalFunc+ss.LocalArg > 128) {
-		return fmt.Errorf("SRv6 SID structure exceeds 128 bits")
+	// Accept every component value that can be received from a peer.
+	if ss != nil && (ss.LocalBlock > math.MaxUint8 || ss.LocalNode > math.MaxUint8 ||
+		ss.LocalFunc > math.MaxUint8 || ss.LocalArg > math.MaxUint8) {
+		return fmt.Errorf("SRv6 SID structure field out of range")
 	}
 	return nil
 }
