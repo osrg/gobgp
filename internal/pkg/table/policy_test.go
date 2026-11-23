@@ -5218,3 +5218,32 @@ func TestReplaceDefinedSetUpdatesPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestAddPolicyAtomic(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		policyName string
+		statements []string
+		refer      bool
+	}{
+		{"existing statement", "new", []string{"statement"}, false},
+		{"late existing statement", "new", []string{"new", "statement"}, false},
+		{"duplicate names", "new", []string{"new", "new"}, false},
+		{"missing reference in new policy", "new", []string{"statement", "missing"}, true},
+		{"missing reference in existing policy", "policy", []string{"statement", "missing"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewRoutingPolicy(logger)
+			require.NoError(t, r.AddPolicy(&Policy{Name: "policy", Statements: []*Statement{{Name: "statement"}}}, false))
+			policies := r.GetPolicy("")
+			statements := r.GetStatement("")
+			x := &Policy{Name: tc.policyName}
+			for _, name := range tc.statements {
+				x.Statements = append(x.Statements, &Statement{Name: name})
+			}
+			require.Error(t, r.AddPolicy(x, tc.refer))
+			require.ElementsMatch(t, policies, r.GetPolicy(""))
+			require.ElementsMatch(t, statements, r.GetStatement(""))
+		})
+	}
+}

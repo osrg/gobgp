@@ -4654,13 +4654,19 @@ func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 	name := x.Name
 	y, ok := pMap[name]
 	if refer {
-		err = x.FillUp(sMap)
+		if err = x.FillUp(sMap); err != nil {
+			return err
+		}
 	} else {
+		seen := make(map[string]bool, len(x.Statements))
 		for _, st := range x.Statements {
-			if _, ok := sMap[st.Name]; ok {
+			if _, ok := sMap[st.Name]; ok || seen[st.Name] {
 				err = fmt.Errorf("statement %s already defined", st.Name)
 				return err
 			}
+			seen[st.Name] = true
+		}
+		for _, st := range x.Statements {
 			sMap[st.Name] = st
 		}
 	}
