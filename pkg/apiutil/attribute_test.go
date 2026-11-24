@@ -90,6 +90,76 @@ func Test_LsAttributeDelayMetricRoundTrip(t *testing.T) {
 	}
 }
 
+func Test_LsAttributeApplicationSpecificRoundTrip(t *testing.T) {
+	assert := assert.New(t)
+
+	metric := uint32(100)
+	input := &api.LsAttribute{
+		Link: &api.LsAttributeLink{
+			DefaultTeMetric: 10,
+			ApplicationSpecific: []*api.LsApplicationSpecificLinkAttr{{
+				StandardApplications:          []byte{0x10, 0, 0, 0},
+				DefaultTeMetric:               &metric,
+				MinMaxUnidirectionalLinkDelay: &api.LsLinkMinMaxDelay{MinDelay: 1000, MaxDelay: 2000},
+				ExtendedAdminGroup:            []uint32{0x20, 0x01},
+			}},
+		},
+	}
+
+	native, err := UnmarshalLsAttribute(input)
+	assert.NoError(err)
+	if assert.Len(native.Link.ApplicationSpecific, 1) {
+		a := native.Link.ApplicationSpecific[0]
+		assert.Equal([]byte{0x10, 0, 0, 0}, a.StandardApplications)
+		assert.Equal(uint32(100), *a.DefaultTEMetric)
+		assert.Equal(uint32(1000), a.MinMaxUnidirectionalLinkDelay.MinDelay)
+		assert.Nil(a.UnidirectionalLinkDelay)
+		assert.Equal([]uint32{0x20, 0x01}, a.ExtendedAdminGroup)
+	}
+
+	output, err := NewLsAttributeFromNative(&bgp.PathAttributeLs{TLVs: bgp.NewLsAttributeTLVs(native)})
+	assert.NoError(err)
+	if assert.NotNil(output.Link) && assert.Len(output.Link.ApplicationSpecific, 1) {
+		a := output.Link.ApplicationSpecific[0]
+		assert.Equal(uint32(10), output.Link.DefaultTeMetric)
+		assert.Equal([]byte{0x10, 0, 0, 0}, a.StandardApplications)
+		if assert.NotNil(a.DefaultTeMetric) {
+			assert.Equal(uint32(100), *a.DefaultTeMetric)
+		}
+		assert.Nil(a.AdminGroup)
+		if assert.NotNil(a.MinMaxUnidirectionalLinkDelay) {
+			assert.Equal(uint32(1000), a.MinMaxUnidirectionalLinkDelay.MinDelay)
+			assert.Equal(uint32(2000), a.MinMaxUnidirectionalLinkDelay.MaxDelay)
+		}
+		assert.Nil(a.UnidirectionalLinkDelay)
+		assert.Equal([]uint32{0x20, 0x01}, a.ExtendedAdminGroup)
+	}
+}
+
+func Test_LsAttributeApplicationSpecificMaskLength(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		asla *api.LsApplicationSpecificLinkAttr
+		err  string
+	}{
+		{name: "empty masks", asla: &api.LsApplicationSpecificLinkAttr{}},
+		{name: "4 and 8 octets", asla: &api.LsApplicationSpecificLinkAttr{StandardApplications: make([]byte, 4), UserDefinedApplications: make([]byte, 8)}},
+		{name: "3-octet SABM", asla: &api.LsApplicationSpecificLinkAttr{StandardApplications: make([]byte, 3)}, err: "standard applications bit mask is 3 octets"},
+		{name: "5-octet UDABM", asla: &api.LsApplicationSpecificLinkAttr{UserDefinedApplications: make([]byte, 5)}, err: "user-defined applications bit mask is 5 octets"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := UnmarshalLsAttribute(&api.LsAttribute{Link: &api.LsAttributeLink{
+				ApplicationSpecific: []*api.LsApplicationSpecificLinkAttr{test.asla},
+			}})
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func Test_LsAttributeExtendedAdminGroupRoundTrip(t *testing.T) {
 	assert := assert.New(t)
 

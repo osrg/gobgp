@@ -55,6 +55,7 @@ reservable
 reuseaddr
 rpki
 sabevodcitu
+sabm
 sadb
 safi
 srgb
@@ -64,6 +65,7 @@ subcode
 syscall
 syslog
 teid
+udabm
 unicast
 uptime
 vpls
