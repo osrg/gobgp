@@ -17,6 +17,7 @@ package server
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -1256,7 +1257,7 @@ func (s *BgpServer) notifyRecvMessageWatcher(peer *peer, timestamp time.Time, pa
 }
 
 func (s *BgpServer) getPossibleBest(peer *peer, family bgp.Family) []*table.Path {
-	if peer.isAddPathSendEnabled(family) {
+	if peer.isAddPathSendEnabled(peer.toLocalFamily(family)) {
 		return peer.localRib.GetPathList(peer.TableID(), peer.AS(), []bgp.Family{family})
 	}
 	return peer.localRib.GetBestPathList(peer.TableID(), peer.AS(), []bgp.Family{family})
@@ -1271,10 +1272,10 @@ func (s *BgpServer) getBestFromLocalCallback(peer *peer, rfList []bgp.Family, ad
 		defer peer.routeRefreshInProgress.RUnlock()
 	}
 
-	s.getBestFromLocalCallbackLocked(peer, rfList, addEOR, fn)
+	s.getBestFromLocalCallbackLocked(peer, rfList, addEOR, routeRefresh, fn)
 }
 
-func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Family, addEOR bool, fn func([]*table.Path, []*table.Path)) {
+func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Family, addEOR, routeRefresh bool, fn func([]*table.Path, []*table.Path)) {
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
 	// The families of our own graceful restart that are not released yet
@@ -1309,6 +1310,21 @@ func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Fami
 					filtered = append(filtered, filteredPathForPeer(peer, path))
 				}
 			}
+		}
+	}
+	if routeRefresh {
+		// A rejected advertised ID must be withdrawn before its slot can be
+		// filled. Read-only Adj-RIB-Out queries retain all candidates and flags.
+		for _, path := range filtered {
+			peer.unsetPathSendMaxFiltered(path)
+			if path != nil && peer.isAddPathSendEnabled(path.GetFamily()) && peer.hasPathAlreadyBeenSent(path) {
+				pathList = append(pathList, path.Clone(true))
+			}
+		}
+		var capped []*table.Path
+		pathList, capped = peer.selectAddPathRoutes(pathList)
+		for _, path := range capped {
+			peer.setPathSendMaxFiltered(path)
 		}
 	}
 	if addEOR {
@@ -1596,24 +1612,46 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 	}
 
 	fs := peerNonRTCFamilies(peer)
-	candidates := s.rtcVPNCandidates(peer, path.IsWithdraw, nlri, fs)
+	candidates := s.rtcVPNCandidates(peer, nlri, fs)
 	if path.IsWithdraw {
 		// Withdraw only what this peer was sent and can no longer receive. A
 		// candidate may still be eligible through another RT, and a candidate
 		// that was rejected by the export policy or by RTC was never sent.
-		withdrawals := make([]*table.Path, 0, len(candidates))
-		for _, p := range candidates {
-			if s.filterpath(peer, p, nil) != nil {
+		paths := make([]*table.Path, 0, len(candidates))
+		destinations := make(map[table.PathDestLocalKey]*table.Path)
+		for _, original := range candidates {
+			if p := s.filterpath(peer, original, nil); p != nil && !p.IsWithdraw {
 				continue
 			}
-			p = filteredPathForPeer(peer, p)
+			p := filteredPathForPeer(peer, original)
+			peer.unsetPathSendMaxFiltered(p)
 			if !peer.hasPathAlreadyBeenSent(p) {
 				continue
 			}
-			withdrawals = append(withdrawals, p.Clone(true))
+			paths = append(paths, p.Clone(true))
+			if peer.isAddPathSendEnabled(p.GetFamily()) {
+				// Keep the global destination before a VRF path becomes local.
+				destinations[original.GetDestLocalKey()] = original
+			}
 		}
-		peer.updateRoutes(withdrawals...)
-		sendfsmOutgoingMsg(peer, withdrawals)
+		// The removed RT's index omits eligible alternatives through other RTs.
+		// Refill only destinations whose advertisements released a slot.
+		for _, original := range destinations {
+			if dst := peer.localRib.GetDestination(original); dst != nil {
+				for _, known := range dst.GetKnownPathList(peer.TableID(), peer.AS()) {
+					p := s.filterpath(peer, known, nil)
+					if p != nil && !p.IsWithdraw && !peer.hasPathAlreadyBeenSent(p) {
+						paths = append(paths, p)
+					}
+				}
+			}
+		}
+		paths, capped := peer.selectAddPathRoutes(paths)
+		for _, p := range capped {
+			peer.setPathSendMaxFiltered(p)
+		}
+		peer.updateRoutes(paths...)
+		sendfsmOutgoingMsg(peer, paths)
 		return
 	}
 	if peer.getRtcEORWait() {
@@ -1621,7 +1659,27 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 		return
 	}
 	// A path may have been sent through another membership already.
-	paths := slices.DeleteFunc(s.processOutgoingPaths(peer, candidates, nil), peer.hasPathAlreadyBeenSent)
+	paths := slices.DeleteFunc(s.processOutgoingPaths(peer, candidates, nil), func(p *table.Path) bool {
+		return !p.IsWithdraw && peer.hasPathAlreadyBeenSent(p)
+	})
+	// The RT index iterates a map. Pick new ADD-PATH IDs consistently, as
+	// normal propagation does when paths arrive one at a time.
+	slices.SortStableFunc(paths, func(a, b *table.Path) int {
+		if c := cmp.Compare(a.GetFamily(), b.GetFamily()); c != 0 {
+			return c
+		}
+		if !peer.isAddPathSendEnabled(a.GetFamily()) {
+			return 0
+		}
+		if c := cmp.Compare(a.GetPrefix(), b.GetPrefix()); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.LocalID(), b.LocalID())
+	})
+	paths, capped := peer.selectAddPathRoutes(paths)
+	for _, p := range capped {
+		peer.setPathSendMaxFiltered(p)
+	}
 	peer.updateRoutes(paths...)
 	sendfsmOutgoingMsg(peer, paths)
 }
@@ -1641,22 +1699,16 @@ func peerNonRTCFamilies(peer *peer) []bgp.Family {
 // rtcVPNCandidates returns the VPN paths that an RTC update for nlri can
 // affect. For a whole Route Target it uses the VPN path index (O(1)).
 // Otherwise nlri is a prefix of Route Targets, or the default RT, so it falls
-// back to a full RIB scan and keeps the paths that nlri contains. On a
-// withdraw it returns every path that may have been sent to the peer,
-// including the extra paths of an ADD-PATH peer. The paths are returned as
-// they are in the RIB; the caller filters them and turns them into
-// withdrawals.
-func (s *BgpServer) rtcVPNCandidates(peer *peer, isWithdraw bool, nlri *bgp.RouteTargetMembershipNLRI, fs []bgp.Family) []*table.Path {
+// back to a full RIB scan and keeps the paths that nlri contains, including
+// the extra paths of an ADD-PATH peer. The paths are returned as they are in
+// the RIB; the caller filters them and turns them into withdrawals.
+func (s *BgpServer) rtcVPNCandidates(peer *peer, nlri *bgp.RouteTargetMembershipNLRI, fs []bgp.Family) []*table.Path {
 	if nlri.Length == bgp.RouteTargetMembershipPrefixLen && nlri.RouteTarget != nil {
 		return s.globalRib.GetPathsByRT(nlri.RouteTarget, fs)
 	}
 	var paths []*table.Path
-	if isWithdraw {
-		for _, f := range peer.toGlobalFamilies(fs) {
-			paths = append(paths, s.getPossibleBest(peer, f)...)
-		}
-	} else {
-		paths = s.globalRib.GetBestPathList(peer.TableID(), 0, fs)
+	for _, f := range peer.toGlobalFamilies(fs) {
+		paths = append(paths, s.getPossibleBest(peer, f)...)
 	}
 	if nlri.Length <= 32 {
 		return paths
@@ -1706,23 +1758,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 		if source == nil && targetPeer.isRouteServerClient() || source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient() {
 			continue
 		}
-		f := func() bgp.Family {
-			conf := targetPeer.fsm.pConf.ReadOnly()
-			peerVrf := conf.Config.Vrf
-			if peerVrf != "" {
-				switch family {
-				case bgp.RF_IPv4_VPN:
-					return bgp.RF_IPv4_UC
-				case bgp.RF_IPv6_VPN:
-					return bgp.RF_IPv6_UC
-				case bgp.RF_FS_IPv4_VPN:
-					return bgp.RF_FS_IPv4_UC
-				case bgp.RF_FS_IPv6_VPN:
-					return bgp.RF_FS_IPv6_UC
-				}
-			}
-			return family
-		}()
+		f := targetPeer.toLocalFamily(family)
 
 		func() {
 			targetPeer.routeRefreshInProgress.RLock()
@@ -1743,10 +1779,12 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 							toDelete := d.GetWithdrawnPath()
 							toActuallyDelete := make([]*table.Path, 0, len(toDelete))
 							for _, p := range toDelete {
-								// if the path is filtered, there is no need to send the withdrawal
-								p := s.filterpath(targetPeer, p, nil)
-								// the path was never advertized to the peer
-								if p == nil || targetPeer.unsetPathSendMaxFiltered(p) {
+								// Eligibility can change after RIB removal, for example
+								// during an RTC withdrawal. An advertised ID still
+								// requires its matching withdrawal in the wire family.
+								p = filteredPathForPeer(targetPeer, p)
+								targetPeer.unsetPathSendMaxFiltered(p)
+								if !targetPeer.hasPathAlreadyBeenSent(p) {
 									continue
 								}
 								toActuallyDelete = append(toActuallyDelete, p)
@@ -1756,7 +1794,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 								continue
 							}
 
-							destination := rib.GetDestination(toActuallyDelete[0])
+							destination := rib.GetDestination(toDelete[0])
 							l = append(l, toActuallyDelete...)
 
 							// the destination has been removed from the table
@@ -1768,14 +1806,10 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 							knownPathList := destination.GetKnownPathList(targetPeer.TableID(), targetPeer.AS())
 							toAdd := make([]*table.Path, 0, len(knownPathList))
 							for _, p := range knownPathList {
-								// If the path is filtered by policies, there is no need to send the path
-								// Otherwise, we send only paths that were previously filtered because of the max path limit
 								p := s.filterpath(targetPeer, p, nil)
-								if p == nil || !targetPeer.isPathSendMaxFiltered(p) {
+								if p == nil || p.IsWithdraw || targetPeer.hasPathAlreadyBeenSent(p) {
 									continue
 								}
-								// We unset the flag as the path is not filtered anymore
-								targetPeer.unsetPathSendMaxFiltered(p)
 								toAdd = append(toAdd, p)
 								if len(toAdd) == len(toActuallyDelete) {
 									break
@@ -1783,20 +1817,21 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 							}
 							l = append(l, toAdd...)
 						}
-						targetPeer.updateRoutes(l...)
 						return l
 					}()
 				} else {
-					alreadySent := targetPeer.hasPathAlreadyBeenSent(newPath)
+					original := newPath
 					newPath := s.filterpath(targetPeer, newPath, nil)
-					// if the path is not filtered and the path has already been sent or land in the limit, we can send it
-					if newPath == nil {
-						bestList = []*table.Path{}
+					alreadySent := targetPeer.hasPathAlreadyBeenSent(newPath)
+					if newPath == nil || newPath.IsWithdraw {
+						// A rejected path is no longer send-max filtered. Its withdrawal
+						// needs no slot and only matters for an already advertised ID.
+						targetPeer.unsetPathSendMaxFiltered(filteredPathForPeer(targetPeer, original))
+						if newPath != nil && alreadySent {
+							bestList = []*table.Path{newPath}
+						}
 					} else if alreadySent || targetPeer.getRoutesCount(f, newPath.GetPrefix()) < targetPeer.getAddPathSendMax(f) {
 						bestList = []*table.Path{newPath}
-						if !alreadySent {
-							targetPeer.updateRoutes(newPath)
-						}
 						if newPath.GetFamily() == bgp.RF_RTC_UC {
 							// we assumes that new "path" nlri was already sent before. This assumption avoids the
 							// infinite UPDATE loop between Route Reflector and its clients.
@@ -1814,7 +1849,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 					}
 				}
 				if needToAdvertise(targetPeer) && len(bestList) > 0 {
-					// targetPeer.updateRoutes was already called while constructing bestList above.
+					targetPeer.updateRoutes(bestList...)
 					sendfsmOutgoingMsg(targetPeer, bestList)
 				}
 			} else {
@@ -3353,6 +3388,10 @@ func (s *BgpServer) softResetOutPeer(peer *peer, family bgp.Family, deferral boo
 				if !peer.IsFamilyEnabled(path.GetFamily()) {
 					continue
 				}
+				// Full ADD-PATH selection already includes these withdrawals.
+				if peer.isAddPathSendEnabled(path.GetFamily()) {
+					continue
+				}
 				if !peer.hasPathAlreadyBeenSent(path) {
 					continue
 				}
@@ -3362,15 +3401,11 @@ func (s *BgpServer) softResetOutPeer(peer *peer, family bgp.Family, deferral boo
 		}
 		if len(paths) > 0 {
 			if deferral {
-				paths = func() []*table.Path {
-					l := make([]*table.Path, 0, len(paths))
-					for _, p := range paths {
-						if !p.IsWithdraw {
-							l = append(l, p)
-						}
-					}
-					return l
-				}()
+				// ADD-PATH selection has already reserved the slots released
+				// by withdrawals of previously advertised IDs.
+				paths = slices.DeleteFunc(paths, func(p *table.Path) bool {
+					return p.IsWithdraw && (!peer.isAddPathSendEnabled(p.GetFamily()) || !peer.hasPathAlreadyBeenSent(p))
+				})
 			}
 			peer.updateRoutes(paths...)
 			sendfsmOutgoingMsg(peer, paths)
