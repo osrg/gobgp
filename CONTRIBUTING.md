@@ -25,6 +25,12 @@ Finally, although it is not exposed as a public API, the `server.peer` structure
 For example, GoBGP currently uses strings to represent peer addresses in many internal places. This is a direct consequence of relying on OpenConfig structures internally. Over time, these structures should be gradually replaced with more appropriate native Go types.
 Therefore, when introducing new internal structures, we should avoid using OpenConfig types and instead define new data structures that are optimized for Go.
 
+### Adding BGP configuration options
+
+In principle, do not add a BGP configuration option that does not exist in OpenConfig, open source BGP implementations such as BIRD and FRR, or commercial BGP implementations such as the ones from Cisco and Juniper. Every option has to be maintained forever. In your pull request, write which implementation has the option.
+
+If you need an option that no other implementation has, propose it only when it is useful for common GoBGP use cases, not only for your own use case.
+
 ### Memory Usage
 
 If your new feature requires adding members to existing data structures or creating new structures that will increase memory usage, please consider how memory consumption will change in relation to increases in both route count and peer count.
