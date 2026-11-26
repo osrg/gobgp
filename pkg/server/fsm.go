@@ -924,7 +924,7 @@ func (fsm *fsm) stateChange(nextState bgp.FSMState, reason *fsmStateReason) {
 		}
 
 		fsm.isEBGP = conf.IsEBGPPeer(fsm.gConf)
-		fsm.isConfed = fsm.gConf.IsConfederationMember(conf.Config.PeerAs)
+		fsm.isConfed = fsm.gConf.IsConfederationMember(conf.State.PeerAs)
 		fsm.isTreatAsWithdraw = conf.ErrorHandling.Config.TreatAsWithdraw
 		// reset the state set by the previous session
 		fsm.twoByteAsTrans = false

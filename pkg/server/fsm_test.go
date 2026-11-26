@@ -2819,14 +2819,18 @@ func grFirstSession(t *testing.T) (*peer, *fsmHandler, *MockConnection) {
 
 // A peer without a configured AS is external or internal depending on the AS
 // in its OPEN. The internal one sends an empty AS_PATH for its own routes.
-func TestFSMStateChange_IsEBGPWithoutConfiguredPeerAs(t *testing.T) {
+// The AS in the OPEN also decides if the peer is in the same confederation.
+func TestFSMStateChange_PeerTypeWithoutConfiguredPeerAs(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		localAS uint32
-		want    bool
+		name       string
+		localAS    uint32
+		members    []uint32
+		wantEBGP   bool
+		wantConfed bool
 	}{
-		{name: "internal", localAS: 65001, want: false},
-		{name: "external", localAS: 65000, want: true},
+		{name: "internal", localAS: 65001},
+		{name: "external", localAS: 65000, wantEBGP: true},
+		{name: "confederation", localAS: 65000, members: []uint32{65001}, wantEBGP: true, wantConfed: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := NewMockConnection()
@@ -2834,14 +2838,17 @@ func TestFSMStateChange_IsEBGPWithoutConfiguredPeerAs(t *testing.T) {
 			p, h := makePeerAndHandler(m)
 			t.Cleanup(func() { cleanPeerAndHandler(p, h) })
 
+			p.fsm.gConf.Confederation.Config.MemberAsList = tc.members
 			conf := p.fsm.pConf.ReadCopy()
 			conf.Config.LocalAs = tc.localAS
 			p.fsm.pConf.Update(&conf)
 
+			// grOpen carries AS 65001.
 			p.fsm.recvOpen = grOpen(t)
 			p.fsm.stateChange(bgp.BGP_FSM_ESTABLISHED, newfsmStateReason(fsmOpenMsgNegotiated, nil, nil))
 
-			assert.Equal(t, tc.want, p.fsm.isEBGP)
+			assert.Equal(t, tc.wantEBGP, p.fsm.isEBGP)
+			assert.Equal(t, tc.wantConfed, p.fsm.isConfed)
 		})
 	}
 }
