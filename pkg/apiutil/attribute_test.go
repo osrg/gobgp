@@ -136,6 +136,34 @@ func Test_LsAttributeSrv6CapabilitiesRoundTrip(t *testing.T) {
 	assert.ErrorContains(t, err, "exceed 16 bits")
 }
 
+func Test_LsAttributeSrv6LocatorRoundTrip(t *testing.T) {
+	for _, locator := range []*api.LsSrv6Locator{
+		{},
+		{Flags: 0x80, Algorithm: 128, Metric: 0xffffffff},
+	} {
+		ls := &api.LsAttribute{Prefix: &api.LsAttributePrefix{Srv6Locator: locator}}
+		attrs, err := GetNativePathAttributes(&api.Path{Pattrs: []*api.Attribute{{Attr: &api.Attribute_Ls{Ls: ls}}}})
+		require.NoError(t, err)
+		require.Len(t, attrs, 1)
+		wire, err := attrs[0].Serialize()
+		require.NoError(t, err)
+		var decoded bgp.PathAttributeLs
+		require.NoError(t, decoded.DecodeFromBytes(wire))
+		output, err := NewLsAttributeFromNative(&decoded)
+		require.NoError(t, err)
+		assert.True(t, proto.Equal(locator, output.Prefix.Srv6Locator), "%v != %v", locator, output.Prefix.Srv6Locator)
+	}
+
+	output, err := NewLsAttributeFromNative(&bgp.PathAttributeLs{})
+	require.NoError(t, err)
+	assert.Nil(t, output.Prefix.Srv6Locator)
+
+	for _, locator := range []*api.LsSrv6Locator{{Flags: 0x100}, {Algorithm: 0x100}} {
+		_, err = UnmarshalLsAttribute(&api.LsAttribute{Prefix: &api.LsAttributePrefix{Srv6Locator: locator}})
+		assert.ErrorContains(t, err, "8-bit values")
+	}
+}
+
 func TestLsAttributeEndXSIDValidation(t *testing.T) {
 	for _, test := range []struct {
 		name string

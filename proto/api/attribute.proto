@@ -538,6 +538,16 @@ message LsAttributePrefix {
   // RFC 9552 Section 5.3.3.5: IPv4 or IPv6 forwarding addresses in
   // TLV order, including duplicates and unspecified addresses.
   repeated string ospf_forwarding_addresses = 9;
+
+  LsSrv6Locator srv6_locator = 10;
+}
+
+// LsSrv6Locator is the SRv6 Locator TLV (TLV 1162, RFC 9514 Section 5.1).
+// flags are copied from the IGP, so their meaning depends on the protocol.
+message LsSrv6Locator {
+  uint32 flags = 1;
+  uint32 algorithm = 2;
+  uint32 metric = 3;
 }
 
 // LsAttributePrefixSID is one Prefix-SID TLV (RFC 9085 Section 2.1.1)

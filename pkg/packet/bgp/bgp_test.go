@@ -6663,6 +6663,117 @@ func Test_LsTLVFADPrefixMetric(t *testing.T) {
 	assert.Equal(in, out)
 }
 
+func Test_LsTLVSrv6Locator(t *testing.T) {
+	unknownA := &lsTLVUnknown{LsTLV: LsTLV{Type: 0xfffe, Length: 2}, Value: []byte{0xaa, 0xbb}}
+	unknownB := &lsTLVUnknown{LsTLV: LsTLV{Type: 0xfffd, Length: 1}, Value: []byte{0x01}}
+	tests := []struct {
+		name    string
+		in      []byte
+		want    LsSrv6Locator
+		subTLVs []LsTLVInterface
+		str     string
+		json    string
+	}{
+		{
+			name: "no sub-TLVs",
+			in: []byte{
+				0x04, 0x8a, 0x00, 0x08, // TLV 1162, length 8
+				0x80, 0x00, 0x00, 0x00, // flags 0x80 (IS-IS D-flag), algorithm 0, reserved
+				0x00, 0x00, 0x00, 0x0a, // metric 10
+			},
+			want: LsSrv6Locator{Flags: 0x80, Algorithm: 0, Metric: 10},
+			str:  "{SRv6 Locator: Flags:0x80 Algorithm:0 Metric:10}",
+			json: `{"type":1162,"flags":128,"algorithm":0,"metric":10}`,
+		},
+		{
+			name: "two unknown sub-TLVs",
+			in: []byte{
+				0x04, 0x8a, 0x00, 0x13, // TLV 1162, length 19
+				0x00, 0x80, 0x00, 0x00, // flags 0, algorithm 128, reserved
+				0xff, 0xff, 0xff, 0xff, // metric 4294967295
+				0xff, 0xfe, 0x00, 0x02, 0xaa, 0xbb, // unknown sub-TLV 65534
+				0xff, 0xfd, 0x00, 0x01, 0x01, // unknown sub-TLV 65533
+			},
+			want:    LsSrv6Locator{Flags: 0, Algorithm: 128, Metric: 0xffffffff},
+			subTLVs: []LsTLVInterface{unknownA, unknownB},
+			str:     "{SRv6 Locator: Flags:0x00 Algorithm:128 Metric:4294967295}",
+			json:    `{"type":1162,"flags":0,"algorithm":128,"metric":4294967295,"sub_tlvs":[{"type":65534,"value":"qrs="},{"type":65533,"value":"AQ=="}]}`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tlv := LsTLVSrv6Locator{}
+			require.NoError(t, tlv.DecodeFromBytes(test.in))
+			assert.Equal(t, test.want, *tlv.Extract())
+			assert.Equal(t, len(test.subTLVs), len(tlv.SubTLVs))
+			for i, sub := range test.subTLVs {
+				assert.Equal(t, sub, tlv.SubTLVs[i])
+			}
+			assert.Equal(t, test.str, tlv.String())
+			got, err := json.Marshal(&tlv)
+			require.NoError(t, err)
+			assert.Equal(t, test.json, string(got))
+			assert.Equal(t, len(test.in), tlv.Len())
+			ser, err := tlv.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, test.in, ser)
+		})
+	}
+}
+
+func Test_LsTLVSrv6LocatorReservedIgnored(t *testing.T) {
+	tlv := LsTLVSrv6Locator{}
+	require.NoError(t, tlv.DecodeFromBytes([]byte{0x04, 0x8a, 0x00, 0x08, 0x80, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x0a}))
+	ser, err := tlv.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{0x04, 0x8a, 0x00, 0x08, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a}, ser)
+}
+
+func Test_LsTLVSrv6LocatorMalformed(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		in   []byte
+	}{
+		{name: "short value", in: []byte{0x04, 0x8a, 0x00, 0x07, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+		{name: "truncated TLV", in: []byte{0x04, 0x8a, 0x00, 0x08, 0x80, 0x00, 0x00, 0x00}},
+		{name: "truncated sub-TLV header", in: []byte{0x04, 0x8a, 0x00, 0x0b, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0xff, 0xfe, 0x00}},
+		{name: "sub-TLV length overflow", in: []byte{0x04, 0x8a, 0x00, 0x0c, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0xff, 0xfe, 0x00, 0x01}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			tlv := LsTLVSrv6Locator{}
+			assert.Error(t, tlv.DecodeFromBytes(test.in))
+		})
+	}
+}
+
+func Test_PathAttributeLs_Srv6Locator(t *testing.T) {
+	in := []byte{
+		0x80, 0x1d, 0x14, // Optional attribute, BGP_ATTR_TYPE_LS (29), length 20
+		0x04, 0x83, 0x00, 0x04, 0x00, 0x00, 0x00, 0x14, // Prefix Metric 20
+		0x04, 0x8a, 0x00, 0x08, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, // SRv6 Locator, flags 0x80, metric 10
+	}
+	attr := PathAttributeLs{}
+	require.NoError(t, attr.DecodeFromBytes(in))
+	ls := attr.Extract()
+	require.NotNil(t, ls.Prefix.Srv6Locator)
+	assert.Equal(t, LsSrv6Locator{Flags: 0x80, Algorithm: 0, Metric: 10}, *ls.Prefix.Srv6Locator)
+	wire, err := attr.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, in, wire)
+
+	built := PathAttributeLs{
+		PathAttribute: PathAttribute{Flags: attr.Flags, Type: BGP_ATTR_TYPE_LS},
+		TLVs:          NewLsAttributeTLVs(ls),
+	}
+	wire, err = built.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, in, wire)
+
+	none := PathAttributeLs{}
+	require.NoError(t, none.DecodeFromBytes([]byte{0x80, 0x1d, 0x08, 0x04, 0x83, 0x00, 0x04, 0x00, 0x00, 0x00, 0x14}))
+	assert.Nil(t, none.Extract().Prefix.Srv6Locator)
+}
+
 // Test_PathAttributeLs_MultiPrefixSID confirms that the Extract path
 // aggregates every Prefix-SID TLV observed on the same Prefix NLRI
 // instead of overwriting earlier entries. Regression test for the

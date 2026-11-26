@@ -1522,6 +1522,16 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 				PrefixMetric:     a.Prefix.PrefixMetric,
 			}
 		}
+		if loc := a.Prefix.Srv6Locator; loc != nil {
+			if loc.Flags > 0xff || loc.Algorithm > 0xff {
+				return nil, fmt.Errorf("SRv6 Locator flags and algorithm must be 8-bit values")
+			}
+			lsAttr.Prefix.Srv6Locator = &bgp.LsSrv6Locator{
+				Flags:     uint8(loc.Flags),
+				Algorithm: uint8(loc.Algorithm),
+				Metric:    loc.Metric,
+			}
+		}
 		lsAttr.Prefix.IGPRouteTags = append([]uint32(nil), a.Prefix.IgpRouteTags...)
 		lsAttr.Prefix.ExtendedRouteTags = append([]uint64(nil), a.Prefix.ExtendedRouteTags...)
 		for i, value := range a.Prefix.OspfForwardingAddresses {
@@ -3418,6 +3428,14 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 
 	if attr.Link.Srlgs != nil {
 		apiAttr.Link.Srlgs = append(apiAttr.Link.Srlgs, *attr.Link.Srlgs...)
+	}
+
+	if attr.Prefix.Srv6Locator != nil {
+		apiAttr.Prefix.Srv6Locator = &api.LsSrv6Locator{
+			Flags:     uint32(attr.Prefix.Srv6Locator.Flags),
+			Algorithm: uint32(attr.Prefix.Srv6Locator.Algorithm),
+			Metric:    attr.Prefix.Srv6Locator.Metric,
+		}
 	}
 
 	if attr.Prefix.IGPFlags != nil {

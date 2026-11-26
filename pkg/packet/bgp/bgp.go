@@ -6346,6 +6346,7 @@ const (
 	LS_TLV_PREFIX_SID             = 1158 // draft-ietf-idr-bgp-ls-segment-routing-ext
 	LS_TLV_RANGE                  = 1159 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
 	LS_TLV_SID_LABEL_TLV          = 1161 // draft-ietf-idr-bgp-ls-segment-routing-ext
+	LS_TLV_SRV6_LOCATOR           = 1162 // RFC9514
 	LS_TLV_PREFIX_ATTRIBUTE_FLAGS = 1170 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
 	LS_TLV_SOURCE_ROUTER_ID       = 1171 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
 	LS_TLV_L2_BUNDLE_MEMBER_TLV   = 1172 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
@@ -6501,6 +6502,9 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	}
 	if lsAttr.Prefix.SrPrefixSID != nil {
 		tlvs = append(tlvs, NewLsTLVPrefixSID(lsAttr.Prefix.SrPrefixSID))
+	}
+	if lsAttr.Prefix.Srv6Locator != nil {
+		tlvs = append(tlvs, NewLsTLVSrv6Locator(lsAttr.Prefix.Srv6Locator))
 	}
 
 	if lsAttr.BgpPeerSegment.BgpPeerNodeSid != nil {
@@ -9504,6 +9508,119 @@ func (l *LsTLVFADPrefixMetric) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
+const lsSrv6LocatorFixedLen = 8
+
+type LsTLVSrv6Locator struct {
+	LsTLV
+	Flags     uint8
+	Algorithm uint8
+	Metric    uint32
+	SubTLVs   []LsTLVInterface
+}
+
+type LsSrv6Locator struct {
+	Flags     uint8  `json:"flags"`
+	Algorithm uint8  `json:"algorithm"`
+	Metric    uint32 `json:"metric"`
+}
+
+func NewLsTLVSrv6Locator(l *LsSrv6Locator) *LsTLVSrv6Locator {
+	return &LsTLVSrv6Locator{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SRV6_LOCATOR,
+			Length: lsSrv6LocatorFixedLen,
+		},
+		Flags:     l.Flags,
+		Algorithm: l.Algorithm,
+		Metric:    l.Metric,
+	}
+}
+
+func (l *LsTLVSrv6Locator) Extract() *LsSrv6Locator {
+	return &LsSrv6Locator{
+		Flags:     l.Flags,
+		Algorithm: l.Algorithm,
+		Metric:    l.Metric,
+	}
+}
+
+func (l *LsTLVSrv6Locator) valueLen() int {
+	return lsSrv6LocatorFixedLen + lsSubTLVsLen(l.SubTLVs)
+}
+
+func (l *LsTLVSrv6Locator) Len() int {
+	return tlvHdrLen + l.valueLen()
+}
+
+func (l *LsTLVSrv6Locator) GetLsTLV() LsTLV {
+	header := l.LsTLV
+	header.Length = uint16(l.valueLen())
+	return header
+}
+
+func (l *LsTLVSrv6Locator) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SRV6_LOCATOR {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) < lsSrv6LocatorFixedLen {
+		return malformedAttrListErr("Incorrect SRv6 Locator length")
+	}
+
+	l.Flags = value[0]
+	l.Algorithm = value[1]
+	l.Metric = binary.BigEndian.Uint32(value[4:8])
+	// No sub-TLVs are defined yet, so all of them are kept opaque.
+	l.SubTLVs, err = lsWalkSubTLVs(value[lsSrv6LocatorFixedLen:], func(LsTLVType) LsTLVInterface { return nil })
+	return err
+}
+
+func (l *LsTLVSrv6Locator) Serialize() ([]byte, error) {
+	length := l.valueLen()
+	if length > math.MaxUint16 {
+		return nil, malformedAttrListErr("SRv6 Locator TLV is too long")
+	}
+
+	buf := make([]byte, lsSrv6LocatorFixedLen, length)
+	buf[0] = l.Flags
+	buf[1] = l.Algorithm
+	binary.BigEndian.PutUint32(buf[4:8], l.Metric)
+	subTLVs, err := lsSerializeSubTLVs(l.SubTLVs)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, subTLVs...)
+
+	header := l.LsTLV
+	header.Length = uint16(length)
+	return header.Serialize(buf)
+}
+
+func (l *LsTLVSrv6Locator) String() string {
+	return fmt.Sprintf("{SRv6 Locator: Flags:0x%02x Algorithm:%d Metric:%d}", l.Flags, l.Algorithm, l.Metric)
+}
+
+func (l *LsTLVSrv6Locator) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      LsTLVType        `json:"type"`
+		Flags     uint8            `json:"flags"`
+		Algorithm uint8            `json:"algorithm"`
+		Metric    uint32           `json:"metric"`
+		SubTLVs   []LsTLVInterface `json:"sub_tlvs,omitempty"`
+	}{
+		Type:      l.Type,
+		Flags:     l.Flags,
+		Algorithm: l.Algorithm,
+		Metric:    l.Metric,
+		SubTLVs:   l.SubTLVs,
+	})
+}
+
 type LsTLVAdjacencySID struct {
 	LsTLV
 	Flags  uint8
@@ -11437,6 +11554,8 @@ type LsAttributePrefix struct {
 	// Metric) Prefix Attribute TLVs (TLV 1044, RFC 9351 Section 4)
 	// attached to the prefix. One entry per Flex-Algorithm announced.
 	FadPrefixMetrics []LsAttributeFADPrefixMetric `json:"fad_prefix_metrics,omitempty"`
+
+	Srv6Locator *LsSrv6Locator `json:"srv6_locator,omitempty"`
 }
 
 // LsAttributePrefixSID projects one Prefix-SID TLV (RFC 9085
@@ -11646,6 +11765,9 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 				ExcludeSRLG:     v.ExcludeSRLG,
 			})
 
+		case *LsTLVSrv6Locator:
+			l.Prefix.Srv6Locator = v.Extract()
+
 		case *LsTLVFADPrefixMetric:
 			l.Prefix.FadPrefixMetrics = append(l.Prefix.FadPrefixMetrics, LsAttributeFADPrefixMetric{
 				Algorithm: v.Algorithm,
@@ -11846,6 +11968,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 		// SR-related TLVs (draft-ietf-idr-bgp-ls-segment-routing-ext-08) for Prefix NLRI
 		case LS_TLV_PREFIX_SID:
 			tlv = &LsTLVPrefixSID{}
+
+		case LS_TLV_SRV6_LOCATOR:
+			tlv = &LsTLVSrv6Locator{}
 
 		// BGP-EPE related TLVs (https://tools.ietf.org/html/rfc9086)
 		case LS_TLV_PEER_NODE_SID:
