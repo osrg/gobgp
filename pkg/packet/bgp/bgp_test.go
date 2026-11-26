@@ -5061,6 +5061,97 @@ func Test_LsTLVSrCapabilitiesFlagBits(t *testing.T) {
 	assert.True(caps.IPv6Supported)
 }
 
+func Test_LsTLVSrv6Capabilities(t *testing.T) {
+	tests := []struct {
+		name  string
+		in    []byte
+		flags uint16
+		str   string
+		json  string
+		err   bool
+	}{
+		{
+			name:  "O-flag set",
+			in:    []byte{0x04, 0x0e, 0x00, 0x04, 0x40, 0x00, 0x00, 0x00},
+			flags: 0x4000,
+			str:   "{SRv6 Capabilities: Flags:0x4000 O:true}",
+			json:  `{"type":1038,"flags":16384}`,
+		},
+		{
+			name:  "no flags",
+			in:    []byte{0x04, 0x0e, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00},
+			flags: 0,
+			str:   "{SRv6 Capabilities: Flags:0x0000 O:false}",
+			json:  `{"type":1038,"flags":0}`,
+		},
+		{
+			name:  "unassigned flags kept",
+			in:    []byte{0x04, 0x0e, 0x00, 0x04, 0x80, 0x01, 0x00, 0x00},
+			flags: 0x8001,
+			str:   "{SRv6 Capabilities: Flags:0x8001 O:false}",
+			json:  `{"type":1038,"flags":32769}`,
+		},
+		{name: "short", in: []byte{0x04, 0x0e, 0x00, 0x02, 0x40, 0x00}, err: true},
+		{name: "long", in: []byte{0x04, 0x0e, 0x00, 0x06, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00}, err: true},
+		{name: "truncated", in: []byte{0x04, 0x0e, 0x00, 0x04, 0x40, 0x00}, err: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tlv := LsTLVSrv6Capabilities{}
+			if test.err {
+				assert.Error(t, tlv.DecodeFromBytes(test.in))
+				return
+			}
+			require.NoError(t, tlv.DecodeFromBytes(test.in))
+			assert.Equal(t, test.flags, tlv.Flags)
+			assert.Equal(t, test.str, tlv.String())
+			got, err := json.Marshal(&tlv)
+			require.NoError(t, err)
+			assert.Equal(t, test.json, string(got))
+			ser, err := tlv.Serialize()
+			require.NoError(t, err)
+			assert.Equal(t, test.in, ser)
+		})
+	}
+}
+
+func Test_LsTLVSrv6CapabilitiesReservedIgnored(t *testing.T) {
+	tlv := LsTLVSrv6Capabilities{}
+	require.NoError(t, tlv.DecodeFromBytes([]byte{0x04, 0x0e, 0x00, 0x04, 0x40, 0x00, 0xff, 0xff}))
+	assert.Equal(t, uint16(0x4000), tlv.Flags)
+	ser, err := tlv.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{0x04, 0x0e, 0x00, 0x04, 0x40, 0x00, 0x00, 0x00}, ser)
+}
+
+func Test_PathAttributeLs_Srv6Capabilities(t *testing.T) {
+	in := []byte{
+		0x80, 0x1d, 0x0d, // Optional attribute, BGP_ATTR_TYPE_LS (29), length 13
+		0x04, 0x0b, 0x00, 0x01, 0x00, // SR Algorithm TLV 1035: algorithm 0
+		0x04, 0x0e, 0x00, 0x04, 0x40, 0x00, 0x00, 0x00, // SRv6 Capabilities, O-flag
+	}
+	attr := PathAttributeLs{}
+	require.NoError(t, attr.DecodeFromBytes(in))
+	ls := attr.Extract()
+	require.NotNil(t, ls.Node.Srv6Capabilities)
+	assert.Equal(t, uint16(0x4000), ls.Node.Srv6Capabilities.Flags)
+	wire, err := attr.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, in, wire)
+
+	built := PathAttributeLs{
+		PathAttribute: PathAttribute{Flags: attr.Flags, Type: BGP_ATTR_TYPE_LS},
+		TLVs:          NewLsAttributeTLVs(ls),
+	}
+	wire, err = built.Serialize()
+	require.NoError(t, err)
+	assert.Equal(t, in, wire)
+
+	none := PathAttributeLs{}
+	require.NoError(t, none.DecodeFromBytes([]byte{0x80, 0x1d, 0x05, 0x04, 0x0b, 0x00, 0x01, 0x00}))
+	assert.Nil(t, none.Extract().Node.Srv6Capabilities)
+}
+
 func Test_LsTLVLocalBlock(t *testing.T) {
 	assert := assert.New(t)
 

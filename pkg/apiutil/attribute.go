@@ -1298,6 +1298,13 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 		if err != nil {
 			return nil, fmt.Errorf("node: %w", err)
 		}
+		var srv6Capabilities *bgp.LsSrv6Capabilities
+		if a.Node.Srv6Capabilities != nil {
+			if a.Node.Srv6Capabilities.Flags > 0xffff {
+				return nil, fmt.Errorf("SRv6 Capabilities flags exceed 16 bits: %d", a.Node.Srv6Capabilities.Flags)
+			}
+			srv6Capabilities = &bgp.LsSrv6Capabilities{Flags: uint16(a.Node.Srv6Capabilities.Flags)}
+		}
 		lsAttr.Node = bgp.LsAttributeNode{
 			MSDs:            msds,
 			Flags:           flags,
@@ -1310,6 +1317,8 @@ func UnmarshalLsAttribute(a *api.LsAttribute) (*bgp.LsAttribute, error) {
 			SrAlgorithms:    nodeSrAlgorithms,
 			SrLocalBlock:    lsSrLocalBlock,
 			FlexAlgoDefs:    nodeFlexAlgoDefs,
+
+			Srv6Capabilities: srv6Capabilities,
 		}
 	}
 
@@ -3385,6 +3394,10 @@ func NewLsAttributeFromNative(a *bgp.PathAttributeLs) (*api.LsAttribute, error) 
 				End:   r.End,
 			})
 		}
+	}
+
+	if attr.Node.Srv6Capabilities != nil {
+		apiAttr.Node.Srv6Capabilities = &api.LsSrv6Capabilities{Flags: uint32(attr.Node.Srv6Capabilities.Flags)}
 	}
 
 	if attr.Node.SrLocalBlock != nil {

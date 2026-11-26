@@ -112,6 +112,30 @@ func Test_LsAttributeExtendedAdminGroupRoundTrip(t *testing.T) {
 	}
 }
 
+func Test_LsAttributeSrv6CapabilitiesRoundTrip(t *testing.T) {
+	for _, flags := range []uint32{0, 0x4000, 0xffff} {
+		ls := &api.LsAttribute{Node: &api.LsAttributeNode{Srv6Capabilities: &api.LsSrv6Capabilities{Flags: flags}}}
+		attrs, err := GetNativePathAttributes(&api.Path{Pattrs: []*api.Attribute{{Attr: &api.Attribute_Ls{Ls: ls}}}})
+		require.NoError(t, err)
+		require.Len(t, attrs, 1)
+		wire, err := attrs[0].Serialize()
+		require.NoError(t, err)
+		var decoded bgp.PathAttributeLs
+		require.NoError(t, decoded.DecodeFromBytes(wire))
+		output, err := NewLsAttributeFromNative(&decoded)
+		require.NoError(t, err)
+		require.NotNil(t, output.Node.Srv6Capabilities)
+		assert.Equal(t, flags, output.Node.Srv6Capabilities.Flags)
+	}
+
+	output, err := NewLsAttributeFromNative(&bgp.PathAttributeLs{})
+	require.NoError(t, err)
+	assert.Nil(t, output.Node.Srv6Capabilities)
+
+	_, err = UnmarshalLsAttribute(&api.LsAttribute{Node: &api.LsAttributeNode{Srv6Capabilities: &api.LsSrv6Capabilities{Flags: 0x10000}}})
+	assert.ErrorContains(t, err, "exceed 16 bits")
+}
+
 func TestLsAttributeEndXSIDValidation(t *testing.T) {
 	for _, test := range []struct {
 		name string

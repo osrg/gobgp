@@ -434,6 +434,14 @@ message LsAttributeNode {
 
   // Node MSD entries in TLV and entry order (RFC 8814).
   repeated LsMSDEntry msds = 11;
+
+  LsSrv6Capabilities srv6_capabilities = 12;
+}
+
+// LsSrv6Capabilities is the SRv6 Capabilities TLV (TLV 1038, RFC 9514
+// Section 3.1). Its presence marks the node as SRv6 capable.
+message LsSrv6Capabilities {
+  uint32 flags = 1;
 }
 
 // LsAttributeFlexAlgoDef is the structured projection of a single FAD

@@ -6296,6 +6296,8 @@ const (
 	LS_TLV_SR_LOCAL_BLOCK  = 1036 // draft-ietf-idr-bgp-ls-segment-routing-ext
 	LS_TLV_SRMS_PREFERENCE = 1037 // draft-ietf-idr-bgp-ls-segment-routing-ext, TODO
 
+	LS_TLV_SRV6_CAPABILITIES = 1038 // RFC9514
+
 	// Flexible Algorithm Definition (RFC9351 Section 3, IS-IS source RFC9350).
 	// TLV 1039 is a Node Attribute TLV. 1040, 1041, 1042, 1043, 1045 and 1046
 	// are sub-TLVs nested inside TLV 1039. TLV 1044 (FAPM) is a top-level
@@ -6411,6 +6413,9 @@ func NewLsAttributeTLVs(lsAttr *LsAttribute) []LsTLVInterface {
 	}
 	if lsAttr.Node.SrLocalBlock != nil {
 		tlvs = append(tlvs, NewLsTLVSrLocalBlock(lsAttr.Node.SrLocalBlock))
+	}
+	if lsAttr.Node.Srv6Capabilities != nil {
+		tlvs = append(tlvs, NewLsTLVSrv6Capabilities(lsAttr.Node.Srv6Capabilities))
 	}
 
 	if len(lsAttr.Link.MSDs) > 0 {
@@ -9096,6 +9101,73 @@ func (l *LsTLVSrLocalBlock) GetLsTLV() LsTLV {
 	return l.LsTLV
 }
 
+const lsSrv6CapabilitiesFlagO = 1 << 14
+
+type LsTLVSrv6Capabilities struct {
+	LsTLV
+	Flags uint16
+}
+
+type LsSrv6Capabilities struct {
+	Flags uint16 `json:"flags"`
+}
+
+func NewLsTLVSrv6Capabilities(l *LsSrv6Capabilities) *LsTLVSrv6Capabilities {
+	return &LsTLVSrv6Capabilities{
+		LsTLV: LsTLV{
+			Type:   LS_TLV_SRV6_CAPABILITIES,
+			Length: 4,
+		},
+		Flags: l.Flags,
+	}
+}
+
+func (l *LsTLVSrv6Capabilities) Extract() *LsSrv6Capabilities {
+	return &LsSrv6Capabilities{Flags: l.Flags}
+}
+
+func (l *LsTLVSrv6Capabilities) DecodeFromBytes(data []byte) error {
+	value, err := l.LsTLV.DecodeFromBytes(data)
+	if err != nil {
+		return err
+	}
+
+	if l.Type != LS_TLV_SRV6_CAPABILITIES {
+		return malformedAttrListErr("Unexpected TLV type")
+	}
+
+	if len(value) != 4 {
+		return malformedAttrListErr("Incorrect SRv6 Capabilities length")
+	}
+
+	l.Flags = binary.BigEndian.Uint16(value[:2])
+	return nil
+}
+
+func (l *LsTLVSrv6Capabilities) Serialize() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint16(buf[:2], l.Flags)
+	return l.LsTLV.Serialize(buf)
+}
+
+func (l *LsTLVSrv6Capabilities) String() string {
+	return fmt.Sprintf("{SRv6 Capabilities: Flags:0x%04x O:%t}", l.Flags, l.Flags&lsSrv6CapabilitiesFlagO != 0)
+}
+
+func (l *LsTLVSrv6Capabilities) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type  LsTLVType `json:"type"`
+		Flags uint16    `json:"flags"`
+	}{
+		Type:  l.Type,
+		Flags: l.Flags,
+	})
+}
+
+func (l *LsTLVSrv6Capabilities) GetLsTLV() LsTLV {
+	return l.LsTLV
+}
+
 // LsTLVFlexAlgoDef wire format (RFC 9351 Section 3):
 //
 //	byte 0     Flex Algo ID (128..255 per RFC 9350 Section 4)
@@ -11272,6 +11344,8 @@ type LsAttributeNode struct {
 	SrAlgorithms  *[]byte           `json:"sr_algorithms,omitempty"`
 	SrLocalBlock  *LsSrLocalBlock   `json:"sr_local_block,omitempty"`
 
+	Srv6Capabilities *LsSrv6Capabilities `json:"srv6_capabilities,omitempty"`
+
 	// Flexible Algorithm (RFC9351 Section 3 / RFC9350 source).
 	// A node MAY advertise more than one FAD, one per algorithm in
 	// [128, 255]; the order is the order in which the TLVs appeared.
@@ -11459,6 +11533,9 @@ func (p *PathAttributeLs) Extract() *LsAttribute {
 
 		case *LsTLVSrLocalBlock:
 			l.Node.SrLocalBlock = v.Extract()
+
+		case *LsTLVSrv6Capabilities:
+			l.Node.Srv6Capabilities = v.Extract()
 
 		case *LsTLVRemoteIPv4RouterID:
 			l.Link.RemoteRouterID = &v.IP
@@ -11682,6 +11759,9 @@ func (p *PathAttributeLs) DecodeFromBytes(data []byte, options ...*MarshallingOp
 
 		case LS_TLV_SR_LOCAL_BLOCK:
 			tlv = &LsTLVSrLocalBlock{}
+
+		case LS_TLV_SRV6_CAPABILITIES:
+			tlv = &LsTLVSrv6Capabilities{}
 
 		// Flex-Algorithm Definition (RFC 9351 Section 3).
 		case LS_TLV_FLEX_ALGO_DEF:
