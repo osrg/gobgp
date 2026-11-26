@@ -61,6 +61,12 @@ There is no strict size limit for a single commit. This is because a simple larg
 
 A Git commit message should include enough information to explain why the change is necessary, in order to convince the maintainer to merge it.
 
+### Quoting RFCs
+
+When you use an RFC as the reason for a change in a commit message or a code comment, quote the RFC text word for word. Write the RFC number and the section number with the quote. Do not add, drop or change any word inside the quotation marks. A paraphrase in quotation marks looks like the RFC text, so a reviewer cannot tell it from a real quote.
+
+Cite a section only for what it says. If the RFC does not state the point directly and your statement is an interpretation, say so. For example: "RFC 7606 does not say whether a peer in a Member-AS is an external neighbor. We read it as external."
+
 ### Submitting a pull request
 
 Every commit that is merged must pass continuous integration (CI) checks. For this reason, each pull request should ideally contain only one commit. This is because if you push multiple commits at once and create a pull request, some of the intermediate commits may not be tested by CI.
