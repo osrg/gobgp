@@ -202,11 +202,30 @@ func ValidateAttribute(a PathAttributeInterface, rfs map[Family]BGPAddPathMode, 
 					return false, NewMessageError(eCode, eSubCodeMalformedAspath, nil, fmt.Sprintf("segment type is not confederation seq (%d)", segType))
 				}
 			} else {
-				// rfc4271 5.1.2. A speaker puts its own AS in the AS_PATH of
-				// every UPDATE it sends to an external peer, so an empty one
-				// is malformed. An empty AS_PATH means the route started in
-				// the local AS: it counts as the shortest path, and RPKI
-				// origin validation takes the local AS as its origin.
+				// rfc4271 6.3:
+				//
+				//   If the UPDATE message is received from an external
+				//   peer, the local system MAY check whether the leftmost
+				//   (with respect to the position of octets in the protocol
+				//   message) AS in the AS_PATH attribute is equal to the
+				//   autonomous system number of the peer that sent the
+				//   message.  If the check determines this is not the
+				//   case, the Error Subcode MUST be set to Malformed
+				//   AS_PATH.
+				//
+				// rfc7606 7.2:
+				//
+				//   A BGP implementation SHOULD also handle routes that
+				//   violate this check using "treat-as-withdraw" but MAY
+				//   follow the "session reset" behavior if configured to
+				//   do so.
+				//
+				// Only an empty AS_PATH is checked. It has no leftmost AS.
+				// A route server does not add its own AS, so the leftmost
+				// AS of its routes is not its AS. An empty AS_PATH means
+				// that the route started in the local AS. It counts as the
+				// shortest path, and RPKI origin validation takes the local
+				// AS as its origin.
 				if len(p.Value) == 0 {
 					err := NewMessageErrorWithErrorHandling(
 						eCode, eSubCodeMalformedAspath, nil, getErrorHandlingFromPathAttribute(p.GetType()), nil, "empty AS_PATH for eBGP")
