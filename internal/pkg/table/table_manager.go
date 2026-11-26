@@ -60,10 +60,15 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 	// RFC 8097 2: "By default, implementations MUST drop the origin
 	// validation state extended community if received from an External
 	// BGP (EBGP) peer, without processing it further."
-	//
-	// TODO: a confederation peer has PeerType external, so LOCAL_PREF from
-	// it is removed too.
 	external := peerInfo != nil && peerInfo.PeerType == oc.PEER_TYPE_EXTERNAL && !peerInfo.RouteServerClient
+
+	// A peer in a Member-AS of our confederation has PeerType external, and
+	// RFC 4271 5.1.5 exempts it: LOCAL_PREF is ignored "except in the case
+	// of BGP Confederations", and RFC 5065 5.3 has path selection inside the
+	// confederation follow the rules of a single AS. ORIGINATOR_ID and
+	// CLUSTER_LIST are not exempt, since route reflection is confined to one
+	// AS (RFC 4456 1).
+	confed := peerInfo != nil && peerInfo.Confederation
 
 	// The next hops are kept out of the path attributes, so all the paths
 	// of the update share one attribute list and one hash.
@@ -79,7 +84,11 @@ func ProcessMessage(m *bgp.BGPMessage, peerInfo *PeerInfo, timestamp time.Time, 
 			reach = a
 		case *bgp.PathAttributeMpUnreachNLRI:
 			unreach = a
-		case *bgp.PathAttributeLocalPref, *bgp.PathAttributeOriginatorId, *bgp.PathAttributeClusterList:
+		case *bgp.PathAttributeLocalPref:
+			if !external || confed {
+				attrs = append(attrs, attr)
+			}
+		case *bgp.PathAttributeOriginatorId, *bgp.PathAttributeClusterList:
 			if !external {
 				attrs = append(attrs, attr)
 			}

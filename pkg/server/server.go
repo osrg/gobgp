@@ -891,7 +891,17 @@ func (s *BgpServer) postFilterpath(peer *peer, path *table.Path) *table.Path {
 	// remove local-pref attribute
 	// we should do this after applying export policy since policy may
 	// set local-preference
-	if path != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() {
+	//
+	// RFC 4271 5.1.5: "A BGP speaker MUST NOT include this attribute in
+	// UPDATE messages that it sends to external peers, except in the case
+	// of BGP Confederations". RFC 5065 5.2: "the restriction against
+	// sending the LOCAL_PREF attribute to peers in a neighboring autonomous
+	// system within the same confederation is removed." A peer in a
+	// Member-AS of our confederation has PeerType external, so it is read
+	// from PeerInfo, which the table layer uses for the same question.
+	info := peer.peerInfo.Load()
+	confed := info != nil && info.Confederation
+	if path != nil && !peer.isIBGPPeer() && !peer.isRouteServerClient() && !confed {
 		path.RemoveLocalPref()
 	}
 

@@ -7135,3 +7135,50 @@ func TestWatchPeerEventLocalAddress(t *testing.T) {
 	assert.False(t, eventAddr.IsUnspecified(), "event LocalAddress is unspecified")
 	assert.Equal(t, listAddr, eventAddr.String())
 }
+
+// A peer in a Member-AS of the local confederation has PeerType external,
+// but RFC 4271 Section 5.1.5 exempts a confederation from the rule that
+// LOCAL_PREF is not sent to an external peer.
+func TestFilterpathConfederationLocalPref(t *testing.T) {
+	const (
+		as    = uint32(65000)
+		dstAS = uint32(65002)
+	)
+	for _, tc := range []struct {
+		name   string
+		confed bool
+		want   uint32
+	}{
+		{name: "external", want: table.DEFAULT_LOCAL_PREF},
+		{name: "confederation", confed: true, want: 50},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rib := table.NewTableManager(logger, []bgp.Family{bgp.RF_IPv4_UC}, oc.RouteSelectionOptionsConfig{}, oc.UseMultiplePathsConfig{})
+			src := newPeerandInfo(t, as, as, "192.0.2.1", rib)
+			dst := newPeerandInfo(t, as, dstAS, "192.0.2.2", rib)
+			if tc.confed {
+				dst.fsm.gConf.Confederation.Config = oc.ConfederationConfig{
+					Enabled: true, Identifier: 30, MemberAsList: []uint32{dstAS},
+				}
+				info := *dst.peerInfo.Load()
+				info.Confederation = true
+				dst.peerInfo.Store(&info)
+			}
+
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+			require.NoError(t, err)
+			path := table.NewPath(bgp.RF_IPv4_UC, src.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+				bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+				bgp.NewPathAttributeAsPath(nil),
+				bgp.NewPathAttributeLocalPref(50),
+			}, time.Now(), false)
+			new, old := process(rib, []*table.Path{path})
+
+			sent := NewBgpServer().filterpath(dst, new, old)
+			require.NotNil(t, sent)
+			lp, err := sent.GetLocalPref()
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, lp)
+		})
+	}
+}
