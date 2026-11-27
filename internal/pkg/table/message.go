@@ -610,6 +610,13 @@ func createUpdateMsgFromPaths(pathList []*Path, useRemoteID bool, options ...*bg
 		if useRemoteID {
 			k.Id = path.remoteID
 		}
+		// Without ADD-PATH the neighbor has one path for a prefix,
+		// whichever of ours it is, so a later path for the prefix
+		// replaces an earlier one here as it does there. Kept apart,
+		// the two go into UPDATEs by their attributes, in no order.
+		if !bgp.IsAddPathEnabled(false, path.GetFamily(), options) {
+			k.Id = 0
+		}
 		return k
 	}
 
