@@ -303,20 +303,22 @@ func newPathFromIPRouteMessage(logger *slog.Logger, m *zebra.Message, version ui
 	origin := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP)
 	pattr = append(pattr, origin)
 
-	logger.Debug("create path from ip route message",
-		slog.String("Topic", "Zebra"),
-		slog.String("RouteType", body.Type.String()),
-		slog.String("Flag", body.Flags.String(version, software)),
-		slog.Any("Message", body.Message),
-		slog.Int("Family", int(body.Prefix.Family)),
-		slog.String("Prefix", body.Prefix.Prefix.String()),
-		slog.Int("PrefixLength", int(body.Prefix.PrefixLen)),
-		slog.Any("Nexthop", body.Nexthops),
-		slog.Uint64("Metric", uint64(body.Metric)),
-		slog.Int("Distance", int(body.Distance)),
-		slog.Uint64("Mtu", uint64(body.Mtu)),
-		slog.String("api", header.Command.String()),
-	)
+	if logger.Enabled(context.Background(), slog.LevelDebug) {
+		logger.Debug("create path from ip route message",
+			slog.String("Topic", "Zebra"),
+			slog.String("RouteType", body.Type.String()),
+			slog.String("Flag", body.Flags.String(version, software)),
+			slog.Any("Message", body.Message),
+			slog.Int("Family", int(body.Prefix.Family)),
+			slog.String("Prefix", body.Prefix.Prefix.String()),
+			slog.Int("PrefixLength", int(body.Prefix.PrefixLen)),
+			slog.Any("Nexthop", body.Nexthops),
+			slog.Uint64("Metric", uint64(body.Metric)),
+			slog.Int("Distance", int(body.Distance)),
+			slog.Uint64("Mtu", uint64(body.Mtu)),
+			slog.String("api", header.Command.String()),
+		)
+	}
 
 	nlri, _ = bgp.NewIPAddrPrefix(netip.MustParsePrefix(fmt.Sprintf("%s/%d", body.Prefix.Prefix.String(), body.Prefix.PrefixLen)))
 	switch family {

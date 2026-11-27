@@ -634,10 +634,12 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 			return old.Clone(true)
 		}
 	}
-	peer.fsm.logger.Debug("From me, ignore",
-		slog.String("Topic", "Peer"),
-		slog.String("Key", peer.ID()),
-		slog.String("Data", path.String()))
+	if peer.fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+		peer.fsm.logger.Debug("From me, ignore",
+			slog.String("Topic", "Peer"),
+			slog.String("Key", peer.ID()),
+			slog.String("Data", path.String()))
+	}
 	return nil
 }
 
@@ -766,9 +768,11 @@ func (peer *peer) detectsLoop(path *table.Path, g loopCheckGlobals) bool {
 	// A router that recognizes the ORIGINATOR_ID attribute SHOULD
 	// ignore a route received with its BGP Identifier as the ORIGINATOR_ID.
 	if path.GetOriginatorID() == g.routerID {
-		peer.fsm.logger.Debug("Originator ID is mine, ignore",
-			slog.String("OriginatorID", path.GetOriginatorID().String()),
-			slog.String("Data", path.String()))
+		if peer.fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+			peer.fsm.logger.Debug("Originator ID is mine, ignore",
+				slog.String("OriginatorID", path.GetOriginatorID().String()),
+				slog.String("Data", path.String()))
+		}
 		return true
 	}
 
@@ -780,9 +784,11 @@ func (peer *peer) detectsLoop(path *table.Path, g loopCheckGlobals) bool {
 	// If the local CLUSTER_ID is found in the CLUSTER_LIST, the advertisement received SHOULD be ignored.
 	for _, clusterID := range path.GetClusterList() {
 		if _, found := g.clusterIDs[clusterID]; found {
-			peer.fsm.logger.Debug("cluster list path attribute has a local cluster id, ignore",
-				slog.String("ClusterID", clusterID.String()),
-				slog.String("Data", path.String()))
+			if peer.fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+				peer.fsm.logger.Debug("cluster list path attribute has a local cluster id, ignore",
+					slog.String("ClusterID", clusterID.String()),
+					slog.String("Data", path.String()))
+			}
 			return true
 		}
 	}
@@ -825,9 +831,11 @@ func (peer *peer) hasOwnNexthop(path *table.Path, info *table.PeerInfo) bool {
 	if nexthop.Unmap().WithZone("") != local {
 		return false
 	}
-	peer.fsm.logger.Debug("next hop is our own address, ignore",
-		slog.String("Nexthop", nexthop.String()),
-		slog.String("Data", path.String()))
+	if peer.fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+		peer.fsm.logger.Debug("next hop is our own address, ignore",
+			slog.String("Nexthop", nexthop.String()),
+			slog.String("Data", path.String()))
+	}
 	return true
 }
 
@@ -841,10 +849,12 @@ func (peer *peer) handleUpdate(e *fsmMsg, localClusterIDs map[netip.Addr]struct{
 
 	treatAsWithdraw := e.handling == bgp.ERROR_HANDLING_TREAT_AS_WITHDRAW
 
-	peer.fsm.logger.Debug("received update",
-		slog.Any("nlri", update.NLRI),
-		slog.Any("withdrawals", update.WithdrawnRoutes),
-		slog.Any("path_attributes", update.PathAttributes))
+	if peer.fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+		peer.fsm.logger.Debug("received update",
+			slog.Any("nlri", update.NLRI),
+			slog.Any("withdrawals", update.WithdrawnRoutes),
+			slog.Any("path_attributes", update.PathAttributes))
+	}
 
 	peer.fsm.lock.Lock()
 	conf := peer.fsm.pConf.ReadCopy()

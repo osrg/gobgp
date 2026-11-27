@@ -646,12 +646,16 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 	// RFC4684 Constrained Route Distribution
 	if y := peer.IsFamilyEnabled(bgp.RF_RTC_UC); y && path.GetFamily() != bgp.RF_RTC_UC {
 		if !peer.interestedIn(path) {
-			peer.fsm.logger.Debug("Filtered by Route Target Constraint, ignore", slog.Any("Path", path))
+			if peer.fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+				peer.fsm.logger.Debug("Filtered by Route Target Constraint, ignore", slog.Any("Path", path))
+			}
 			if old == nil {
 				return nil
 			}
 			if !peer.interestedIn(old) {
-				peer.fsm.logger.Debug("Old path filtered by Route Target Constraint, ignore", slog.Any("Path", old))
+				if peer.fsm.logger.Enabled(context.Background(), slog.LevelDebug) {
+					peer.fsm.logger.Debug("Old path filtered by Route Target Constraint, ignore", slog.Any("Path", old))
+				}
 				return nil
 			}
 			path = old.Clone(true)
