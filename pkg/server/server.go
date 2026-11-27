@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
 	"net/netip"
 	"slices"
@@ -183,6 +184,7 @@ type BgpServer struct {
 	neighborMap   map[netip.Addr]*peer
 	rrClusterIDs  map[netip.Addr]struct{}
 	peerGroupMap  map[string]*peerGroup
+	updateGroups  updateGroupRegistry // has its own lock; entries are immutable
 	globalRib     *table.TableManager
 	rsRib         *table.TableManager
 	roaManager    *roaManager
@@ -763,6 +765,15 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 }
 
 func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*table.Path, *table.PolicyOptions, bool) {
+	path, options, stop := s.peerFilterpath(peer, path, old)
+	if stop {
+		return nil, nil, true
+	}
+	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, options.Info, path)
+	return path, options, false
+}
+
+func (s *BgpServer) peerFilterpath(peer *peer, path, old *table.Path) (*table.Path, *table.PolicyOptions, bool) {
 	// Special handling for RTM NLRI.
 	if path != nil && path.GetFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
 		// If the given "path" is locally generated and the same with "old", we
@@ -854,7 +865,6 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 	} else {
 		options.OldNextHop = path.GetNexthop()
 	}
-	path = table.UpdatePathAttrs(peer.fsm.logger, peer.fsm.gConf, peerInfo, path)
 
 	return path, options, false
 }
@@ -926,6 +936,49 @@ func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
 	}
 
 	return s.postFilterpath(peer, path)
+}
+
+func (s *BgpServer) filterGroupPaths(receiver updateGroupReceiver, paths, olds []*table.Path, cache *exportCache) []*table.Path {
+	outgoing := make([]*table.Path, 0, len(paths))
+	for i, input := range paths {
+		var old *table.Path
+		if olds != nil {
+			old = olds[i]
+		}
+		if path := s.filterGroupPath(receiver, input, old, cache); path != nil {
+			outgoing = append(outgoing, path)
+		}
+	}
+	return outgoing
+}
+
+func (s *BgpServer) filterGroupPath(receiver updateGroupReceiver, input, old *table.Path, cache *exportCache) *table.Path {
+	// RIB updates precede group lookup. A new session receives the current RIB
+	// after invalidation, so do not replay this old snapshot into that session.
+	// The caller holds routeRefreshInProgress through queueing. Session-down
+	// processing needs its write lock before the FSM can start another session.
+	if receiver.peer.peerInfo.Load() != receiver.sessionInfo {
+		return nil
+	}
+
+	path, options, stop := s.peerFilterpath(receiver.peer, input, old)
+	if stop {
+		return nil
+	}
+	options.Validate = s.roaTable.Validate
+	path = cache.filterPath(receiver.peer, input, path, old, options)
+	switch {
+	case path != nil:
+		// Either an announcement accepted by export policy or a withdrawal
+		// (explicit or synthesized by peerFilterpath). Withdrawals bypass
+		// export policy. Clone the cached result before per-peer processing.
+		path = path.Clone(path.IsWithdraw)
+	case cache.shouldWithdrawOld(receiver.peer, old, options):
+		// Export policy rejected the announcement. If the old path passes
+		// export policy, withdraw it from this receiver.
+		path = old.Clone(true)
+	}
+	return s.postFilterpath(receiver.peer, path)
 }
 
 func clonePathList(pathList []*table.Path) []*table.Path {
@@ -1442,8 +1495,7 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) {
 	rfList := []bgp.Family{rf}
 	s.getBestFromLocalCallback(peer, rfList, true, true, func(paths []*table.Path, filtered []*table.Path) {
 		if len(paths) > 0 {
-			peer.updateRoutes(paths...)
-			sendfsmOutgoingMsg(peer, paths)
+			sendOutgoingPaths(peer, paths)
 		}
 	})
 }
@@ -1612,8 +1664,7 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 			}
 			withdrawals = append(withdrawals, p.Clone(true))
 		}
-		peer.updateRoutes(withdrawals...)
-		sendfsmOutgoingMsg(peer, withdrawals)
+		sendOutgoingPaths(peer, withdrawals)
 		return
 	}
 	if peer.getRtcEORWait() {
@@ -1622,8 +1673,7 @@ func (s *BgpServer) processRTCMembership(peer *peer, path *table.Path) {
 	}
 	// A path may have been sent through another membership already.
 	paths := slices.DeleteFunc(s.processOutgoingPaths(peer, candidates, nil), peer.hasPathAlreadyBeenSent)
-	peer.updateRoutes(paths...)
-	sendfsmOutgoingMsg(peer, paths)
+	sendOutgoingPaths(peer, paths)
 }
 
 // peerNonRTCFamilies returns the peer's negotiated families excluding RF_RTC_UC.
@@ -1702,7 +1752,17 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 		s.notifyBestWatcher(gBestList, mpathList, multipathUpdate, multipathWithdraw)
 	}
 	family := newPath.GetFamily()
-	for _, targetPeer := range s.neighborMap {
+	targets := maps.Values(s.neighborMap)
+	if source == nil || !source.isRouteServerClient() {
+		recipients := s.updateGroups.getTargets(family, s.policy, s.neighborMap)
+		olds := gOldList
+		if !needOld {
+			olds = nil
+		}
+		s.propagateUpdateToGroups(recipients.groups, family, gBestList, olds)
+		targets = slices.Values(recipients.individual)
+	}
+	for targetPeer := range targets {
 		if source == nil && targetPeer.isRouteServerClient() || source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient() {
 			continue
 		}
@@ -1824,8 +1884,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 							return
 						}
 						if paths, _ := s.sendSecondaryRoutes(targetPeer, dsts); len(paths) > 0 {
-							targetPeer.updateRoutes(paths...)
-							sendfsmOutgoingMsg(targetPeer, paths)
+							sendOutgoingPaths(targetPeer, paths)
 						}
 						return
 					}
@@ -1838,9 +1897,47 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 					oldList = nil
 				}
 				if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
-					targetPeer.updateRoutes(paths...)
-					sendfsmOutgoingMsg(targetPeer, paths)
+					sendOutgoingPaths(targetPeer, paths)
 				}
+			}
+		}()
+	}
+}
+
+func sendOutgoingPaths(peer *peer, paths []*table.Path) {
+	peer.updateRoutes(paths...)
+	sendfsmOutgoingMsg(peer, paths)
+}
+
+func (s *BgpServer) propagateUpdateToGroups(groups []*updateGroup, family bgp.Family, paths, olds []*table.Path) {
+	if s.deferred(family) {
+		return
+	}
+	for _, group := range groups {
+		s.processOutgoingPathsForGroup(group, paths, olds)
+	}
+}
+
+func (s *BgpServer) processOutgoingPathsForGroup(group *updateGroup, paths, olds []*table.Path) {
+	// Reuse transformed paths and export-policy results across receivers in this
+	// group to avoid evaluating the same path for each peer. Cache old-path
+	// acceptance too, to decide whether a rejected replacement needs a withdrawal.
+	// The cache is local to this call and is not retained between batches.
+	cache := exportCache{filteredPaths: make(map[exportPathKey]*table.Path, len(paths))}
+	if olds != nil {
+		cache.sentOlds = make(map[oldPathPolicyKey]bool, len(olds))
+	}
+	for _, receiver := range group.receivers {
+		func() {
+			receiver.peer.routeRefreshInProgress.RLock()
+			defer receiver.peer.routeRefreshInProgress.RUnlock()
+			if !needToAdvertise(receiver.peer) {
+				return
+			}
+
+			outgoing := s.filterGroupPaths(receiver, paths, olds, &cache)
+			if len(outgoing) != 0 {
+				sendOutgoingPaths(receiver.peer, outgoing)
 			}
 		}()
 	}
@@ -1854,6 +1951,7 @@ func (s *BgpServer) stopNeighbor(peer *peer, oldState bgp.FSMState, e *fsmMsg) {
 	ownsNeighbor := s.neighborMap[key] == peer
 	if ownsNeighbor {
 		delete(s.neighborMap, key)
+		s.updateGroups.invalidate()
 		s.rebuildLocalClusterIDs()
 		// Drop the policy assignment without touching the global assignment.
 		s.policy.DeletePeerPolicy(peer.ID())
@@ -2128,8 +2226,7 @@ func (s *BgpServer) restartReleased(released []bgp.Family) {
 		}
 		s.getBestFromLocalCallback(p, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
 			if len(paths) > 0 {
-				p.updateRoutes(paths...)
-				sendfsmOutgoingMsg(p, paths)
+				sendOutgoingPaths(p, paths)
 			}
 		})
 	}
@@ -2247,6 +2344,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			// Publish the down state before clearing advertised-route state.
 			// This avoids rebuilding RIB-out bookkeeping by propagation that starts after the reset.
 			peer.fsm.state.Store(nextState)
+			s.updateGroups.invalidate()
 			s.resetAdvertisedRoutes(peer)
 			s.dropAdjRIBIn(peer, dropFamilies)
 
@@ -2316,6 +2414,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			// the initial update, so subsequent withdrawals are not suppressed
 			// while the FSM is still returning from this callback.
 			peer.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+			s.updateGroups.invalidate()
 			s.restartEvent(func(r *gr.Restart) gr.RestartActions {
 				return r.PeerEstablished(peer.ID(), n)
 			})
@@ -2323,16 +2422,14 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if waitRTC {
 				s.getBestFromLocalCallback(peer, []bgp.Family{bgp.RF_RTC_UC}, true, true, func(paths []*table.Path, filtered []*table.Path) {
 					if len(paths) > 0 {
-						peer.updateRoutes(paths...)
-						sendfsmOutgoingMsg(peer, paths)
+						sendOutgoingPaths(peer, paths)
 					}
 				})
 				s.startDeferralTimer(peer, time.Second*time.Duration(c.RouteTargetMembership.Config.DeferralTime))
 			} else {
 				s.getBestFromLocalCallback(peer, peer.negotiatedRFList(), true, true, func(paths []*table.Path, filtered []*table.Path) {
 					if len(paths) > 0 {
-						peer.updateRoutes(paths...)
-						sendfsmOutgoingMsg(peer, paths)
+						sendOutgoingPaths(peer, paths)
 					}
 				})
 			}
@@ -2464,8 +2561,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 					}
 					s.getBestFromLocalCallback(peer, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
 						if len(paths) > 0 {
-							peer.updateRoutes(paths...)
-							sendfsmOutgoingMsg(peer, paths)
+							sendOutgoingPaths(peer, paths)
 						}
 					})
 				}
@@ -3372,8 +3468,7 @@ func (s *BgpServer) softResetOutPeer(peer *peer, family bgp.Family, deferral boo
 					return l
 				}()
 			}
-			peer.updateRoutes(paths...)
-			sendfsmOutgoingMsg(peer, paths)
+			sendOutgoingPaths(peer, paths)
 		}
 	})
 }
@@ -4608,6 +4703,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 		}
 		// we don't hold fsm lock during del/add peer, deleteNeighbor do read only config
 		peer.fsm.pConf.Update(&conf)
+		s.updateGroups.invalidateOnConfigChange(original, &conf)
 		peer.fsm.lock.Unlock()
 
 		if err = s.deleteNeighbor(&conf, bgp.BGP_ERROR_CEASE, sub, true); err != nil {
@@ -4664,6 +4760,7 @@ func (s *BgpServer) updateNeighbor(c *oc.Neighbor) (needsSoftResetIn bool, err e
 	isLimit, err := peer.updatePrefixLimitConfig(&conf, c.AfiSafis)
 	if err == nil {
 		peer.fsm.pConf.Update(&conf)
+		s.updateGroups.invalidateOnConfigChange(original, &conf)
 		peer.fsm.lock.Unlock()
 		peer.configuredConf = configuredConf
 		s.rebuildLocalClusterIDs()

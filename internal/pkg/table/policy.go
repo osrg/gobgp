@@ -4117,7 +4117,70 @@ type RoutingPolicy struct {
 	statementMap  map[string]*Statement
 	assignmentMap map[string]*Assignment
 	mu            sync.RWMutex
+	changed       bool
 	logger        *slog.Logger
+}
+
+// ExportPolicyGroupInfo describes an export assignment for update-group matching.
+// It contains a compatibility key and whether policy results can be shared.
+type ExportPolicyGroupInfo struct {
+	// Key encodes the default action followed by length-prefixed policy names.
+	Key       string
+	Shareable bool
+}
+
+// The caller must hold BgpServer.shared.mu to synchronize with policy-changing
+// management operations, which hold the same mutex with Lock.
+func (r *RoutingPolicy) CheckAndClearChangesLocked() bool {
+	changed := r.changed
+	r.changed = false
+	return changed
+}
+
+func (r *RoutingPolicy) GetExportPolicyGroupInfo(id string) ExportPolicyGroupInfo {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	policies := r.getPolicy(id, POLICY_DIRECTION_EXPORT)
+	info := ExportPolicyGroupInfo{Shareable: true}
+	defaultAction := r.getDefaultPolicy(id, POLICY_DIRECTION_EXPORT)
+	if defaultAction == ROUTE_TYPE_NONE && len(policies) != 0 {
+		defaultAction = ROUTE_TYPE_ACCEPT
+	}
+	var key strings.Builder
+	key.WriteString(strconv.Itoa(int(defaultAction)))
+	key.WriteByte(';')
+	for _, policy := range policies {
+		key.WriteString(strconv.Itoa(len(policy.Name)))
+		key.WriteByte(':')
+		key.WriteString(policy.Name)
+		for _, statement := range policy.Statements {
+			if !isStatementShareable(statement) {
+				info.Shareable = false
+			}
+		}
+	}
+	info.Key = key.String()
+	return info
+}
+
+// isStatementShareable reports whether a statement's result can be reused
+// across receivers in one update group. NeighborCondition and set-next-hop
+// peer-address depend on the receiver's address, which is not part of the group
+// key. Other peer-dependent inputs, such as LocalAddress for next-hop self,
+// must match through the group key. NextHopCondition checks the path's next hop
+// or OldNextHop instead; old-path cache keys also account for OldNextHop.
+func isStatementShareable(statement *Statement) bool {
+	for _, condition := range statement.Conditions {
+		if _, ok := condition.(*NeighborCondition); ok {
+			return false
+		}
+	}
+	for _, action := range statement.ModActions {
+		if action, ok := action.(*NexthopAction); ok && action.peerAddress {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *RoutingPolicy) ApplyPolicy(id string, dir PolicyDirection, before *Path, options *PolicyOptions) *Path {
@@ -4514,9 +4577,14 @@ func (r *RoutingPolicy) GetDefinedSet(typ DefinedType, name string) (*oc.Defined
 	return sets, nil
 }
 
-func (r *RoutingPolicy) AddDefinedSet(s DefinedSet, replace bool) error {
+func (r *RoutingPolicy) postChangeUnlock(err *error) {
+	r.changed = r.changed || *err == nil
+	r.mu.Unlock()
+}
+
+func (r *RoutingPolicy) AddDefinedSet(s DefinedSet, replace bool) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	if m, ok := r.definedSetMap[s.Type()]; !ok {
 		return fmt.Errorf("invalid defined-set type: %d", s.Type())
@@ -4535,7 +4603,7 @@ func (r *RoutingPolicy) AddDefinedSet(s DefinedSet, replace bool) error {
 
 func (r *RoutingPolicy) DeleteDefinedSet(a DefinedSet, all bool) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	if m, ok := r.definedSetMap[a.Type()]; !ok {
 		err = fmt.Errorf("invalid defined-set type: %d", a.Type())
@@ -4573,7 +4641,7 @@ func (r *RoutingPolicy) GetStatement(name string) []*oc.Statement {
 
 func (r *RoutingPolicy) AddStatement(st *Statement) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	for _, c := range st.Conditions {
 		if err = r.validateCondition(c); err != nil {
@@ -4593,7 +4661,7 @@ func (r *RoutingPolicy) AddStatement(st *Statement) (err error) {
 
 func (r *RoutingPolicy) DeleteStatement(st *Statement, all bool) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	m := r.statementMap
 	name := st.Name
@@ -4639,7 +4707,7 @@ func (r *RoutingPolicy) GetPolicy(name string) []*oc.PolicyDefinition {
 
 func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	for _, st := range x.Statements {
 		for _, c := range st.Conditions {
@@ -4654,13 +4722,19 @@ func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 	name := x.Name
 	y, ok := pMap[name]
 	if refer {
-		err = x.FillUp(sMap)
+		if err = x.FillUp(sMap); err != nil {
+			return err
+		}
 	} else {
+		seen := make(map[string]bool, len(x.Statements))
 		for _, st := range x.Statements {
-			if _, ok := sMap[st.Name]; ok {
+			if _, ok := sMap[st.Name]; ok || seen[st.Name] {
 				err = fmt.Errorf("statement %s already defined", st.Name)
 				return err
 			}
+			seen[st.Name] = true
+		}
+		for _, st := range x.Statements {
 			sMap[st.Name] = st
 		}
 	}
@@ -4675,7 +4749,7 @@ func (r *RoutingPolicy) AddPolicy(x *Policy, refer bool) (err error) {
 
 func (r *RoutingPolicy) DeletePolicy(x *Policy, all, preserve bool) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	pMap := r.policyMap
 	sMap := r.statementMap
@@ -4742,7 +4816,7 @@ func (r *RoutingPolicy) GetPolicyAssignment(id string, dir PolicyDirection) (Rou
 
 func (r *RoutingPolicy) AddPolicyAssignment(id string, dir PolicyDirection, policies []*oc.PolicyDefinition, def RouteType) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	ps := make([]*Policy, 0, len(policies))
 	seen := make(map[string]bool)
@@ -4782,7 +4856,7 @@ func (r *RoutingPolicy) AddPolicyAssignment(id string, dir PolicyDirection, poli
 
 func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, policies []*oc.PolicyDefinition, all bool) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	ps := make([]*Policy, 0, len(policies))
 	seen := make(map[string]bool)
@@ -4830,7 +4904,7 @@ func (r *RoutingPolicy) DeletePolicyAssignment(id string, dir PolicyDirection, p
 
 func (r *RoutingPolicy) SetPolicyAssignment(id string, dir PolicyDirection, policies []*oc.PolicyDefinition, def RouteType) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	ps := make([]*Policy, 0, len(policies))
 	seen := make(map[string]bool)
@@ -4855,9 +4929,9 @@ func (r *RoutingPolicy) SetPolicyAssignment(id string, dir PolicyDirection, poli
 	return err
 }
 
-func (r *RoutingPolicy) Initialize() error {
+func (r *RoutingPolicy) Initialize() (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	if err := r.reload(oc.RoutingPolicy{}); err != nil {
 		r.logger.Error("failed to create routing policy",
@@ -4894,9 +4968,9 @@ func (r *RoutingPolicy) setPeerPolicy(id string, c oc.ApplyPolicy) {
 	}
 }
 
-func (r *RoutingPolicy) SetPeerPolicy(id string, c oc.ApplyPolicy) error {
+func (r *RoutingPolicy) SetPeerPolicy(id string, c oc.ApplyPolicy) (err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	importPolicies, defaultImport, err := r.getAssignmentFromConfig(POLICY_DIRECTION_IMPORT, c)
 	if err != nil {
@@ -4931,15 +5005,16 @@ func (r *RoutingPolicy) DeletePeerPolicy(peerId string) {
 	defer r.mu.Unlock()
 
 	delete(r.assignmentMap, peerId)
+	r.changed = true
 }
 
-func (r *RoutingPolicy) Reset(rp *oc.RoutingPolicy, ap map[string]oc.ApplyPolicy) error {
+func (r *RoutingPolicy) Reset(rp *oc.RoutingPolicy, ap map[string]oc.ApplyPolicy) (err error) {
 	if rp == nil {
 		return fmt.Errorf("routing Policy is nil in call to Reset")
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	defer r.postChangeUnlock(&err)
 
 	if err := r.reload(*rp); err != nil {
 		r.logger.Error("failed to create routing policy",
