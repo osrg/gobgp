@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/netip"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -1120,6 +1121,46 @@ func TestCreateUpdateMsgFromPathsKeepsLastAction(t *testing.T) {
 			assert.Equal(t, tc.wantEOR, gotEOR)
 		})
 	}
+}
+
+// Without ADD-PATH a neighbor has one path for a prefix. When the best path
+// of a prefix changes while its advertisement is still queued, the queue
+// holds two paths of ours for the prefix, with different identifiers and
+// different attributes. Only the later one may go out: UPDATEs are made by
+// attributes, in no order, and the neighbor keeps what it hears last.
+func TestCreateUpdateMsgFromPathsKeepsLastPathOfPrefix(t *testing.T) {
+	via := func(as uint32, id uint32) *Path {
+		path := newIPv4UpdatePath(t, "10.0.0.0/24")
+		path.setPathAttr(bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(2, []uint32{as}),
+		}))
+		path.localID = id
+		return path
+	}
+	announced := func(msgs []*bgp.BGPMessage) []string {
+		var got []string
+		for _, msg := range msgs {
+			update := msg.Body.(*bgp.BGPUpdate)
+			for _, nlri := range update.NLRI {
+				for _, attr := range update.PathAttributes {
+					if asPath, ok := attr.(*bgp.PathAttributeAsPath); ok {
+						got = append(got, fmt.Sprintf("%s via %v", nlri.NLRI, asPath.Value[0].GetAS()))
+					}
+				}
+			}
+		}
+		slices.Sort(got)
+		return got
+	}
+
+	old, best := via(65001, 1), via(65002, 2)
+	assert.Equal(t, []string{"10.0.0.0/24 via [65002]"},
+		announced(CreateUpdateMsgFromPaths([]*Path{old, best})))
+
+	// With ADD-PATH the two are two paths at the neighbor too.
+	addPath := &bgp.MarshallingOption{AddPath: map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_SEND}}
+	assert.Equal(t, []string{"10.0.0.0/24 via [65001]", "10.0.0.0/24 via [65002]"},
+		announced(CreateUpdateMsgFromPaths([]*Path{old, best}, addPath)))
 }
 
 func newIPv4UpdatePath(t *testing.T, prefix string) *Path {

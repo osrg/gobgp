@@ -610,12 +610,20 @@ func createUpdateMsgFromPaths(pathList []*Path, useRemoteID bool, options ...*bg
 		if useRemoteID {
 			k.Id = path.remoteID
 		}
+		// Without ADD-PATH the neighbor has one path for a prefix,
+		// whichever of ours it is, so a later path for the prefix
+		// replaces an earlier one here as it does there. Kept apart,
+		// the two go into UPDATEs by their attributes, in no order.
+		if !bgp.IsAddPathEnabled(false, path.GetFamily(), options) {
+			k.Id = 0
+		}
 		return k
 	}
 
 	// Since sendMessageloop coalesces outgoing BGP UPDATE messages and
 	// the packers emit withdrawals before announcements, we should keep only the
-	// last action for each NLRI/path-id within one packing pass.
+	// last action for each NLRI within one packing pass. With ADD-PATH, an
+	// NLRI is a prefix and a path identifier.
 	last := make(map[PathLocalKey]*Path, len(pathList))
 	for _, path := range pathList {
 		if path == nil || path.IsEOR() {
