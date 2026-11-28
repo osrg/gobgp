@@ -17,6 +17,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"math"
@@ -507,4 +508,30 @@ func TestAddLabelChunk(t *testing.T) {
 	label, err := z.assignMplsLabel()
 	require.NoError(t, err)
 	assert.Equal(t, uint32(16), label)
+}
+
+func BenchmarkZebraUnchangedNexthops(b *testing.B) {
+	s := NewBgpServer()
+	go s.Serve()
+	b.Cleanup(s.Stop)
+	require.NoError(b, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 65001, RouterId: "192.0.2.1", ListenPort: -1},
+	}))
+
+	const hop = "192.0.2.1"
+	z := &zebraClient{server: s, nexthopCache: nexthopStateCache{netip.MustParseAddr(hop): 100}}
+	var paths []*table.Path
+	for i := range 256 {
+		paths = append(paths, makePath(b, fmt.Sprintf("198.51.100.%d/32", i), hop, 0))
+	}
+	require.NoError(b, s.mgmtOperation(func() error {
+		s.zclient = z
+		return s.addPathList("", paths)
+	}, true))
+	queued := clonePathList(paths)
+	observed := time.Now()
+	b.ReportAllocs()
+	for b.Loop() {
+		z.updatePathByNexthopCache(queued, observed)
+	}
 }

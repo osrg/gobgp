@@ -256,6 +256,20 @@ func (dd *destination) GetAllKnownPathList() []*Path {
 	return l
 }
 
+// PathFromOrigin returns the installed version of a path from an earlier snapshot.
+func (dd *destination) PathFromOrigin(path *Path) *Path {
+	if dd == nil {
+		return nil
+	}
+	origin := path.OriginInfo()
+	for _, known := range dd.knownPathList {
+		if known.OriginInfo() == origin {
+			return known
+		}
+	}
+	return nil
+}
+
 func rsFilter(id string, as uint32, path *Path) bool {
 	isASLoop := func(as uint32, path *Path) bool {
 		return slices.Contains(path.GetAsList(), as)
@@ -319,13 +333,14 @@ func (dd *destination) GetMultiBestPath(id string) []*Path {
 // INTERNAL USE ONLY: Caller MUST hold the appropriate shard lock.
 // This method must NEVER be called on snapshot destinations.
 func (dest *destination) Calculate(logger *slog.Logger, newPath *Path, selectionOptions oc.RouteSelectionOptionsConfig) (*Update, *Path) {
-	oldKnownPathList := make([]*Path, len(dest.knownPathList))
-	copy(oldKnownPathList, dest.knownPathList)
+	oldKnownPathList := dest.knownPathList
+	// Readers may still hold the previous list.
+	dest.knownPathList = slices.Clone(oldKnownPathList)
 
 	var oldPath *Path
 	if newPath.IsWithdraw {
 		oldPath = dest.explicitWithdraw(logger, newPath)
-		if oldPath != nil && newPath.IsDropped() {
+		if oldPath != nil && (oldPath.IsDropped() || newPath.IsDropped()) {
 			if id := oldPath.localID; id != 0 {
 				dest.idMap().Unflag(uint(id))
 			}
@@ -347,10 +362,8 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path, selection
 		}
 	}
 
-	l := make([]*Path, len(dest.knownPathList))
-	copy(l, dest.knownPathList)
 	return &Update{
-		KnownPathList:    l,
+		KnownPathList:    dest.knownPathList,
 		OldKnownPathList: oldKnownPathList,
 	}, oldPath
 }
@@ -364,6 +377,7 @@ func (dest *destination) Calculate(logger *slog.Logger, newPath *Path, selection
 // stopped by the same policies.
 // Returns the old path that was withdrawn.
 func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *Path {
+	origin := withdraw.OriginInfo()
 	logger.Debug("Removing withdrawals",
 		slog.String("Topic", "Table"),
 		slog.String("Key", dest.GetNlri().String()))
@@ -380,10 +394,13 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 	// Match all withdrawals from destination paths.
 	isFound := -1
 	for i, path := range dest.knownPathList {
-		// We have a match if the source and path-id are same.
+		// A withdrawal cloned from an installed path identifies the exact instance.
+		if path.OriginInfo() == origin {
+			isFound = i
+			break
+		}
 		if path.EqualBySourceAndPathID(withdraw) {
 			isFound = i
-			withdraw.localID = path.localID
 		}
 	}
 
@@ -395,11 +412,8 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 			slog.String("Key", dest.GetNlri().String()),
 			slog.String("Path", withdraw.String()))
 		return nil
-	} else {
-		p := dest.knownPathList[isFound]
-		dest.knownPathList = append(dest.knownPathList[:isFound], dest.knownPathList[isFound+1:]...)
-		return p
 	}
+	return dest.removePathAt(isFound, withdraw)
 }
 
 // Identifies which of known paths are old and removes them.
@@ -409,31 +423,43 @@ func (dest *destination) explicitWithdraw(logger *slog.Logger, withdraw *Path) *
 // Returns the old path that was withdrawn.
 func (dest *destination) implicitWithdraw(logger *slog.Logger, newPath *Path) *Path {
 	found := -1
+	origin := newPath.OriginInfo()
 	for i, path := range dest.knownPathList {
-		if path.NoImplicitWithdraw() {
+		// Policy and Zebra can update the same path even with NoImplicitWithdraw.
+		if path.OriginInfo() == origin {
+			found = i
+			break
+		}
+		if found >= 0 || path.NoImplicitWithdraw() {
 			continue
 		}
-		// Here we just check if source is same and not check if path
-		// version num. as newPaths are implicit withdrawal of old
-		// paths and when doing RouteRefresh (not EnhancedRouteRefresh)
-		// we get same paths again.
 		if newPath.EqualBySourceAndPathID(path) {
-			logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
-				slog.String("Topic", "Table"),
-				slog.String("Key", dest.GetNlri().String()),
-				slog.String("Path", path.String()))
-
 			found = i
-			newPath.localID = path.localID
-			break
+			// Clones and replays may match their own installed origin later in the list.
+			// A new root without a local ID can use the first eligible source match.
+			if newPath.parent == nil && newPath.localID == 0 {
+				break
+			}
 		}
 	}
 	if found != -1 {
-		withdrawnPath := dest.knownPathList[found]
-		dest.knownPathList = append(dest.knownPathList[:found], dest.knownPathList[found+1:]...)
-		return withdrawnPath
+		logger.Debug("Implicit withdrawal of old path, since we have learned new path from the same peer",
+			slog.String("Topic", "Table"),
+			slog.String("Key", dest.GetNlri().String()),
+			slog.String("Path", dest.knownPathList[found].String()))
+		return dest.removePathAt(found, newPath)
 	}
 	return nil
+}
+
+func (dest *destination) removePathAt(index int, incoming *Path) *Path {
+	old := dest.knownPathList[index]
+	// A replay may pass a path still being read through an earlier RIB snapshot.
+	if incoming.localID != old.localID {
+		incoming.localID = old.localID
+	}
+	dest.knownPathList = slices.Delete(dest.knownPathList, index, index+1)
+	return old
 }
 
 func (dest *destination) insertSort(newPath *Path, selectionOptions oc.RouteSelectionOptionsConfig) {
@@ -541,6 +567,7 @@ func (dest *destination) insertSort(newPath *Path, selectionOptions oc.RouteSele
 }
 
 type Update struct {
+	Replaced         *Path // the path removed by an explicit or implicit withdrawal
 	KnownPathList    []*Path
 	OldKnownPathList []*Path
 	// Changed reports whether the path given to Table.update differs from the

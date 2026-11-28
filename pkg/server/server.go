@@ -192,7 +192,9 @@ type BgpServer struct {
 	bmpManager    *bmpClientManager
 	mrtManager    *mrtManager
 	roaTable      *table.ROATable // no lock of its own, so shared.mu covers it
-	uuidMap       map[string]uuid.UUID
+	uuidMap       map[uuid.UUID]*table.Path
+	pathUUID      map[*table.Path]uuid.UUID
+	uuidMu        sync.Mutex // guards uuidMap and pathUUID
 	bfdServer     *bfdServer // has its own lock
 	keychainStore *tcpAoKeychainStore
 	logger        *slog.Logger
@@ -243,7 +245,6 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		mgmtCh:       make(chan *mgmtOp),
 		closeCh:      make(chan struct{}),
 		watcherMap:   make(map[watchEventType][]*watcher),
-		uuidMap:      make(map[string]uuid.UUID),
 		roaManager:   newROAManager(roaTable, logger),
 		roaTable:     roaTable,
 		logger:       logger,
@@ -1533,6 +1534,10 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 			}
 
 			if dsts := rib.Update(path); len(dsts) > 0 {
+				if s.zclient != nil && !rs && !path.IsWithdraw {
+					path.OriginInfo().LocRIBUpdate.Store(time.Since(zebraEpoch).Nanoseconds())
+				}
+				s.replacePathUUID(dsts[0].Replaced, path)
 				// Report the path to the post-policy watchers only when it is
 				// not the one the table already held. An inbound soft reset
 				// replays the whole Adj-RIB-In, and a subscriber that got the
@@ -1555,6 +1560,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				// peers with ADD-PATH send enabled get them too.
 				s.propagateUpdateToNeighbors(rib, peer, path, dsts[:1], true)
 				for _, u := range dsts[1:] {
+					s.replacePathUUID(u.Replaced, nil)
 					if w := u.GetWithdrawnPath(); len(w) > 0 {
 						s.propagateUpdateToNeighbors(rib, peer, w[0], []*table.Update{u}, true)
 					}
@@ -2874,13 +2880,44 @@ func (s *BgpServer) fixupApiPath(vrfId string, pathList []*table.Path) error {
 	return nil
 }
 
-func pathTokey(path *table.Path) string {
-	return fmt.Sprintf("%d:%s", path.RemoteID(), path.GetPrefix())
+func (s *BgpServer) resetPathUUIDsLocked() {
+	s.uuidMap = make(map[uuid.UUID]*table.Path)
+	s.pathUUID = make(map[*table.Path]uuid.UUID)
+}
+
+// Policy and nexthop changes keep the handle of a surviving API path.
+func (s *BgpServer) replacePathUUID(old, next *table.Path) {
+	if old == nil || !old.IsDropped() || old == next {
+		return
+	}
+	s.uuidMu.Lock()
+	defer s.uuidMu.Unlock()
+	id, ok := s.pathUUID[old]
+	if !ok {
+		return
+	}
+	delete(s.pathUUID, old)
+	if next != nil && !next.IsWithdraw && next.OriginInfo() == old.OriginInfo() {
+		s.pathUUID[next] = id
+		s.uuidMap[id] = next
+	} else {
+		delete(s.uuidMap, id)
+		// Go maps retain their buckets after the last route is withdrawn.
+		if len(s.uuidMap) == 0 && (next == nil || next.IsWithdraw) {
+			s.resetPathUUIDsLocked()
+		}
+	}
 }
 
 func (s *BgpServer) addPathList(vrfId string, pathList []*table.Path) error {
 	err := s.fixupApiPath(vrfId, pathList)
 	if err == nil {
+		// API paths have no Adj-RIB-In owner to retain their IDs.
+		for _, path := range pathList {
+			if !path.IsWithdraw {
+				path.SetDropped(true)
+			}
+		}
 		if s.zclient != nil {
 			s.zclient.cacheLock.Lock()
 			s.zclient.nexthopCache.applyToNewPathList(pathList)
@@ -3015,8 +3052,16 @@ func (s *BgpServer) addPath(ctx context.Context, req apiutil.AddPathRequest) ([]
 				resps[i].Error = err
 				continue
 			}
-			s.uuidMap[pathTokey(path)] = id
 			resps[i].UUID = id
+			if path.IsWithdraw {
+				continue
+			}
+			s.uuidMu.Lock()
+			if installed := s.globalRib.GetDestination(path).PathFromOrigin(path); installed != nil {
+				s.uuidMap[id] = installed
+				s.pathUUID[installed] = id
+			}
+			s.uuidMu.Unlock()
 		}
 		return lastErr
 	}, true)
@@ -3044,23 +3089,24 @@ func (s *BgpServer) deletePath(ctx context.Context, req apiutil.DeletePathReques
 		isVRF = true
 	}
 	return s.mgmtOperationWithContext(ctx, func() error {
-		deletePathList := make([]*table.Path, 0)
-		// delete by uuid
 		if len(req.UUIDs) > 0 {
-			for k, v := range s.uuidMap {
-				if slices.Contains(req.UUIDs, v) {
-					for _, path := range s.globalRib.GetPathList(table.GLOBAL_RIB_NAME, 0, s.globalRib.GetRFlist()) {
-						if path.IsLocal() && k == pathTokey(path) {
-							delete(s.uuidMap, k)
-							deletePathList = append(deletePathList, path.Clone(true))
-						}
-					}
+			found := false
+			for _, id := range req.UUIDs {
+				s.uuidMu.Lock()
+				path := s.uuidMap[id]
+				s.uuidMu.Unlock()
+				if path != nil {
+					s.propagateUpdate(nil, []*table.Path{path.Clone(true)})
+					found = true
 				}
 			}
-			if len(deletePathList) == 0 {
+			if !found {
 				return fmt.Errorf("can't find a specified path(s) with the given UUID(s)")
 			}
-		} else if req.DeleteAll {
+			return nil
+		}
+		var deletePathList []*table.Path
+		if req.DeleteAll {
 			// Delete all locally generated paths
 			families := s.globalRib.GetRFlist()
 			if req.DeleteFamily != nil {
@@ -3071,7 +3117,6 @@ func (s *BgpServer) deletePath(ctx context.Context, req apiutil.DeletePathReques
 					deletePathList = append(deletePathList, path.Clone(true))
 				}
 			}
-			s.uuidMap = make(map[string]uuid.UUID)
 		} else {
 			// Delete specified path(s)
 			if len(req.Paths) == 0 {
@@ -3085,24 +3130,12 @@ func (s *BgpServer) deletePath(ctx context.Context, req apiutil.DeletePathReques
 				if err := s.fixupApiPath(req.VRFID, []*table.Path{path}); err != nil {
 					return err
 				}
-				delete(s.uuidMap, pathTokey(path))
 				deletePathList = append(deletePathList, path)
 			}
 		}
 		s.propagateUpdate(nil, deletePathList)
 		return nil
 	}, true)
-}
-
-func (s *BgpServer) updatePath(vrfId string, pathList []*table.Path) error {
-	err := s.mgmtOperation(func() error {
-		if err := s.fixupApiPath(vrfId, pathList); err != nil {
-			return err
-		}
-		s.propagateUpdate(nil, pathList)
-		return nil
-	}, true)
-	return err
 }
 
 // locRibFamilies lists every address family gobgp can handle, in AFI/SAFI
@@ -3154,6 +3187,9 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		}
 
 		rfs := locRibFamilies()
+		s.uuidMu.Lock()
+		s.resetPathUUIDsLocked()
+		s.uuidMu.Unlock()
 		s.globalRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
 		s.rsRib = table.NewTableManager(s.logger, rfs, c.RouteSelectionOptions.Config, c.UseMultiplePaths.Config)
 

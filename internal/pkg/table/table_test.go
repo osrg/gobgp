@@ -1253,3 +1253,55 @@ func TestTableUpdateReportsWhetherThePathChanged(t *testing.T) {
 	assert.NotNil(t, u)
 	assert.True(t, u.Changed, "a withdrawal that removed a path is a change")
 }
+
+func TestEVPNMACIndexFollowsLivePaths(t *testing.T) {
+	rtA := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 1, true)
+	rtB := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 2, true)
+	rtC := bgp.NewTwoOctetAsSpecificExtended(bgp.EC_SUBTYPE_ROUTE_TARGET, 65000, 3, true)
+	mac, err := net.ParseMAC("00:11:22:33:44:55")
+	require.NoError(t, err)
+	nlri, err := bgp.NewEVPNMacIPAdvertisementRoute(bgp.NewRouteDistinguisherTwoOctetAS(65000, 1), bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY, Value: make([]byte, 9)}, 0, mac.String(), netip.Addr{}, []uint32{100})
+	require.NoError(t, err)
+	tbl := NewTable(logger, bgp.RF_EVPN)
+	path := func(id uint32, rts ...bgp.ExtendedCommunityInterface) *Path {
+		return NewPath(bgp.RF_EVPN, nil, bgp.PathNLRI{NLRI: nlri, ID: id}, false, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), bgp.NewPathAttributeExtendedCommunities(rts)}, time.Time{}, false)
+	}
+	withdraw := func(p *Path) {
+		// A wire withdrawal need not carry any route targets.
+		w := NewPath(bgp.RF_EVPN, nil, bgp.PathNLRI{NLRI: nlri, ID: p.RemoteID()}, true, nil, time.Time{}, false)
+		w.SetDropped(true)
+		tbl.update(w, oc.RouteSelectionOptionsConfig{})
+	}
+	check := func(a, b, c int) {
+		t.Helper()
+		for i, rt := range []bgp.ExtendedCommunityInterface{rtA, rtB, rtC} {
+			require.Len(t, tbl.macIndex.Get(rt, mac), []int{a, b, c}[i], "RT %s", rt)
+		}
+	}
+	p1, p2, p3 := path(1, rtA), path(2, rtA, rtB), path(3, rtB, rtC)
+	for _, p := range []*Path{p1, p2, p3} {
+		tbl.update(p, oc.RouteSelectionOptionsConfig{})
+	}
+	check(1, 1, 1)
+	for range 10 {
+		p1 = path(1, rtA)
+		tbl.update(p1, oc.RouteSelectionOptionsConfig{})
+	}
+	withdraw(p1)
+	check(1, 1, 1)
+	p2 = path(2, rtC)
+	tbl.update(p2, oc.RouteSelectionOptionsConfig{})
+	check(0, 1, 1)
+	withdraw(p3)
+	check(0, 0, 1)
+	withdraw(p2)
+	check(0, 0, 0)
+	require.Empty(t, tbl.GetDestinations())
+	for range 10 {
+		p := path(1, rtA)
+		tbl.update(p, oc.RouteSelectionOptionsConfig{})
+		withdraw(p)
+	}
+	check(0, 0, 0)
+	require.Empty(t, tbl.GetDestinations())
+}

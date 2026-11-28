@@ -274,12 +274,13 @@ func macKeyHash(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) macKey 
 }
 
 type EVPNMacNLRIs struct {
-	mp map[macKey]map[*destination]struct{}
+	// Multiple paths can share a destination under the same RT and MAC.
+	mp map[macKey]map[*destination]int
 	mu *sync.RWMutex
 }
 
 func NewEVPNMacNLRIs() *EVPNMacNLRIs {
-	return &EVPNMacNLRIs{mp: make(map[macKey]map[*destination]struct{}), mu: &sync.RWMutex{}}
+	return &EVPNMacNLRIs{mp: make(map[macKey]map[*destination]int), mu: &sync.RWMutex{}}
 }
 
 func (e *EVPNMacNLRIs) Get(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr) (d []*destination) {
@@ -303,9 +304,9 @@ func (e *EVPNMacNLRIs) Insert(rt bgp.ExtendedCommunityInterface, mac net.Hardwar
 
 	macKey := macKeyHash(rt, mac)
 	if _, ok := e.mp[macKey]; !ok {
-		e.mp[macKey] = make(map[*destination]struct{})
+		e.mp[macKey] = make(map[*destination]int)
 	}
-	e.mp[macKey][dest] = struct{}{}
+	e.mp[macKey][dest]++
 }
 
 func (e *EVPNMacNLRIs) Remove(rt bgp.ExtendedCommunityInterface, mac net.HardwareAddr, dest *destination) {
@@ -314,7 +315,11 @@ func (e *EVPNMacNLRIs) Remove(rt bgp.ExtendedCommunityInterface, mac net.Hardwar
 
 	macKey := macKeyHash(rt, mac)
 	if dests, ok := e.mp[macKey]; ok {
-		delete(dests, dest)
+		if dests[dest] > 1 {
+			dests[dest]--
+		} else {
+			delete(dests, dest)
+		}
 		if len(dests) == 0 {
 			delete(e.mp, macKey)
 		}
@@ -536,17 +541,6 @@ func (t *Table) deleteDest(shard *destinationShard, dest *destination) {
 			break
 		}
 	}
-
-	// Clean up EVPN mac index
-	if evpnNlri, ok := nlri.(*bgp.EVPNNLRI); ok {
-		if macadv, ok := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute); ok {
-			for _, path := range dest.knownPathList {
-				for _, ec := range path.GetRouteTargets() {
-					t.macIndex.Remove(ec, macadv.MacAddress, dest)
-				}
-			}
-		}
-	}
 }
 
 func (t *Table) update(newPath *Path, selectionOptions oc.RouteSelectionOptionsConfig) *Update {
@@ -575,12 +569,21 @@ func (t *Table) update(newPath *Path, selectionOptions oc.RouteSelectionOptionsC
 	// Path.Equal ignores IsWithdraw, and a withdrawal carries the attributes of
 	// the path it removes, so the two compare equal. A withdrawal that got this
 	// far did remove a path, so it is always a change.
+	u.Replaced = oldPath
 	u.Changed = newPath.IsWithdraw || oldPath == nil || !newPath.Equal(oldPath)
 
 	if evpnNlri, ok := nlri.(*bgp.EVPNNLRI); ok {
 		if macadv, ok := evpnNlri.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute); ok {
-			for _, ec := range newPath.GetRouteTargets() {
-				t.macIndex.Insert(ec, macadv.MacAddress, dst)
+			// Insert first so replacing a path can reuse its RT bucket.
+			if !newPath.IsWithdraw {
+				for _, ec := range newPath.GetRouteTargets() {
+					t.macIndex.Insert(ec, macadv.MacAddress, dst)
+				}
+			}
+			if oldPath != nil {
+				for _, ec := range oldPath.GetRouteTargets() {
+					t.macIndex.Remove(ec, macadv.MacAddress, dst)
+				}
 			}
 		}
 	}
@@ -599,8 +602,7 @@ func (t *Table) updateVPNIdx(u *Update, newPath, oldPath *Path) {
 	}
 	if newPath.RemoteID() != 0 {
 		// ADD-PATH: each (source, path-ID) pair is a distinct entry.
-		// oldPath is the previous path with the same (source, path-ID) returned by
-		// implicitWithdraw (non-withdrawal) or explicitWithdraw (withdrawal).
+		// oldPath is the path this update removed from the destination.
 		if newPath.IsWithdraw {
 			t.vpnIdx.UnregisterPath(oldPath)
 		} else {

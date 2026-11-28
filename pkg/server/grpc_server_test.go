@@ -634,9 +634,37 @@ func TestGRPCAddPathUpdatesUUIDMap(t *testing.T) {
 	id, err := uuid.FromBytes(resp.Uuid)
 	assert.NoError(err)
 	assert.Len(s.uuidMap, 1)
-	for _, v := range s.uuidMap {
-		assert.Equal(id, v)
+	assert.Contains(s.uuidMap, id)
+
+	require.NoError(t, s.SetPolicyAssignment(context.Background(), &api.SetPolicyAssignmentRequest{Assignment: &api.PolicyAssignment{
+		Name: "global", Direction: api.PolicyDirection_POLICY_DIRECTION_IMPORT, DefaultAction: api.RouteAction_ROUTE_ACTION_REJECT,
+	}}))
+	other, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.2.2/32"))
+	require.NoError(t, err)
+	path.Nlri = nlri(other)
+	rejected, err := client.AddPath(context.Background(), &api.AddPathRequest{Path: path})
+	require.NoError(t, err)
+	rejectedID, err := uuid.FromBytes(rejected.Uuid)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, rejectedID)
+	require.NotEqual(t, id, rejectedID)
+
+	path.IsWithdraw = true
+	withdrawn, err := client.AddPath(context.Background(), &api.AddPathRequest{Path: path})
+	require.NoError(t, err)
+	withdrawnID, err := uuid.FromBytes(withdrawn.Uuid)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, withdrawnID)
+	require.NotEqual(t, rejectedID, withdrawnID)
+	require.NotEqual(t, id, withdrawnID)
+
+	for _, handle := range [][]byte{rejected.Uuid, withdrawn.Uuid} {
+		_, err = client.DeletePath(context.Background(), &api.DeletePathRequest{Uuid: handle})
+		require.Error(t, err)
 	}
+	require.Len(t, s.uuidMap, 1)
+	require.Len(t, s.pathUUID, 1)
+	require.Contains(t, s.uuidMap, id)
 }
 
 // A FlowSpec route has no next hop. AddPath (apiutil2Path) and AddPathStream
