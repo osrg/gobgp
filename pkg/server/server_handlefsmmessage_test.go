@@ -3461,3 +3461,164 @@ func initialUpdatePeer(t *testing.T, s *BgpServer, address string) *peer {
 	})
 	return p
 }
+
+// When the new best path of a destination cannot be sent to a peer,
+// filterpath withdraws the old best path. A peer attached to a VRF has got the
+// old path converted to its unicast family, so the withdrawal has to be in
+// that family too, and has to clear the entry in sentPaths.
+func TestVRFPeerWithdrawsOldPath(t *testing.T) {
+	const rejectedCommunity = uint32(65000)<<16 | 1
+
+	tests := []struct {
+		name   string
+		peerAS uint32
+		// The new best path. Its LOCAL_PREF makes it win over the old one.
+		asPath    []uint32
+		community uint32
+		policy    bool
+	}{
+		{
+			name:   "as loop",
+			peerAS: 65002,
+			asPath: []uint32{65002, 65010},
+		},
+		{
+			name:      "no-export",
+			peerAS:    65002,
+			asPath:    []uint32{65010},
+			community: uint32(bgp.COMMUNITY_NO_EXPORT),
+		},
+		{
+			// The new best path comes from an iBGP peer and is not sent to
+			// the iBGP peer. The old one is local.
+			name:   "ibgp",
+			peerAS: 65001,
+			asPath: []uint32{65010},
+		},
+		{
+			name:      "export policy",
+			peerAS:    65002,
+			asPath:    []uint32{65010},
+			community: rejectedCommunity,
+			policy:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := NewBgpServer()
+			go s.Serve()
+			require.NoError(t, s.StartBgp(ctx, &api.StartBgpRequest{
+				Global: &api.Global{Asn: 65001, RouterId: "1.1.1.1", ListenPort: -1},
+			}))
+			addVrf(t, s, "vrf1", "65001:100", []string{"65001:100"}, []string{"65001:100"}, 1)
+
+			peerAddr := netip.MustParseAddr("10.0.0.1")
+			p := newPeerandInfo(t, 65001, tt.peerAS, peerAddr.String(), s.globalRib)
+			p.policy = s.policy
+			p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+			p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+			p.fsm.lock.Lock()
+			conf := p.fsm.pConf.ReadCopy()
+			conf.Config.Vrf = "vrf1"
+			conf.State.Vrf = "vrf1"
+			p.fsm.pConf.Update(&conf)
+			p.fsm.lock.Unlock()
+			require.NoError(t, s.mgmtOperation(func() error {
+				s.neighborMap[peerAddr] = p
+				return nil
+			}, true))
+			t.Cleanup(func() {
+				require.NoError(t, s.mgmtOperation(func() error {
+					delete(s.neighborMap, peerAddr)
+					return nil
+				}, false))
+				cleanInfiniteChannel(p.fsm.outgoingCh)
+				require.NoError(t, s.StopBgp(ctx, &api.StopBgpRequest{}))
+			})
+
+			if tt.policy {
+				reject := &api.Policy{
+					Name: "reject",
+					Statements: []*api.Statement{{
+						Name: "reject",
+						Conditions: &api.Conditions{
+							CommunitySet: &api.MatchSet{Name: "reject", Type: api.MatchSet_TYPE_ANY},
+						},
+						Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_REJECT},
+					}},
+				}
+				require.NoError(t, s.AddDefinedSet(ctx, &api.AddDefinedSetRequest{DefinedSet: &api.DefinedSet{
+					DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
+					Name:        "reject",
+					List:        []string{"65000:1"},
+				}}))
+				require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: reject}))
+				require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+					Assignment: &api.PolicyAssignment{
+						Name:          table.GLOBAL_RIB_NAME,
+						Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+						Policies:      []*api.Policy{reject},
+						DefaultAction: api.RouteAction_ROUTE_ACTION_ACCEPT,
+					},
+				}))
+			}
+
+			makeVPNPath := func(source *table.PeerInfo, asPath []uint32, localPref, community uint32) *table.Path {
+				t.Helper()
+				rd, rt, err := parseRDRT("65001:100")
+				require.NoError(t, err)
+				nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/24"), *bgp.NewMPLSLabelStack(100), rd)
+				require.NoError(t, err)
+				nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+				require.NoError(t, err)
+				attrs := []bgp.PathAttributeInterface{
+					bgp.NewPathAttributeOrigin(0),
+					bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, asPath)}),
+					nh,
+					bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+				}
+				if localPref != 0 {
+					attrs = append(attrs, bgp.NewPathAttributeLocalPref(localPref))
+				}
+				if community != 0 {
+					attrs = append(attrs, bgp.NewPathAttributeCommunities([]uint32{community}))
+				}
+				return table.NewPath(bgp.RF_IPv4_VPN, source, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+			}
+			recv := func() []*table.Path {
+				t.Helper()
+				select {
+				case o := <-p.fsm.outgoingCh.Out():
+					return o.(*fsmOutgoingMsg).Paths
+				case <-time.After(time.Second):
+					t.Fatal("timed out waiting for outbound paths")
+					return nil
+				}
+			}
+
+			// The old best path: local, sent to the peer as IPv4 unicast.
+			s.propagateUpdate(nil, []*table.Path{makeVPNPath(nil, []uint32{65010}, 0, 0)})
+			sent := recv()
+			require.Len(t, sent, 1)
+			require.False(t, sent[0].IsWithdraw)
+			require.Equal(t, bgp.RF_IPv4_UC, sent[0].GetFamily())
+
+			// The new best path from an iBGP peer, which cannot be sent.
+			ibgp := newPeerandInfo(t, 65001, 65001, "10.0.0.2", s.globalRib).peerInfo.Load()
+			s.propagateUpdate(nil, []*table.Path{makeVPNPath(ibgp, tt.asPath, 200, tt.community)})
+			sent = recv()
+			require.Len(t, sent, 1)
+			require.True(t, sent[0].IsWithdraw)
+			require.Equal(t, bgp.RF_IPv4_UC, sent[0].GetFamily())
+			require.Equal(t, "192.0.2.0/24", sent[0].GetPrefix())
+
+			n := 0
+			p.sentPaths.Range(func(_, _ any) bool {
+				n++
+				return true
+			})
+			require.Zero(t, n, "the withdrawal clears the entry in sentPaths")
+		})
+	}
+}

@@ -937,6 +937,7 @@ func needsExtendedNexthop(path *table.Path) bool {
 }
 
 func (s *BgpServer) filterpath(peer *peer, path, old *table.Path) *table.Path {
+	old = oldPathForPeer(peer, old)
 	path, options, stop := s.prePolicyFilterpath(peer, path, old)
 	if stop {
 		return nil
@@ -1368,6 +1369,32 @@ func filteredPathForPeer(peer *peer, path *table.Path) *table.Path {
 	default:
 		return path
 	}
+}
+
+// oldPathForPeer returns old, the previous best path of a destination, in the
+// form that peer gets it. filterpath turns old into a withdrawal for peer
+// when the new best path cannot be sent, so old has to be converted in the
+// same way as the new one. A peer attached to a VRF gets a VPN path converted
+// by ToLocal. If the VRF does not import old, old was not sent to the peer,
+// so nil is returned.
+func oldPathForPeer(peer *peer, old *table.Path) *table.Path {
+	if old == nil {
+		return nil
+	}
+	conf := peer.fsm.pConf.ReadOnly()
+	if conf.Config.Vrf == "" {
+		return old
+	}
+	switch old.GetFamily() {
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN:
+	default:
+		return old
+	}
+	vrf, ok := peer.localRib.GetVrf(conf.Config.Vrf)
+	if !ok || !table.CanImportToVrf(vrf, old) {
+		return nil
+	}
+	return old.ToLocal()
 }
 
 func needToAdvertise(peer *peer) bool {
