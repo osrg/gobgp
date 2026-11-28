@@ -3622,3 +3622,143 @@ func TestVRFPeerWithdrawsOldPath(t *testing.T) {
 		})
 	}
 }
+
+// newRTCTestPeer returns an established iBGP peer of AS 65001 with the RTC
+// family, registered in the neighbor map of s. A route reflector client if
+// client is set.
+func newRTCTestPeer(t *testing.T, s *BgpServer, address string, client bool) *peer {
+	t.Helper()
+	addr := netip.MustParseAddr(address)
+	nConf := &oc.Neighbor{
+		Config: oc.NeighborConfig{PeerAs: 65001, NeighborAddress: addr},
+		State:  oc.NeighborState{PeerAs: 65001, NeighborAddress: addr, RemoteRouterId: addr},
+	}
+	nConf.RouteReflector.Config.RouteReflectorClient = client
+	gConf := &oc.Global{Config: oc.GlobalConfig{As: 65001, RouterId: netip.MustParseAddr("1.1.1.1")}}
+	require.NoError(t, oc.SetDefaultNeighborConfigValues(nConf, nil, gConf))
+	p := newPeer(gConf, nConf, bgp.BGP_FSM_IDLE, s.globalRib, s.policy, nil, logger)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_RTC_UC: bgp.BGP_ADD_PATH_NONE})
+	localAddr := netip.MustParseAddr("1.1.1.1")
+	p.peerInfo.Store(table.NewPeerInfo(gConf, nConf, 65001, 65001, addr, localAddr, addr, localAddr))
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.neighborMap[addr] = p
+		return nil
+	}, true))
+	t.Cleanup(func() {
+		require.NoError(t, s.mgmtOperation(func() error {
+			delete(s.neighborMap, addr)
+			return nil
+		}, false))
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+	})
+	return p
+}
+
+func recvRTCTestPaths(t *testing.T, p *peer) []*table.Path {
+	t.Helper()
+	select {
+	case o := <-p.fsm.outgoingCh.Out():
+		return o.(*fsmOutgoingMsg).Paths
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for outbound paths to %s", p.ID())
+		return nil
+	}
+}
+
+func newRTCTestServer(t *testing.T) *BgpServer {
+	t.Helper()
+	s := NewBgpServer()
+	go s.Serve()
+	require.NoError(t, s.StartBgp(context.Background(), &api.StartBgpRequest{
+		Global: &api.Global{Asn: 65001, RouterId: "1.1.1.1", ListenPort: -1},
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, s.StopBgp(context.Background(), &api.StopBgpRequest{}))
+	})
+	return s
+}
+
+func rtcTestPath(t *testing.T, source *peer, withdraw bool) *table.Path {
+	t.Helper()
+	_, rt, err := parseRDRT("65001:100")
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr(source.ID()))
+	require.NoError(t, err)
+	return table.NewPath(bgp.RF_RTC_UC, source.peerInfo.Load(), bgp.PathNLRI{
+		NLRI: bgp.NewRouteTargetMembershipNLRI(65001, rt),
+	}, withdraw, []bgp.PathAttributeInterface{bgp.NewPathAttributeOrigin(0), nh}, time.Now(), false)
+}
+
+// The local RT membership of a VRF is the best path and is sent to the
+// non-client Y. When the VRF is deleted, the best path is the one of Y, but
+// the client Z still has the RT. Y must be told about the interest of Z,
+// not get a withdrawal.
+func TestRTCLocalMembershipDeletedKeepsClientInterest(t *testing.T) {
+	s := newRTCTestServer(t)
+	y := newRTCTestPeer(t, s, "10.0.0.1", false)
+	z := newRTCTestPeer(t, s, "10.0.0.2", true)
+
+	addVrf(t, s, "vrf1", "65001:100", []string{"65001:100"}, []string{"65001:100"}, 1)
+	sent := recvRTCTestPaths(t, y)
+	require.Len(t, sent, 1)
+	require.True(t, sent[0].IsLocal())
+	sent = recvRTCTestPaths(t, z)
+	require.Len(t, sent, 1)
+	require.True(t, sent[0].IsLocal())
+
+	// The local path stays the best one, so nothing is sent.
+	s.propagateUpdate(nil, []*table.Path{rtcTestPath(t, y, false)})
+	s.propagateUpdate(nil, []*table.Path{rtcTestPath(t, z, false)})
+
+	require.NoError(t, s.DeleteVrf(context.Background(), &api.DeleteVrfRequest{Name: "vrf1"}))
+	sent = recvRTCTestPaths(t, y)
+	require.Len(t, sent, 1)
+	t.Logf("to Y: withdraw=%v source=%s", sent[0].IsWithdraw, sent[0].GetSource().Address)
+	require.False(t, sent[0].IsWithdraw, "Y must not lose the interest of Z")
+	require.Equal(t, z.ID(), sent[0].GetSource().Address.String())
+}
+
+// RFC 4684 3.2 rule ii prefers a client path only when the best path is from
+// a non-client peer. With a local best path, the non-client Y gets the local
+// path.
+func TestRTCLocalBestIsSentToNonClient(t *testing.T) {
+	s := newRTCTestServer(t)
+	y := newRTCTestPeer(t, s, "10.0.0.1", false)
+	z := newRTCTestPeer(t, s, "10.0.0.2", true)
+
+	// The path of the client Z is reflected to Y, and back to Z.
+	s.propagateUpdate(nil, []*table.Path{rtcTestPath(t, z, false)})
+	sent := recvRTCTestPaths(t, y)
+	require.Len(t, sent, 1)
+	require.Equal(t, z.ID(), sent[0].GetSource().Address.String())
+	recvRTCTestPaths(t, z)
+
+	addVrf(t, s, "vrf1", "65001:100", []string{"65001:100"}, []string{"65001:100"}, 1)
+	sent = recvRTCTestPaths(t, y)
+	require.Len(t, sent, 1)
+	t.Logf("to Y: local=%v source=%s", sent[0].IsLocal(), sent[0].GetSource().Address)
+	require.True(t, sent[0].IsLocal(), "the best path is local, so rule ii does not apply")
+}
+
+// The local RT membership of a VRF is sent to the iBGP peer Y, which has
+// the RT too. When the VRF is deleted, only the path of Y is left, and it
+// is not sent back to Y. Y must get a withdrawal.
+func TestRTCLocalMembershipDeletedIsWithdrawn(t *testing.T) {
+	s := newRTCTestServer(t)
+	y := newRTCTestPeer(t, s, "10.0.0.1", false)
+
+	addVrf(t, s, "vrf1", "65001:100", []string{"65001:100"}, []string{"65001:100"}, 1)
+	sent := recvRTCTestPaths(t, y)
+	require.Len(t, sent, 1)
+	require.True(t, sent[0].IsLocal())
+
+	// The local path stays the best one, so nothing is sent.
+	s.propagateUpdate(nil, []*table.Path{rtcTestPath(t, y, false)})
+
+	require.NoError(t, s.DeleteVrf(context.Background(), &api.DeleteVrfRequest{Name: "vrf1"}))
+	sent = recvRTCTestPaths(t, y)
+	require.Len(t, sent, 1)
+	require.True(t, sent[0].IsWithdraw)
+	require.False(t, y.hasPathAlreadyBeenSent(sent[0]))
+}

@@ -789,6 +789,42 @@ func filterpath(peer *peer, path, old *table.Path) *table.Path {
 	return path
 }
 
+// rtcPathForNonClient returns the RT membership path to advertise to peer,
+// which is not a route reflector client, from the known paths of the
+// destination in best path order. It is the best path not received from the
+// peer, because a path is not sent back to its source, and the peer still has
+// to learn that the other speakers are interested in the RT.
+//
+// RFC 4684 3.2 adds a rule for such a peer:
+//
+//	ii.  When advertising an RT membership NLRI to a non-client peer, if
+//	     the best path as selected by the path selection procedure
+//	     described in Section 9.1 of the base BGP specification [4] is a
+//	     route received from a non-client peer, and if there is an
+//	     alternative path to the same destination from a client, the
+//	     attributes of the client path are advertised to the peer.
+//
+// So a client path is preferred only when the chosen path is received from a
+// peer that is not a client. A locally originated path is advertised as is.
+func rtcPathForNonClient(peer *peer, known []*table.Path) *table.Path {
+	var best *table.Path
+	for _, p := range known {
+		if p.GetSource().Address.String() != peer.ID() {
+			best = p
+			break
+		}
+	}
+	if best == nil || best.IsLocal() || best.GetSource().RouteReflectorClient {
+		return best
+	}
+	for _, p := range known {
+		if p.GetSource().RouteReflectorClient && p.GetSource().Address.String() != peer.ID() {
+			return p
+		}
+	}
+	return best
+}
+
 func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*table.Path, *table.PolicyOptions, bool) {
 	// Special handling for RTM NLRI.
 	if path != nil && path.GetFamily() == bgp.RF_RTC_UC && !path.IsWithdraw {
@@ -800,34 +836,29 @@ func (s *BgpServer) prePolicyFilterpath(peer *peer, path, old *table.Path) (*tab
 			return nil, nil, true
 		}
 
-		if old != nil && old.IsLocal() {
-			// If it is vrf or rtc route deleting, it will work via explicitWithdraw
-			// and make old.Clone(true). The only way to get path != nil and old != nil
-			// is to change the path without changing rt. Then we need to update path or
-			// do nothing if path == old.
-		} else if peer.isRouteReflectorClient() {
+		if peer.isRouteReflectorClient() {
 			// We need to send the path even if the peer is originator of the
 			// path in order to signal that the client should distribute route
 			// with the given RT.
 		} else {
 			// We send a path even if it is not the best path. See comments in
 			// (*Destination) GetChanges().
-			dst := peer.localRib.GetDestination(path)
-			path = nil
-			for _, p := range dst.GetKnownPathList(peer.TableID(), peer.AS()) {
-				srcPeer := p.GetSource()
-				if peer.ID() != srcPeer.Address.String() {
-					if srcPeer.RouteReflectorClient {
-						// The path from a RR client is preferred than others
-						// for the case that RR and non RR client peering
-						// (e.g., peering of different RR clusters).
-						path = p
-						break
-					} else if path == nil {
-						path = p
-					}
-				}
+			var known []*table.Path
+			if dst := peer.localRib.GetDestination(path); dst != nil {
+				known = dst.GetKnownPathList(peer.TableID(), peer.AS())
 			}
+			chosen := rtcPathForNonClient(peer, known)
+			if chosen == nil {
+				// Only paths received from the peer are left. If a path
+				// was advertised to the peer before, withdraw it. The
+				// withdrawal skips the filters below, which decide what
+				// may be advertised, not what the peer holds.
+				if !peer.hasPathAlreadyBeenSent(path) {
+					return nil, nil, true
+				}
+				return path.Clone(true), &table.PolicyOptions{Info: peer.peerInfo.Load()}, false
+			}
+			path = chosen
 		}
 	}
 
