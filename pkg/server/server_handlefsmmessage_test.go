@@ -3974,3 +3974,147 @@ func TestRTCLocalBestNotSentIsSent(t *testing.T) {
 	require.False(t, sent[0].IsWithdraw)
 	require.True(t, sent[0].IsLocal())
 }
+
+// newSecondaryRouteTestSetup returns a server with a route server client
+// that has secondary-route on, and two route server clients that send paths.
+func newSecondaryRouteTestSetup(t *testing.T) (*BgpServer, *peer, *peer, *peer) {
+	t.Helper()
+	s := newRTCTestServer(t)
+	makeClient := func(address string, asn uint32, secondary bool) *peer {
+		t.Helper()
+		p := newPeerandInfo(t, 65001, asn, address, s.rsRib)
+		p.fsm.lock.Lock()
+		conf := p.fsm.pConf.ReadCopy()
+		conf.RouteServer.Config.RouteServerClient = true
+		conf.RouteServer.Config.SecondaryRoute = secondary
+		p.fsm.pConf.Update(&conf)
+		p.fsm.lock.Unlock()
+		info := *p.peerInfo.Load()
+		info.RouteServerClient = true
+		p.peerInfo.Store(&info)
+		p.tableId = p.ID()
+		p.policy = s.policy
+		p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+		p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+		return p
+	}
+	target := makeClient("10.0.0.1", 65002, true)
+	a := makeClient("10.0.0.2", 65003, false)
+	b := makeClient("10.0.0.3", 65004, false)
+	for _, source := range []*peer{a, b} {
+		require.NoError(t, s.policy.SetPolicyAssignment(source.TableID(), table.POLICY_DIRECTION_IMPORT, nil, table.ROUTE_TYPE_ACCEPT))
+	}
+	addr := netip.MustParseAddr("10.0.0.1")
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.neighborMap[addr] = target
+		return nil
+	}, true))
+	t.Cleanup(func() {
+		require.NoError(t, s.mgmtOperation(func() error {
+			delete(s.neighborMap, addr)
+			return nil
+		}, false))
+		cleanInfiniteChannel(target.fsm.outgoingCh)
+	})
+	return s, target, a, b
+}
+
+func setTargetExportPolicy(t *testing.T, s *BgpServer, target *peer, rejectCommunity bool, defaultAction api.RouteAction) {
+	t.Helper()
+	ctx := context.Background()
+	var policies []*api.Policy
+	if rejectCommunity {
+		reject := &api.Policy{
+			Name: "reject-65000-1",
+			Statements: []*api.Statement{{
+				Name: "reject-65000-1",
+				Conditions: &api.Conditions{
+					CommunitySet: &api.MatchSet{Name: "reject-65000-1", Type: api.MatchSet_TYPE_ANY},
+				},
+				Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_REJECT},
+			}},
+		}
+		require.NoError(t, s.AddDefinedSet(ctx, &api.AddDefinedSetRequest{DefinedSet: &api.DefinedSet{
+			DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
+			Name:        "reject-65000-1",
+			List:        []string{"65000:1"},
+		}}))
+		require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: reject}))
+		policies = append(policies, reject)
+	}
+	require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          target.TableID(),
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+			Policies:      policies,
+			DefaultAction: defaultAction,
+		},
+	}))
+}
+
+func TestSecondaryRouteWithdrawAfterExportPolicyChange(t *testing.T) {
+	s, target, a, _ := newSecondaryRouteTestSetup(t)
+
+	s.propagateUpdate(a, []*table.Path{ipv4OutgoingTestPath(t, a.peerInfo.Load(), "192.0.2.0/24", []uint32{65003}, 0, false)})
+	sent := recvRTCTestPaths(t, target)
+	require.Len(t, sent, 1)
+	require.False(t, sent[0].IsWithdraw)
+
+	setTargetExportPolicy(t, s, target, false, api.RouteAction_ROUTE_ACTION_REJECT)
+	s.propagateUpdate(a, []*table.Path{ipv4OutgoingTestPath(t, a.peerInfo.Load(), "192.0.2.0/24", []uint32{65003, 65010}, 0, false)})
+	sent = recvRTCTestPaths(t, target)
+	require.Len(t, sent, 1)
+	require.True(t, sent[0].IsWithdraw)
+	require.False(t, target.hasPathAlreadyBeenSent(sent[0]))
+}
+
+func TestSecondaryRouteNoWithdrawForPathNotSent(t *testing.T) {
+	s, target, a, _ := newSecondaryRouteTestSetup(t)
+	setTargetExportPolicy(t, s, target, true, api.RouteAction_ROUTE_ACTION_ACCEPT)
+
+	rejected := uint32(65000)<<16 | 1
+	s.propagateUpdate(a, []*table.Path{ipv4OutgoingTestPath(t, a.peerInfo.Load(), "192.0.2.0/24", []uint32{65003}, rejected, false)})
+	s.propagateUpdate(a, []*table.Path{ipv4OutgoingTestPath(t, a.peerInfo.Load(), "192.0.2.0/24", []uint32{65003}, rejected, true)})
+	// The queue keeps the order, so this path is the first one the peer
+	// gets if nothing was sent for the other prefix.
+	s.propagateUpdate(a, []*table.Path{ipv4OutgoingTestPath(t, a.peerInfo.Load(), "198.51.100.0/24", []uint32{65003}, 0, false)})
+	sent := recvRTCTestPaths(t, target)
+	require.Len(t, sent, 1)
+	require.False(t, sent[0].IsWithdraw)
+	require.Equal(t, "198.51.100.0/24", sent[0].GetPrefix())
+}
+
+// The best path has an IPv6 next hop and the peer does not support the
+// extended next hop encoding, so postFilterpath turns it into a withdrawal.
+// With secondary-route, the next path is advertised instead.
+func TestSecondaryRouteSkipsPathTurnedIntoWithdrawal(t *testing.T) {
+	s, target, a, b := newSecondaryRouteTestSetup(t)
+
+	s.propagateUpdate(b, []*table.Path{ipv4OutgoingTestPath(t, b.peerInfo.Load(), "192.0.2.0/24", []uint32{65004}, 0, false)})
+	sent := recvRTCTestPaths(t, target)
+	require.Len(t, sent, 1)
+	require.Equal(t, b.ID(), sent[0].GetSource().Address.String())
+
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/24"))
+	require.NoError(t, err)
+	mp, err := bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv4_UC, []bgp.PathNLRI{{NLRI: nlri}}, netip.MustParseAddr("2001:db8::2"))
+	require.NoError(t, err)
+	v6nh := table.NewPath(bgp.RF_IPv4_UC, a.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65003})}),
+		mp,
+		bgp.NewPathAttributeLocalPref(200),
+	}, time.Now(), false)
+	require.True(t, v6nh.GetNexthop().Is6())
+	s.propagateUpdate(a, []*table.Path{v6nh})
+	tbl, ok := s.rsRib.GetTable(bgp.RF_IPv4_UC)
+	require.True(t, ok)
+	dsts := tbl.GetDestinations()
+	require.Len(t, dsts, 1)
+	require.Equal(t, a.ID(), dsts[0].GetAllKnownPathList()[0].GetSource().Address.String())
+
+	sent = recvRTCTestPaths(t, target)
+	require.Len(t, sent, 1)
+	require.False(t, sent[0].IsWithdraw, "the next path is advertised")
+	require.Equal(t, b.ID(), sent[0].GetSource().Address.String())
+}

@@ -1414,37 +1414,74 @@ func (s *BgpServer) sendSecondaryRoutes(peer *peer, dsts []*table.Update) (paths
 	}
 
 	for _, dst := range dsts {
-		old := func() *table.Path {
-			for _, old := range dst.OldKnownPathList {
-				o := f(old)
-				if o != nil {
-					return o
-				}
+		var best, old *table.Path
+		if len(dst.KnownPathList) > 0 {
+			best = dst.KnownPathList[0]
+		}
+		if len(dst.OldKnownPathList) > 0 {
+			old = dst.OldKnownPathList[0]
+		}
+		if best != nil && rtcLocalPathAlreadySent(peer, best, old) {
+			continue
+		}
+		// Advertise the first path that may be advertised. A path that
+		// postFilterpath turns into a withdrawal is skipped too.
+		var path *table.Path
+		for _, known := range dst.KnownPathList {
+			if p := f(known); p != nil && !p.IsWithdraw {
+				path = p
+				break
 			}
-			return nil
-		}()
-		path := func() *table.Path {
-			for _, known := range dst.KnownPathList {
-				path := f(known)
-				if path != nil {
-					return path
-				}
-			}
-			return nil
-		}()
+		}
 		if path != nil {
 			paths = append(paths, path)
-		} else if old != nil {
-			paths = append(paths, old.Clone(true))
-		} else if len(dst.KnownPathList) > 0 {
-			// softResetOut uses filtered paths to withdraw destinations that were
-			// previously advertised but no longer have an advertisable path.
-			// For secondary-route peers, return one withdrawal candidate when all
-			// current paths for a destination are filtered.
-			filtered = append(filtered, filteredPathForPeer(peer, dst.KnownPathList[0]))
+			continue
+		}
+		// No path can be advertised. Return one path of the destination, so
+		// that the caller withdraws the destination if it was advertised to
+		// the peer. The paths are gone if the destination was removed.
+		if best == nil {
+			best = old
+		}
+		if best != nil {
+			filtered = append(filtered, filteredPathForPeer(peer, best))
 		}
 	}
 	return paths, filtered
+}
+
+// sentWithdrawals returns the withdrawals of the paths in filtered, which
+// cannot be advertised to peer any more, that were advertised to peer
+// before.
+func sentWithdrawals(peer *peer, filtered []*table.Path) []*table.Path {
+	withdrawals := make([]*table.Path, 0, len(filtered))
+	for _, path := range filtered {
+		if path == nil || path.IsEOR() {
+			continue
+		}
+		if !peer.IsFamilyEnabled(path.GetFamily()) {
+			continue
+		}
+		if !peer.hasPathAlreadyBeenSent(path) {
+			continue
+		}
+		withdrawals = append(withdrawals, path.Clone(true))
+	}
+	return withdrawals
+}
+
+// rtcLocalPathAlreadySent reports whether path is a local RT membership best
+// path that did not change from old, the previous best path, and was
+// advertised to peer.
+//
+// GetChanges returns the best RT membership path even when it did not
+// change, because the path chosen for each peer can change. A local best
+// path that did not change is not sent again to a peer that has it. This
+// avoids an infinite UPDATE loop between a route reflector and its clients.
+// peer.sentPaths has no attributes, so the old best path tells whether the
+// path changed.
+func rtcLocalPathAlreadySent(peer *peer, path, old *table.Path) bool {
+	return path.GetFamily() == bgp.RF_RTC_UC && !path.IsWithdraw && path.IsLocal() && path.Equal(old) && peer.hasPathAlreadyBeenSent(path)
 }
 
 func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) []*table.Path {
@@ -1462,13 +1499,7 @@ func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) 
 		if olds != nil {
 			old = olds[idx]
 		}
-		// GetChanges returns the best RT membership path even when it did not
-		// change, because the path chosen for each peer can change. A local
-		// best path that did not change is not sent again to a peer that
-		// has it. This avoids an infinite UPDATE loop between a route
-		// reflector and its clients. peer.sentPaths has no attributes, so
-		// the old best path tells whether the path changed.
-		if path.GetFamily() == bgp.RF_RTC_UC && !path.IsWithdraw && path.IsLocal() && path.Equal(old) && peer.hasPathAlreadyBeenSent(path) {
+		if rtcLocalPathAlreadySent(peer, path, old) {
 			s.logger.Debug("given rtm nlri is already sent, skipping to advertise", slog.Any("Path", path))
 			continue
 		}
@@ -1880,7 +1911,8 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 						if !needToAdvertise(targetPeer) {
 							return
 						}
-						if paths, _ := s.sendSecondaryRoutes(targetPeer, dsts); len(paths) > 0 {
+						paths, filtered := s.sendSecondaryRoutes(targetPeer, dsts)
+						if paths = append(sentWithdrawals(targetPeer, filtered), paths...); len(paths) > 0 {
 							targetPeer.updateRoutes(paths...)
 							sendfsmOutgoingMsg(targetPeer, paths)
 						}
@@ -3419,20 +3451,7 @@ func (s *BgpServer) softResetOutPeer(peer *peer, family bgp.Family, deferral boo
 	s.getBestFromLocalCallback(peer, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
 		if len(filtered) > 0 && !deferral {
 			// withdraw paths that export policy now rejects
-			withdrawals := make([]*table.Path, 0, len(filtered))
-			for _, path := range filtered {
-				if path == nil || path.IsEOR() {
-					continue
-				}
-				if !peer.IsFamilyEnabled(path.GetFamily()) {
-					continue
-				}
-				if !peer.hasPathAlreadyBeenSent(path) {
-					continue
-				}
-				withdrawals = append(withdrawals, path.Clone(true))
-			}
-			paths = append(withdrawals, paths...)
+			paths = append(sentWithdrawals(peer, filtered), paths...)
 		}
 		if len(paths) > 0 {
 			if deferral {
