@@ -3762,3 +3762,215 @@ func TestRTCLocalMembershipDeletedIsWithdrawn(t *testing.T) {
 	require.True(t, sent[0].IsWithdraw)
 	require.False(t, y.hasPathAlreadyBeenSent(sent[0]))
 }
+
+// newOutgoingTestPeer returns an established peer of peerAS with the IPv4
+// unicast family, registered in the neighbor map of s. update, if not nil,
+// changes the neighbor configuration.
+func newOutgoingTestPeer(t *testing.T, s *BgpServer, address string, peerAS uint32, update func(*oc.Neighbor)) *peer {
+	t.Helper()
+	addr := netip.MustParseAddr(address)
+	p := newPeerandInfo(t, 65001, peerAS, address, s.globalRib)
+	p.policy = s.policy
+	p.fsm.state.Store(bgp.BGP_FSM_ESTABLISHED)
+	p.fsm.familyMap.Store(map[bgp.Family]bgp.BGPAddPathMode{bgp.RF_IPv4_UC: bgp.BGP_ADD_PATH_NONE})
+	if update != nil {
+		p.fsm.lock.Lock()
+		conf := p.fsm.pConf.ReadCopy()
+		update(&conf)
+		p.fsm.pConf.Update(&conf)
+		p.fsm.lock.Unlock()
+	}
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.neighborMap[addr] = p
+		return nil
+	}, true))
+	t.Cleanup(func() {
+		require.NoError(t, s.mgmtOperation(func() error {
+			delete(s.neighborMap, addr)
+			return nil
+		}, false))
+		cleanInfiniteChannel(p.fsm.outgoingCh)
+	})
+	return p
+}
+
+// setGlobalExportPolicy sets the global export policy. With rejectCommunity,
+// a statement rejects the paths with the community 65000:1.
+func setGlobalExportPolicy(t *testing.T, s *BgpServer, rejectCommunity bool, defaultAction api.RouteAction) {
+	t.Helper()
+	ctx := context.Background()
+	var policies []*api.Policy
+	if rejectCommunity {
+		reject := &api.Policy{
+			Name: "reject-65000-1",
+			Statements: []*api.Statement{{
+				Name: "reject-65000-1",
+				Conditions: &api.Conditions{
+					CommunitySet: &api.MatchSet{Name: "reject-65000-1", Type: api.MatchSet_TYPE_ANY},
+				},
+				Actions: &api.Actions{RouteAction: api.RouteAction_ROUTE_ACTION_REJECT},
+			}},
+		}
+		require.NoError(t, s.AddDefinedSet(ctx, &api.AddDefinedSetRequest{DefinedSet: &api.DefinedSet{
+			DefinedType: api.DefinedType_DEFINED_TYPE_COMMUNITY,
+			Name:        "reject-65000-1",
+			List:        []string{"65000:1"},
+		}}))
+		require.NoError(t, s.AddPolicy(ctx, &api.AddPolicyRequest{Policy: reject}))
+		policies = append(policies, reject)
+	}
+	require.NoError(t, s.SetPolicyAssignment(ctx, &api.SetPolicyAssignmentRequest{
+		Assignment: &api.PolicyAssignment{
+			Name:          table.GLOBAL_RIB_NAME,
+			Direction:     api.PolicyDirection_POLICY_DIRECTION_EXPORT,
+			Policies:      policies,
+			DefaultAction: defaultAction,
+		},
+	}))
+}
+
+func ipv4OutgoingTestPath(t *testing.T, source *table.PeerInfo, prefix string, asPath []uint32, community uint32, withdraw bool) *table.Path {
+	t.Helper()
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(source.Address)
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, asPath)}),
+		nh,
+	}
+	if community != 0 {
+		attrs = append(attrs, bgp.NewPathAttributeCommunities([]uint32{community}))
+	}
+	return table.NewPath(bgp.RF_IPv4_UC, source, bgp.PathNLRI{NLRI: nlri}, withdraw, attrs, time.Now(), false)
+}
+
+// The export policy is changed to reject everything, then the path of a
+// destination that was advertised changes. The peer must get a withdrawal.
+func TestWithdrawSentPathAfterExportPolicyChange(t *testing.T) {
+	s := newRTCTestServer(t)
+	p := newOutgoingTestPeer(t, s, "10.0.0.1", 65002, nil)
+	source := newPeerandInfo(t, 65001, 65001, "10.0.0.2", s.globalRib).peerInfo.Load()
+
+	s.propagateUpdate(nil, []*table.Path{ipv4OutgoingTestPath(t, source, "192.0.2.0/24", []uint32{65010}, 0, false)})
+	sent := recvRTCTestPaths(t, p)
+	require.Len(t, sent, 1)
+	require.False(t, sent[0].IsWithdraw)
+
+	setGlobalExportPolicy(t, s, false, api.RouteAction_ROUTE_ACTION_REJECT)
+	s.propagateUpdate(nil, []*table.Path{ipv4OutgoingTestPath(t, source, "192.0.2.0/24", []uint32{65010, 65011}, 0, false)})
+	sent = recvRTCTestPaths(t, p)
+	require.Len(t, sent, 1)
+	require.True(t, sent[0].IsWithdraw)
+	require.False(t, p.hasPathAlreadyBeenSent(sent[0]))
+}
+
+// A path rejected by the export policy is not advertised, so its withdrawal
+// must not be sent either.
+func TestNoWithdrawForPathNotSent(t *testing.T) {
+	s := newRTCTestServer(t)
+	p := newOutgoingTestPeer(t, s, "10.0.0.1", 65002, nil)
+	source := newPeerandInfo(t, 65001, 65001, "10.0.0.2", s.globalRib).peerInfo.Load()
+	setGlobalExportPolicy(t, s, true, api.RouteAction_ROUTE_ACTION_ACCEPT)
+
+	rejected := uint32(65000)<<16 | 1
+	s.propagateUpdate(nil, []*table.Path{ipv4OutgoingTestPath(t, source, "192.0.2.0/24", []uint32{65010}, rejected, false)})
+	s.propagateUpdate(nil, []*table.Path{ipv4OutgoingTestPath(t, source, "192.0.2.0/24", []uint32{65010}, rejected, true)})
+	// The queue keeps the order, so this path is the first one the peer
+	// gets if nothing was sent for the other prefix.
+	s.propagateUpdate(nil, []*table.Path{ipv4OutgoingTestPath(t, source, "198.51.100.0/24", []uint32{65010}, 0, false)})
+	sent := recvRTCTestPaths(t, p)
+	require.Len(t, sent, 1)
+	require.False(t, sent[0].IsWithdraw)
+	require.Equal(t, "198.51.100.0/24", sent[0].GetPrefix())
+}
+
+// With replace-peer-as, a path whose AS_PATH has the AS of the peer is
+// advertised with the AS replaced. Its withdrawal must be sent too.
+func TestReplacePeerAsWithdrawal(t *testing.T) {
+	s := newRTCTestServer(t)
+	p := newOutgoingTestPeer(t, s, "10.0.0.1", 65002, func(conf *oc.Neighbor) {
+		conf.AsPathOptions.Config.ReplacePeerAs = true
+		conf.AsPathOptions.State.ReplacePeerAs = true
+	})
+	source := newPeerandInfo(t, 65001, 65001, "10.0.0.2", s.globalRib).peerInfo.Load()
+
+	s.propagateUpdate(nil, []*table.Path{ipv4OutgoingTestPath(t, source, "192.0.2.0/24", []uint32{65002, 65010}, 0, false)})
+	sent := recvRTCTestPaths(t, p)
+	require.Len(t, sent, 1)
+	require.False(t, sent[0].IsWithdraw)
+	require.NotContains(t, sent[0].GetAsList(), uint32(65002))
+
+	s.propagateUpdate(nil, []*table.Path{ipv4OutgoingTestPath(t, source, "192.0.2.0/24", []uint32{65002, 65010}, 0, true)})
+	sent = recvRTCTestPaths(t, p)
+	require.Len(t, sent, 1)
+	require.True(t, sent[0].IsWithdraw)
+	require.False(t, p.hasPathAlreadyBeenSent(sent[0]))
+}
+
+// A peer attached to a VRF gets a VPN path without its RD. A path of the
+// same prefix with another RD, which the VRF does not import, is a different
+// destination and must not withdraw the path that the peer has.
+func TestVRFPeerKeepsPathOfOtherRD(t *testing.T) {
+	s := newRTCTestServer(t)
+	addVrf(t, s, "red", "10:10", []string{"10:10"}, []string{"10:10"}, 1)
+	addVrf(t, s, "blue", "20:20", []string{"20:20"}, []string{"20:20"}, 2)
+	p := newOutgoingTestPeer(t, s, "10.0.0.1", 65002, func(conf *oc.Neighbor) {
+		conf.Config.Vrf = "red"
+		conf.State.Vrf = "red"
+	})
+	source := newPeerandInfo(t, 65001, 65001, "10.0.0.2", s.globalRib).peerInfo.Load()
+
+	vpnPath := func(rdrt string) *table.Path {
+		rd, rt, err := parseRDRT(rdrt)
+		require.NoError(t, err)
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/24"), *bgp.NewMPLSLabelStack(100), rd)
+		require.NoError(t, err)
+		nh, err := bgp.NewPathAttributeNextHop(source.Address)
+		require.NoError(t, err)
+		return table.NewPath(bgp.RF_IPv4_VPN, source, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{
+			bgp.NewPathAttributeOrigin(0),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{65010})}),
+			nh,
+			bgp.NewPathAttributeExtendedCommunities([]bgp.ExtendedCommunityInterface{rt}),
+		}, time.Now(), false)
+	}
+
+	s.propagateUpdate(nil, []*table.Path{vpnPath("10:10")})
+	sent := recvRTCTestPaths(t, p)
+	require.Len(t, sent, 1)
+	require.False(t, sent[0].IsWithdraw)
+
+	// The path of blue, then its withdrawal. Nothing is sent for them, so
+	// the next thing the peer gets is the withdrawal of the red path.
+	blue := vpnPath("20:20")
+	s.propagateUpdate(nil, []*table.Path{blue})
+	s.propagateUpdate(nil, []*table.Path{blue.Clone(true)})
+	require.True(t, p.hasPathAlreadyBeenSent(sent[0]))
+	s.propagateUpdate(nil, []*table.Path{vpnPath("10:10").Clone(true)})
+	sent = recvRTCTestPaths(t, p)
+	require.Len(t, sent, 1)
+	require.True(t, sent[0].IsWithdraw)
+	require.Equal(t, "192.0.2.0/24", sent[0].GetPrefix())
+	require.False(t, p.hasPathAlreadyBeenSent(sent[0]))
+}
+
+// The local RT membership is not sent to Y while the export policy rejects
+// it. After the policy accepts it, the next change of the destination
+// leaves the local path as the best one, but Y never got it, so it is sent.
+func TestRTCLocalBestNotSentIsSent(t *testing.T) {
+	s := newRTCTestServer(t)
+	y := newRTCTestPeer(t, s, "10.0.0.1", false)
+	z := newRTCTestPeer(t, s, "10.0.0.2", false)
+
+	setGlobalExportPolicy(t, s, false, api.RouteAction_ROUTE_ACTION_REJECT)
+	addVrf(t, s, "vrf1", "65001:100", []string{"65001:100"}, []string{"65001:100"}, 1)
+	setGlobalExportPolicy(t, s, false, api.RouteAction_ROUTE_ACTION_ACCEPT)
+
+	s.propagateUpdate(nil, []*table.Path{rtcTestPath(t, z, false)})
+	sent := recvRTCTestPaths(t, y)
+	require.Len(t, sent, 1)
+	require.False(t, sent[0].IsWithdraw)
+	require.True(t, sent[0].IsLocal())
+}

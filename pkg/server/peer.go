@@ -699,7 +699,7 @@ func (peer *peer) interestedIn(path *table.Path) bool {
 	return peer.rtmHandler.InterestedIn(path)
 }
 
-func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
+func (peer *peer) filterPathFromSourcePeer(path *table.Path) *table.Path {
 	// Consider 3 peers - A, B, C and prefix P originated by C. Parallel eBGP
 	// sessions exist between A & B, and both have a single session with C.
 	//
@@ -707,7 +707,6 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 	// A, with the following:
 	// peer: [C, B #1, B #2]
 	// path: new best for P facing B
-	// old: old best for P facing C
 	//
 	// Our comparison between peer identifier and path source ID must be router
 	// ID-based (not neighbor address), otherwise we will return early. If we
@@ -726,27 +725,14 @@ func (peer *peer) filterPathFromSourcePeer(path, old *table.Path) *table.Path {
 		return path
 	}
 
-	// Note: Multiple paths having the same prefix could exist the withdrawals
-	// list in the case of Route Server setup with import policies modifying
-	// paths. In such case, gobgp sends duplicated update messages; withdraw
-	// messages for the same prefix.
-	if !peer.isRouteServerClient() {
-		if peer.isRouteReflectorClient() && path.GetFamily() == bgp.RF_RTC_UC {
-			// When the peer is a Route Reflector client and the given path
-			// contains the Route Tartget Membership NLRI, the path should not
-			// be withdrawn in order to signal the client to distribute routes
-			// with the specific RT to Route Reflector.
-			return path
-		} else if !path.IsWithdraw && old != nil && old.GetSource().Address.String() != peer.ID() {
-			// Say, peer A and B advertized same prefix P, and best path
-			// calculation chose a path from B as best. When B withdraws prefix
-			// P, best path calculation chooses the path from A as best. For
-			// peers other than A, this path should be advertised (as implicit
-			// withdrawal). However for A, we should advertise the withdrawal
-			// path. Thing is same when peer A and we advertized prefix P (as
-			// local route), then, we withdraws the prefix.
-			return old.Clone(true)
-		}
+	// The path is not sent back to its source. If the path advertised to the
+	// peer before was another one, the caller withdraws it.
+	if !peer.isRouteServerClient() && peer.isRouteReflectorClient() && path.GetFamily() == bgp.RF_RTC_UC {
+		// When the peer is a Route Reflector client and the given path
+		// contains the Route Tartget Membership NLRI, the path should not
+		// be withdrawn in order to signal the client to distribute routes
+		// with the specific RT to Route Reflector.
+		return path
 	}
 	peer.fsm.logger.Debug("From me, ignore",
 		slog.String("Topic", "Peer"),

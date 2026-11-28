@@ -1779,6 +1779,16 @@ func process(rib *table.TableManager, l []*table.Path) (*table.Path, *table.Path
 	return news[0], olds[0]
 }
 
+// sendForTest returns what s sends to p for path, the best path of a
+// destination after a change, and records it as sent.
+func sendForTest(s *BgpServer, p *peer, path *table.Path) *table.Path {
+	out := s.outgoingPath(p, path)
+	if out != nil {
+		p.updateRoutes(out)
+	}
+	return out
+}
+
 func TestFilterpathWitheBGP(t *testing.T) {
 	as := uint32(65000)
 	p1As := uint32(65001)
@@ -1795,29 +1805,33 @@ func TestFilterpathWitheBGP(t *testing.T) {
 	path2 := table.NewPath(bgp.RF_IPv4_UC, p2.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa2, time.Now(), false)
 	rib.Update(path2)
 	d := rib.Update(path1)
-	new, old, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false, rib.UseMultiplePathsEnabled())
+	new, _, _ := d[0].GetChanges(table.GLOBAL_RIB_NAME, 0, false, rib.UseMultiplePathsEnabled())
 	assert.Equal(t, new, path1)
-	filterpath(p1, new, old)
-	filterpath(p2, new, old)
+	s := NewBgpServer()
+	assert.Nil(t, sendForTest(s, p1, new))
+	assert.NotNil(t, sendForTest(s, p2, new))
 
-	new, old = process(rib, []*table.Path{path1.Clone(true)})
+	new, _ = process(rib, []*table.Path{path1.Clone(true)})
 	assert.Equal(t, new, path2)
 	// p1 and p2 advertized the same prefix and p1's was best. Then p1 withdraw it, so p2 must get withdawal.
-	path := filterpath(p2, new, old)
+	path := sendForTest(s, p2, new)
 	assert.NotNil(t, path)
 	assert.True(t, path.IsWithdraw)
 
 	// p1 should get the new best (from p2)
-	assert.Equal(t, filterpath(p1, new, old), path2)
+	path = sendForTest(s, p1, new)
+	require.NotNil(t, path)
+	assert.False(t, path.IsWithdraw)
+	assert.Equal(t, p2.peerInfo.Load(), path.GetSource())
 
-	new, old = process(rib, []*table.Path{path2.Clone(true)})
+	new, _ = process(rib, []*table.Path{path2.Clone(true)})
 	assert.True(t, new.IsWithdraw)
 	// p2 withdraw so p1 should get withdrawal.
-	path = filterpath(p1, new, old)
+	path = sendForTest(s, p1, new)
 	assert.True(t, path.IsWithdraw)
 
 	// p2 withdraw so p2 should get nothing.
-	path = filterpath(p2, new, old)
+	path = sendForTest(s, p2, new)
 	assert.Nil(t, path)
 }
 
@@ -1846,17 +1860,19 @@ func TestFilterpathWitheBGPSameRouterID(t *testing.T) {
 	pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{p1As})})}
 	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
 
-	new, old := process(rib, []*table.Path{path1})
+	new, _ := process(rib, []*table.Path{path1})
 	assert.Equal(t, new, path1)
+	s := NewBgpServer()
 	// p1 sent the path, so p1 does not get it back.
-	assert.Nil(t, filterpath(p1, new, old))
+	assert.Nil(t, sendForTest(s, p1, new))
 	// p2 is another router with the same router ID and gets the path.
-	assert.Equal(t, path1, filterpath(p2, new, old))
+	assert.Equal(t, path1, filterpath(p2, new))
+	assert.NotNil(t, sendForTest(s, p2, new))
 
-	new, old = process(rib, []*table.Path{path1.Clone(true)})
+	new, _ = process(rib, []*table.Path{path1.Clone(true)})
 	assert.True(t, new.IsWithdraw)
-	assert.Nil(t, filterpath(p1, new, old))
-	path := filterpath(p2, new, old)
+	assert.Nil(t, sendForTest(s, p1, new))
+	path := sendForTest(s, p2, new)
 	assert.NotNil(t, path)
 	assert.True(t, path.IsWithdraw)
 }
@@ -1876,17 +1892,18 @@ func TestFilterpathWithiBGP(t *testing.T) {
 	path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
 	// path2 := table.NewPath(bgp.RF_IPv4_UC, pi2, bgp.PathNLRI{NLRI: nlri}, false, pa2, time.Now(), false)
 
-	new, old := process(rib, []*table.Path{path1})
+	new, _ := process(rib, []*table.Path{path1})
 	assert.Equal(t, new, path1)
-	path := filterpath(p1, new, old)
+	s := NewBgpServer()
+	path := sendForTest(s, p1, new)
 	assert.Nil(t, path)
-	path = filterpath(p2, new, old)
+	path = sendForTest(s, p2, new)
 	assert.Nil(t, path)
 
-	new, old = process(rib, []*table.Path{path1.Clone(true)})
-	path = filterpath(p1, new, old)
+	new, _ = process(rib, []*table.Path{path1.Clone(true)})
+	path = sendForTest(s, p1, new)
 	assert.Nil(t, path)
-	path = filterpath(p2, new, old)
+	path = sendForTest(s, p2, new)
 	assert.Nil(t, path)
 }
 
@@ -1933,44 +1950,46 @@ func TestFilterpathWithWellKnownCommunities(t *testing.T) {
 	plain := newPath(srcAs<<16 | 100)
 
 	// A community that is not one of the three does not filter anything.
-	assert.NotNil(t, filterpath(ebgp, plain, nil))
-	assert.NotNil(t, filterpath(ibgp, plain, nil))
+	assert.NotNil(t, filterpath(ebgp, plain))
+	assert.NotNil(t, filterpath(ibgp, plain))
 
 	// NO_ADVERTISE keeps the route from every peer.
-	assert.Nil(t, filterpath(ebgp, noAdvertise, nil))
-	assert.Nil(t, filterpath(ibgp, noAdvertise, nil))
-	assert.Nil(t, filterpath(confed, noAdvertise, nil))
+	assert.Nil(t, filterpath(ebgp, noAdvertise))
+	assert.Nil(t, filterpath(ibgp, noAdvertise))
+	assert.Nil(t, filterpath(confed, noAdvertise))
 
 	// NO_EXPORT keeps the route inside the confederation: an eBGP peer does
 	// not get it, an iBGP peer and a confederation member do.
-	assert.Nil(t, filterpath(ebgp, noExport, nil))
-	assert.NotNil(t, filterpath(ibgp, noExport, nil))
-	assert.NotNil(t, filterpath(confed, noExport, nil))
+	assert.Nil(t, filterpath(ebgp, noExport))
+	assert.NotNil(t, filterpath(ibgp, noExport))
+	assert.NotNil(t, filterpath(confed, noExport))
 
 	// NO_EXPORT_SUBCONFED keeps the route inside the member AS: no external
 	// peer gets it, a confederation member included.
-	assert.Nil(t, filterpath(ebgp, noExportSubconfed, nil))
-	assert.NotNil(t, filterpath(ibgp, noExportSubconfed, nil))
-	assert.Nil(t, filterpath(confed, noExportSubconfed, nil))
+	assert.Nil(t, filterpath(ebgp, noExportSubconfed))
+	assert.NotNil(t, filterpath(ibgp, noExportSubconfed))
+	assert.Nil(t, filterpath(confed, noExportSubconfed))
 
 	// A route server is transparent and leaves the communities to its clients.
-	assert.NotNil(t, filterpath(rs, noAdvertise, nil))
+	assert.NotNil(t, filterpath(rs, noAdvertise))
 
 	// RFC 1997 defines the communities for received routes: a locally
 	// originated path tagged NO_EXPORT is still sent to an eBGP peer.
 	localNoExport := newPathFrom(&table.PeerInfo{}, uint32(bgp.COMMUNITY_NO_EXPORT))
-	assert.NotNil(t, filterpath(ebgp, localNoExport, nil))
+	assert.NotNil(t, filterpath(ebgp, localNoExport))
 
 	// The server may advertise to a peer that reached ESTABLISHED before its
 	// peerInfo was stored; such a peer is not a confederation member.
 	fresh := newPeerandInfo(t, as, eAs, "192.168.0.6", rib)
 	fresh.peerInfo.Store(nil)
-	assert.Nil(t, filterpath(fresh, noExport, nil))
-	assert.NotNil(t, filterpath(fresh, plain, nil))
+	assert.Nil(t, filterpath(fresh, noExport))
+	assert.NotNil(t, filterpath(fresh, plain))
 
 	// When the new best path cannot be advertised, the path advertised before
 	// is withdrawn explicitly.
-	p := filterpath(ebgp, noExport, plain)
+	s := NewBgpServer()
+	require.NotNil(t, sendForTest(s, ebgp, plain))
+	p := sendForTest(s, ebgp, noExport)
 	require.NotNil(t, p)
 	assert.True(t, p.IsWithdraw)
 }
@@ -2092,6 +2111,7 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 	err = p2.policy.AddPolicyAssignment(p2.TableID(), table.POLICY_DIRECTION_EXPORT, policies, table.ROUTE_TYPE_ACCEPT)
 	assert.NoError(t, err)
 
+	srv := NewBgpServer()
 	for _, addCommunity := range []bool{false, true, false, true} {
 		nlri, _ := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.10.10.0/24"))
 		pa1 := []bgp.PathAttributeInterface{bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, []uint32{1})}), bgp.NewPathAttributeLocalPref(200)}
@@ -2099,10 +2119,9 @@ func TestFilterpathWithRejectPolicy(t *testing.T) {
 			pa1 = append(pa1, bgp.NewPathAttributeCommunities([]uint32{100<<16 | 100}))
 		}
 		path1 := table.NewPath(bgp.RF_IPv4_UC, p1.peerInfo.Load(), bgp.PathNLRI{NLRI: nlri}, false, pa1, time.Now(), false)
-		new, old := process(rib2, []*table.Path{path1})
+		new, _ := process(rib2, []*table.Path{path1})
 		assert.Equal(t, new, path1)
-		s := NewBgpServer()
-		path2 := s.filterpath(p2, new, old)
+		path2 := sendForTest(srv, p2, new)
 		if addCommunity {
 			assert.True(t, path2.IsWithdraw)
 		} else {
@@ -5778,7 +5797,7 @@ func TestRegularPeerImportAndExportPolicy(t *testing.T) {
 		lp, err := best[0].GetLocalPref()
 		assert.NoError(t, err)
 		assert.Equal(t, uint32(150), lp, "import policy transforms the route before RIB insertion")
-		out := s.filterpath(target, best[0], nil)
+		out := s.filterpath(target, best[0])
 		if !assert.NotNil(t, out, "destination export overrides global") {
 			return nil
 		}
@@ -5787,7 +5806,7 @@ func TestRegularPeerImportAndExportPolicy(t *testing.T) {
 		assert.Equal(t, uint32(200), med, "export policy transforms the advertised route")
 		assert.NoError(t, s.policy.DeletePolicyAssignment(targetAddr, table.POLICY_DIRECTION_EXPORT, nil, true))
 		target.updatePolicyIDs()
-		out = s.filterpath(target, best[0], best[0])
+		out = s.filterpath(target, best[0])
 		assert.Nil(t, out, "destination now uses rejecting global export")
 		assert.NoError(t, s.policy.DeletePolicyAssignment(sourceAddr, table.POLICY_DIRECTION_IMPORT, nil, true))
 		source.updatePolicyIDs()
