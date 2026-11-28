@@ -960,6 +960,9 @@ func (s *BgpServer) notifyBestWatcher(best []*table.Path, multipath [][]*table.P
 		// Note: If best path selection disabled, no best path to notify.
 		return
 	}
+	if !s.isWatched(watchEventTypeBestPath) {
+		return
+	}
 	m := make(map[uint32]bool)
 	clonedM := make([][]*table.Path, len(multipath))
 	for i, pathList := range multipath {
@@ -1271,10 +1274,14 @@ func (s *BgpServer) getBestFromLocalCallback(peer *peer, rfList []bgp.Family, ad
 		defer peer.routeRefreshInProgress.RUnlock()
 	}
 
-	s.getBestFromLocalCallbackLocked(peer, rfList, addEOR, fn)
+	s.getBestFromLocalCallbackLocked(peer, rfList, addEOR, false, fn)
 }
 
-func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Family, addEOR bool, fn func([]*table.Path, []*table.Path)) {
+// getBestFromLocalCallbackLocked calls fn with the paths to advertise and the
+// rejected ones. For a VRF neighbor, unless fullScan is set or
+// getPossibleBest returns every path, only the best paths imported by the VRF
+// are considered, so the rejected ones are incomplete.
+func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Family, addEOR, fullScan bool, fn func([]*table.Path, []*table.Path)) {
 	pathList := []*table.Path{}
 	filtered := []*table.Path{}
 	// The families of our own graceful restart that are not released yet
@@ -1302,7 +1309,13 @@ func (s *BgpServer) getBestFromLocalCallbackLocked(peer *peer, rfList []bgp.Fami
 		}
 	} else {
 		for _, family := range peer.toGlobalFamilies(rfList) {
-			for _, path := range s.getPossibleBest(peer, family) {
+			var candidates []*table.Path
+			if vrf, ok := peer.localRib.GetVrf(peer.fsm.pConf.ReadOnly().Config.Vrf); !ok || fullScan || peer.isAddPathSendEnabled(family) {
+				candidates = s.getPossibleBest(peer, family)
+			} else {
+				candidates = peer.localRib.GetBestPathListByVrf(peer.TableID(), peer.AS(), vrf, []bgp.Family{family})
+			}
+			for _, path := range candidates {
 				if p := s.filterpath(peer, path, nil); p != nil {
 					pathList = append(pathList, p)
 				} else {
@@ -1702,6 +1715,14 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 		s.notifyBestWatcher(gBestList, mpathList, multipathUpdate, multipathWithdraw)
 	}
 	family := newPath.GetFamily()
+	// A VRF neighbor gets only the VPN paths its VRF imports (see
+	// prePolicyFilterpath). Find those VRFs once instead of filtering every
+	// VRF neighbor.
+	var importers map[string]*table.Vrf
+	switch family {
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN, bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN:
+		importers = rib.GetImportingVrfs(gBestList...)
+	}
 	for _, targetPeer := range s.neighborMap {
 		if source == nil && targetPeer.isRouteServerClient() || source != nil && source.isRouteServerClient() != targetPeer.isRouteServerClient() {
 			continue
@@ -1723,6 +1744,13 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			}
 			return family
 		}()
+
+		// A neighbor with ADD-PATH send may get paths that are not the best.
+		if vrf := targetPeer.fsm.pConf.ReadOnly().Config.Vrf; vrf != "" && !targetPeer.isRouteServerClient() && !targetPeer.isAddPathSendEnabled(f) {
+			if _, ok := importers[vrf]; !ok {
+				continue
+			}
+		}
 
 		func() {
 			targetPeer.routeRefreshInProgress.RLock()
@@ -3359,7 +3387,10 @@ func (s *BgpServer) softResetOutPeer(peer *peer, family bgp.Family, deferral boo
 		}
 	}
 
-	s.getBestFromLocalCallback(peer, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
+	// Full scan: a VRF neighbor must also withdraw paths that lost its import RT.
+	peer.routeRefreshInProgress.Lock()
+	defer peer.routeRefreshInProgress.Unlock()
+	s.getBestFromLocalCallbackLocked(peer, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
 		if len(filtered) > 0 && !deferral {
 			// withdraw paths that export policy now rejects
 			withdrawals := make([]*table.Path, 0, len(filtered))
