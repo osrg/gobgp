@@ -193,14 +193,9 @@ func (adj *AdjRib) walkActive(families []bgp.Family, fn func(*destination) bool)
 			shard := &shards[i]
 			shard.mu.Lock()
 			stop := false
-			for _, dests := range shard.mp {
-				for _, d := range dests {
-					if fn(d) {
-						stop = true
-						break
-					}
-				}
-				if stop {
+			for d := range shard.all() {
+				if fn(d) {
+					stop = true
 					break
 				}
 			}
