@@ -159,13 +159,40 @@ func (d *sharedData) propagateBucket(path *table.Path) *sync.Mutex {
 	// advertisement it withdraws.
 	if n, ok := path.GetNlri().(*bgp.EVPNNLRI); ok {
 		if r, ok := n.RouteTypeData.(*bgp.EVPNMacIPAdvertisementRoute); ok {
-			return &d.propagateBuckets[farm.Hash64(r.MacAddress)%uint64(len(d.propagateBuckets))]
+			return d.bucketOf(r.MacAddress)
+		}
+	}
+	// A VPN path picks its bucket from its NLRI without the RD and the MPLS
+	// labels. A peer attached to a VRF gets the path converted by ToLocal,
+	// which drops both, and its peer.sentPaths records the path under that
+	// key. So paths of the same prefix with different RDs are different
+	// destinations here, but they share one sentPaths entry of such a peer.
+	// With one bucket for all of them, the entry is accessed under one
+	// bucket only. The bucket still depends only on the destination, so a
+	// peer without a VRF, which records the key with the RD, also gets one
+	// bucket for each of its keys.
+	switch f := path.GetFamily(); f {
+	case bgp.RF_IPv4_VPN, bgp.RF_IPv6_VPN:
+		if n, ok := path.GetNlri().(*bgp.LabeledVPNIPAddrPrefix); ok {
+			return d.bucketOf([]byte(f.String() + n.Prefix.String()))
+		}
+	case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN:
+		if n, ok := path.GetNlri().(*bgp.FlowSpecNLRI); ok {
+			var buf bytes.Buffer
+			buf.WriteString(f.String())
+			for _, v := range n.Value {
+				buf.WriteString(v.String())
+			}
+			return d.bucketOf(buf.Bytes())
 		}
 	}
 	// note: we can't use path.GetNlri().Serialize() here as peer.sentPaths is indexed by destLocalKey
 	destLocalKey := path.GetDestLocalKey()
-	idx := farm.Hash64([]byte(destLocalKey.Family.String()+destLocalKey.Prefix)) % uint64(len(d.propagateBuckets))
-	return &d.propagateBuckets[idx]
+	return d.bucketOf([]byte(destLocalKey.Family.String() + destLocalKey.Prefix))
+}
+
+func (d *sharedData) bucketOf(key []byte) *sync.Mutex {
+	return &d.propagateBuckets[farm.Hash64(key)%uint64(len(d.propagateBuckets))]
 }
 
 // BgpServer holds the BGP state. shared.mu covers every field below unless

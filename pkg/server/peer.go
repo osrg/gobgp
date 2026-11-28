@@ -106,9 +106,13 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 //
 // IDs below 64 are kept as bits of the bits field, and ids holds only IDs
 // from 64. A destination gives the smallest free local ID to a new path,
-// so ids is used only when a destination has 64 or more paths. Values of
-// this type MUST only be accessed under the propagation bucket lock for
-// the corresponding prefix.
+// so ids is used only when a destination has 64 or more paths.
+//
+// Values of this type MUST only be accessed with peer.routeRefreshInProgress
+// held for writing, or with it held for reading and the propagation bucket
+// lock of the destination held. For a peer attached to a VRF, several VPN
+// destinations that differ only in the RD share one entry, and
+// propagateBucket gives all of them the same bucket.
 type pathIDSet struct {
 	bits uint64
 	ids  []uint32
