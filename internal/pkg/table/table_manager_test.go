@@ -2925,3 +2925,40 @@ func TestHandleMacMobilityKeepsStickyLocalPath(t *testing.T) {
 		})
 	}
 }
+
+// A peer in a Member-AS of the local confederation has PeerType external,
+// but RFC 4271 Section 5.1.5 exempts a confederation from the rule that
+// LOCAL_PREF received from an external peer is ignored.
+func TestProcessMessageConfederationLocalPref(t *testing.T) {
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
+	assert.NoError(t, err)
+	nexthop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.1"))
+	assert.NoError(t, err)
+	m := bgp.NewBGPUpdateMessage(nil, []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP),
+		bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{
+			bgp.NewAs4PathParam(bgp.BGP_ASPATH_ATTR_TYPE_CONFED_SEQ, []uint32{65002}),
+		}),
+		nexthop,
+		bgp.NewPathAttributeLocalPref(50),
+	}, []bgp.PathNLRI{{NLRI: nlri}})
+
+	for _, tc := range []struct {
+		name string
+		info *PeerInfo
+		want uint32
+	}{
+		{name: "external", info: &PeerInfo{PeerType: oc.PEER_TYPE_EXTERNAL, AS: 65002}, want: DEFAULT_LOCAL_PREF},
+		{name: "confederation", info: &PeerInfo{PeerType: oc.PEER_TYPE_EXTERNAL, AS: 65002, Confederation: true}, want: 50},
+		{name: "internal", info: &PeerInfo{PeerType: oc.PEER_TYPE_INTERNAL, AS: 65001}, want: 50},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			paths := ProcessMessage(m, tc.info, time.Now(), false)
+			if assert.Len(t, paths, 1) {
+				lp, err := paths[0].GetLocalPref()
+				assert.NoError(t, err)
+				assert.Equal(t, tc.want, lp)
+			}
+		})
+	}
+}
