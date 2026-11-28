@@ -3153,6 +3153,85 @@ func TestHandleFSMMessage_LocalRestartPeerDown(t *testing.T) {
 	assert.False(t, localRestarting(a))
 }
 
+// queuedPaths returns the paths queued for the peer, without the End-of-RIB
+// markers, and drains the queue.
+func queuedPaths(p *peer) []*table.Path {
+	var paths []*table.Path
+	for {
+		select {
+		case o := <-p.fsm.outgoingCh.Out():
+			for _, path := range o.(*fsmOutgoingMsg).Paths {
+				if path != nil && !path.IsEOR() {
+					paths = append(paths, path)
+				}
+			}
+		case <-time.After(50 * time.Millisecond):
+			return paths
+		}
+	}
+}
+
+func sentPathsLen(p *peer) int {
+	n := 0
+	p.sentPaths.Range(func(_, _ any) bool {
+		n++
+		return true
+	})
+	return n
+}
+
+// The release of a family runs on the goroutine of the peer whose event
+// released it. Another peer can go down at the same time. When its PeerDown
+// has stored the down state and reset the advertised routes, nothing is
+// sent to it and nothing is recorded as sent, so its next session starts
+// with nothing recorded.
+func TestHandleFSMMessage_LocalRestartReleasedAfterPeerDown(t *testing.T) {
+	s := localRestartServer(t)
+	a := localRestartPeer(t, s, "10.0.0.1", 360)
+	b := localRestartPeer(t, s, "10.0.0.2", 360)
+	c := localRestartPeer(t, s, "10.0.0.3", 360)
+	grEstablish(t, s, a, grOpen(t, grBoth(120)))
+	// b and c have no Graceful Restart Capability, so they are not waited
+	// for, and they get the routes when a releases the family.
+	grEstablish(t, s, b, grOpen(t))
+	grEstablish(t, s, c, grOpen(t))
+
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/24"))
+	require.NoError(t, err)
+	nh, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.0.2.254"))
+	require.NoError(t, err)
+	attrs := []bgp.PathAttributeInterface{
+		bgp.NewPathAttributeOrigin(0),
+		bgp.NewPathAttributeAsPath(nil),
+		nh,
+	}
+	path := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, attrs, time.Now(), false)
+	require.NoError(t, s.mgmtOperation(func() error {
+		s.propagateUpdate(nil, []*table.Path{path})
+		return nil
+	}, true))
+	require.True(t, s.deferred(bgp.RF_IPv4_UC))
+	require.Empty(t, queuedPaths(b))
+	require.Empty(t, queuedPaths(c))
+
+	// The PeerDown of b has stored the down state and reset the advertised
+	// routes, but has not run its other steps yet.
+	b.fsm.state.Store(bgp.BGP_FSM_IDLE)
+	s.resetAdvertisedRoutes(b)
+
+	grEOR(s, a, bgp.RF_IPv4_UC)
+	require.False(t, s.deferred(bgp.RF_IPv4_UC))
+
+	got := queuedPaths(c)
+	require.Len(t, got, 1)
+	assert.Equal(t, "192.0.2.0/24", got[0].GetNlri().String())
+	assert.Equal(t, 1, sentPathsLen(c))
+
+	assert.Empty(t, queuedPaths(b))
+	assert.Equal(t, 0, sentPathsLen(b))
+	assert.Equal(t, 0, b.advertisedRoutes([]bgp.Family{bgp.RF_IPv4_UC}))
+}
+
 // The server decides from the reason of the session end and the negotiated
 // state whether the session ends as a graceful restart. The peer event
 // reports a graceful restart to the API, and BMP gets the real reason.

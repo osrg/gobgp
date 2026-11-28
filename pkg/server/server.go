@@ -2110,29 +2110,46 @@ func (s *BgpServer) restartReleased(released []bgp.Family) {
 		slog.String("Topic", "Server"),
 		slog.Any("Families", released))
 	for _, p := range s.neighborMap {
-		// PeerUp publishes Established before building its initial update.
-		// A peer still being prepared catches up in that update.
-		if p.State() != bgp.BGP_FSM_ESTABLISHED {
-			continue
-		}
-		families := make([]bgp.Family, 0, len(released))
-		for _, f := range p.negotiatedRFList() {
-			// The families other than route target are sent when the
-			// route target End-of-RIB marker of the peer is received.
-			if slices.Contains(released, f) && (f == bgp.RF_RTC_UC || !p.getRtcEORWait()) {
-				families = append(families, f)
-			}
-		}
-		if len(families) == 0 {
-			continue
-		}
-		s.getBestFromLocalCallback(p, families, true, true, func(paths []*table.Path, filtered []*table.Path) {
-			if len(paths) > 0 {
-				p.updateRoutes(paths...)
-				sendfsmOutgoingMsg(p, paths)
-			}
-		})
+		s.restartReleasedPeer(p, released)
 	}
+}
+
+// restartReleasedPeer advertises the released families to peer p.
+//
+// It runs on the goroutine of another peer, under s.shared.mu.RLock, so the
+// session of p can end, and a new one can start, at the same time. The
+// state and the families of p are read, and the routes are sent, under
+// p.routeRefreshInProgress. PeerDown stores the down state before it resets
+// the advertised routes under the same lock, so nothing is recorded as sent
+// after the reset. The families of a new session are set before the session
+// is established, so the families read here belong to the established
+// session.
+func (s *BgpServer) restartReleasedPeer(p *peer, released []bgp.Family) {
+	p.routeRefreshInProgress.Lock()
+	defer p.routeRefreshInProgress.Unlock()
+
+	// PeerUp publishes Established before building its initial update.
+	// A peer still being prepared catches up in that update.
+	if !needToAdvertise(p) {
+		return
+	}
+	families := make([]bgp.Family, 0, len(released))
+	for _, f := range p.negotiatedRFList() {
+		// The families other than route target are sent when the
+		// route target End-of-RIB marker of the peer is received.
+		if slices.Contains(released, f) && (f == bgp.RF_RTC_UC || !p.getRtcEORWait()) {
+			families = append(families, f)
+		}
+	}
+	if len(families) == 0 {
+		return
+	}
+	s.getBestFromLocalCallbackLocked(p, families, true, func(paths []*table.Path, filtered []*table.Path) {
+		if len(paths) > 0 {
+			p.updateRoutes(paths...)
+			sendfsmOutgoingMsg(p, paths)
+		}
+	})
 }
 
 // gracefulSessionEnd reports whether the end of an established session
