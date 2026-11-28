@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/bits"
 	"net"
 	"net/netip"
 	"slices"
@@ -94,10 +95,78 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 	return newPeer(g, &conf, bgp.BGP_FSM_ACTIVE, loc, policy, nil, logger)
 }
 
-// pathIDSet is the set of add-path local identifiers advertised for a destination.
-// Values of this type are stored in peer.sentPaths and MUST only be accessed
-// under the propagation bucket lock for the corresponding prefix.
-type pathIDSet map[uint32]struct{}
+// pathIDSet is the set of path identifiers advertised for a destination
+// to a peer with ADD-PATH. A destination in the RIB never gives local ID
+// 0 to a path, so a peer with ADD-PATH does not get ID 0.
+//
+// peer.sentPaths stores a *pathIDSet for each destination sent to the
+// peer. A peer without ADD-PATH sends only ID 0, so the value is nil. For
+// a peer with ADD-PATH, a pathIDSet is allocated when the first ID is
+// sent.
+//
+// IDs below 64 are kept as bits of the bits field, and ids holds only IDs
+// from 64. A destination gives the smallest free local ID to a new path,
+// so ids is used only when a destination has 64 or more paths. Values of
+// this type MUST only be accessed under the propagation bucket lock for
+// the corresponding prefix.
+type pathIDSet struct {
+	bits uint64
+	ids  []uint32
+}
+
+func newPathIDSet(ids ...uint32) *pathIDSet {
+	s := &pathIDSet{}
+	for _, id := range ids {
+		s.add(id)
+	}
+	return s
+}
+
+func (s *pathIDSet) len() int {
+	if s == nil {
+		return 1
+	}
+	return bits.OnesCount64(s.bits) + len(s.ids)
+}
+
+func (s *pathIDSet) has(id uint32) bool {
+	if s == nil {
+		return id == 0
+	}
+	if id < 64 {
+		return s.bits&(1<<id) != 0
+	}
+	return slices.Contains(s.ids, id)
+}
+
+// add adds id to a non-nil set. It returns false if id is already in it.
+func (s *pathIDSet) add(id uint32) bool {
+	if s.has(id) {
+		return false
+	}
+	if id < 64 {
+		s.bits |= 1 << id
+	} else {
+		s.ids = append(s.ids, id)
+	}
+	return true
+}
+
+// remove removes id from a non-nil set. It returns false if id is not in it.
+func (s *pathIDSet) remove(id uint32) bool {
+	if !s.has(id) {
+		return false
+	}
+	if id < 64 {
+		s.bits &^= 1 << id
+		return true
+	}
+	i := slices.Index(s.ids, id)
+	last := len(s.ids) - 1
+	s.ids[i] = s.ids[last]
+	s.ids = s.ids[:last]
+	return true
+}
 
 type peer struct {
 	tableId string
@@ -118,11 +187,12 @@ type peer struct {
 	localRib          *table.TableManager
 	peerInfo          atomic.Pointer[table.PeerInfo]
 	prefixLimitWarned map[bgp.Family]bool // protected by fsm.lock
-	// map[table.PathDestLocalKey]pathIDSet, with inner pathIDSets protected
+	// map[table.PathDestLocalKey]*pathIDSet, with inner pathIDSets protected
 	// by the matching server propagation bucket for the route prefix.
 	// All methods that read or mutate a pathIDSet value (updateRoutes,
-	// getRoutesCount, hasPathAlreadyBeenSent) MUST be called under the
-	// bucket lock for that prefix (sharedData.propagateBucket).
+	// addSentPathID, deleteSentPathID, getRoutesCount,
+	// hasPathAlreadyBeenSent) MUST be called under the bucket lock for that
+	// prefix (sharedData.propagateBucket).
 	sentPaths sync.Map
 	// map[bgp.Family]*atomic.Int64, number of paths in sentPaths per family.
 	// Keyed by the local family (RF_IPv4_UC for a VRF peer), as updateRoutes
@@ -293,7 +363,7 @@ func (peer *peer) getAddPathSendMax(family bgp.Family) uint8 {
 func (peer *peer) getRoutesCount(family bgp.Family, dstPrefix string) uint8 {
 	destLocalKey := table.NewPathDestLocalKey(family, dstPrefix)
 	if identifiers, ok := peer.sentPaths.Load(*destLocalKey); ok {
-		count := len(identifiers.(pathIDSet))
+		count := identifiers.(*pathIDSet).len()
 		// the send-max config is uint8, so we need to check for overflow
 		if count > int(^uint8(0)) {
 			return ^uint8(0)
@@ -341,34 +411,75 @@ func (peer *peer) updateRoutes(paths ...*table.Path) {
 		}
 		destLocalKey := path.GetDestLocalKey()
 		pathID := peer.advertisedPathID(path)
-
-		identifiersValue, destExists := peer.sentPaths.Load(destLocalKey)
-		if path.IsWithdraw && destExists {
-			identifiers := identifiersValue.(pathIDSet)
-			if _, ok := identifiers[pathID]; ok {
-				delete(identifiers, pathID)
+		if path.IsWithdraw {
+			if peer.deleteSentPathID(destLocalKey, pathID) {
 				peer.advertisedCounter(path.GetFamily()).Add(-1)
 			}
-			if len(identifiers) == 0 {
-				peer.sentPaths.Delete(destLocalKey)
-			}
-		} else if !path.IsWithdraw {
-			var identifiers pathIDSet
-			if destExists {
-				identifiers = identifiersValue.(pathIDSet)
-			} else {
-				identifiers = make(pathIDSet)
-			}
-			if _, ok := identifiers[pathID]; !ok {
-				identifiers[pathID] = struct{}{}
-				peer.advertisedCounter(path.GetFamily()).Add(1)
-			}
-			if !destExists {
-				// store only the first insert, mutations are inplace
-				peer.sentPaths.Store(destLocalKey, identifiers)
-			}
+		} else if peer.addSentPathID(destLocalKey, pathID) {
+			peer.advertisedCounter(path.GetFamily()).Add(1)
 		}
 	}
+}
+
+// addSentPathID adds id to the set of IDs sent for key. It returns false if
+// id is already in the set.
+func (peer *peer) addSentPathID(key table.PathDestLocalKey, id uint32) bool {
+	v, ok := peer.sentPaths.Load(key)
+	if !ok {
+		var s *pathIDSet
+		if id != 0 {
+			s = newPathIDSet(id)
+		}
+		peer.sentPaths.Store(key, s)
+		return true
+	}
+	s := v.(*pathIDSet)
+	if s == nil {
+		if id == 0 {
+			return false
+		}
+		peer.logStaleSentPath(key, id)
+		peer.sentPaths.Store(key, newPathIDSet(0, id))
+		return true
+	}
+	return s.add(id)
+}
+
+// deleteSentPathID removes id from the set of IDs sent for key, and deletes
+// key when the set is empty. It returns false if id is not in the set.
+func (peer *peer) deleteSentPathID(key table.PathDestLocalKey, id uint32) bool {
+	v, ok := peer.sentPaths.Load(key)
+	if !ok {
+		return false
+	}
+	s := v.(*pathIDSet)
+	if s == nil {
+		if id != 0 {
+			peer.logStaleSentPath(key, id)
+			return false
+		}
+		peer.sentPaths.Delete(key)
+		return true
+	}
+	if !s.remove(id) {
+		return false
+	}
+	if s.len() == 0 {
+		peer.sentPaths.Delete(key)
+	}
+	return true
+}
+
+// logStaleSentPath logs a non-zero ID for a key with a nil value. A nil
+// value is stored only without ADD-PATH, and a non-zero ID comes only with
+// ADD-PATH. The ADD-PATH mode changes only with a new session, and the
+// previous session must have cleared sentPaths. So the key was left from a
+// previous session, and what is recorded as sent to the peer is wrong.
+func (peer *peer) logStaleSentPath(key table.PathDestLocalKey, id uint32) {
+	peer.fsm.logger.Error("sent routes of a previous session were not cleared",
+		slog.String("Family", key.Family.String()),
+		slog.String("Prefix", key.Prefix),
+		slog.Uint64("PathID", uint64(id)))
 }
 
 func (peer *peer) isPathSendMaxFiltered(path *table.Path) bool {
@@ -406,8 +517,7 @@ func (peer *peer) hasPathAlreadyBeenSent(path *table.Path) bool {
 	if !dstExist {
 		return false
 	}
-	_, pathExist := identifiers.(pathIDSet)[peer.advertisedPathID(path)]
-	return pathExist
+	return identifiers.(*pathIDSet).has(peer.advertisedPathID(path))
 }
 
 func (peer *peer) resetAdvertisedRoutes() {
