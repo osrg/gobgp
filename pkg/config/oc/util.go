@@ -647,6 +647,7 @@ func NewPeerFromConfigStruct(pconf *Neighbor) *api.Peer {
 				HoldTime:               uint64(timer.Config.HoldTime),
 				KeepaliveInterval:      uint64(timer.Config.KeepaliveInterval),
 				IdleHoldTimeAfterReset: uint64(timer.Config.IdleHoldTimeAfterReset),
+				ConnectAtOnce:          timer.Config.ConnectAtOnce,
 			},
 			State: &api.TimersState{
 				KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),
@@ -825,6 +826,7 @@ func NewPeerGroupFromConfigStruct(pconf *PeerGroup) *api.PeerGroup {
 				HoldTime:               uint64(timer.Config.HoldTime),
 				KeepaliveInterval:      uint64(timer.Config.KeepaliveInterval),
 				IdleHoldTimeAfterReset: uint64(timer.Config.IdleHoldTimeAfterReset),
+				ConnectAtOnce:          timer.Config.ConnectAtOnce,
 			},
 			State: &api.TimersState{
 				KeepaliveInterval:  uint64(timer.State.KeepaliveInterval),

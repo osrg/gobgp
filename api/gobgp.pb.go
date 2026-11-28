@@ -8532,8 +8532,11 @@ type TimersConfig struct {
 	KeepaliveInterval            uint64                 `protobuf:"varint,3,opt,name=keepalive_interval,json=keepaliveInterval,proto3" json:"keepalive_interval,omitempty"`
 	MinimumAdvertisementInterval uint64                 `protobuf:"varint,4,opt,name=minimum_advertisement_interval,json=minimumAdvertisementInterval,proto3" json:"minimum_advertisement_interval,omitempty"`
 	IdleHoldTimeAfterReset       uint64                 `protobuf:"varint,5,opt,name=idle_hold_time_after_reset,json=idleHoldTimeAfterReset,proto3" json:"idle_hold_time_after_reset,omitempty"`
-	unknownFields                protoimpl.UnknownFields
-	sizeCache                    protoimpl.SizeCache
+	// connect_at_once starts the first connect to the peer at once when the
+	// peer leaves Idle, instead of after the jittered connect delay.
+	ConnectAtOnce bool `protobuf:"varint,6,opt,name=connect_at_once,json=connectAtOnce,proto3" json:"connect_at_once,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TimersConfig) Reset() {
@@ -8599,6 +8602,13 @@ func (x *TimersConfig) GetIdleHoldTimeAfterReset() uint64 {
 		return x.IdleHoldTimeAfterReset
 	}
 	return 0
+}
+
+func (x *TimersConfig) GetConnectAtOnce() bool {
+	if x != nil {
+		return x.ConnectAtOnce
+	}
+	return false
 }
 
 type TimersState struct {
@@ -14531,13 +14541,14 @@ const file_api_gobgp_proto_rawDesc = "" +
 	"\x06output\x18\x02 \x01(\rR\x06output\"[\n" +
 	"\x06Timers\x12)\n" +
 	"\x06config\x18\x01 \x01(\v2\x11.api.TimersConfigR\x06config\x12&\n" +
-	"\x05state\x18\x02 \x01(\v2\x10.api.TimersStateR\x05state\"\x81\x02\n" +
+	"\x05state\x18\x02 \x01(\v2\x10.api.TimersStateR\x05state\"\xa9\x02\n" +
 	"\fTimersConfig\x12#\n" +
 	"\rconnect_retry\x18\x01 \x01(\x04R\fconnectRetry\x12\x1b\n" +
 	"\thold_time\x18\x02 \x01(\x04R\bholdTime\x12-\n" +
 	"\x12keepalive_interval\x18\x03 \x01(\x04R\x11keepaliveInterval\x12D\n" +
 	"\x1eminimum_advertisement_interval\x18\x04 \x01(\x04R\x1cminimumAdvertisementInterval\x12:\n" +
-	"\x1aidle_hold_time_after_reset\x18\x05 \x01(\x04R\x16idleHoldTimeAfterReset\"\xe2\x02\n" +
+	"\x1aidle_hold_time_after_reset\x18\x05 \x01(\x04R\x16idleHoldTimeAfterReset\x12&\n" +
+	"\x0fconnect_at_once\x18\x06 \x01(\bR\rconnectAtOnce\"\xe2\x02\n" +
 	"\vTimersState\x12#\n" +
 	"\rconnect_retry\x18\x01 \x01(\x04R\fconnectRetry\x12\x1b\n" +
 	"\thold_time\x18\x02 \x01(\x04R\bholdTime\x12-\n" +
