@@ -996,6 +996,7 @@ message RouteSelectionOptionsConfig {
   bool enable_aigp = 5;
   bool ignore_next_hop_igp_metric = 6;
   bool disable_best_path_selection = 7;
+  bool multipath_same_neighbor_as = 8;
 }
 
 message RouteSelectionOptionsState {
