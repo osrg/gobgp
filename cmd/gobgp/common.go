@@ -46,6 +46,7 @@ const (
 	cmdAdd            = "add"
 	cmdDel            = "del"
 	cmdAll            = "all"
+	cmdUUID           = "uuid"
 	cmdSet            = "set"
 	cmdLocal          = "local"
 	cmdAdjIn          = "adj-in"

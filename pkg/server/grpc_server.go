@@ -236,6 +236,9 @@ func toPathAPI(binNlri []byte, binPattrs [][]byte, anyNlri *api.NLRI, anyPattrs 
 	if path.PeerID.IsValid() {
 		p.SourceId = path.PeerID.String()
 	}
+	if path.UUID != uuid.Nil {
+		p.Uuid = append([]byte(nil), path.UUID[:]...)
+	}
 	if path.PeerAddress.IsValid() {
 		p.NeighborIp = path.PeerAddress.String()
 	}
