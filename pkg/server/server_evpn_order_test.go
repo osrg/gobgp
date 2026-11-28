@@ -268,3 +268,90 @@ func TestPropagateBucketEVPNMacIP(t *testing.T) {
 	idx = farm.Hash64([]byte(key.Family.String()+key.Prefix)) % uint64(len(d.propagateBuckets))
 	require.Same(t, &d.propagateBuckets[idx], d.propagateBucket(p))
 }
+
+// A peer attached to a VRF records a VPN path without its RD, so the VPN
+// destinations that differ only in the RD share one sentPaths entry of that
+// peer. They must share one propagation bucket.
+func TestPropagateBucketVPNIgnoresRD(t *testing.T) {
+	d := newSharedData()
+
+	vpnPath := func(f bgp.Family, prefix string, rdAdmin uint16, label uint32, isWithdraw bool) *table.Path {
+		nlri, err := bgp.NewLabeledVPNIPAddrPrefix(netip.MustParsePrefix(prefix), *bgp.NewMPLSLabelStack(label), bgp.NewRouteDistinguisherTwoOctetAS(rdAdmin, 1))
+		require.NoError(t, err)
+		return table.NewPath(f, nil, bgp.PathNLRI{NLRI: nlri}, isWithdraw, []bgp.PathAttributeInterface{}, time.Now(), false)
+	}
+	flowSpecPath := func(f bgp.Family, prefix string, rdAdmin uint16, isWithdraw bool) *table.Path {
+		dst, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix(prefix))
+		require.NoError(t, err)
+		var comp bgp.FlowSpecComponentInterface = bgp.NewFlowSpecDestinationPrefix(dst)
+		if f == bgp.RF_FS_IPv6_VPN {
+			comp = bgp.NewFlowSpecDestinationPrefix6(dst, 0)
+		}
+		nlri, err := bgp.NewFlowSpecVPN(f, bgp.NewRouteDistinguisherTwoOctetAS(rdAdmin, 1), []bgp.FlowSpecComponentInterface{comp})
+		require.NoError(t, err)
+		return table.NewPath(f, nil, bgp.PathNLRI{NLRI: nlri}, isWithdraw, []bgp.PathAttributeInterface{}, time.Now(), false)
+	}
+
+	tests := []struct {
+		name   string
+		family bgp.Family
+		prefix string
+		other  func(i int) string
+	}{
+		{
+			name: "ipv4 vpn", family: bgp.RF_IPv4_VPN, prefix: "192.0.2.0/24",
+			other: func(i int) string { return netip.AddrFrom4([4]byte{10, 0, byte(i), 0}).String() + "/24" },
+		},
+		{
+			name: "ipv6 vpn", family: bgp.RF_IPv6_VPN, prefix: "2001:db8::/64",
+			other: func(i int) string {
+				return netip.AddrFrom16([16]byte{0x20, 0x01, 0x0d, 0xb8, 0, byte(i)}).String() + "/64"
+			},
+		},
+		{
+			name: "ipv4 flowspec vpn", family: bgp.RF_FS_IPv4_VPN, prefix: "192.0.2.0/24",
+			other: func(i int) string { return netip.AddrFrom4([4]byte{10, 0, byte(i), 0}).String() + "/24" },
+		},
+		{
+			name: "ipv6 flowspec vpn", family: bgp.RF_FS_IPv6_VPN, prefix: "2001:db8::/64",
+			other: func(i int) string {
+				return netip.AddrFrom16([16]byte{0x20, 0x01, 0x0d, 0xb8, 0, byte(i)}).String() + "/64"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := func(prefix string, rdAdmin uint16, label uint32, isWithdraw bool) *table.Path {
+				switch tt.family {
+				case bgp.RF_FS_IPv4_VPN, bgp.RF_FS_IPv6_VPN:
+					return flowSpecPath(tt.family, prefix, rdAdmin, isWithdraw)
+				}
+				return vpnPath(tt.family, prefix, rdAdmin, label, isWithdraw)
+			}
+
+			// Every RD and label of the prefix, and the withdrawals, share
+			// the bucket.
+			want := d.propagateBucket(path(tt.prefix, 1, 100, false))
+			for rd := uint16(1); rd <= 64; rd++ {
+				require.Same(t, want, d.propagateBucket(path(tt.prefix, rd, uint32(rd), false)), "rd %d", rd)
+				require.Same(t, want, d.propagateBucket(path(tt.prefix, rd, uint32(rd), true)), "withdraw rd %d", rd)
+			}
+
+			// Other prefixes spread over the buckets.
+			seen := map[*sync.Mutex]struct{}{}
+			for i := range 256 {
+				seen[d.propagateBucket(path(tt.other(i), 1, 100, false))] = struct{}{}
+			}
+			require.Greater(t, len(seen), 1)
+		})
+	}
+
+	// A family that is not converted for a VRF keeps the bucket of its
+	// destination.
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("192.0.2.0/24"))
+	require.NoError(t, err)
+	v4 := table.NewPath(bgp.RF_IPv4_UC, nil, bgp.PathNLRI{NLRI: nlri}, false, []bgp.PathAttributeInterface{}, time.Now(), false)
+	key := v4.GetDestLocalKey()
+	idx := farm.Hash64([]byte(key.Family.String()+key.Prefix)) % uint64(len(d.propagateBuckets))
+	require.Same(t, &d.propagateBuckets[idx], d.propagateBucket(v4))
+}
